@@ -1,0 +1,12 @@
+{
+  "name": "policyvault-server",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "PolicyVault backend API — vault registry, chain status, request lifecycle, audit events. Not the security boundary.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/"
+  }
+}

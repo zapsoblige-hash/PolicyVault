@@ -1,0 +1,16 @@
+node_modules/
+data/
+data-mainnet/
+.env
+.env.*
+*.log
+*.tmp
+coverage/
+tmp/
+temp/
+keys/
+wallets/
+secrets/
+tests/vm/target/
+tests/vm/Cargo.lock
+.DS_Store

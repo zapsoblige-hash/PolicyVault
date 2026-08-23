@@ -1,0 +1,48 @@
+[package]
+name = "policyvault-vm-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Real-VM covenant tests for PolicyVault.
+#
+# silverscript-lang is consumed by path from the sibling reference
+# repository (read-only). The kaspa crates use the exact same git tag as
+# silverscript-lang's own dependencies so cargo unifies the types.
+
+[dependencies]
+silverscript-lang = { path = "../../../silverscript/silverscript-lang" }
+kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", tag = "v2.0.1" }
+kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", tag = "v2.0.1" }
+kaspa-txscript-errors = { git = "https://github.com/kaspanet/rusty-kaspa", tag = "v2.0.1" }
+blake2b_simd = "1.0.2"
+sha2 = "0.10"
+secp256k1 = { version = "0.29.0", features = ["global-context", "rand-std", "serde"] }
+serde_json = "1.0"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "pv_call_encoder"
+path = "src/bin/pv_call_encoder.rs"
+
+[[bin]]
+name = "pv_mass_probe"
+path = "src/bin/pv_mass_probe.rs"
+
+[[bin]]
+name = "pv_compile_probe"
+path = "src/bin/pv_compile_probe.rs"
+
+[[bin]]
+name = "pv_replay_probe"
+path = "src/bin/pv_replay_probe.rs"
+
+[[bin]]
+name = "pv_tx_probe"
+path = "src/bin/pv_tx_probe.rs"
+
+[[bin]]
+name = "pv_vm_preflight"
+path = "src/bin/pv_vm_preflight.rs"

@@ -1,0 +1,17 @@
+{
+  "name": "policyvault-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "PolicyVault SDK — exact live-state compilation, manifests, builders, submission, reconciliation for the PolicyVault Kaspa covenant.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/"
+  },
+  "dependencies": {
+    "websocket": "^1.0.35"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

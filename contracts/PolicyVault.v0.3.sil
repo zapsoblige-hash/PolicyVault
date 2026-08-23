@@ -1,0 +1,580 @@
+pragma silverscript ^0.1.0;
+
+/*
+ * PolicyVault v0.3
+ *
+ * Extends v0.2 with (a) a scalable SHA-256 Merkle recipient allowlist
+ * (recipientRoot in mutable state; up to 65,536 recipients, proof depth
+ * <= 16) and (b) covenant-enforced M-of-N approval thresholds over up to
+ * 10 fixed distinct approver slots.
+ *
+ * Immutable template: owner, vaultId. Everything else is mutable
+ * owner-guarded state; every transition constrains EVERY state field
+ * explicitly (Phase 3.5 transition table). No owner/governance path
+ * resets period accounting; principal moves only through spend/top-up/
+ * terminal recovery.
+ *
+ * Phase 3.5 funds-critical rules (VM-proven):
+ *  - A7 sighash gate: every approval is a byte[] required to be exactly
+ *    65 bytes ending in 0x01 (SIG_HASH_ALL) before checkSig, so an
+ *    approval binds the exact transaction (a SIG_HASH_NONE approval
+ *    cannot authorize an unseen payment).
+ *  - A2 distinctness: ownerSetApprovers rejects any duplicate active
+ *    approver key (all 45 pairs checked); sentinel slots (all-zero
+ *    pubkey) never count and never collide.
+ *
+ * Security boundary: Kaspa consensus. A holder of the real delegate key
+ * bypassing the app and submitting directly to a node must still be
+ * bounded by every rule below.
+ */
+contract PolicyVault(
+    pubkey owner,
+    byte[32] vaultId,
+    pubkey initDelegate,
+    int initMaxPerSpend,
+    int initPeriodBudget,
+    int initPeriodLengthDaa,
+    byte[32] initRecipientRoot,
+    pubkey initApprover1,
+    pubkey initApprover2,
+    pubkey initApprover3,
+    pubkey initApprover4,
+    pubkey initApprover5,
+    pubkey initApprover6,
+    pubkey initApprover7,
+    pubkey initApprover8,
+    pubkey initApprover9,
+    pubkey initApprover10,
+    int initApprovalM,
+    int initApprovalThresholdAmount,
+    int initValue,
+    int initPeriodStartDaa
+) {
+    byte[32] boundVaultId = vaultId;
+    int protectedValue = initValue;
+    int periodStartDaa = initPeriodStartDaa;
+    int periodSpent = 0;
+    int paused = 0;
+    pubkey delegate = initDelegate;
+    int delegateActive = 1;
+    int maxPerSpend = initMaxPerSpend;
+    int periodBudget = initPeriodBudget;
+    int periodLengthDaa = initPeriodLengthDaa;
+    byte[32] recipientRoot = initRecipientRoot;
+    pubkey approver1 = initApprover1;
+    pubkey approver2 = initApprover2;
+    pubkey approver3 = initApprover3;
+    pubkey approver4 = initApprover4;
+    pubkey approver5 = initApprover5;
+    pubkey approver6 = initApprover6;
+    pubkey approver7 = initApprover7;
+    pubkey approver8 = initApprover8;
+    pubkey approver9 = initApprover9;
+    pubkey approver10 = initApprover10;
+    int approvalM = initApprovalM;
+    int approvalThresholdAmount = initApprovalThresholdAmount;
+    int policyNonce = 0;
+
+    /* Exact single authorized successor value at the auth output. */
+    function requireExactSuccessorValue(int exactValue) {
+        int successorIndex = OpAuthOutputIdx(this.activeInputIndex, 0);
+        require(tx.outputs[successorIndex].value == exactValue);
+    }
+
+    /* Identity + principal + period accounting preserved exactly. */
+    function requireAccountingPreserved(State prevState, State newState) {
+        require(newState.boundVaultId == prevState.boundVaultId);
+        require(newState.protectedValue == prevState.protectedValue);
+        require(newState.periodStartDaa == prevState.periodStartDaa);
+        require(newState.periodSpent == prevState.periodSpent);
+        requireExactSuccessorValue(newState.protectedValue);
+    }
+
+    /* Spend-limit policy fields preserved exactly. */
+    function requireLimitsPreserved(State prevState, State newState) {
+        require(newState.maxPerSpend == prevState.maxPerSpend);
+        require(newState.periodBudget == prevState.periodBudget);
+        require(newState.periodLengthDaa == prevState.periodLengthDaa);
+    }
+
+    /* Delegate identity/status preserved exactly. */
+    function requireDelegatePreserved(State prevState, State newState) {
+        require(newState.delegate == prevState.delegate);
+        require(newState.delegateActive == prevState.delegateActive);
+    }
+
+    /* Recipient commitment preserved exactly. */
+    function requireRecipientRootPreserved(State prevState, State newState) {
+        require(newState.recipientRoot == prevState.recipientRoot);
+    }
+
+    /* Approver configuration preserved exactly. */
+    function requireApproversPreserved(State prevState, State newState) {
+        require(newState.approver1 == prevState.approver1);
+        require(newState.approver2 == prevState.approver2);
+        require(newState.approver3 == prevState.approver3);
+        require(newState.approver4 == prevState.approver4);
+        require(newState.approver5 == prevState.approver5);
+        require(newState.approver6 == prevState.approver6);
+        require(newState.approver7 == prevState.approver7);
+        require(newState.approver8 == prevState.approver8);
+        require(newState.approver9 == prevState.approver9);
+        require(newState.approver10 == prevState.approver10);
+        require(newState.approvalM == prevState.approvalM);
+        require(newState.approvalThresholdAmount == prevState.approvalThresholdAmount);
+    }
+
+    /* 1 if the slot holds a real (non-sentinel) approver key, else 0. */
+    function isActiveApprover(pubkey approver) : (int) {
+        int active = 0;
+        if (bytes(approver) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = 1;
+        }
+        return active;
+    }
+
+    /*
+     * Count the approval slot at byte `offset` in the 650-byte blob.
+     * Extracting the slot INSIDE this helper (rather than pre-splitting
+     * all 10 slots in requireApprovals) keeps the caller's stack small
+     * (limit 244). Sentinel slots never count. Active slots MUST carry a
+     * 65-byte SIG_HASH_ALL signature (trailing byte 0x01, A7 gate) or the
+     * canonical placeholder (…0x01, which fails verification and counts
+     * 0). Returns 0 or 1.
+     */
+    function countApprovalAt(pubkey approver, byte[] approvals, int offset) : (int) {
+        int result = 0;
+        if (bytes(approver) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            (byte[] beforeSlot, byte[] fromSlot) = approvals.split(offset);
+            (byte[] approval, byte[] afterSlot) = fromSlot.split(65);
+            (byte[] approvalBody, byte[] approvalHashByte) = approval.split(64);
+            require(approvalHashByte == bytes(0x01));
+            if (checkSig(sig(approval), approver)) {
+                result = 1;
+            }
+        }
+        return result;
+    }
+
+    /*
+     * Two approver slots must not hold the same active key (A2). Byte
+     * EQUALITY only — Kaspa's `<` is numeric (max 8 bytes) and aborts
+     * (NumberTooBig) on 32-byte keys, so ordering cannot be used; 45
+     * pairwise inequality checks cover all C(10,2) pairs. Sentinel
+     * (all-zero) slots are skipped so multiple inactive slots are fine.
+     */
+    function requireDistinctOrInactive(pubkey x, pubkey y) {
+        if (bytes(x) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            if (bytes(y) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+                require(bytes(x) != bytes(y));
+            }
+        }
+    }
+
+    /*
+     * Verify Merkle membership of recipientPk under `root` and bind the
+     * exact paid output. Leaf = sha256(0x50563301 || recipientPk);
+     * node = sha256(left||right); depth <= 16.
+     */
+    function requireAllowedRecipient(
+        byte[32] root,
+        pubkey recipientPk,
+        byte[] siblings,
+        int pathBits,
+        int payAmount
+    ) {
+        require(siblings.length % 32 == 0);
+        require(siblings.length <= 512);
+        int depth = siblings.length / 32;
+        require(pathBits >= 0);
+        require(pathBits < 65536);
+        byte[] node = bytes(sha256(bytes(0x50563301) + bytes(recipientPk)));
+        byte[] rest = siblings;
+        int bits = pathBits;
+        for (level, 0, depth, 16) {
+            (byte[] sib, byte[] tail) = rest.split(32);
+            rest = tail;
+            if (bits % 2 == 1) {
+                node = bytes(sha256(sib + node));
+            } else {
+                node = bytes(sha256(node + sib));
+            }
+            bits = bits / 2;
+        }
+        require(bits == 0);
+        require(node == bytes(root));
+        require(tx.outputs[0].scriptPubKey == new ScriptPubKeyP2PK(recipientPk));
+        require(tx.outputs[0].value == payAmount);
+    }
+
+    /*
+     * Count approvals across all 10 slots and require >= approvalM.
+     * Called only when payAmount exceeds approvalThresholdAmount.
+     *
+     * SECURITY (Phase 4.5): the PREDECESSOR approver set is asserted
+     * well-formed here before counting, because consensus does not
+     * validate genesis state — a manually-created genesis UTXO could
+     * otherwise bake duplicate approver keys or approvalM < 1 and let one
+     * signer satisfy M (A2) or bypass the tier entirely. ownerSetApprovers
+     * enforces the same for transitions; this covers genesis too, so an
+     * above-threshold spend ALWAYS requires M genuinely distinct
+     * approver signatures regardless of how the state was created.
+     */
+    /*
+     * Assert the PREDECESSOR approver set is well-formed before counting:
+     * approvalM >= 1 and all active approver keys distinct. Consensus does
+     * NOT validate genesis state, so a manually-baked malformed UTXO could
+     * otherwise (a) carry duplicate approver keys letting one signer count
+     * multiple times, or (b) carry approvalM < 1 so count >= M is trivially
+     * true. M > activeCount needs no explicit check: the max achievable
+     * count is the active-approver count, so count >= M then fails closed
+     * (above-threshold spends become impossible; owner recovery still
+     * works — funds never trapped). Kept lean to stay within stack limit 244.
+     */
+    function requireApproverSetWellFormed(State prevState) {
+        require(prevState.approvalM >= 1);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver2);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver3);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver4);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver5);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver6);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver7);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver8);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver1, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver3);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver4);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver5);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver6);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver7);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver8);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver2, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver3, prevState.approver4);
+        requireDistinctOrInactive(prevState.approver3, prevState.approver5);
+        requireDistinctOrInactive(prevState.approver3, prevState.approver6);
+        requireDistinctOrInactive(prevState.approver3, prevState.approver7);
+        requireDistinctOrInactive(prevState.approver3, prevState.approver8);
+        requireDistinctOrInactive(prevState.approver3, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver3, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver4, prevState.approver5);
+        requireDistinctOrInactive(prevState.approver4, prevState.approver6);
+        requireDistinctOrInactive(prevState.approver4, prevState.approver7);
+        requireDistinctOrInactive(prevState.approver4, prevState.approver8);
+        requireDistinctOrInactive(prevState.approver4, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver4, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver5, prevState.approver6);
+        requireDistinctOrInactive(prevState.approver5, prevState.approver7);
+        requireDistinctOrInactive(prevState.approver5, prevState.approver8);
+        requireDistinctOrInactive(prevState.approver5, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver5, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver6, prevState.approver7);
+        requireDistinctOrInactive(prevState.approver6, prevState.approver8);
+        requireDistinctOrInactive(prevState.approver6, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver6, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver7, prevState.approver8);
+        requireDistinctOrInactive(prevState.approver7, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver7, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver8, prevState.approver9);
+        requireDistinctOrInactive(prevState.approver8, prevState.approver10);
+        requireDistinctOrInactive(prevState.approver9, prevState.approver10);
+    }
+
+    /*
+     * Count approvals and require >= approvalM. The predecessor approver
+     * set is asserted well-formed by the caller's early
+     * requireApproverSetWellFormed block (kept OUT of this heavy counting
+     * frame for the 244 stack limit).
+     */
+    function requireApprovals(State prevState, byte[] approvals) {
+        require(approvals.length == 650);
+        int approvals_count = 0;
+        (int c1) = countApprovalAt(prevState.approver1, approvals, 0);
+        approvals_count = approvals_count + c1;
+        (int c2) = countApprovalAt(prevState.approver2, approvals, 65);
+        approvals_count = approvals_count + c2;
+        (int c3) = countApprovalAt(prevState.approver3, approvals, 130);
+        approvals_count = approvals_count + c3;
+        (int c4) = countApprovalAt(prevState.approver4, approvals, 195);
+        approvals_count = approvals_count + c4;
+        (int c5) = countApprovalAt(prevState.approver5, approvals, 260);
+        approvals_count = approvals_count + c5;
+        (int c6) = countApprovalAt(prevState.approver6, approvals, 325);
+        approvals_count = approvals_count + c6;
+        (int c7) = countApprovalAt(prevState.approver7, approvals, 390);
+        approvals_count = approvals_count + c7;
+        (int c8) = countApprovalAt(prevState.approver8, approvals, 455);
+        approvals_count = approvals_count + c8;
+        (int c9) = countApprovalAt(prevState.approver9, approvals, 520);
+        approvals_count = approvals_count + c9;
+        (int c10) = countApprovalAt(prevState.approver10, approvals, 585);
+        approvals_count = approvals_count + c10;
+        require(approvals_count >= prevState.approvalM);
+    }
+
+    /* Common delegate-spend successor invariants (no accounting reset). */
+    function requireSpendCore(State prevState, State newState, int payAmount) {
+        require(payAmount > 0);
+        require(payAmount <= prevState.maxPerSpend);
+        require(newState.protectedValue == prevState.protectedValue - payAmount);
+        require(newState.protectedValue > 0);
+        require(newState.paused == 0);
+        require(newState.boundVaultId == prevState.boundVaultId);
+        requireDelegatePreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        require(newState.policyNonce == prevState.policyNonce);
+    }
+
+    #[covenant.singleton]
+    function delegateSpend(
+        State prevState,
+        State newState,
+        int payAmount,
+        pubkey recipientPk,
+        byte[] siblings,
+        int pathBits,
+        sig delegateSig,
+        byte[] approvals
+    ) {
+        require(checkSig(delegateSig, prevState.delegate));
+        require(prevState.delegateActive == 1);
+        require(prevState.paused == 0);
+        /* Above threshold: assert the predecessor approver set is
+         * well-formed EARLY (light stack frame) — genesis is not
+         * covenant-validated, so this guarantees M distinct approvers. */
+        if (payAmount > prevState.approvalThresholdAmount) {
+            requireApproverSetWellFormed(prevState);
+        }
+        requireSpendCore(prevState, newState, payAmount);
+        require(prevState.periodSpent + payAmount <= prevState.periodBudget);
+        require(newState.periodStartDaa == prevState.periodStartDaa);
+        require(newState.periodSpent == prevState.periodSpent + payAmount);
+        requireAllowedRecipient(prevState.recipientRoot, recipientPk, siblings, pathBits, payAmount);
+        if (payAmount > prevState.approvalThresholdAmount) {
+            requireApprovals(prevState, approvals);
+        }
+        requireExactSuccessorValue(newState.protectedValue);
+    }
+
+    #[covenant.singleton]
+    function rolloverAndSpend(
+        State prevState,
+        State newState,
+        int payAmount,
+        pubkey recipientPk,
+        byte[] siblings,
+        int pathBits,
+        int periodsElapsed,
+        sig delegateSig,
+        byte[] approvals
+    ) {
+        require(checkSig(delegateSig, prevState.delegate));
+        require(prevState.delegateActive == 1);
+        require(prevState.paused == 0);
+        require(periodsElapsed >= 1);
+        require(periodsElapsed <= 1000);
+        if (payAmount > prevState.approvalThresholdAmount) {
+            requireApproverSetWellFormed(prevState);
+        }
+        int newStart = prevState.periodStartDaa + periodsElapsed * prevState.periodLengthDaa;
+        require(tx.time >= newStart);
+        requireSpendCore(prevState, newState, payAmount);
+        require(payAmount <= prevState.periodBudget);
+        require(newState.periodStartDaa == newStart);
+        require(newState.periodSpent == payAmount);
+        requireAllowedRecipient(prevState.recipientRoot, recipientPk, siblings, pathBits, payAmount);
+        if (payAmount > prevState.approvalThresholdAmount) {
+            requireApprovals(prevState, approvals);
+        }
+        requireExactSuccessorValue(newState.protectedValue);
+    }
+
+    #[covenant.singleton]
+    function ownerPause(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(prevState.paused == 0);
+        require(newState.paused == 1);
+        requireAccountingPreserved(prevState, newState);
+        requireDelegatePreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        require(newState.policyNonce == prevState.policyNonce);
+    }
+
+    #[covenant.singleton]
+    function ownerUnpause(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(prevState.paused == 1);
+        require(newState.paused == 0);
+        requireAccountingPreserved(prevState, newState);
+        requireDelegatePreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        require(newState.policyNonce == prevState.policyNonce);
+    }
+
+    #[covenant.singleton]
+    function revokeDelegate(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(prevState.delegateActive == 1);
+        require(newState.delegateActive == 0);
+        require(newState.delegate == prevState.delegate);
+        require(newState.paused == prevState.paused);
+        requireAccountingPreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        require(newState.policyNonce == prevState.policyNonce);
+    }
+
+    #[covenant.singleton]
+    function rotateDelegate(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(newState.delegateActive == 1);
+        require(newState.paused == prevState.paused);
+        requireAccountingPreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        require(newState.policyNonce == prevState.policyNonce);
+    }
+
+    #[covenant.singleton]
+    function ownerTopUp(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(newState.protectedValue > prevState.protectedValue);
+        require(newState.boundVaultId == prevState.boundVaultId);
+        require(newState.periodStartDaa == prevState.periodStartDaa);
+        require(newState.periodSpent == prevState.periodSpent);
+        require(newState.paused == prevState.paused);
+        requireDelegatePreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        require(newState.policyNonce == prevState.policyNonce);
+        requireExactSuccessorValue(newState.protectedValue);
+    }
+
+    #[covenant.singleton]
+    function migratePolicy(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(newState.maxPerSpend > 0);
+        require(newState.periodBudget > 0);
+        require(newState.periodLengthDaa > 0);
+        require(newState.policyNonce == prevState.policyNonce + 1);
+        require(newState.paused == prevState.paused);
+        requireDelegatePreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        requireAccountingPreserved(prevState, newState);
+    }
+
+    #[covenant.singleton]
+    function ownerSetRecipientRoot(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(newState.policyNonce == prevState.policyNonce + 1);
+        require(newState.paused == prevState.paused);
+        requireDelegatePreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireApproversPreserved(prevState, newState);
+        requireAccountingPreserved(prevState, newState);
+    }
+
+    #[covenant.singleton]
+    function ownerSetApprovers(State prevState, State newState, sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(newState.policyNonce == prevState.policyNonce + 1);
+        require(newState.approvalThresholdAmount >= 0);
+        /* Active-approver count and M validity. */
+        int activeCount = 0;
+        (int active1) = isActiveApprover(newState.approver1);
+        activeCount = activeCount + active1;
+        (int active2) = isActiveApprover(newState.approver2);
+        activeCount = activeCount + active2;
+        (int active3) = isActiveApprover(newState.approver3);
+        activeCount = activeCount + active3;
+        (int active4) = isActiveApprover(newState.approver4);
+        activeCount = activeCount + active4;
+        (int active5) = isActiveApprover(newState.approver5);
+        activeCount = activeCount + active5;
+        (int active6) = isActiveApprover(newState.approver6);
+        activeCount = activeCount + active6;
+        (int active7) = isActiveApprover(newState.approver7);
+        activeCount = activeCount + active7;
+        (int active8) = isActiveApprover(newState.approver8);
+        activeCount = activeCount + active8;
+        (int active9) = isActiveApprover(newState.approver9);
+        activeCount = activeCount + active9;
+        (int active10) = isActiveApprover(newState.approver10);
+        activeCount = activeCount + active10;
+        require(newState.approvalM >= 1);
+        require(newState.approvalM <= activeCount);
+        /* All 45 pairs of active approver slots must be distinct (A2). */
+        requireDistinctOrInactive(newState.approver1, newState.approver2);
+        requireDistinctOrInactive(newState.approver1, newState.approver3);
+        requireDistinctOrInactive(newState.approver1, newState.approver4);
+        requireDistinctOrInactive(newState.approver1, newState.approver5);
+        requireDistinctOrInactive(newState.approver1, newState.approver6);
+        requireDistinctOrInactive(newState.approver1, newState.approver7);
+        requireDistinctOrInactive(newState.approver1, newState.approver8);
+        requireDistinctOrInactive(newState.approver1, newState.approver9);
+        requireDistinctOrInactive(newState.approver1, newState.approver10);
+        requireDistinctOrInactive(newState.approver2, newState.approver3);
+        requireDistinctOrInactive(newState.approver2, newState.approver4);
+        requireDistinctOrInactive(newState.approver2, newState.approver5);
+        requireDistinctOrInactive(newState.approver2, newState.approver6);
+        requireDistinctOrInactive(newState.approver2, newState.approver7);
+        requireDistinctOrInactive(newState.approver2, newState.approver8);
+        requireDistinctOrInactive(newState.approver2, newState.approver9);
+        requireDistinctOrInactive(newState.approver2, newState.approver10);
+        requireDistinctOrInactive(newState.approver3, newState.approver4);
+        requireDistinctOrInactive(newState.approver3, newState.approver5);
+        requireDistinctOrInactive(newState.approver3, newState.approver6);
+        requireDistinctOrInactive(newState.approver3, newState.approver7);
+        requireDistinctOrInactive(newState.approver3, newState.approver8);
+        requireDistinctOrInactive(newState.approver3, newState.approver9);
+        requireDistinctOrInactive(newState.approver3, newState.approver10);
+        requireDistinctOrInactive(newState.approver4, newState.approver5);
+        requireDistinctOrInactive(newState.approver4, newState.approver6);
+        requireDistinctOrInactive(newState.approver4, newState.approver7);
+        requireDistinctOrInactive(newState.approver4, newState.approver8);
+        requireDistinctOrInactive(newState.approver4, newState.approver9);
+        requireDistinctOrInactive(newState.approver4, newState.approver10);
+        requireDistinctOrInactive(newState.approver5, newState.approver6);
+        requireDistinctOrInactive(newState.approver5, newState.approver7);
+        requireDistinctOrInactive(newState.approver5, newState.approver8);
+        requireDistinctOrInactive(newState.approver5, newState.approver9);
+        requireDistinctOrInactive(newState.approver5, newState.approver10);
+        requireDistinctOrInactive(newState.approver6, newState.approver7);
+        requireDistinctOrInactive(newState.approver6, newState.approver8);
+        requireDistinctOrInactive(newState.approver6, newState.approver9);
+        requireDistinctOrInactive(newState.approver6, newState.approver10);
+        requireDistinctOrInactive(newState.approver7, newState.approver8);
+        requireDistinctOrInactive(newState.approver7, newState.approver9);
+        requireDistinctOrInactive(newState.approver7, newState.approver10);
+        requireDistinctOrInactive(newState.approver8, newState.approver9);
+        requireDistinctOrInactive(newState.approver8, newState.approver10);
+        requireDistinctOrInactive(newState.approver9, newState.approver10);
+        require(newState.paused == prevState.paused);
+        requireDelegatePreserved(prevState, newState);
+        requireLimitsPreserved(prevState, newState);
+        requireRecipientRootPreserved(prevState, newState);
+        requireAccountingPreserved(prevState, newState);
+    }
+
+    #[covenant.singleton(
+        mode = transition,
+        termination = allowed
+    )]
+    function ownerRecover(State prevState, State[] nextStates, sig ownerSig) : (State[]) {
+        require(checkSig(ownerSig, owner));
+        require(nextStates.length == 0);
+        require(tx.outputs[0].scriptPubKey == new ScriptPubKeyP2PK(owner));
+        require(tx.outputs[0].value == prevState.protectedValue);
+        return(nextStates);
+    }
+}

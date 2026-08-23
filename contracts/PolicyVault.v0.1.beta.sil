@@ -1,0 +1,441 @@
+pragma silverscript ^0.1.0;
+
+/*
+ * PolicyVault v0.1-beta
+ *
+ * Delegated-spending covenant vault.
+ *
+ * Immutable policy (template constants):
+ *   owner, delegate, vaultId, maxPerSpend, periodBudget,
+ *   periodLengthDaa, recipient1..3.
+ *
+ * Mutable exact live state:
+ *   protectedValue, periodStartDaa, periodSpent, paused.
+ *
+ * Security boundary: Kaspa consensus. A malicious holder of
+ * the legitimate delegate key must be unable to violate any
+ * rule below by constructing transactions manually.
+ */
+contract PolicyVault(
+    pubkey owner,
+    pubkey delegate,
+    byte[32] vaultId,
+    int maxPerSpend,
+    int periodBudget,
+    int periodLengthDaa,
+    pubkey recipient1,
+    pubkey recipient2,
+    pubkey recipient3,
+    int initValue,
+    int initPeriodStartDaa
+) {
+    /*
+     * Immutable identity anchor. Kept in state so the vault
+     * identity participates in exact state validation.
+     */
+    byte[32] boundVaultId =
+        vaultId;
+
+    /*
+     * Exact protected principal held by the covenant UTXO.
+     */
+    int protectedValue =
+        initValue;
+
+    /*
+     * Start of the current budget period, as an absolute
+     * DAA score. Advances only by whole periods with a
+     * consensus time proof (CLTV).
+     */
+    int periodStartDaa =
+        initPeriodStartDaa;
+
+    /*
+     * Sompi spent by the delegate within the current period.
+     */
+    int periodSpent = 0;
+
+    /*
+     * 0 = active, 1 = paused. Only the owner may change it.
+     */
+    int paused = 0;
+
+    /*
+     * Exact payment to an allowlisted recipient at output 0.
+     *
+     * Exact equality on value: the delegate cannot route
+     * more than the accounted payAmount to the recipient.
+     */
+    function requireAllowedPayment(
+        int recipientIndex,
+        int payAmount
+    ) {
+        require(recipientIndex >= 1);
+
+        require(recipientIndex <= 3);
+
+        if (recipientIndex == 1) {
+            require(
+                tx.outputs[0].scriptPubKey ==
+                    new ScriptPubKeyP2PK(
+                        recipient1
+                    )
+            );
+        } else if (recipientIndex == 2) {
+            require(
+                tx.outputs[0].scriptPubKey ==
+                    new ScriptPubKeyP2PK(
+                        recipient2
+                    )
+            );
+        } else {
+            require(
+                tx.outputs[0].scriptPubKey ==
+                    new ScriptPubKeyP2PK(
+                        recipient3
+                    )
+            );
+        }
+
+        require(
+            tx.outputs[0].value ==
+                payAmount
+        );
+    }
+
+    /*
+     * The single authorized successor must carry exactly the
+     * new protected principal.
+     */
+    function requireExactSuccessorValue(
+        int exactValue
+    ) {
+        int successorIndex =
+            OpAuthOutputIdx(
+                this.activeInputIndex,
+                0
+            );
+
+        require(
+            tx.outputs[
+                successorIndex
+            ].value ==
+                exactValue
+        );
+    }
+
+    /*
+     * Common invariants for every delegate spend successor.
+     */
+    function requireSpendSuccessorCore(
+        State prevState,
+        State newState,
+        int payAmount
+    ) {
+        require(
+            payAmount > 0
+        );
+
+        require(
+            payAmount <=
+                maxPerSpend
+        );
+
+        require(
+            newState.boundVaultId ==
+                prevState.boundVaultId
+        );
+
+        require(
+            newState.protectedValue ==
+                prevState.protectedValue -
+                    payAmount
+        );
+
+        /*
+         * A spend may not zero the vault. Closing the vault
+         * is exclusively the owner-recovery path.
+         */
+        require(
+            newState.protectedValue > 0
+        );
+
+        require(
+            newState.paused == 0
+        );
+    }
+
+    /*
+     * Delegate spend within the current period.
+     */
+    #[covenant.singleton]
+    function delegateSpend(
+        State prevState,
+        State newState,
+        int payAmount,
+        int recipientIndex,
+        sig delegateSig
+    ) {
+        require(
+            checkSig(
+                delegateSig,
+                delegate
+            )
+        );
+
+        require(
+            prevState.paused == 0
+        );
+
+        requireSpendSuccessorCore(
+            prevState,
+            newState,
+            payAmount
+        );
+
+        require(
+            prevState.periodSpent +
+                payAmount <=
+                periodBudget
+        );
+
+        require(
+            newState.periodStartDaa ==
+                prevState.periodStartDaa
+        );
+
+        require(
+            newState.periodSpent ==
+                prevState.periodSpent +
+                    payAmount
+        );
+
+        requireAllowedPayment(
+            recipientIndex,
+            payAmount
+        );
+
+        requireExactSuccessorValue(
+            newState.protectedValue
+        );
+    }
+
+    /*
+     * Delegate spend that first advances the budget period.
+     *
+     * The CLTV proof makes early resets impossible: the
+     * transaction's lock time must reach the claimed new
+     * period start, and consensus only accepts the
+     * transaction once the network DAA score exceeds that
+     * lock time. Under-claiming periodsElapsed is allowed
+     * and budget-conservative.
+     */
+    #[covenant.singleton]
+    function rolloverAndSpend(
+        State prevState,
+        State newState,
+        int payAmount,
+        int recipientIndex,
+        int periodsElapsed,
+        sig delegateSig
+    ) {
+        require(
+            checkSig(
+                delegateSig,
+                delegate
+            )
+        );
+
+        require(
+            prevState.paused == 0
+        );
+
+        require(
+            periodsElapsed >= 1
+        );
+
+        require(
+            periodsElapsed <= 1000
+        );
+
+        int newStart =
+            prevState.periodStartDaa +
+                periodsElapsed *
+                    periodLengthDaa;
+
+        require(
+            tx.time >= newStart
+        );
+
+        requireSpendSuccessorCore(
+            prevState,
+            newState,
+            payAmount
+        );
+
+        require(
+            payAmount <=
+                periodBudget
+        );
+
+        require(
+            newState.periodStartDaa ==
+                newStart
+        );
+
+        require(
+            newState.periodSpent ==
+                payAmount
+        );
+
+        requireAllowedPayment(
+            recipientIndex,
+            payAmount
+        );
+
+        requireExactSuccessorValue(
+            newState.protectedValue
+        );
+    }
+
+    /*
+     * Owner pauses the delegate. Everything else is copied
+     * exactly; the successor carries the full principal.
+     */
+    #[covenant.singleton]
+    function ownerPause(
+        State prevState,
+        State newState,
+        sig ownerSig
+    ) {
+        require(
+            checkSig(
+                ownerSig,
+                owner
+            )
+        );
+
+        require(
+            prevState.paused == 0
+        );
+
+        require(
+            newState.paused == 1
+        );
+
+        require(
+            newState.boundVaultId ==
+                prevState.boundVaultId
+        );
+
+        require(
+            newState.protectedValue ==
+                prevState.protectedValue
+        );
+
+        require(
+            newState.periodStartDaa ==
+                prevState.periodStartDaa
+        );
+
+        require(
+            newState.periodSpent ==
+                prevState.periodSpent
+        );
+
+        requireExactSuccessorValue(
+            newState.protectedValue
+        );
+    }
+
+    /*
+     * Owner reactivates the delegate.
+     */
+    #[covenant.singleton]
+    function ownerUnpause(
+        State prevState,
+        State newState,
+        sig ownerSig
+    ) {
+        require(
+            checkSig(
+                ownerSig,
+                owner
+            )
+        );
+
+        require(
+            prevState.paused == 1
+        );
+
+        require(
+            newState.paused == 0
+        );
+
+        require(
+            newState.boundVaultId ==
+                prevState.boundVaultId
+        );
+
+        require(
+            newState.protectedValue ==
+                prevState.protectedValue
+        );
+
+        require(
+            newState.periodStartDaa ==
+                prevState.periodStartDaa
+        );
+
+        require(
+            newState.periodSpent ==
+                prevState.periodSpent
+        );
+
+        requireExactSuccessorValue(
+            newState.protectedValue
+        );
+    }
+
+    /*
+     * Owner recovery. Terminal: the lineage ends and the
+     * full remaining principal moves to the owner key at
+     * output 0. Unconditional with owner authority,
+     * regardless of pause state. The delegate cannot
+     * execute this path.
+     */
+    #[covenant.singleton(
+        mode = transition,
+        termination = allowed
+    )]
+    function ownerRecover(
+        State prevState,
+        State[] nextStates,
+        sig ownerSig
+    ) : (State[]) {
+        require(
+            checkSig(
+                ownerSig,
+                owner
+            )
+        );
+
+        require(
+            nextStates.length == 0
+        );
+
+        require(
+            tx.outputs[0].scriptPubKey ==
+                new ScriptPubKeyP2PK(
+                    owner
+                )
+        );
+
+        require(
+            tx.outputs[0].value ==
+                prevState.protectedValue
+        );
+
+        return(nextStates);
+    }
+}

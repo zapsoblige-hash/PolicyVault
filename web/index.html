@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PolicyVault</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <style>
+      :root {
+        --bg: #0e1116; --panel: #171c24; --panel-2: #1e2530; --border: #2a323f;
+        --text: #e6edf3; --muted: #93a1b1; --accent: #4da3ff; --good: #3fb950;
+        --warn: #d29922; --bad: #f85149; --radius: 12px;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; }
+      .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.15rem; }
+      .brand .mark { width: 24px; height: 24px; border-radius: 6px; display: block; }
+      .net { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); font-size: 0.82rem; }
+      .net .ok { color: var(--good); }
+      #testnet-banner { background: rgba(210,153,34,0.15); border-bottom: 1px solid rgba(210,153,34,0.4); color: var(--warn); text-align: center; padding: 0.35rem; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.05em; }
+      main { max-width: 1080px; margin: 0 auto; padding: 1.5rem; }
+      h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 1.6rem 0 0.8rem; }
+      .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.3rem; margin-bottom: 1rem; }
+      .wallet-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+      .wallet-kv { font-size: 0.85rem; color: var(--muted); }
+      .wallet-kv b { color: var(--text); font-weight: 600; }
+      .wstate { font-weight: 700; font-size: 0.85rem; }
+      .wstate.good { color: var(--good); }
+      .wstate.bad { color: var(--bad); }
+      button, a.btnlink { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 0.45rem 0.9rem; cursor: pointer; font-size: 0.85rem; }
+      button:hover:not(:disabled), a.btnlink:hover { border-color: var(--accent); }
+      a.btnlink { display: inline-block; text-decoration: none; }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      button.primary { background: var(--accent); color: #08111e; font-weight: 700; border-color: var(--accent); }
+      button.warn { border-color: rgba(210,153,34,0.5); color: var(--warn); }
+      form.create { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.7rem 1rem; }
+      form.create label { font-size: 0.75rem; text-transform: uppercase; color: var(--muted); display: block; }
+      form.create input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 0.45rem 0.6rem; font-size: 0.85rem; margin-top: 0.2rem; }
+      form.create .full { grid-column: 1 / -1; }
+      .vault { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem 1.3rem; margin-bottom: 1rem; }
+      .vault-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+      .vault-title { font-weight: 700; font-size: 1.05rem; }
+      .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
+      .id { color: var(--muted); word-break: break-all; }
+      .badge { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; border: 1px solid transparent; }
+      .badge.ACTIVE { color: var(--good); background: rgba(63,185,80,0.12); border-color: rgba(63,185,80,0.35); }
+      .badge.PAUSED { color: var(--warn); background: rgba(210,153,34,0.12); border-color: rgba(210,153,34,0.35); }
+      .badge.RECOVERED, .badge.TERMINATED_UNKNOWN { color: var(--muted); background: var(--panel-2); border-color: var(--border); }
+      .badge.ver { color: var(--accent); background: rgba(77,163,255,0.1); border-color: rgba(77,163,255,0.3); }
+      .onchain-tag { margin-top: 0.9rem; font-size: 0.68rem; letter-spacing: 0.08em; color: var(--good); font-weight: 700; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.7rem 1.3rem; margin-top: 0.5rem; }
+      .field .k { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; }
+      .field .v { margin-top: 0.1rem; font-weight: 600; font-size: 0.9rem; }
+      .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+      .hint { color: var(--muted); font-size: 0.75rem; margin-top: 0.4rem; }
+      .upgrade-note { margin-top: 1rem; padding: 0.7rem; border: 1px dashed var(--warn); border-radius: 8px; color: var(--warn); font-size: 0.82rem; }
+      .empty { color: var(--muted); text-align: center; padding: 2.2rem 1rem; }
+      footer { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 2rem 1rem; line-height: 1.9; }
+      footer a { color: var(--accent); text-decoration: none; }
+      .donate-box { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-top: 0.6rem; }
+      .donate-box .addr { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.7rem; word-break: break-all; }
+      .rolechip { display: inline-block; padding: 0.1rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.72rem; margin: 0 0.25rem 0.25rem 0; color: var(--muted); }
+      .copy { font-size: 0.68rem; padding: 0.1rem 0.4rem; margin-left: 0.4rem; }
+      #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; z-index: 50; }
+      .modal-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); max-width: 620px; width: 92%; max-height: 85vh; overflow: auto; padding: 1.3rem 1.5rem; position: relative; }
+      #modal-close { position: absolute; top: 0.7rem; right: 0.8rem; }
+      .review { margin: 0.8rem 0; }
+      .raction { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); margin-bottom: 0.5rem; }
+      .rrow { display: flex; justify-content: space-between; gap: 1rem; padding: 0.28rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+      .rk { color: var(--muted); }
+      .rv { text-align: right; word-break: break-all; }
+      .progress { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; margin: 1rem 0 0.4rem; font-size: 0.7rem; }
+      .step { padding: 0.18rem 0.5rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+      .step.done { color: var(--good); border-color: rgba(63,185,80,0.4); }
+      .step.active { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+      .step.failed { color: var(--bad); border-color: var(--bad); }
+      .arrow { color: var(--muted); }
+      .fail-state { margin-top: 0.6rem; color: var(--bad); font-size: 0.85rem; }
+      .ok-state { margin-top: 0.6rem; color: var(--good); font-size: 0.85rem; word-break: break-all; }
+      .modal-actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
+      .notice { display: none; position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.85rem; z-index: 60; }
+      .notice.warn { border-color: var(--warn); color: var(--warn); }
+      .opbanner { margin-top: 0.8rem; padding: 0.6rem 0.8rem; border: 1px solid var(--line, #8884); border-radius: 6px; font-size: 0.85rem; }
+      .opbanner.warn { border-color: var(--warn, #b58900); }
+      .opbanner.bad { border-color: var(--bad); }
+      .opbanner .act, .opbanner .primary { margin-left: 0.6rem; }
+      details.adv { margin-top: 0.5rem; font-size: 0.75rem; }
+      details.adv summary { cursor: pointer; color: var(--muted); }
+      .orgbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin: 0.6rem 0; }
+      .orgbar select { padding: 0.3rem; }
+      .org-note { font-size: 0.75rem; color: var(--muted); margin-top: 0.4rem; }
+      .mtable { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      .mtable th, .mtable td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line, #8883); vertical-align: top; }
+      .tag { display: inline-block; padding: 0.05rem 0.4rem; border: 1px solid var(--line, #8886); border-radius: 8px; font-size: 0.7rem; margin-right: 0.25rem; }
+      .tag.chain { border-color: var(--good, #2a7); }
+      .tag.meta { border-color: var(--muted); color: var(--muted); }
+      .evt { padding: 0.3rem 0; border-bottom: 1px solid var(--line, #8882); font-size: 0.78rem; }
+      .group-head { margin: 1rem 0 0.4rem; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+      .org-assign { margin-top: 0.6rem; font-size: 0.8rem; display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+      .title-row { display: flex; align-items: center; gap: 0.7rem; margin: 1.4rem 0 0.6rem; flex-wrap: wrap; }
+      .title-row .title { font-size: 1.15rem; font-weight: 700; }
+      .v4-nav { display: flex; gap: 0.4rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; flex-wrap: wrap; }
+      .v4-tab { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); padding: 0.5rem 0.9rem; font-size: 0.9rem; }
+      .v4-tab:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
+      .v4-tab.active { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+      .filterbar { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin: 0.4rem 0 1rem; }
+      .filterbar .pill { padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.82rem; }
+      .filterbar .pill.active { background: var(--accent); color: #08111e; border-color: var(--accent); font-weight: 700; }
+      .filterbar select { padding: 0.3rem 0.5rem; }
+      .cform { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.7rem 1rem; }
+      .cform label { font-size: 0.75rem; text-transform: uppercase; color: var(--muted); display: block; }
+      .cform input, .cform select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 0.45rem 0.6rem; font-size: 0.9rem; margin-top: 0.2rem; }
+      .cform .full { grid-column: 1 / -1; }
+      .cform .inline { display: flex; gap: 0.5rem; align-items: center; }
+      .cform .inline input { width: auto; flex: 1; }
+      .reclist { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.3rem; }
+      .reclist .row { display: flex; gap: 0.5rem; }
+      .reclist .row input { flex: 1; }
+      .kv-line { color: var(--muted); font-size: 0.8rem; }
+      .ferr { display: none; color: var(--bad); font-size: 0.75rem; margin-top: 0.25rem; }
+      .ferr.show { display: block; }
+      .cform input.invalid, .cform select.invalid { border-color: var(--bad); }
+      #legacy-section { margin-top: 2rem; }
+      #legacy-section > summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
+    </style>
+  </head>
+  <body>
+    <div id="testnet-banner">TESTNET-10 — no real value · mainnet broadcasting is disabled</div>
+    <header>
+      <div class="brand"><img class="mark" src="/favicon.png" alt="" /> PolicyVault</div>
+      <div style="display:flex; align-items:center; gap:0.8rem;">
+        <span class="net" id="net">connecting…</span>
+        <button id="refresh">Refresh</button>
+      </div>
+    </header>
+    <main>
+      <h2>Wallet</h2>
+      <div class="panel wallet-row">
+        <span class="wallet-kv">provider <b id="wallet-provider">—</b></span>
+        <span class="wallet-kv">account <b id="wallet-address" class="mono">—</b></span>
+        <span class="wallet-kv">network <b id="wallet-network">—</b></span>
+        <span class="wstate" id="wallet-status">disconnected</span>
+        <span style="flex:1"></span>
+        <button id="btn-connect-kasware" class="primary">Connect KasWare</button>
+        <button id="btn-connect-mock" style="display:none">Connect mock signer (test)</button>
+        <button id="btn-disconnect" style="display:none">Disconnect</button>
+      </div>
+
+      <!-- PRIMARY PRODUCT: PolicyVault v0.4.1 (multi-agent treasury controls, live on testnet-10) -->
+      <div class="title-row"><span class="title">PolicyVault — Multi-agent treasury controls</span> <span class="badge ver">Protocol v0.4.1</span></div>
+      <div id="v4-connect" class="panel wallet-row">
+        <div id="v4-wallet" class="wallet-kv">Connect KasWare in the Wallet panel above to continue.</div>
+      </div>
+      <nav class="v4-nav" id="v4-nav">
+        <button class="v4-tab active" data-view="vaults">Vaults</button>
+        <button class="v4-tab" data-view="create">Create Vault</button>
+        <button class="v4-tab" data-view="orgs">Organizations</button>
+        <button class="v4-tab" data-view="activity">Activity</button>
+        <button class="v4-tab" data-view="advanced">Advanced</button>
+        <button class="v4-tab" data-view="support">Support</button>
+      </nav>
+      <div id="v4-notice" class="panel" style="display:none"></div>
+      <div id="v4-root"><div class="empty">Connect a testnet-10 wallet to begin.</div></div>
+
+      <details id="legacy-section">
+        <summary>Legacy vault compatibility — existing v0.2/v0.3 vaults remain supported for management, verification, history, and recovery. New vaults use the current protocol.</summary>
+        <div class="panel" style="margin-top:0.8rem">
+          <div class="hint">Vaults created with earlier PolicyVault protocol versions stay fully
+          usable here: view exact state, verify against the chain, spend under their original
+          policy, and recover. Creating NEW legacy-protocol vaults is disabled in production —
+          new vaults always use the current protocol via the Create Vault tab.</div>
+        </div>
+        <div id="vaults"><div class="empty">Loading legacy vaults…</div></div>
+      </details>
+    </main>
+    <footer>
+      Non-custodial Kaspa L1 treasury · covenant-enforced delegated spending ·
+      the backend and this page are not the security boundary — Kaspa consensus is.<br/>
+      PolicyVault is free to use. <a href="#" id="footer-support-link">Support development &amp; hosting → Support</a>
+    </footer>
+
+    <div id="modal"><div class="modal-card"><button id="modal-close">✕</button><div id="modal-body"></div></div></div>
+    <div id="v4-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:50"></div>
+    <div id="notice" class="notice"></div>
+
+    <script src="/wallet.js"></script>
+    <script src="/identity.js"></script>
+    <script src="/app.js"></script>
+    <script src="/app-v4.js"></script>
+  </body>
+</html>
