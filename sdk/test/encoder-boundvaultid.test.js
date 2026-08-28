@@ -24,7 +24,7 @@ const { loadConfig } = require("../src/config");
 const { normalizeTemplateV2, normalizeStateV2 } = require("../src/vault-state-v2");
 const { compileExactStateV2 } = require("../src/contract-compiler-v2");
 
-const ENCODER = path.join(process.env.HOME, "policyvault/tests/vm/target/debug/pv_call_encoder");
+const ENCODER = path.resolve(__dirname, "..", "..", "tests/vm/target/debug/pv_call_encoder"); // checkout-relative (public portability)
 const PK = (n) => n.toString(16).padStart(2, "0").repeat(32);
 
 test("pv_call_encoder emits the vaultId as boundVaultId for v0.2 calls", (t) => {

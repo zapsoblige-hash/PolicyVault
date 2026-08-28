@@ -22,8 +22,14 @@ const SRC = path.join(__dirname, "..", "src");
 const sha = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 
 function bustCache() {
+  // core/model is busted alongside sdk/src: shared-core extraction moved
+  // implementations behind sdk re-export shims, so a mutation of the REAL
+  // file (e.g. G13 -> core/model/vault-state-v4.js) must not be masked by a
+  // cached core module surviving a shim reload.
   for (const k of Object.keys(require.cache)) {
-    if (k.includes(`${path.sep}sdk${path.sep}src${path.sep}`)) delete require.cache[k];
+    if (k.includes(`${path.sep}sdk${path.sep}src${path.sep}`) || k.includes(`${path.sep}core${path.sep}model${path.sep}`)) {
+      delete require.cache[k];
+    }
   }
 }
 
@@ -58,7 +64,11 @@ test("§35 G13 version dispatch: unknown version fails closed", () => {
   assert.throws(() => resolveV4Abi("policyvault-9.9"), /no cross-version fallback/, "REAL guard must reject unknown version");
   // Neutralized: the fail-closed branch is bypassed -> unknown version resolves
   // to undefined (no longer fails closed). Protecting assertion turns red.
-  withSabotage("vault-state-v4.js", "  if (!abi) {", "  if (!abi && false) {", () => {
+  // Step-2 extraction retarget (coordinator-sanctioned): the REAL
+  // implementation now lives in core/model/vault-state-v4.js (sdk/src holds a
+  // re-export shim). The sabotage mutates the file production code actually
+  // loads; the anchor and assertions are unchanged.
+  withSabotage(path.join("..", "..", "core", "model", "vault-state-v4.js"), "  if (!abi) {", "  if (!abi && false) {", () => {
     const { resolveV4Abi: sabotaged } = require("../src/vault-state-v4");
     const abi = sabotaged("policyvault-9.9");
     assert.equal(abi, undefined, "SABOTAGED resolveV4Abi no longer fails closed (guard was load-bearing)");

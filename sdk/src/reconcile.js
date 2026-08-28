@@ -31,7 +31,7 @@ function fail(message) {
  *   { status: "UNKNOWN" }                 outpoint gone, no proof -> fail closed
  */
 async function reconcileVault(config, vaultId, { rpc: providedRpc, kaspa: providedKaspa } = {}) {
-  const manifest = loadManifest(config, vaultId);
+  const manifest = await loadManifest(config, vaultId);
   if (!manifest) {
     fail(`no manifest for vault ${vaultId}`);
   }
@@ -62,7 +62,7 @@ async function reconcileVault(config, vaultId, { rpc: providedRpc, kaspa: provid
      * transition claim proves what happened AND its successor is
      * observable. Otherwise fail closed.
      */
-    const claim = loadTransitionClaim(config, manifest.live.outpoint);
+    const claim = await loadTransitionClaim(config, manifest.live.outpoint);
     if (claim && claim.txId) {
       // Is the claimed successor on chain? (spend/lifecycle put it at :1/:0)
       for (const index of [1, 0]) {
@@ -71,18 +71,18 @@ async function reconcileVault(config, vaultId, { rpc: providedRpc, kaspa: provid
       }
       // Terminal actions (ownerRecover) leave no successor covenant.
       if (claim.action === "ownerRecover") {
-        persistManifest(config, { ...manifest, status: VaultStatus.RECOVERED, policy: reencode(manifest.policy), live: null, latestTransitionTxId: claim.txId });
-        appendAudit(config, { vaultId, action: "reconciled_recovered", actor: "system", txId: claim.txId, result: "CHAIN_VERIFIED" });
+        await persistManifest(config, { ...manifest, status: VaultStatus.RECOVERED, policy: reencode(manifest.policy), live: null, latestTransitionTxId: claim.txId });
+        await appendAudit(config, { vaultId, action: "reconciled_recovered", actor: "system", txId: claim.txId, result: "CHAIN_VERIFIED" });
         return { status: "ADVANCED", to: "RECOVERED", txId: claim.txId };
       }
       // Non-terminal claim but successor not verified here: fail closed.
-      persistManifest(config, { ...manifest, status: VaultStatus.TERMINATED_UNKNOWN, policy: reencode(manifest.policy), live: null, latestTransitionTxId: claim.txId });
-      appendAudit(config, { vaultId, action: "reconciled_unknown", actor: "system", txId: claim.txId, result: "FAIL_CLOSED" });
+      await persistManifest(config, { ...manifest, status: VaultStatus.TERMINATED_UNKNOWN, policy: reencode(manifest.policy), live: null, latestTransitionTxId: claim.txId });
+      await appendAudit(config, { vaultId, action: "reconciled_unknown", actor: "system", txId: claim.txId, result: "FAIL_CLOSED" });
       return { status: "UNKNOWN", reason: "claim present but successor unverified", txId: claim.txId };
     }
 
-    persistManifest(config, { ...manifest, status: VaultStatus.TERMINATED_UNKNOWN, policy: reencode(manifest.policy), live: null });
-    appendAudit(config, { vaultId, action: "reconciled_unknown", actor: "system", result: "FAIL_CLOSED" });
+    await persistManifest(config, { ...manifest, status: VaultStatus.TERMINATED_UNKNOWN, policy: reencode(manifest.policy), live: null });
+    await appendAudit(config, { vaultId, action: "reconciled_unknown", actor: "system", result: "FAIL_CLOSED" });
     return { status: "UNKNOWN", reason: "live outpoint gone, no claim" };
   } finally {
     if (owned) {

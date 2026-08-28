@@ -1,16 +1,17 @@
 # PolicyVault Covenant Spec v0.3 (DESIGN — not frozen, not implemented)
 
-Implemented and frozen as `contracts/PolicyVault.v0.3.sil` after real-VM
-implementation + the full negative-validation matrix. Superseded by
-v0.4/v0.4.1 as the deployed protocol; fully supported for existing vaults.
+Candidate design, source-proven at the primitive level
+(`docs/v03-experiment-results.md`). Freeze only after Phase 4 real-VM
+implementation + full negative-validation matrix. v0.2 remains the
+production covenant and is unchanged.
 
 ## Scope
 
 v0.3 adds, over v0.2:
 - **Scalable recipient authorization** via a Merkle `recipientRoot`
-  (replaces `recipient1..3`).
+  (replaces `recipient1..3`) — `docs/v03-recipient-auth-design.md`.
 - **Covenant-enforced M-of-N approval thresholds** on large delegate
-  spends.
+  spends — `docs/v03-approval-design.md`.
 
 Everything else (per-spend cap, periodic budget, CLTV period progression,
 value conservation, pause, revoke, rotate, top-up, policy migration,
@@ -101,7 +102,7 @@ always available with the single owner key.
 
 ## Implementation status (Phase 4, consensus-critical band)
 
-IMPLEMENTED + VM-VERIFIED:
+IMPLEMENTED + VM-VERIFIED (commit at Phase 4 consensus checkpoint):
 - `contracts/PolicyVault.v0.3.sil` — 11 entrypoints; script 20,101 bytes;
   state region 528 bytes; N = 10 fixed approver slots (sentinel = all-zero
   pubkey); A7 sighash gate + A2 distinctness enforced.
@@ -116,7 +117,7 @@ IMPLEMENTED + VM-VERIFIED:
 - SDK state compiler `sdk/src/vault-state-v3.js` (strict normalization,
   distinctness, M validity).
 - Exact mass/fee: `pv_mass_probe` v0.3 shapes + `fee-mass.js` golden
-  vectors (MEASURED). Compute budgets
+  vectors (`docs/v03-mass-estimates.md` MEASURED section). Compute budgets
   measured under production sig-op pricing: depth0=24, depth16=26,
   2-of-3=56, 10-of-10=127, owner op=24, recover=15.
 

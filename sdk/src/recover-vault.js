@@ -50,7 +50,7 @@ function extractSchnorr(hex) {
 }
 
 async function recoverVault({ config, vaultId, ownerKey }) {
-  const manifest = loadManifest(config, vaultId);
+  const manifest = await loadManifest(config, vaultId);
   if (!manifest) {
     fail(`no manifest for vault ${vaultId}`);
   }
@@ -153,14 +153,14 @@ async function recoverVault({ config, vaultId, ownerKey }) {
 
     const txId = transaction.finalize().toString().toLowerCase();
 
-    claimTransition(config, {
+    await claimTransition(config, {
       outpoint: manifest.live.outpoint,
       action: "ownerRecover",
       txId,
       vaultId,
       stateId: manifest.live.stateId
     });
-    claimSubmission(config, { txId, vaultId, action: "ownerRecover" });
+    await claimSubmission(config, { txId, vaultId, action: "ownerRecover" });
 
     const submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
@@ -188,7 +188,7 @@ async function recoverVault({ config, vaultId, ownerKey }) {
       fail(`submitted ${txId} but the covenant outpoint is still live — claim preserved; reconcile`);
     }
 
-    persistManifest(config, {
+    await persistManifest(config, {
       ...manifest,
       status: VaultStatus.RECOVERED,
       policy: manifestPolicyInput(policy),
@@ -196,7 +196,7 @@ async function recoverVault({ config, vaultId, ownerKey }) {
       latestTransitionTxId: txId
     });
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId,
       action: "ownerRecover",
@@ -208,7 +208,7 @@ async function recoverVault({ config, vaultId, ownerKey }) {
       }
     });
 
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId,
       action: "vault_recovered",
       actor: "owner",

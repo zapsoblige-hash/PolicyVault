@@ -31,7 +31,7 @@ function tempConfig() {
 }
 
 /* Build an ACTIVE v0.2 vault on disk and return everything the tests need. */
-function setupVault(config) {
+async function setupVault(config) {
   const vaultId = crypto.randomBytes(32).toString("hex");
   const template = normalizeTemplateV2({ owner: PK(1), vaultId });
   const state = normalizeStateV2({
@@ -54,7 +54,7 @@ function setupVault(config) {
   const creationTxId = crypto.randomBytes(32).toString("hex");
   const predecessorOutpoint = { transactionId: creationTxId, index: 0 };
 
-  persistManifestV2(config, {
+  await persistManifestV2(config, {
     schema: MANIFEST_SCHEMA_V2,
     contractVersion: "policyvault-0.2",
     networkId: config.networkId,
@@ -100,7 +100,7 @@ function utxo(address, txId, index, amountSompi, covenantId) {
 
 test("CONSISTENT: predecessor live, no claim", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const rpc = mockRpc({ [v.address]: [utxo(v.address, v.predecessorOutpoint.transactionId, 0, "100000000000", v.covenantId)] });
   const r = await reconcileVaultV2(config, v.vaultId, { rpc });
   assert.equal(r.status, "CONSISTENT");
@@ -108,14 +108,14 @@ test("CONSISTENT: predecessor live, no claim", async () => {
 
 test("ADVANCED: predecessor gone, successor proven exactly", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const successor = spendSuccessorV2(v.state, 4_000_000_000n);
   const successorCompiled = compileExactStateV2({ config, template: v.template, state: successor });
   const successorAddress = covenantAddress(config, successorCompiled.scriptBytes);
   const successorStateId = computeStateIdV2({ networkId: config.networkId, template: v.template, state: successor });
   const txId = crypto.randomBytes(32).toString("hex");
 
-  claimTransition(config, {
+  await claimTransition(config, {
     outpoint: v.predecessorOutpoint,
     action: "delegateSpend",
     txId,
@@ -144,7 +144,7 @@ test("ADVANCED: predecessor gone, successor proven exactly", async () => {
   const r = await reconcileVaultV2(config, v.vaultId, { rpc });
   assert.equal(r.status, "ADVANCED");
   assert.equal(r.stateId, successorStateId);
-  const m = loadManifestV2(config, v.vaultId);
+  const m = await loadManifestV2(config, v.vaultId);
   assert.equal(m.live.outpoint.transactionId, txId);
   assert.equal(m.live.outpoint.index, 1);
   assert.equal(m.live.state.protectedValue, successor.protectedValue);
@@ -152,12 +152,12 @@ test("ADVANCED: predecessor gone, successor proven exactly", async () => {
 
 test("UNKNOWN: predecessor gone, successor absent (fail closed)", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const successor = spendSuccessorV2(v.state, 4_000_000_000n);
   const successorCompiled = compileExactStateV2({ config, template: v.template, state: successor });
   const successorAddress = covenantAddress(config, successorCompiled.scriptBytes);
   const txId = crypto.randomBytes(32).toString("hex");
-  claimTransition(config, {
+  await claimTransition(config, {
     outpoint: v.predecessorOutpoint,
     action: "delegateSpend",
     txId,
@@ -180,17 +180,17 @@ test("UNKNOWN: predecessor gone, successor absent (fail closed)", async () => {
   const rpc = mockRpc({ [v.address]: [], [successorAddress]: [] });
   const r = await reconcileVaultV2(config, v.vaultId, { rpc });
   assert.equal(r.status, "UNKNOWN");
-  assert.equal(loadManifestV2(config, v.vaultId).status, VaultStatus.TERMINATED_UNKNOWN);
+  assert.equal((await loadManifestV2(config, v.vaultId)).status, VaultStatus.TERMINATED_UNKNOWN);
 });
 
 test("UNKNOWN: successor present but WRONG value is not proof", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const successor = spendSuccessorV2(v.state, 4_000_000_000n);
   const successorCompiled = compileExactStateV2({ config, template: v.template, state: successor });
   const successorAddress = covenantAddress(config, successorCompiled.scriptBytes);
   const txId = crypto.randomBytes(32).toString("hex");
-  claimTransition(config, {
+  await claimTransition(config, {
     outpoint: v.predecessorOutpoint,
     action: "delegateSpend",
     txId,
@@ -218,53 +218,53 @@ test("UNKNOWN: successor present but WRONG value is not proof", async () => {
 
 test("UNKNOWN: predecessor gone, no claim (fail closed)", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const rpc = mockRpc({ [v.address]: [] });
   const r = await reconcileVaultV2(config, v.vaultId, { rpc });
   assert.equal(r.status, "UNKNOWN");
-  assert.equal(loadManifestV2(config, v.vaultId).status, VaultStatus.TERMINATED_UNKNOWN);
+  assert.equal((await loadManifestV2(config, v.vaultId)).status, VaultStatus.TERMINATED_UNKNOWN);
 });
 
 test("CLAIM_PENDING: predecessor live, claim too fresh to release", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const txId = crypto.randomBytes(32).toString("hex");
-  claimTransition(config, { outpoint: v.predecessorOutpoint, action: "delegateSpend", txId, vaultId: v.vaultId, stateId: v.stateId, expected: null });
+  await claimTransition(config, { outpoint: v.predecessorOutpoint, action: "delegateSpend", txId, vaultId: v.vaultId, stateId: v.stateId, expected: null });
   const rpc = mockRpc({ [v.address]: [utxo(v.address, v.predecessorOutpoint.transactionId, 0, "100000000000", v.covenantId)] });
   const r = await reconcileVaultV2(config, v.vaultId, { rpc, stalePendingMinimumMs: 60_000 });
   assert.equal(r.status, "CLAIM_PENDING");
-  assert.ok(loadTransitionClaim(config, v.predecessorOutpoint), "claim must be preserved");
+  assert.ok(await loadTransitionClaim(config, v.predecessorOutpoint), "claim must be preserved");
 });
 
 test("CLAIM_RELEASED: predecessor live, stale never-confirmed claim removed", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const txId = crypto.randomBytes(32).toString("hex");
-  claimTransition(config, { outpoint: v.predecessorOutpoint, action: "delegateSpend", txId, vaultId: v.vaultId, stateId: v.stateId, expected: null });
+  await claimTransition(config, { outpoint: v.predecessorOutpoint, action: "delegateSpend", txId, vaultId: v.vaultId, stateId: v.stateId, expected: null });
   const rpc = mockRpc({ [v.address]: [utxo(v.address, v.predecessorOutpoint.transactionId, 0, "100000000000", v.covenantId)] });
   // minimum 0 => immediately releasable; predecessor live, no effect.
   const r = await reconcileVaultV2(config, v.vaultId, { rpc, stalePendingMinimumMs: 0 });
   assert.equal(r.status, "CLAIM_RELEASED");
-  assert.equal(loadTransitionClaim(config, v.predecessorOutpoint), null, "claim must be removed");
+  assert.equal(await loadTransitionClaim(config, v.predecessorOutpoint), null, "claim must be removed");
 });
 
 test("CLAIM_PENDING when release disabled even if stale", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const txId = crypto.randomBytes(32).toString("hex");
-  claimTransition(config, { outpoint: v.predecessorOutpoint, action: "delegateSpend", txId, vaultId: v.vaultId, stateId: v.stateId, expected: null });
+  await claimTransition(config, { outpoint: v.predecessorOutpoint, action: "delegateSpend", txId, vaultId: v.vaultId, stateId: v.stateId, expected: null });
   const rpc = mockRpc({ [v.address]: [utxo(v.address, v.predecessorOutpoint.transactionId, 0, "100000000000", v.covenantId)] });
   const r = await reconcileVaultV2(config, v.vaultId, { rpc, stalePendingMinimumMs: 0, allowClaimRelease: false });
   assert.equal(r.status, "CLAIM_PENDING");
-  assert.ok(loadTransitionClaim(config, v.predecessorOutpoint));
+  assert.ok(await loadTransitionClaim(config, v.predecessorOutpoint));
 });
 
 test("ADVANCED recover: predecessor gone, owner payout proven", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const ownerAddress = "kaspatest:qtestowneraddressplaceholder000000000000000000000000000000";
   const txId = crypto.randomBytes(32).toString("hex");
-  claimTransition(config, {
+  await claimTransition(config, {
     outpoint: v.predecessorOutpoint,
     action: "ownerRecover",
     txId,
@@ -276,15 +276,15 @@ test("ADVANCED recover: predecessor gone, owner payout proven", async () => {
   const r = await reconcileVaultV2(config, v.vaultId, { rpc });
   assert.equal(r.status, "ADVANCED");
   assert.equal(r.to, "RECOVERED");
-  assert.equal(loadManifestV2(config, v.vaultId).status, VaultStatus.RECOVERED);
+  assert.equal((await loadManifestV2(config, v.vaultId)).status, VaultStatus.RECOVERED);
 });
 
 test("UNKNOWN recover: owner payout absent is not proof", async () => {
   const config = tempConfig();
-  const v = setupVault(config);
+  const v = await setupVault(config);
   const ownerAddress = "kaspatest:qtestowneraddressplaceholder000000000000000000000000000000";
   const txId = crypto.randomBytes(32).toString("hex");
-  claimTransition(config, {
+  await claimTransition(config, {
     outpoint: v.predecessorOutpoint,
     action: "ownerRecover",
     txId,

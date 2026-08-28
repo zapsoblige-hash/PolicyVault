@@ -94,8 +94,8 @@ async function main() {
     }
     return rec;
   }
-  const liveOutpoint = (vaultId) => { const m = loadManifestV4(config, vaultId); return m.live ? `${m.live.outpoint.transactionId}:${m.live.outpoint.index}` : null; };
-  const rootsOk = (vaultId) => { const m = loadManifestV4(config, vaultId); return !m.live || m.live.state.agentRoot === m.agentRegistryRoot; };
+  const liveOutpoint = async (vaultId) => { const m = await loadManifestV4(config, vaultId); return m.live ? `${m.live.outpoint.transactionId}:${m.live.outpoint.index}` : null; };
+  const rootsOk = async (vaultId) => { const m = await loadManifestV4(config, vaultId); return !m.live || m.live.state.agentRoot === m.agentRegistryRoot; };
 
   try {
     // ---------- GENESIS ----------
@@ -110,34 +110,34 @@ async function main() {
 
     // ---------- CASE E: AFTER_SUBMITTING (crash BEFORE broadcast) ----------
     {
-      const before = liveOutpoint(vaultId);
+      const before = await liveOutpoint(vaultId);
       const req = await buildFinalizeSpend(vaultId);
       await crashSubmit(req.requestId, "AFTER_SUBMITTING");
       // tx NEVER broadcast: predecessor live + effect absent. Force the release
       // path (we KNOW it wasn't sent) with stalePendingMinimumMs 0.
       const rec = await reconcileVaultV4(config, vaultId, { rpc, stalePendingMinimumMs: 0 });
-      const after = liveOutpoint(vaultId);
+      const after = await liveOutpoint(vaultId);
       assert(after === before, `AFTER_SUBMITTING: vault must be UNCHANGED (no phantom advance); before=${before} after=${after}`);
       assert(["CLAIM_RELEASED", "CONSISTENT"].includes(rec.status), `AFTER_SUBMITTING reconcile must release/consistent, got ${rec.status}`);
-      assert(rootsOk(vaultId), "roots must reconstruct");
+      assert(await rootsOk(vaultId), "roots must reconstruct");
       log(`CASE E AFTER_SUBMITTING: reconcile=${rec.status}, vault unchanged, no blind resubmit ✓`);
       evidence.cases.push({ case: "E:AFTER_SUBMITTING", crashBeforeBroadcast: true, reconcile: rec.status, vaultUnchanged: true });
     }
 
     // ---------- CASE G/F: AFTER_SUBMITTED (crash AFTER broadcast) ----------
     {
-      const before = liveOutpoint(vaultId);
+      const before = await liveOutpoint(vaultId);
       const req = await buildFinalizeSpend(vaultId);
       const expectedTx = req.txId;
       await crashSubmit(req.requestId, "AFTER_SUBMITTED");
       // tx IS on chain now. reconcile must PROVE the successor and advance once.
       const rec = await pollReconcile(vaultId);
-      const after = liveOutpoint(vaultId);
+      const after = await liveOutpoint(vaultId);
       assert(rec.status === "ADVANCED", `AFTER_SUBMITTED reconcile must ADVANCE (no resubmit), got ${rec.status}`);
       assert(rec.txId === expectedTx, `advanced to the EXACT broadcast tx ${expectedTx}, got ${rec.txId}`);
       assert(after && after.startsWith(expectedTx), `live outpoint must be the successor of ${expectedTx}, got ${after}`);
       assert(after !== before, "vault must have advanced");
-      assert(rootsOk(vaultId), "roots must reconstruct after advance");
+      assert(await rootsOk(vaultId), "roots must reconstruct after advance");
       // idempotent: a second reconcile is a no-op.
       const rec2 = await reconcileVaultV4(config, vaultId, { rpc });
       assert(rec2.status === "CONSISTENT", `reconcile must be idempotent, second run got ${rec2.status}`);
@@ -152,7 +152,7 @@ async function main() {
       await crashSubmit(req.requestId, "AFTER_PROOF");
       const rec = await pollReconcile(vaultId);
       assert(rec.status === "ADVANCED" && rec.txId === expectedTx, `AFTER_PROOF reconcile must advance to ${expectedTx}, got ${rec.status}/${rec.txId}`);
-      assert(liveOutpoint(vaultId).startsWith(expectedTx) && rootsOk(vaultId), "advanced to successor + roots ok");
+      assert(await liveOutpoint(vaultId).startsWith(expectedTx) && await rootsOk(vaultId), "advanced to successor + roots ok");
       log(`CASE AFTER_PROOF: reconcile ADVANCED exactly once ✓`);
       evidence.cases.push({ case: "AFTER_PROOF", reconcile: rec.status, advancedTx: rec.txId });
     }
@@ -164,13 +164,13 @@ async function main() {
       // submit advances the manifest + sets CHAIN_VERIFIED, THEN crashes before
       // releasing claims / persisting the receipt.
       await crashSubmit(req.requestId, "AFTER_ADVANCE");
-      const afterCrash = liveOutpoint(vaultId);
+      const afterCrash = await liveOutpoint(vaultId);
       assert(afterCrash.startsWith(expectedTx), `AFTER_ADVANCE: manifest already advanced to ${expectedTx}, got ${afterCrash}`);
       // reconcile must be idempotent — NO double transition.
       const rec = await pollReconcile(vaultId);
       assert(rec.status === "CONSISTENT", `AFTER_ADVANCE reconcile must be idempotent CONSISTENT, got ${rec.status}`);
-      assert(liveOutpoint(vaultId) === afterCrash, "no second/double transition");
-      assert(rootsOk(vaultId), "roots ok");
+      assert(await liveOutpoint(vaultId) === afterCrash, "no second/double transition");
+      assert(await rootsOk(vaultId), "roots ok");
       log(`CASE H AFTER_ADVANCE: manifest advanced once; reconcile idempotent; no double transition ✓`);
       evidence.cases.push({ case: "H:AFTER_ADVANCE", advancedBeforeCrash: true, reconcile: rec.status, noDoubleTransition: true });
     }
@@ -185,7 +185,7 @@ async function main() {
       await crashSubmit(rreq.requestId, "AFTER_SUBMITTED");
       const rec = await pollReconcile(vaultId);
       assert(rec.status === "ADVANCED" && rec.to === "RECOVERED", `recover reconcile must mark RECOVERED, got ${rec.status}/${rec.to}`);
-      const m = loadManifestV4(config, vaultId);
+      const m = await loadManifestV4(config, vaultId);
       assert(m.status === "RECOVERED" && m.live === null, `vault must be RECOVERED/closed, got ${m.status}`);
       // cannot reactivate: reconcile again is TERMINAL, and a new spend build fails.
       const rec2 = await reconcileVaultV4(config, vaultId, { rpc });

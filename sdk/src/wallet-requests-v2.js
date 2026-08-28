@@ -34,7 +34,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
-const { persistJsonDurably, readJsonStrict } = require("./durable-json");
+const { getStore, Categories } = require("./store");
 const {
   CONTRACT_VERSION_V2,
   spendSuccessorV2,
@@ -173,35 +173,19 @@ function requestPath(config, requestId) {
   return path.join(config.dataRoot, "requests", `${requestId}.json`);
 }
 
-function saveRequest(config, request) {
-  persistJsonDurably({ filePath: requestPath(config, request.requestId), value: request });
+async function saveRequest(config, request) {
+  await getStore(config).write(Categories.REQUEST, request.requestId, request);
   return request;
 }
 
-function loadRequest(config, requestId) {
-  const p = requestPath(config, requestId);
-  if (!fs.existsSync(p)) {
-    return null;
-  }
-  return readJsonStrict(p, "wallet request");
+async function loadRequest(config, requestId) {
+  return getStore(config).read(Categories.REQUEST, requestId);
 }
 
 /* All durable request records for one vault, newest first (read-only). */
-function listVaultRequests(config, vaultId) {
-  const dir = path.join(config.dataRoot, "requests");
-  if (!fs.existsSync(dir)) {
-    return [];
-  }
-  const out = [];
-  for (const f of fs.readdirSync(dir)) {
-    if (!f.endsWith(".json")) continue;
-    try {
-      const r = readJsonStrict(path.join(dir, f), "wallet request");
-      if (r.vaultId === vaultId) out.push(r);
-    } catch {
-      /* a corrupted request file fails loudly in its own flow, not here */
-    }
-  }
+async function listVaultRequests(config, vaultId) {
+  const all = await getStore(config).listValues(Categories.REQUEST);
+  const out = all.filter((r) => r && r.vaultId === vaultId);
   return out.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
 }
 
@@ -425,7 +409,7 @@ function bmax(v) {
  * broadcast.
  */
 async function buildWalletRequestV2({ config, vaultId, action, params = {}, signerAddress }) {
-  const manifest = loadManifestV2(config, vaultId);
+  const manifest = await loadManifestV2(config, vaultId);
   if (!manifest) {
     throw fail(`no v0.2 manifest for vault ${vaultId}`, "BUILD_FAILED");
   }
@@ -559,7 +543,7 @@ async function buildWalletRequestV2({ config, vaultId, action, params = {}, sign
     const unsignedSafeJson = transaction.serializeToSafeJSON();
 
     const requestId = crypto.randomUUID();
-    const request = saveRequest(config, {
+    const request = await saveRequest(config, {
       schema: REQUEST_SCHEMA,
       requestId,
       state: RequestState.BUILT,
@@ -670,7 +654,7 @@ async function buildCreateWalletRequestV2({ config, templateInput, initialStateI
 
     const unsignedSafeJson = transaction.serializeToSafeJSON();
     const requestId = crypto.randomUUID();
-    const request = saveRequest(config, {
+    const request = await saveRequest(config, {
       schema: REQUEST_SCHEMA,
       requestId,
       kind: "genesis",
@@ -720,7 +704,7 @@ async function attachCreateSignatureV2({ config, request, signedSafeJson }) {
       signed = JSON.parse(signedSafeJson);
     } catch {
       request.state = RequestState.SIGNATURE_INVALID;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("signed Safe JSON is not valid JSON", "SIGNATURE_INVALID");
     }
     assertPackageImmutable(unsigned, signed);
@@ -731,7 +715,7 @@ async function attachCreateSignatureV2({ config, request, signedSafeJson }) {
       const sig = signed.inputs[i]?.signatureScript;
       if (!sig) {
         request.state = RequestState.WALLET_REJECTED;
-        saveRequest(config, request);
+        await saveRequest(config, request);
         throw fail(`wallet did not sign funding input ${i}`, "WALLET_REJECTED");
       }
       ins[i].signatureScript = sig;
@@ -739,24 +723,24 @@ async function attachCreateSignatureV2({ config, request, signedSafeJson }) {
     transaction.inputs = ins;
 
     request.state = RequestState.FINALIZED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
 
     if (!updateTransactionMass(config.networkId, transaction, 1)) {
       request.state = RequestState.PREFLIGHT_FAILED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("funding transaction exceeds the mass limit", "PREFLIGHT_FAILED");
     }
     const txId = transaction.finalize().toString().toLowerCase();
     if (serverInfo.networkId !== config.networkId) {
       request.state = RequestState.PREFLIGHT_FAILED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("network drift at preflight", "PREFLIGHT_FAILED");
     }
 
-    claimSubmission(config, { txId, vaultId: request.vaultId, action: "createVault" });
+    await claimSubmission(config, { txId, vaultId: request.vaultId, action: "createVault" });
     request.state = RequestState.SUBMITTING;
     request.txId = txId;
-    saveRequest(config, request);
+    await saveRequest(config, request);
 
     let submitted;
     try {
@@ -768,22 +752,22 @@ async function attachCreateSignatureV2({ config, request, signedSafeJson }) {
       if (isDefinitiveSubmitRejection(message)) {
         // Genesis has no transition claim; release the submission claim so
         // nothing durable outlives a definitively rejected funding tx.
-        releaseSubmissionClaim(config, txId);
+        await releaseSubmissionClaim(config, txId);
         request.state = RequestState.SUBMISSION_REJECTED;
-        saveRequest(config, request);
+        await saveRequest(config, request);
         throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
       }
       request.state = RequestState.RECONCILIATION_REQUIRED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`submit failed: ${message} — reconcile required`, "RECONCILIATION_REQUIRED");
     }
     if (String(submitted.transactionId ?? submitted).toLowerCase() !== txId) {
       request.state = RequestState.RECONCILIATION_REQUIRED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("node returned an unexpected txid — reconcile required", "RECONCILIATION_REQUIRED");
     }
     request.state = RequestState.SUBMITTED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
 
     let proof = null;
     for (let i = 0; i < 30 && !proof; i++) {
@@ -793,11 +777,11 @@ async function attachCreateSignatureV2({ config, request, signedSafeJson }) {
     }
     if (!proof) {
       request.state = RequestState.RECONCILIATION_REQUIRED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`submitted ${txId} but covenant outpoint not observed`, "RECONCILIATION_REQUIRED");
     }
 
-    persistManifestV2(config, {
+    await persistManifestV2(config, {
       schema: MANIFEST_SCHEMA_V2,
       contractVersion: CONTRACT_V2,
       networkId: config.networkId,
@@ -817,11 +801,11 @@ async function attachCreateSignatureV2({ config, request, signedSafeJson }) {
       latestTransitionTxId: null,
       lastTransition: null
     });
-    persistReceipt(config, { txId, vaultId: request.vaultId, action: "createVault", proof: { requestId: request.requestId, outpoint: `${txId}:${request.vaultOutputIndex}`, covenantId: request.covenantId } });
-    appendAudit(config, { vaultId: request.vaultId, action: "vault_created", actor: "owner", contractVersion: CONTRACT_V2, txId, result: "CHAIN_VERIFIED", newStateId: request.successorStateId, via: "wallet" });
+    await persistReceipt(config, { txId, vaultId: request.vaultId, action: "createVault", proof: { requestId: request.requestId, outpoint: `${txId}:${request.vaultOutputIndex}`, covenantId: request.covenantId } });
+    await appendAudit(config, { vaultId: request.vaultId, action: "vault_created", actor: "owner", contractVersion: CONTRACT_V2, txId, result: "CHAIN_VERIFIED", newStateId: request.successorStateId, via: "wallet" });
 
     request.state = RequestState.CHAIN_VERIFIED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     return request;
   } finally {
     await rpc.disconnect();
@@ -857,7 +841,7 @@ function assertPackageImmutable(unsigned, signed) {
  * manifest. Returns the updated request.
  */
 async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
-  const request = loadRequest(config, requestId);
+  const request = await loadRequest(config, requestId);
   if (!request) {
     throw fail(`no request ${requestId}`, "BUILD_FAILED");
   }
@@ -869,10 +853,10 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
     return attachCreateSignatureV2({ config, request, signedSafeJson });
   }
 
-  const manifest = loadManifestV2(config, request.vaultId);
+  const manifest = await loadManifestV2(config, request.vaultId);
   if (!manifest || !manifest.live || manifest.live.stateId !== request.predecessorStateId) {
     request.state = RequestState.STALE;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     throw fail("vault advanced since this request was built — rebuild required", "STALE");
   }
 
@@ -889,7 +873,7 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
   } catch (e) {
     request.state = RequestState.AUTHORIZATION_FAILED;
     request.error = e.message;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     throw e;
   }
 
@@ -902,7 +886,7 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
       signed = JSON.parse(signedSafeJson);
     } catch {
       request.state = RequestState.SIGNATURE_INVALID;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("signed Safe JSON is not valid JSON", "SIGNATURE_INVALID");
     }
     assertPackageImmutable(unsigned, signed);
@@ -911,7 +895,7 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
     const rawCovenant = signed.inputs[0]?.signatureScript;
     if (!rawCovenant) {
       request.state = RequestState.WALLET_REJECTED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("wallet did not sign the covenant input", "WALLET_REJECTED");
     }
     const covenantSig = extractSchnorr(rawCovenant, "covenant signature");
@@ -936,14 +920,14 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
     transaction.inputs = ins;
 
     request.state = RequestState.FINALIZED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
 
     const txId = transaction.finalize().toString().toLowerCase();
 
     // Preflight: exact structure + network + version.
     if (serverInfo.networkId !== config.networkId || serverInfo.networkId !== request.networkId) {
       request.state = RequestState.PREFLIGHT_FAILED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("network drift at preflight", "PREFLIGHT_FAILED");
     }
 
@@ -964,18 +948,18 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
         };
 
     try {
-      claimTransition(config, { outpoint: request.predecessorOutpoint, action: request.action, txId, vaultId: request.vaultId, stateId: request.predecessorStateId, expected });
+      await claimTransition(config, { outpoint: request.predecessorOutpoint, action: request.action, txId, vaultId: request.vaultId, stateId: request.predecessorStateId, expected });
     } catch (e) {
       request.state = RequestState.CLAIM_CONFLICT;
       request.error = e.message;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw e;
     }
-    claimSubmission(config, { txId, vaultId: request.vaultId, action: request.action });
+    await claimSubmission(config, { txId, vaultId: request.vaultId, action: request.action });
 
     request.state = RequestState.SUBMITTING;
     request.txId = txId;
-    saveRequest(config, request);
+    await saveRequest(config, request);
 
     let submitted;
     try {
@@ -998,9 +982,9 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
         const stillLive = await findLiveCovenantRef(rpc, covenantAddress(config, current.scriptBytes), request.predecessorOutpoint).catch(() => null);
         const effect = await proveExpectedEffect(rpc, { expected }).catch(() => "UNPROVEN");
         if (stillLive && !effect) {
-          releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId });
-          releaseSubmissionClaim(config, txId);
-          appendAudit(config, {
+          await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId });
+          await releaseSubmissionClaim(config, txId);
+          await appendAudit(config, {
             vaultId: request.vaultId,
             action: "submission_rejected_claims_released",
             actor: "system",
@@ -1010,43 +994,43 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
             detail: message
           });
           request.state = RequestState.SUBMISSION_REJECTED;
-          saveRequest(config, request);
+          await saveRequest(config, request);
           throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
         }
       }
       request.state = RequestState.RECONCILIATION_REQUIRED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`submit failed: ${message} — claims kept, reconcile required`, "RECONCILIATION_REQUIRED");
     }
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
     if (returnedTxId !== txId) {
       // The node acknowledged SOMETHING — ambiguous. Keep claims.
       request.state = RequestState.RECONCILIATION_REQUIRED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`node returned ${returnedTxId}, expected ${txId} — reconcile required`, "RECONCILIATION_REQUIRED");
     }
     request.state = RequestState.SUBMITTED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
 
     // Chain proof (exact successor / recovery payout).
     const proof = await pollForProof(config, rpc, request, expected);
     if (!proof) {
       request.state = RequestState.RECONCILIATION_REQUIRED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`submitted ${txId} but exact effect not observed — reconcile`, "RECONCILIATION_REQUIRED");
     }
 
-    advanceManifest(config, manifest, request, expected);
+    await advanceManifest(config, manifest, request, expected);
     request.state = RequestState.CHAIN_VERIFIED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId: request.vaultId,
       action: request.action,
       proof: { requestId, successorOutpoint: `${txId}:${expected.index}`, value: expected.valueSompi, requiredFeeSompi: request.requiredFeeSompi, actualFeeSompi: request.requiredFeeSompi }
     });
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId: request.vaultId,
       action: request.action,
       actor: request.signerRole,
@@ -1100,9 +1084,9 @@ async function pollForProof(config, rpc, request, expected, { attempts = 30, del
   return null;
 }
 
-function advanceManifest(config, manifest, request, expected) {
+async function advanceManifest(config, manifest, request, expected) {
   if (expected.kind === "recover") {
-    persistManifestV2(config, {
+    await persistManifestV2(config, {
       ...manifest,
       status: VaultStatus.RECOVERED,
       template: { owner: manifest.template.owner, vaultId: manifest.template.vaultId },
@@ -1113,7 +1097,7 @@ function advanceManifest(config, manifest, request, expected) {
     });
     return;
   }
-  persistManifestV2(config, {
+  await persistManifestV2(config, {
     ...manifest,
     status: Number(request.successorState.paused) === 1 ? VaultStatus.PAUSED : VaultStatus.ACTIVE,
     template: { owner: manifest.template.owner, vaultId: manifest.template.vaultId },
@@ -1131,11 +1115,11 @@ function advanceManifest(config, manifest, request, expected) {
   });
 }
 
-function markWalletRejected(config, requestId) {
-  const request = loadRequest(config, requestId);
+async function markWalletRejected(config, requestId) {
+  const request = await loadRequest(config, requestId);
   if (request && request.state === RequestState.BUILT) {
     request.state = RequestState.WALLET_REJECTED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
   }
   return request;
 }

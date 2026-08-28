@@ -32,7 +32,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 
-const { persistJsonDurably, readJsonStrict } = require("./durable-json");
+const { getStore, Categories } = require("./store");
 const { resolveAddressIdentity } = require("./address-identity");
 const { appendAudit } = require("./audit");
 
@@ -182,12 +182,22 @@ function normalizeOrg(input) {
   if (!ORG_STATUS.includes(status)) {
     throw fail("ORG_INVALID", `status must be one of ${ORG_STATUS.join(", ")}`);
   }
+  // tenantOwner (Phase C): the x-only pubkey of the wallet that owns this
+  // organization for HOSTED multi-tenant authorization. Optional and
+  // preserved verbatim — pre-Phase-C records (and self-hosted records)
+  // have none, which the hosted tenancy layer treats as unclaimed/legacy
+  // (fail closed in hosted mode; unrestricted in self-hosted mode). It is
+  // application metadata ONLY and never covenant authority.
+  if (input.tenantOwner !== undefined && input.tenantOwner !== null && !/^[0-9a-f]{64}$/.test(input.tenantOwner)) {
+    throw fail("ORG_INVALID", "tenantOwner must be a 64-hex x-only public key or absent");
+  }
   return {
     schema: ORG_SCHEMA_V2,
     orgId: input.orgId,
     name: cleanText(input.name, "name", { max: NAME_MAX, required: true }),
     version: input.version,
     status,
+    ...(input.tenantOwner ? { tenantOwner: input.tenantOwner.toLowerCase() } : {}),
     members,
     createdAt: cleanText(input.createdAt, "createdAt", { max: 40, required: true }),
     updatedAt: cleanText(input.updatedAt, "updatedAt", { max: 40, required: true })
@@ -196,23 +206,22 @@ function normalizeOrg(input) {
 
 /* ------------------------------------------------------------ orgs */
 
-function saveOrg(config, org) {
-  persistJsonDurably({ filePath: orgPath(config, org.orgId), value: org });
+async function saveOrg(config, org) {
+  await getStore(config).write(Categories.ORG, org.orgId, org);
   return org;
 }
 
-function loadOrganization(config, orgId) {
-  const filePath = orgPath(config, orgId);
-  if (!fs.existsSync(filePath)) return null;
-  return normalizeOrg(readJsonStrict(filePath, "organization"));
+async function loadOrganization(config, orgId) {
+  const stored = await getStore(config).read(Categories.ORG, requireOrgId(orgId));
+  return stored === null ? null : normalizeOrg(stored);
 }
 
 /*
  * Load-for-update with optimistic concurrency: the caller's
  * expectedVersion must equal the stored version, else VERSION_CONFLICT.
  */
-function loadOrgForUpdate(config, orgId, expectedVersion) {
-  const org = loadOrganization(config, orgId);
+async function loadOrgForUpdate(config, orgId, expectedVersion) {
+  const org = await loadOrganization(config, orgId);
   if (!org) throw fail("ORG_NOT_FOUND", `no organization ${orgId}`);
   if (!Number.isInteger(expectedVersion)) {
     throw fail("VERSION_REQUIRED", "expectedVersion is required for organization updates");
@@ -223,28 +232,29 @@ function loadOrgForUpdate(config, orgId, expectedVersion) {
   return org;
 }
 
-function createOrganization(config, { name }) {
+async function createOrganization(config, { name, tenantOwner = null }) {
   const now = new Date().toISOString();
   const org = normalizeOrg({
     schema: ORG_SCHEMA_V2,
     orgId: crypto.randomUUID(),
     name,
     version: 1,
+    tenantOwner,
     members: [],
     createdAt: now,
     updatedAt: now
   });
-  saveOrg(config, org);
-  appendAudit(config, { kind: "metadata", orgId: org.orgId, action: "org_created", detail: org.name });
+  await saveOrg(config, org);
+  await appendAudit(config, { kind: "metadata", orgId: org.orgId, action: "org_created", detail: org.name });
   return org;
 }
 
-function renameOrganization(config, orgId, { name, expectedVersion }) {
-  const org = loadOrgForUpdate(config, orgId, expectedVersion);
+async function renameOrganization(config, orgId, { name, expectedVersion }) {
+  const org = await loadOrgForUpdate(config, orgId, expectedVersion);
   const newName = cleanText(name, "name", { max: NAME_MAX, required: true });
   const updated = { ...org, name: newName, version: org.version + 1, updatedAt: new Date().toISOString() };
-  saveOrg(config, updated);
-  appendAudit(config, { kind: "metadata", orgId, action: "org_renamed", detail: `${org.name} -> ${newName}` });
+  await saveOrg(config, updated);
+  await appendAudit(config, { kind: "metadata", orgId, action: "org_renamed", detail: `${org.name} -> ${newName}` });
   return updated;
 }
 
@@ -254,21 +264,21 @@ function renameOrganization(config, orgId, { name, expectedVersion }) {
  * vault associations are preserved untouched, and nothing on-chain or in
  * any manifest changes.
  */
-function archiveOrganization(config, orgId, { expectedVersion }) {
-  const org = loadOrgForUpdate(config, orgId, expectedVersion);
+async function archiveOrganization(config, orgId, { expectedVersion }) {
+  const org = await loadOrgForUpdate(config, orgId, expectedVersion);
   if (org.status === "ARCHIVED") throw fail("ORG_ALREADY_ARCHIVED", `organization ${orgId} is already archived`);
   const updated = { ...org, status: "ARCHIVED", version: org.version + 1, updatedAt: new Date().toISOString() };
-  saveOrg(config, updated);
-  appendAudit(config, { kind: "metadata", orgId, action: "org_archived", detail: org.name });
+  await saveOrg(config, updated);
+  await appendAudit(config, { kind: "metadata", orgId, action: "org_archived", detail: org.name });
   return updated;
 }
 
-function restoreOrganization(config, orgId, { expectedVersion }) {
-  const org = loadOrgForUpdate(config, orgId, expectedVersion);
+async function restoreOrganization(config, orgId, { expectedVersion }) {
+  const org = await loadOrgForUpdate(config, orgId, expectedVersion);
   if (org.status !== "ARCHIVED") throw fail("ORG_NOT_ARCHIVED", `organization ${orgId} is not archived`);
   const updated = { ...org, status: "ACTIVE", version: org.version + 1, updatedAt: new Date().toISOString() };
-  saveOrg(config, updated);
-  appendAudit(config, { kind: "metadata", orgId, action: "org_restored", detail: org.name });
+  await saveOrg(config, updated);
+  await appendAudit(config, { kind: "metadata", orgId, action: "org_restored", detail: org.name });
   return updated;
 }
 
@@ -279,11 +289,11 @@ function restoreOrganization(config, orgId, { expectedVersion }) {
  * NEVER deletes, recovers, closes, or alters a vault: only the local
  * metadata record is removed.
  */
-function deleteOrganization(config, orgId, { expectedVersion }) {
-  const org = loadOrgForUpdate(config, orgId, expectedVersion);
+async function deleteOrganization(config, orgId, { expectedVersion }) {
+  const org = await loadOrgForUpdate(config, orgId, expectedVersion);
   let assigned = [];
   try {
-    assigned = Object.entries(loadAssignments(config).assignments)
+    assigned = Object.entries((await loadAssignments(config)).assignments)
       .filter(([, a]) => a.orgId === orgId)
       .map(([vaultId]) => vaultId);
   } catch (e) {
@@ -298,8 +308,8 @@ function deleteOrganization(config, orgId, { expectedVersion }) {
     err.assignedVaultIds = assigned;
     throw err;
   }
-  fs.unlinkSync(orgPath(config, orgId));
-  appendAudit(config, { kind: "metadata", orgId, action: "org_deleted", detail: org.name });
+  await getStore(config).remove(Categories.ORG, orgId);
+  await appendAudit(config, { kind: "metadata", orgId, action: "org_deleted", detail: org.name });
   return { deleted: true, orgId, name: org.name };
 }
 
@@ -309,15 +319,13 @@ function deleteOrganization(config, orgId, { expectedVersion }) {
  * an operational metadata error while other organizations — and every
  * vault operation — keep working. Nothing is auto-repaired.
  */
-function listOrganizations(config) {
-  const dir = orgDir(config);
-  if (!fs.existsSync(dir)) return [];
+async function listOrganizations(config) {
+  const store = getStore(config);
   const out = [];
-  for (const f of fs.readdirSync(dir)) {
-    if (!f.endsWith(".json") || f === "assignments.json") continue;
-    const orgId = f.replace(/\.json$/, "");
+  for (const orgId of await store.listKeys(Categories.ORG)) {
     try {
-      out.push(normalizeOrg(readJsonStrict(path.join(dir, f), "organization")));
+      const stored = await store.read(Categories.ORG, orgId);
+      if (stored !== null) out.push(normalizeOrg(stored));
     } catch (e) {
       out.push({ orgId: UUID_RE.test(orgId) ? orgId : "(invalid-filename)", error: "CORRUPT_METADATA", detail: e.message });
     }
@@ -336,8 +344,8 @@ function resolveMemberAddress(config, address) {
   return { address: id.address, xOnlyPubkey: id.xOnlyPubkey };
 }
 
-function addMember(config, orgId, { displayName, address, roles, note, expectedVersion }) {
-  const org = loadOrgForUpdate(config, orgId, expectedVersion);
+async function addMember(config, orgId, { displayName, address, roles, note, expectedVersion }) {
+  const org = await loadOrgForUpdate(config, orgId, expectedVersion);
   const now = new Date().toISOString();
   const member = normalizeMember(
     {
@@ -353,13 +361,13 @@ function addMember(config, orgId, { displayName, address, roles, note, expectedV
     org.members.length
   );
   const updated = { ...org, members: [...org.members, member], version: org.version + 1, updatedAt: now };
-  saveOrg(config, updated);
-  appendAudit(config, { kind: "metadata", orgId, action: "member_added", detail: member.displayName, memberId: member.memberId });
+  await saveOrg(config, updated);
+  await appendAudit(config, { kind: "metadata", orgId, action: "member_added", detail: member.displayName, memberId: member.memberId });
   return { org: updated, member };
 }
 
-function updateMember(config, orgId, memberId, { displayName, address, roles, note, status, expectedVersion }) {
-  const org = loadOrgForUpdate(config, orgId, expectedVersion);
+async function updateMember(config, orgId, memberId, { displayName, address, roles, note, status, expectedVersion }) {
+  const org = await loadOrgForUpdate(config, orgId, expectedVersion);
   const index = org.members.findIndex((m) => m.memberId === memberId);
   if (index < 0) throw fail("MEMBER_NOT_FOUND", `no member ${memberId} in organization ${orgId}`);
   const prev = org.members[index];
@@ -379,13 +387,13 @@ function updateMember(config, orgId, memberId, { displayName, address, roles, no
   const members = [...org.members];
   members[index] = next;
   const updated = { ...org, members, version: org.version + 1, updatedAt: now };
-  saveOrg(config, updated);
-  appendAudit(config, { kind: "metadata", orgId, action: "member_updated", detail: next.displayName, memberId });
+  await saveOrg(config, updated);
+  await appendAudit(config, { kind: "metadata", orgId, action: "member_updated", detail: next.displayName, memberId });
   return { org: updated, member: next };
 }
 
-function removeMember(config, orgId, memberId, { expectedVersion }) {
-  const org = loadOrgForUpdate(config, orgId, expectedVersion);
+async function removeMember(config, orgId, memberId, { expectedVersion }) {
+  const org = await loadOrgForUpdate(config, orgId, expectedVersion);
   const member = org.members.find((m) => m.memberId === memberId);
   if (!member) throw fail("MEMBER_NOT_FOUND", `no member ${memberId} in organization ${orgId}`);
   const updated = {
@@ -394,8 +402,8 @@ function removeMember(config, orgId, memberId, { expectedVersion }) {
     version: org.version + 1,
     updatedAt: new Date().toISOString()
   };
-  saveOrg(config, updated);
-  appendAudit(config, { kind: "metadata", orgId, action: "member_removed", detail: member.displayName, memberId });
+  await saveOrg(config, updated);
+  await appendAudit(config, { kind: "metadata", orgId, action: "member_removed", detail: member.displayName, memberId });
   return updated;
 }
 
@@ -429,16 +437,16 @@ function normalizeAssignments(input) {
   return { schema: ASSIGNMENTS_SCHEMA, version: input.version, assignments: out };
 }
 
-function loadAssignments(config) {
-  const p = assignmentsPath(config);
-  if (!fs.existsSync(p)) {
+async function loadAssignments(config) {
+  const stored = await getStore(config).read(Categories.ORG_ASSIGNMENTS, "assignments");
+  if (stored === null) {
     return { schema: ASSIGNMENTS_SCHEMA, version: 0, assignments: {} };
   }
-  return normalizeAssignments(readJsonStrict(p, "org assignments"));
+  return normalizeAssignments(stored);
 }
 
-function saveAssignments(config, record) {
-  persistJsonDurably({ filePath: assignmentsPath(config), value: record });
+async function saveAssignments(config, record) {
+  await getStore(config).write(Categories.ORG_ASSIGNMENTS, "assignments", record);
   return record;
 }
 
@@ -448,16 +456,16 @@ function saveAssignments(config, record) {
  * LOCAL POLICYVAULT METADATA: it never touches the chain, vault ids,
  * covenant ids, owners, delegates, or wallet authorization.
  */
-function assignVault(config, { vaultId, orgId, group = null, expectedVersion, vaultExists }) {
+async function assignVault(config, { vaultId, orgId, group = null, expectedVersion, vaultExists }) {
   if (!VAULT_ID_RE.test(String(vaultId ?? ""))) throw fail("VAULT_ID_INVALID", "vaultId must be 32-byte hex");
   requireOrgId(orgId);
-  const target = loadOrganization(config, orgId);
+  const target = await loadOrganization(config, orgId);
   if (!target) throw fail("ORG_NOT_FOUND", `no organization ${orgId}`);
   if (target.status === "ARCHIVED") throw fail("ORG_ARCHIVED", `organization ${orgId} is archived — restore it before assigning vaults`);
-  if (typeof vaultExists === "function" && !vaultExists(vaultId)) {
+  if (typeof vaultExists === "function" && !(await vaultExists(vaultId))) {
     throw fail("VAULT_NOT_FOUND", `unknown vault ${vaultId}`);
   }
-  const record = loadAssignments(config);
+  const record = await loadAssignments(config);
   if (!Number.isInteger(expectedVersion)) throw fail("VERSION_REQUIRED", "expectedVersion is required");
   if (record.version !== expectedVersion) {
     throw fail("VERSION_CONFLICT", `assignments changed (version ${record.version}, expected ${expectedVersion}) — reload and retry`);
@@ -466,8 +474,8 @@ function assignVault(config, { vaultId, orgId, group = null, expectedVersion, va
   const cleanGroup = group == null || String(group).trim() === "" ? null : cleanText(group, "group", { max: NAME_MAX });
   record.assignments[vaultId] = { orgId, group: cleanGroup, assignedAt: new Date().toISOString() };
   record.version += 1;
-  saveAssignments(config, record);
-  appendAudit(config, {
+  await saveAssignments(config, record);
+  await appendAudit(config, {
     kind: "metadata",
     orgId,
     vaultId,
@@ -477,9 +485,9 @@ function assignVault(config, { vaultId, orgId, group = null, expectedVersion, va
   return record.assignments[vaultId];
 }
 
-function unassignVault(config, { vaultId, expectedVersion }) {
+async function unassignVault(config, { vaultId, expectedVersion }) {
   if (!VAULT_ID_RE.test(String(vaultId ?? ""))) throw fail("VAULT_ID_INVALID", "vaultId must be 32-byte hex");
-  const record = loadAssignments(config);
+  const record = await loadAssignments(config);
   if (!Number.isInteger(expectedVersion)) throw fail("VERSION_REQUIRED", "expectedVersion is required");
   if (record.version !== expectedVersion) {
     throw fail("VERSION_CONFLICT", `assignments changed (version ${record.version}, expected ${expectedVersion}) — reload and retry`);
@@ -488,14 +496,14 @@ function unassignVault(config, { vaultId, expectedVersion }) {
   if (!previous) throw fail("ASSIGNMENT_NOT_FOUND", `vault ${vaultId} is not assigned`);
   delete record.assignments[vaultId];
   record.version += 1;
-  saveAssignments(config, record);
-  appendAudit(config, { kind: "metadata", orgId: previous.orgId, vaultId, action: "vault_unassigned" });
+  await saveAssignments(config, record);
+  await appendAudit(config, { kind: "metadata", orgId: previous.orgId, vaultId, action: "vault_unassigned" });
   return { unassigned: true };
 }
 
-function assignmentFor(config, vaultId) {
+async function assignmentFor(config, vaultId) {
   try {
-    return loadAssignments(config).assignments[vaultId] ?? null;
+    return (await loadAssignments(config)).assignments[vaultId] ?? null;
   } catch {
     // Corrupt assignments never block vault presentation — the API layer
     // surfaces the corruption separately via loadAssignments' throw.

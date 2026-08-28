@@ -82,7 +82,7 @@ pub fn compile_state(policy: &PolicySpec, state: &StateSpec) -> CompiledContract
 
 /// Variant used by identity-forgery tests: bake a different vaultId.
 pub fn compile_state_with_vault_id(policy: &PolicySpec, state: &StateSpec, vault_id: &str) -> CompiledContract<'static> {
-    let path = format!("{}/policyvault/contracts/PolicyVault.v0.1.beta.sil", std::env::var("HOME").expect("HOME"));
+    let path = format!("{}/../../contracts/PolicyVault.v0.1.beta.sil", env!("CARGO_MANIFEST_DIR"));
     let mut source = fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed reading {path}: {err}"));
 
     source = replace_exact(
@@ -346,7 +346,7 @@ fn to_hex(bytes: &[u8]) -> String {
 /// contract with every state initializer templated. Shared by the in-process
 /// compiler AND the encoder-input writer so they can never drift.
 pub fn v2_templated_source(state: &V2State) -> String {
-    let path = format!("{}/policyvault/contracts/PolicyVault.v0.2.sil", std::env::var("HOME").expect("HOME"));
+    let path = format!("{}/../../contracts/PolicyVault.v0.2.sil", env!("CARGO_MANIFEST_DIR"));
     let mut source = fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed reading {path}: {err}"));
 
     source = replace_exact(source, "int protectedValue = initValue;", format!("int protectedValue = {};", state.protected_value));

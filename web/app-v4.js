@@ -8,7 +8,8 @@
  * period) and shows canonical reviews — the server independently derives and
  * validates every consensus-visible value (address→x-only, KAS→sompi, node DAA,
  * periodSpent=0). Owner/agent/approver signing all use the wallet's signPskt
- * over the frozen transaction, then broadcast to testnet-10.
+ * over the frozen transaction, then broadcast to the server's configured
+ * network (state.serverNetwork — testnet-10 or mainnet; never assumed).
  */
 (function () {
   const API = "/api/v1";
@@ -20,19 +21,66 @@
   // No independent wallet state: the v0.4.1 app consumes the ONE canonical
   // browser wallet session (window.PolicyVaultWalletSession, owned by the global
   // Wallet panel). It never opens a second provider connection.
-  const state = { address: null, xonly: null, network: null, serverNetwork: null, ready: false, provider: null, view: "vaults", statusFilter: "Active", org: "all", renderedOnce: false, orgData: null, openReqs: [] };
+  const state = { address: null, xonly: null, network: null, serverNetwork: null, ready: false, provider: null, view: "vaults", statusFilter: "Active", org: "all", renderedOnce: false, orgData: null, openReqs: [], vaultsById: {} };
   const session = () => (window.PolicyVaultWalletSession ? window.PolicyVaultWalletSession.active() : { connected: false, ready: false });
+  // Server-derived network display label (never a hardcoded network name):
+  // state.serverNetwork is set from GET /health at DOMContentLoaded (below)
+  // and is the ONLY source of truth for what network this build talks to.
+  // Falls back to a neutral phrase before that resolves — never guesses
+  // "testnet-10". Display-only; every real network check stays on the
+  // session gate (state.ready) and the server.
+  const networkLabel = () => state.serverNetwork || "the configured network";
 
+  /* ---- BROWSER-LOCAL PRE-SIGN VERIFICATION (PostLaunchUpgradeOG) ----
+   * web/verify-intent.js + web/core-bundle.js run the portable shared-core
+   * intent-manifest verifier IN THE BROWSER over the EXACT unsigned Safe
+   * JSON about to be signed, against the user's OWN action context and the
+   * vault state this browser already knows. When the module is loaded
+   * (production index.html always loads it) verification is MANDATORY:
+   * any refusal — or a missing/unbound verification — BLOCKS the wallet
+   * prompt (walletSign stage D2). A page served without the module is a
+   * legacy build: the signing modal then carries a visible warning that
+   * independent verification is unavailable. */
+  const verifyGate = () => (window.PolicyVaultVerifyIntent && typeof window.PolicyVaultVerifyIntent.verifyBeforeSigning === "function" ? window.PolicyVaultVerifyIntent : null);
+  function verifyForSigning({ request, vaultId, clientAction, clientParams, clientFuel, role, createContext }) {
+    const gate = verifyGate();
+    if (!gate) return null; // legacy build — visibly labeled in the modal
+    const s = session();
+    return gate.verifyBeforeSigning({
+      request,
+      vault: vaultId !== undefined ? state.vaultsById[vaultId] : undefined,
+      createContext,
+      clientAction,
+      clientParams,
+      clientFuel,
+      sessionNetwork: s.network,
+      sessionXOnly: state.xonly,
+      role
+    });
+  }
+
+  /* Hosted/API errors arrive as { error: { code, message } } (self-hosted
+   * legacy routes may use a bare string). Extract message AND code exactly
+   * like app.js — the Phase G human run hit a session-expiry 401 here and
+   * the vaults view rendered "[object Object]" because the raw envelope
+   * object was passed to new Error(). Callers rely on e.code (e.g.
+   * ORG_NOT_EMPTY, AUTH_*) and e.message; e.payload keeps the full body. */
+  function apiError(j, r) {
+    return Object.assign(new Error((j.error && j.error.message) || j.error || r.statusText), {
+      code: (j.error && j.error.code) || j.code,
+      payload: j
+    });
+  }
   async function getJSON(p) {
     const r = await fetch(API + p);
     const j = await r.json();
-    if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), j);
+    if (!r.ok) throw apiError(j, r);
     return j;
   }
   async function postJSON(p, body) {
     const r = await fetch(API + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await r.json();
-    if (!r.ok) throw Object.assign(new Error((j.error && j.error.message) || j.error || r.statusText), j);
+    if (!r.ok) throw apiError(j, r);
     return j;
   }
   async function resolveXOnly(address) {
@@ -47,10 +95,39 @@
     el.style.display = msg ? "block" : "none";
   }
 
+  /* ---- Governance ceremony / risk hold / org-controls UI modules ----
+   * (PostLaunchUpgradeOG completion-standard items 1/2/3/6). Each is a
+   * separate web/*.js module (never touching web/verify-intent.js or
+   * web/core-bundle.js) constructed fresh per call from the SAME
+   * getJSON/postJSON this file already uses — no separate network layer,
+   * no separate signing path. A page served without one of these modules
+   * degrades to the pre-existing plain refusal note() (checked at every
+   * call site below) rather than crashing. */
+  const govUI = () => (window.PolicyVaultGovernanceUI ? window.PolicyVaultGovernanceUI.createModule({ api: { getJSON, postJSON } }) : null);
+  const riskUI = () => (window.PolicyVaultRiskUI ? window.PolicyVaultRiskUI.createModule({ api: { getJSON, postJSON } }) : null);
+  const orgControlsUI = () => (window.PolicyVaultOrgControlsUI ? window.PolicyVaultOrgControlsUI.createModule({ api: { getJSON, postJSON, resolveXOnly } }) : null);
+
+  /* Owner ops are fuel-funded; auto-select the owner's largest ordinary
+   * UTXO from the server. Module-scope (not just wireVault-local) so a
+   * governance-ceremony RETRY reached from the persistent open-proposals
+   * list (which has no live form params in hand — only the proposal's own
+   * stored action/params, which never carry `fuel`; server/src/
+   * governance.js stripExecutionOnlyParams excludes it by design) can
+   * re-select fresh fuel exactly like the original action did, instead of
+   * silently retrying with a missing/stale UTXO reference. */
+  const withFuel = async (params, minSompi = "200000000") => {
+    try {
+      const { utxos } = await getJSON(`/wallet/fuel/${encodeURIComponent(state.address)}`);
+      const u = (utxos || []).find((x) => BigInt(x.amount) > BigInt(minSompi));
+      if (!u) { note(`No ordinary UTXO > ${(Number(minSompi) / 1e8)} KAS at ${short(state.address)} — fund the owner address first.`, "bad"); return null; }
+      return { ...params, fuel: { outpoint: u.outpoint, amount: u.amount, scriptPublicKeyHex: u.scriptPublicKeyHex } };
+    } catch (e) { note(`Could not fetch fuel: ${e.message}`, "bad"); return null; }
+  };
+
   /* React to the ONE canonical wallet session. Account/network changes are
    * SECURITY EVENTS: re-derive the active identity, discard any in-progress
    * signing modal, and re-render (which re-runs role derivation + disables
-   * actions when the wallet is not on testnet-10). */
+   * actions when the wallet is not on the server's configured network). */
   async function updateWallet(snap) {
     const changed = snap.address !== state.address || snap.network !== state.network || snap.ready !== state.ready;
     const hadXOnly = !!state.xonly;
@@ -66,7 +143,7 @@
     const box = $("v4-wallet");
     if (box) {
       if (!snap.connected) box.innerHTML = `No wallet connected. <b>Connect KasWare in the Wallet panel above to continue.</b>`;
-      else if (!snap.ready) box.innerHTML = `Wallet is on <b>${esc(snap.network || "unknown")}</b> — PolicyVault is <b>testnet-10 only</b>. Switch KasWare to testnet-10 to sign.`;
+      else if (!snap.ready) box.innerHTML = `Wallet is on <b>${esc(snap.network || "unknown")}</b> — PolicyVault is configured for <b>${esc(networkLabel())}</b>. Switch KasWare to ${esc(networkLabel())} to sign.`;
       else box.innerHTML = `Signing wallet <span class="mono">${esc(snap.address)}</span> · network <b>${esc(snap.network)}</b> · <span class="badge ver">${esc(snap.provider || "wallet")}</span> · <span class="hint" style="display:inline">role is derived per vault below</span>`;
     }
     if (changed) {
@@ -124,18 +201,35 @@
    *   B entered → C expected signer resolved → D canonical signInputs
    *   validated → E provider signPskt invoked → F returned → G returned shape
    *   checked → I post-popup signer re-verified → K returned to caller. */
-  async function walletSign(unsignedSafeJson, signInputsList, expectedSigner) {
+  async function walletSign(unsignedSafeJson, signInputsList, expectedSigner, verification) {
     const diag = { stage: "B:walletSign-entered", provider: null };
     try {
       const s = session();
       diag.provider = s.provider || "wallet";
-      if (!s.ready || !s.adapter) throw Object.assign(new Error("wallet is not connected on testnet-10"), { code: "WALLET_NOT_READY" });
+      if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
       diag.stage = "C:expected-signer-resolved";
       if (expectedSigner && s.address !== expectedSigner) throw Object.assign(new Error(`connected wallet ${short(s.address)} is not the expected signer ${short(expectedSigner)}`), { code: "SIGNER_MISMATCH" });
       diag.stage = "D:signInputs-validated";
       assertCanonicalSignInputs(signInputsList);
+      // D2: MANDATORY browser verification binding whenever the verification
+      // layer is loaded. The passing verification outcome must exist AND be
+      // bound to the EXACT unsigned Safe JSON string being signed — a
+      // refusal, an absent outcome, or a different payload never reaches the
+      // wallet. Fail closed; there is no proceed-anyway.
+      diag.stage = "D2:browser-verification-bound";
+      if (verifyGate()) {
+        if (!verification) {
+          throw Object.assign(new Error("no browser verification outcome for this signing request — refusing to invoke the wallet"), { code: "VERIFICATION_REQUIRED" });
+        }
+        if (verification.ok !== true) {
+          throw Object.assign(new Error(`browser verification REFUSED this transaction (${(verification.refusalCodes || []).join(", ")}) — refusing to invoke the wallet`), { code: "VERIFICATION_REFUSED" });
+        }
+        if (verification.unsignedSafeJson !== unsignedSafeJson) {
+          throw Object.assign(new Error("the verified transaction payload is not the payload being signed — refusing to invoke the wallet"), { code: "VERIFICATION_TX_BINDING_MISMATCH" });
+        }
+      }
       diag.stage = "E:provider-signPskt-invoked";
-      const signed = await s.adapter.signInputs(unsignedSafeJson, signInputsList);
+      const signed = await s.adapter.signInputs(unsignedSafeJson, signInputsList, { network: s.network, expectedSignerAddress: expectedSigner || s.address });
       diag.stage = "F:provider-signPskt-returned";
       if (typeof signed !== "string" || !signed.trim()) throw Object.assign(new Error("wallet returned no signed transaction"), { code: "INVALID_SIGNATURE_RESPONSE" });
       diag.stage = "G:returned-shape-checked";
@@ -157,7 +251,7 @@
    * onConfirm === null renders an INFORMATIONAL review (single Close button,
    * no signing action) — used when the durable server state says the request
    * is not signable by this wallet yet (e.g. AWAITING_APPROVALS). */
-  function reviewModal(review, onConfirm, confirmLabel, headline) {
+  function reviewModal(review, onConfirm, confirmLabel, headline, verification) {
     const rowsOf = (obj) => Object.entries(obj || {})
       .filter(([, v]) => v !== null && typeof v !== "object")
       .map(([k, v]) => `<tr><td class="rk">${esc(k)}</td><td class="rv">${esc(v)}</td></tr>`)
@@ -166,16 +260,52 @@
     const tech = review && review.technical && Object.keys(review.technical).length
       ? `<details class="adv"><summary>Advanced (technical)</summary><table class="review" style="width:100%">${rowsOf(review.technical)}</table></details>`
       : "";
-    const actions = onConfirm
+    // ---- browser verification rendering (PostLaunchUpgradeOG) ----
+    // With the verification layer loaded, a signing modal REQUIRES a passing
+    // outcome: any refusal (or a missing outcome) renders the unmistakable
+    // DO-NOT-SIGN state and NEVER offers a signing action. walletSign
+    // enforces the same rule again before any provider call.
+    const gate = verifyGate();
+    let verifyHtml = "";
+    let blocked = false;
+    if (gate) {
+      const v = verification;
+      const lineDivs = (lines) => (lines || []).map((l) => `<div class="vline mono" style="padding:0.12rem 0;word-break:break-all">${esc(l)}</div>`).join("");
+      if (v && v.ok === true) {
+        const checkRows = (v.checks || []).map((c) => `<div class="mono" style="font-size:0.72rem">${c.ok ? "PASS" : "FAIL"} — ${esc(c.id)}</div>`).join("");
+        const noteRows = (v.notes || []).map((n) => `<div class="hint" style="margin-top:0.2rem">${esc(n)}</div>`).join("");
+        verifyHtml =
+          `<div class="opbanner" style="border-color:var(--good);margin-top:0.8rem" data-verify="pass">` +
+          `<b style="color:var(--good)">VERIFIED BY THIS BROWSER</b>` +
+          `<div class="hint" style="margin-top:0.2rem">Independently re-derived in this browser from the exact transaction payload the wallet will sign and the values you entered — not from a server description.</div>` +
+          `<div style="margin-top:0.4rem;font-size:0.78rem;max-height:14rem;overflow:auto">${lineDivs(v.lines)}</div>` +
+          `<details class="adv"><summary>Verification details</summary>` +
+          `<div class="mono" style="font-size:0.72rem;word-break:break-all">manifest hash ${esc(v.manifestHash || "")}<br/>transaction id ${esc(v.txId || "")}<br/>verdict ${esc(v.verdict)}</div>` +
+          checkRows + noteRows + `</details></div>`;
+      } else {
+        blocked = !!onConfirm || !!v; // a refusal always renders; a signing modal is always blocked
+        const lines = v && v.lines ? v.lines : ["!! DO NOT SIGN !!", "BROWSER VERIFICATION REFUSED — no verification outcome was produced for this signing request.", "Refusal codes: VERIFICATION_REQUIRED."];
+        verifyHtml =
+          `<div class="opbanner bad" style="margin-top:0.8rem;border-width:2px" data-verify="refused">` +
+          `<b style="color:var(--bad);font-size:1rem">DO NOT SIGN</b>` +
+          `<div style="margin-top:0.4rem;font-size:0.78rem;max-height:14rem;overflow:auto">${lineDivs(lines)}</div>` +
+          (v && v.manifestHash ? `<details class="adv"><summary>Verification details</summary><div class="mono" style="font-size:0.72rem;word-break:break-all">manifest hash ${esc(v.manifestHash)}<br/>verdict ${esc(v.verdict || "REFUSED")}</div></details>` : "") +
+          `</div>`;
+      }
+    } else {
+      verifyHtml = `<div class="opbanner warn" style="margin-top:0.8rem" data-verify="unavailable">Independent browser verification is not loaded in this build — the review above is server-provided and was NOT independently re-verified by this browser.</div>`;
+    }
+    const canConfirm = !!onConfirm && !blocked;
+    const actions = canConfirm
       ? `<div class="modal-actions"><button id="v4-cancel">Cancel</button>` +
         `<button id="v4-confirm" class="primary">${esc(confirmLabel || "Sign")}</button></div>`
-      : `<div class="modal-actions"><button id="v4-cancel" class="primary">${esc(confirmLabel || "Close")}</button></div>`;
+      : `<div class="modal-actions"><button id="v4-cancel" class="primary">${esc(blocked ? "Close — do not sign" : confirmLabel || "Close")}</button></div>`;
     const m = $("v4-modal");
     m.innerHTML =
-      `<div class="modal-card" style="max-width:560px;width:92%"><h3>${esc(headline || "Review — signed exactly as shown")}</h3>` +
-      `<table class="review" style="width:100%">${rows}</table>` + tech + actions + `</div>`;
+      `<div class="modal-card" style="max-width:560px;width:92%"><h3>${esc(blocked ? "DO NOT SIGN — verification refused" : headline || "Review — signed exactly as shown")}</h3>` +
+      `<table class="review" style="width:100%">${rows}</table>` + tech + verifyHtml + actions + `</div>`;
     m.style.display = "flex";
-    $("v4-cancel").onclick = () => { m.style.display = "none"; if (!onConfirm) render(); };
+    $("v4-cancel").onclick = () => { m.style.display = "none"; if (!canConfirm) render(); };
     const confirmBtn = $("v4-confirm");
     if (confirmBtn) confirmBtn.onclick = async () => {
       m.style.display = "none";
@@ -188,16 +318,16 @@
    * signable now: below-threshold/owner requests directly after BUILD, and
    * above-threshold spends ONLY after all M approvals are collected (the
    * server independently re-refuses finalize otherwise). */
-  async function completeRequestFlow(request, action) {
+  async function completeRequestFlow(request, action, verification) {
     try {
-      const signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address);
+      const signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address, verification);
       const done = await postJSON(`/wallet/v4/requests/${request.requestId}/signature`, { signedSafeJson: signed });
       if (done.request.state !== "PREFLIGHT_VERIFIED") {
         note(`${action}: ${done.request.state}${done.request.error ? " — " + done.request.error : ""}`, "warn");
         render();
         return;
       }
-      note(`${action}: preflight OK — broadcasting to testnet-10…`, "warn");
+      note(`${action}: preflight OK — broadcasting to ${networkLabel()}…`, "warn");
       const sub = await postJSON(`/wallet/v4/requests/${request.requestId}/submit`, {});
       const ok = sub.request.state === "CHAIN_VERIFIED";
       note(`${action}: ${sub.request.state} — txid ${short(sub.txId)}${ok ? " (relayed + chain-verified)" : ""}`, ok ? "good" : "warn");
@@ -211,20 +341,234 @@
    * DURABLE REQUEST STATE. An above-threshold spend builds into
    * AWAITING_APPROVALS: the browser must NOT offer the agent-sign path — it
    * shows the informational review and hands off to the approval workflow on
-   * the vault card (approvers sign first, the acting agent signs last). */
-  async function runFlow(vaultId, action, params, confirmLabel) {
+   * the vault card (approvers sign first, the acting agent signs last).
+   *
+   * `extra` carries { proposalId } or { riskEvaluationId } on a RETRY after
+   * a governance ceremony was satisfied or a risk hold was released — the
+   * SAME build call, just with the consuming id attached (server/src/api.js
+   * POST /wallet/v4/requests). This is the ONLY place either gate is consulted
+   * (intent-stage, before any durable request exists), so a retry is simply
+   * calling this function again — and a RELEASED risk hold needs no id at all: re-running the identical action plain lets the server match and consume the released review of this exact intent (RC-UX-1 continuation — see openRiskHold below). */
+  async function runFlow(vaultId, action, params, confirmLabel, extra) {
     try {
-      const { request } = await postJSON("/wallet/v4/requests", { vaultId, action, params, signerAddress: state.address });
+      const { request } = await postJSON("/wallet/v4/requests", { vaultId, action, params, signerAddress: state.address, ...(extra || {}) });
+      // BROWSER-LOCAL VERIFICATION of the freshly built request against the
+      // CLIENT'S OWN action context (the params this browser just built from
+      // the user's inputs — never the server's echo). `fuel` is the UTXO the
+      // client itself selected; it is bound to the transaction too.
+      const { fuel, ...clientParams } = params || {};
+      const verification = verifyForSigning({
+        request,
+        vaultId,
+        clientAction: action,
+        clientParams,
+        clientFuel: fuel,
+        role: action === "agentSpend" ? "agent" : "owner"
+      });
       if (request.state === "AWAITING_APPROVALS") {
         const p = request.approvalProgress || { collected: 0, required: request.review.approvalsRequired };
         note(`Approval request created — ${p.collected} of ${p.required} approvals collected. Approvers sign first; the agent signs after the threshold is met.`, "warn");
-        reviewModal(request.review, null, "Close", `Awaiting approvals — ${p.collected} of ${p.required}`);
+        reviewModal(request.review, null, "Close", `Awaiting approvals — ${p.collected} of ${p.required}`, verification);
         return;
       }
-      reviewModal(request.review, () => completeRequestFlow(request, action), confirmLabel);
+      reviewModal(request.review, () => completeRequestFlow(request, action, verification), confirmLabel, undefined, verification);
     } catch (e) {
+      // GOVERNANCE_PROPOSAL_REQUIRED (409) / RISK_REVIEW_REQUIRED (409) /
+      // RISK_DENIED (403): the server refused at the INTENT stage — the
+      // refusal is never softened or bypassed here. When the ceremony/hold
+      // UI module is loaded, hand off to the lawful path THROUGH the gate
+      // (create+approve a proposal, or release+re-submit a hold); a page
+      // served without those modules keeps the plain refusal note (fails
+      // closed to "unavailable", never silently proceeds).
+      if (e.code === "GOVERNANCE_PROPOSAL_REQUIRED" && govUI()) {
+        return openGovernanceCeremony({ vaultId, action, params, confirmLabel, error: e });
+      }
+      if ((e.code === "RISK_REVIEW_REQUIRED" || e.code === "RISK_DENIED") && riskUI()) {
+        return openRiskHold({ vaultId, action, params, confirmLabel, error: e });
+      }
       note(`${action} rejected: ${e.code || ""} ${e.message}`, "bad");
     }
+  }
+
+  /* ===================== GOVERNANCE CEREMONY (item 1) =====================
+   * Reached two ways:
+   *   1. REACTIVE — runFlow's catch when the server refuses BUILD with
+   *      GOVERNANCE_PROPOSAL_REQUIRED (`error` set; vaultId/action/params
+   *      are the exact attempted action, still in hand).
+   *   2. PERSISTENT LIST — clicking "View & act" on an OPEN proposal card
+   *      rendered on a vault (`proposal` or `proposalId` set); the action
+   *      to retry is recovered from the proposal's OWN stored content
+   *      (governance.js's createProposal records the exact action+params
+   *      requested), never re-typed or guessed by this layer.
+   * Every field shown is the server's presentProposal() response,
+   * verbatim (recomputed by the server at read time — governance-spec
+   * §9.4). Approval signs THROUGH the existing session adapter
+   * (adapter.signAuthMessage) — never a second signing path. */
+  async function openGovernanceCeremony({ vaultId, action, params, confirmLabel, error, proposal, proposalId }) {
+    const gov = govUI();
+    if (!gov) {
+      note(`${action || "action"} rejected: ${(error && error.code) || ""} ${(error && error.message) || "the governance ceremony UI failed to load"}`, "bad");
+      return;
+    }
+    const m = $("v4-modal");
+    const wireClose = () => {
+      const b = m.querySelector("[data-gov-close]");
+      if (b) b.onclick = () => { m.style.display = "none"; };
+    };
+
+    async function renderProposal(p) {
+      const effectiveVaultId = vaultId || (p.proposal && p.proposal.vaultId);
+      const effectiveAction = action || (p.proposal && p.proposal.action);
+      const cstate = gov.ceremonyState(p, { xOnly: state.xonly });
+      m.innerHTML = gov.renderProposalHtml(p, cstate);
+      m.style.display = "flex";
+      wireClose();
+      const approveBtn = m.querySelector("[data-gov-approve]");
+      if (approveBtn) approveBtn.onclick = async () => {
+        approveBtn.disabled = true;
+        try {
+          const s = session();
+          if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+          const updated = await gov.approve({ proposal: p, adapter: s.adapter, address: state.address, network: s.network });
+          note("Governance approval recorded.", "good");
+          await renderProposal(updated);
+        } catch (e) {
+          note(`Approval failed: ${e.code || ""} ${e.message}`, "bad");
+          approveBtn.disabled = false;
+        }
+      };
+      const retryBtn = m.querySelector("[data-gov-retry]");
+      if (retryBtn) retryBtn.onclick = async () => {
+        // Fuel-funded actions need a FRESH UTXO reference at retry time —
+        // the stored proposal never carries `fuel` (governance.js strips
+        // it as execution-only, not intent). agentSpend is reserve-funded
+        // (no client-selected fuel) and passes params straight through.
+        let effectiveParams = params || (p.proposal && p.proposal.params) || {};
+        if (effectiveAction !== "agentSpend" && !effectiveParams.fuel) {
+          const withFuelParams = await withFuel(effectiveParams);
+          if (!withFuelParams) return; // withFuel already noted the reason
+          effectiveParams = withFuelParams;
+        }
+        m.style.display = "none";
+        runFlow(effectiveVaultId, effectiveAction, effectiveParams, confirmLabel || `Sign ${effectiveAction}`, { proposalId: p.proposalId });
+      };
+      const cancelBtn = m.querySelector("[data-gov-cancel]");
+      if (cancelBtn) {
+        const vault = state.vaultsById[effectiveVaultId];
+        if (!vault || !state.xonly || state.xonly !== vault.owner) {
+          cancelBtn.style.display = "none";
+        } else {
+          cancelBtn.onclick = async () => {
+            if (!window.confirm("Cancel this governance proposal?\n\nCollected approvals are discarded. The vault itself is unaffected.")) return;
+            try {
+              await gov.cancelProposal(p.proposalId);
+              note("Governance proposal cancelled.", "good");
+              m.style.display = "none";
+              render();
+            } catch (e) { note(`Cancel failed: ${e.code || ""} ${e.message}`, "bad"); }
+          };
+        }
+      }
+    }
+
+    if (proposal) { await renderProposal(proposal); return; }
+    if (proposalId) {
+      m.innerHTML = `<div class="modal-card" style="max-width:640px;width:92%"><h3 style="margin-top:0">Loading governance proposal…</h3></div>`;
+      m.style.display = "flex";
+      try { await renderProposal(await gov.fetchProposal(proposalId)); }
+      catch (e) { note(`Could not load proposal: ${e.code || ""} ${e.message}`, "bad"); m.style.display = "none"; }
+      return;
+    }
+
+    // REACTIVE entry: the server just refused BUILD with
+    // GOVERNANCE_PROPOSAL_REQUIRED. Offer the lawful path — create the
+    // proposal for the EXACT attempted action (the server independently
+    // derives and validates the authority delta from vaultId/action/params;
+    // this layer never computes or asserts a classification of its own).
+    const gv = error && error.payload && error.payload.error && error.payload.error.governance;
+    const summary = gv ? ` Classification: ${esc(gv.classification || "?")} [${esc((gv.codes || []).join(", "))}].` : "";
+    m.innerHTML =
+      `<div class="modal-card" style="max-width:640px;width:92%"><h3 style="margin-top:0">Governance proposal required</h3>` +
+      `<div class="hint">${esc((error && error.message) || "This action requires an approved governance proposal.")}${summary}</div>` +
+      `<div class="hint" style="margin-top:0.5rem">Creating a proposal does not change anything yet — it starts the ceremony. The exact authority delta is derived and validated by the server from this action, not by this page.</div>` +
+      `<div class="modal-actions"><button class="primary" data-gov-createproposal="1">Create proposal for this action</button><button data-gov-close="1">Close</button></div></div>`;
+    m.style.display = "flex";
+    wireClose();
+    const createBtn = m.querySelector("[data-gov-createproposal]");
+    if (createBtn) createBtn.onclick = async () => {
+      createBtn.disabled = true;
+      try {
+        const created = await gov.createProposalFor({ vaultId, action, params });
+        note("Governance proposal created — collect the required approvals, then retry.", "good");
+        await renderProposal(created);
+      } catch (e) {
+        note(`Create proposal failed: ${e.code || ""} ${e.message}`, "bad");
+        createBtn.disabled = false;
+      }
+    };
+  }
+
+  /* ===================== RISK HOLD (item 2) =====================
+   * Reached ONLY reactively: the server refused BUILD with
+   * RISK_REVIEW_REQUIRED (409, a live hold to release) or RISK_DENIED
+   * (403, final — server/src/risk.js gateOperationRisk never persists a
+   * releasable DENY). There is no list-open-holds endpoint in the current
+   * server API (server/src/api.js only serves GET /risk/evaluations/:id),
+   * so a DIFFERENT authorized reviewer needs the evaluationId communicated
+   * out of band (the Activity feed's risk audit rows carry it) — this
+   * function also accepts a bare `evaluationId` for exactly that jump-in case.
+   * SOLO CONTINUATION (RC-UX-1 fix): once a hold is RELEASED, the re-submit path here (which carries riskEvaluationId) is a convenience, not the only exit — the server also recognizes a plain re-attempt of the identical action from the vault card (exact reviewed intent, same vault, same risk-control configuration) and consumes the released hold exactly once (server/src/risk.js consumeReleasedHoldForIntent); a self-hosted solo operator who released via the API just re-runs the original action.
+   * NEVER auto-released, NEVER retry-looped: both actions below are wired to explicit button clicks only. */
+  async function openRiskHold({ vaultId, action, params, confirmLabel, error, evaluationId }) {
+    const risk = riskUI();
+    if (!risk) {
+      note(`${action || "action"} rejected: ${(error && error.code) || ""} ${(error && error.message) || "the risk hold UI failed to load"}`, "bad");
+      return;
+    }
+    const evalId = evaluationId || (error && error.payload && error.payload.error && error.payload.error.riskEvaluation && error.payload.error.riskEvaluation.evaluationId);
+    if (!evalId) {
+      note(`${action || "action"} rejected: ${(error && error.code) || ""} ${(error && error.message) || "no risk evaluation id was returned"}`, "bad");
+      return;
+    }
+    const m = $("v4-modal");
+    const wireClose = () => {
+      const b = m.querySelector("[data-risk-close]");
+      if (b) b.onclick = () => { m.style.display = "none"; };
+    };
+
+    async function renderEvaluation(ev) {
+      const rstate = risk.holdState(ev, { xOnly: state.xonly });
+      m.innerHTML = risk.renderEvaluationHtml(ev, rstate);
+      m.style.display = "flex";
+      wireClose();
+      const releaseBtn = m.querySelector("[data-risk-release]");
+      if (releaseBtn) releaseBtn.onclick = async () => {
+        if (!window.confirm("Release this risk hold for execution?\n\nThis does not itself move funds — it only allows the original request to be re-submitted, where the covenant and the SDK's own policy checks still apply in full.")) return;
+        releaseBtn.disabled = true;
+        try {
+          const updated = await risk.release(ev.evaluationId);
+          note("Risk hold released.", "good");
+          await renderEvaluation(updated);
+        } catch (e) {
+          note(`Release failed: ${e.code || ""} ${e.message}`, "bad");
+          releaseBtn.disabled = false;
+        }
+      };
+      const resubmitBtn = m.querySelector("[data-risk-resubmit]");
+      if (resubmitBtn) resubmitBtn.onclick = () => {
+        if (!vaultId || !action) {
+          note("This risk hold was opened without the original action in hand — re-attempt the identical action from the vault card. The server recognizes an exact re-submission of this released, reviewed intent (same vault, same parameters, same risk-control configuration) and continues it, consuming the release exactly once.", "warn");
+          return;
+        }
+        m.style.display = "none";
+        runFlow(vaultId, action, params || {}, confirmLabel || `Sign ${action}`, { riskEvaluationId: ev.evaluationId });
+      };
+    }
+
+    m.innerHTML = `<div class="modal-card" style="max-width:640px;width:92%"><h3 style="margin-top:0">Loading risk evaluation…</h3></div>`;
+    m.style.display = "flex";
+    try { await renderEvaluation(await risk.fetchEvaluation(evalId)); }
+    catch (e) { note(`Could not load risk evaluation: ${e.code || ""} ${e.message}`, "bad"); m.style.display = "none"; }
   }
 
   /* One approver contribution: sign the covenant input of the EXACT frozen
@@ -236,7 +580,7 @@
    * server verifies the signature against the connected approver's identity —
    * switching accounts never reinterprets an existing signature and never
    * changes the frozen bytes. */
-  async function approve(req) {
+  async function approve(req, verification) {
     let stage = "A:approve-entered";
     try {
       const t = req.transaction || {};
@@ -247,7 +591,7 @@
       if (entries.length !== 1) {
         throw Object.assign(new Error("request carries no canonical covenant-input signing entry — refusing to invoke the wallet"), { code: "SIGN_INPUTS_INVALID" });
       }
-      const signed = await walletSign(t.unsignedSafeJson, entries, state.address);
+      const signed = await walletSign(t.unsignedSafeJson, entries, state.address, verification);
       stage = "L:post-approvals-started";
       const r = await postJSON(`/wallet/v4/requests/${req.requestId}/approvals`, { approverAddress: state.address, signedSafeJson: signed });
       stage = "M:server-response-received";
@@ -449,16 +793,19 @@
     };
 
     const agentAddr = v("agent");
+    let agentXOnly = null;
     if (!agentAddr) bad("agent", "Enter the initial agent's wallet address.");
     else {
       const r = await resolve(agentAddr);
       if (r.err) bad("agent", `Agent address rejected: ${r.err}`);
+      else agentXOnly = r.x;
     }
 
     // Recipients: at least one; a blank row must be filled or removed; each
-    // address must resolve on testnet-10.
+    // address must resolve on the server's configured network.
     const recipientInputs = [...f.querySelectorAll('[name="recipient"]')];
     const recipientAddresses = [];
+    const recipientXOnlys = [];
     const recipientMsgs = [];
     const recipientBad = [];
     for (let i = 0; i < recipientInputs.length; i++) {
@@ -469,7 +816,7 @@
       }
       const r = await resolve(a);
       if (r.err) { recipientMsgs.push(`Recipient ${i + 1}: ${r.err}`); recipientBad.push(recipientInputs[i]); }
-      else recipientAddresses.push(a);
+      else { recipientAddresses.push(a); recipientXOnlys.push(r.x); }
     }
     if (!recipientMsgs.length && recipientAddresses.length === 0) recipientMsgs.push("Add at least one allowed recipient address.");
     if (recipientMsgs.length) bad("recipients", recipientMsgs.join(" "), recipientBad.length ? recipientBad : recipientInputs);
@@ -479,6 +826,7 @@
     // identities; an empty row is never silently counted as configured.
     const approverInputs = [...f.querySelectorAll('[name="approver"]')];
     const approverAddresses = [];
+    const approverXOnlys = [];
     const approverMsgs = [];
     const approverBad = [];
     const seenAddr = new Map();
@@ -494,6 +842,7 @@
       if (seenX.has(r.x)) { approverMsgs.push(`Approver ${i + 1} is the same signing identity as approver ${seenX.get(r.x) + 1}.`); approverBad.push(approverInputs[i]); continue; }
       seenX.set(r.x, i);
       approverAddresses.push(a);
+      approverXOnlys.push(r.x);
     }
     if (approverMsgs.length) bad("approvers", approverMsgs.join(" "), approverBad);
 
@@ -515,7 +864,7 @@
       }
     }
 
-    if (errors.size) return { ok: false, errors, body: null };
+    if (errors.size) return { ok: false, errors, body: null, context: null };
     const body = {
       contractVersion: "policyvault-0.4.1",
       signerAddress: state.address,
@@ -534,7 +883,29 @@
       }
     };
     if (approverAddresses.length) body.approvers = { addresses: approverAddresses, approvalM };
-    return { ok: true, errors, body };
+    // CLIENT-SIDE create context for browser-local genesis verification:
+    // the values THIS browser derived from the user's inputs (the generated
+    // vaultId, typed amounts, the resolved approver/agent/recipient
+    // identities, the typed agent policy) — captured BEFORE the server
+    // ever sees the request. The agent policy fields pin the DISCLOSED
+    // genesis registry tuple (residuals wave: web/verify-intent.js
+    // recomputes the genesis agentRoot from request.initialRegistry and
+    // cross-checks these typed values against the committed tuple).
+    const context = {
+      vaultId: body.vaultId,
+      depositKas: v("deposit"),
+      feeReserveKas: v("reserve"),
+      approvalM: approverAddresses.length ? approvalM : "0",
+      approverXOnlys,
+      agentXOnly,
+      agentMaxPerSpendKas: v("maxPerSpend"),
+      agentBudgetKas: v("budget"),
+      agentApprovalThresholdKas: v("approvalThreshold"),
+      ...(maxFee ? { agentMaxFeePerTxKas: maxFee } : {}),
+      agentRecipientXOnlys: recipientXOnlys,
+      ...(maxFee ? { maxFeeSompi: kas(maxFee) } : {})
+    };
+    return { ok: true, errors, body, context };
   }
 
   /* Wire the freshly rendered create form (the form element is NEW on each
@@ -552,7 +923,7 @@
       if (submitBtn) submitBtn.disabled = true;
       try {
         note("Checking the form…", "warn");
-        const { ok, errors, body } = await validateCreateForm(f);
+        const { ok, errors, body, context } = await validateCreateForm(f);
         showFieldErrors(f, errors);
         if (!ok) { note("Fix the highlighted fields, then Review again.", "bad"); return; }
         let built;
@@ -564,10 +935,14 @@
           return;
         }
         const request = built.request;
+        // BROWSER-LOCAL GENESIS VERIFICATION against the client's own form
+        // context (client-generated vaultId, typed deposit/reserve, resolved
+        // approver identities, the connected owner identity).
+        const verification = verifyForSigning({ request, createContext: context, role: "owner" });
         reviewModal(request.review, async () => {
           try {
-            const signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address);
-            note("Creating vault — broadcasting genesis to testnet-10…", "warn");
+            const signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address, verification);
+            note(`Creating vault — broadcasting genesis to ${networkLabel()}…`, "warn");
             const done = await postJSON(`/wallet/v4/requests/${request.requestId}/genesis-submit`, { signedSafeJson: signed });
             const ok2 = done.request.state === "CHAIN_VERIFIED";
             note(`Vault created: ${done.request.state} — txid ${short(done.txId)}${ok2 ? " (chain-verified)" : ""}`, ok2 ? "good" : "warn");
@@ -576,7 +951,7 @@
           } catch (err) {
             note(`Create failed: ${err.code || ""} ${err.message}`, "bad");
           }
-        }, "Sign & create");
+        }, "Sign & create", undefined, verification);
       } finally {
         if (submitBtn) submitBtn.disabled = false;
       }
@@ -589,15 +964,73 @@
    * server independently rejects any write (VAULT_TERMINAL). */
   const isTerminalVault = (vault) => vault.status === "RECOVERED" || vault.status === "TERMINATED_UNKNOWN" || !vault.live;
 
+  /* Hosted suspension state for a vault, as loaded by render(). Returns
+   * null while unknown (not fetched / terminal), an {error} record when
+   * the load failed (FAIL-CLOSED: unknown state renders as unknown and
+   * offers no flip controls), or the server's presented record. */
+  function suspOf(vault) {
+    return (state.suspByVault && state.suspByVault[vault.vaultId]) || null;
+  }
+  function agentSuspended(vault, agentPk) {
+    const s = suspOf(vault);
+    if (!s || s.error) return false; // marker only — unknown renders via the card banner, not per-agent
+    return s.allAgents || s.agents.includes(agentPk);
+  }
+
   function agentCard(vault, agent) {
     const terminal = isTerminalVault(vault);
     const isThisAgent = state.xonly && state.xonly === agent.agentPk;
     const spend = isThisAgent && !terminal && vault.status === "ACTIVE" ? `<button class="primary" data-spend="${esc(agent.agentPk)}">Spend</button>` : "";
+    const susp = suspOf(vault);
+    const suspKnown = !!(susp && !susp.error);
+    const suspended = suspKnown && agentSuspended(vault, agent.agentPk);
+    // Visible to every participant (agents can see they are suspended);
+    // "hosted" is stated so it is never mistaken for the covenant pause.
+    const suspMark = suspended ? ` <span class="badge PAUSED">SUSPENDED (hosted)</span>` : "";
+    // The per-agent flip button is offered ONLY on known suspension state
+    // (fail-closed) and only to the owner. The all-agents flag is lifted
+    // via the vault-level control, not per-agent.
+    const suspBtn = !suspKnown
+      ? ""
+      : susp.allAgents
+        ? ""
+        : susp.agents.includes(agent.agentPk)
+          ? `<button data-unsuspend="${esc(agent.agentPk)}">Unsuspend (hosted)</button>`
+          : `<button class="warn" data-suspend="${esc(agent.agentPk)}">Suspend (hosted)</button>`;
     return (
       `<div class="field" style="margin-top:0.5rem">` +
-      `<div class="k">agent ${isThisAgent ? "(you)" : ""}${terminal ? " (historical)" : ""}</div>` +
+      `<div class="k">agent ${isThisAgent ? "(you)" : ""}${terminal ? " (historical)" : ""}${suspMark}</div>` +
       `<div class="v">cap ${esc(agent.maxPerSpendKas)} KAS · budget ${esc(agent.remainingBudgetKas)}/${esc(agent.periodBudgetKas)} KAS · approval&gt; ${esc(agent.approvalThresholdKas)} KAS ${spend}</div>` +
-      (state.xonly === vault.owner && !terminal ? `<div class="actions"><button data-repolicy="${esc(agent.agentPk)}">Re-policy</button><button data-rotate="${esc(agent.agentPk)}">Rotate key</button><button class="warn" data-remove="${esc(agent.agentPk)}">Remove</button></div>` : "") +
+      (state.xonly === vault.owner && !terminal ? `<div class="actions"><button data-repolicy="${esc(agent.agentPk)}">Re-policy</button><button data-rotate="${esc(agent.agentPk)}">Rotate key</button><button class="warn" data-remove="${esc(agent.agentPk)}">Remove</button>${suspBtn}</div>` : "") +
+      `</div>`
+    );
+  }
+
+  /* Suspension banner for the vault card. Renders the server's
+   * NOT_COVENANT_NOTICE VERBATIM with any active suspension so the
+   * control is never mistaken for on-chain enforcement (it pairs with —
+   * never replaces — the covenant Pause / Remove controls rendered
+   * alongside). Unknown state renders honestly as unknown. */
+  function suspensionBanner(vault) {
+    const susp = suspOf(vault);
+    if (!susp) return "";
+    if (susp.error) {
+      return `<div class="opbanner warn" style="margin-top:0.5rem"><b>Hosted agent-suspension state unavailable</b> (${esc(susp.error)}) — treating it as UNKNOWN; suspend/unsuspend controls are disabled until it loads. Covenant controls (Pause, Remove agent) are unaffected.</div>`;
+    }
+    const active = susp.allAgents || susp.agents.length > 0;
+    if (!active) return "";
+    const registryPks = new Set((vault.agents || []).map((a) => a.agentPk));
+    const stale = susp.agents.filter((a) => !registryPks.has(a));
+    const scope = susp.allAgents
+      ? `ALL agents${susp.agents.length ? ` (+${susp.agents.length} per-agent entr${susp.agents.length === 1 ? "y" : "ies"})` : ""}`
+      : `${susp.agents.length} agent${susp.agents.length === 1 ? "" : "s"}`;
+    return (
+      `<div class="opbanner warn" style="margin-top:0.5rem" data-suspbanner="${esc(vault.vaultId)}">` +
+      `<b>Hosted suspension active — ${esc(scope)}</b>` +
+      `<div class="hint" style="margin-top:0.2rem">${esc(susp.notice || "")}</div>` +
+      (stale.length && state.xonly === vault.owner && !isTerminalVault(vault)
+        ? `<div class="hint" style="margin-top:0.3rem">Stale entries (keys no longer in the agent registry): ${stale.map((a) => `<span class="mono">${esc(short(a))}</span> <button data-unsuspend="${esc(a)}">Unsuspend (hosted)</button>`).join(" ")}</div>`
+        : "") +
       `</div>`
     );
   }
@@ -635,18 +1068,28 @@
     );
   }
 
-  function vaultCard(vault, openRequests = []) {
+  function vaultCard(vault, openRequests = [], governanceProposals = []) {
     const isOwner = state.xonly && state.xonly === vault.owner;
     const live = vault.live || {};
     const opStatus = (vault.operational && vault.operational.status) || vault.status;
     const terminal = isTerminalVault(vault);
     const badge = vault.status === "ACTIVE" ? "ACTIVE" : vault.status === "PAUSED" ? "PAUSED" : "RECOVERED";
     const approverCount = (vault.approverSlots || []).filter((s) => s !== "00".repeat(32)).length;
+    // The hosted all-agents suspend flip is offered ONLY on known
+    // suspension state (fail-closed) — and always NEXT TO the covenant
+    // Pause control it can never replace.
+    const suspV = suspOf(vault);
+    const suspAllBtn = suspV && !suspV.error
+      ? suspV.allAgents
+        ? `<button data-unsuspendall="${esc(vault.vaultId)}">Unsuspend all (hosted)</button>`
+        : `<button class="warn" data-suspendall="${esc(vault.vaultId)}">Suspend all agents (hosted)</button>`
+      : "";
     const ownerControls = isOwner && !terminal
       ? `<div class="actions"><button data-addagent="${esc(vault.vaultId)}">Add agent</button>` +
         `<button data-topup="${esc(vault.vaultId)}">Top up principal</button><button data-topupreserve="${esc(vault.vaultId)}">Top up fee reserve</button>` +
         `<button data-setapprovers="${esc(vault.vaultId)}">Set approvers</button>` +
         (live.paused ? `<button data-unpause="${esc(vault.vaultId)}">Unpause</button>` : `<button data-pause="${esc(vault.vaultId)}">Pause</button>`) +
+        suspAllBtn +
         `<button data-verify="${esc(vault.vaultId)}">Verify state</button>` +
         `<button class="warn" data-recover="${esc(vault.vaultId)}">Close &amp; recover</button></div>`
       : "";
@@ -676,8 +1119,14 @@
         .map((o) => `<option value="${esc(o.orgId)}"${vault.organization && vault.organization.orgId === o.orgId ? " selected" : ""}>${esc(o.name)}${o.status === "ARCHIVED" ? " (archived)" : ""}</option>`)
         .join("") +
       `</select></div>` +
+      suspensionBanner(vault) +
       (vault.agents || []).map((a) => agentCard(vault, a)).join("") +
       openRequests.map((r) => approvalRequestCard(vault, r)).join("") +
+      // Open governance proposals awaiting ceremony (item 1 persistent
+      // surface): a DIFFERENT owner/quorum wallet than the one that hit
+      // GOVERNANCE_PROPOSAL_REQUIRED needs to find and act on this proposal
+      // on its own later visit — mirrors the approvalRequestCard pattern.
+      (govUI() ? governanceProposals.map((p) => govUI().renderCompactCard(p)).join("") : "") +
       ownerControls +
       `<details class="adv"><summary>Details</summary><div class="mono id">` +
       `vaultId ${esc(vault.vaultId)}<br/>contract ${esc(vault.contractVersion)}` +
@@ -731,10 +1180,11 @@
     const stale = () => seq !== state.renderSeq;
     // nav highlight
     document.querySelectorAll(".v4-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === state.view));
-    // Not ready = not connected OR not on testnet-10 -> no privileged actions.
+    // Not ready = not connected OR not on the server's configured network ->
+    // no privileged actions.
     if (!state.ready) {
       root.innerHTML = state.address
-        ? `<div class="empty">Wallet is not on testnet-10. Signing is disabled until you switch KasWare to testnet-10.</div>`
+        ? `<div class="empty">Wallet is not on ${esc(networkLabel())}. Signing is disabled until you switch KasWare to ${esc(networkLabel())}.</div>`
         : `<div class="empty">Connect KasWare in the Wallet panel above to begin.</div>`;
       return;
     }
@@ -759,13 +1209,52 @@
     // Durable pending-approval requests (server state — survives reloads).
     let openReqs = [];
     try { ({ requests: openReqs = [] } = await getJSON("/wallet/v4/requests?open=1")); } catch { openReqs = []; }
+    // Open governance proposals awaiting ceremony (item 1 persistent
+    // surface). Best-effort: a page served without the governance-ui
+    // module, or a server that refuses the list route, simply shows no
+    // proposal cards — it never blocks the vaults view.
+    let govProposals = [];
+    const gov0 = govUI();
+    if (gov0) { try { govProposals = await gov0.fetchOpenProposals(); } catch { govProposals = []; } }
+    // Hosted-layer agent-suspension state per live v4 vault (surface 21
+    // web composition; GET /vaults/:id/agent-suspensions — COORDINATION
+    // CONTROL ONLY, never a covenant control; the server's verbatim
+    // notice is rendered with the state). FAIL-CLOSED RENDERING: a vault
+    // whose suspension state cannot be loaded records the error and the
+    // card treats the state as UNKNOWN — it never renders "not suspended"
+    // and never offers the flip controls on unknown state.
+    const suspByVault = {};
+    await Promise.all(
+      (vaults || [])
+        .filter((v) => v && v.vaultId && new Set(["policyvault-0.4", "policyvault-0.4.1"]).has(v.contractVersion) && !isTerminalVault(v))
+        .map(async (v) => {
+          try {
+            const { suspensions } = await getJSON(`/vaults/${v.vaultId}/agent-suspensions`);
+            suspByVault[v.vaultId] = suspensions && suspensions.schema && typeof suspensions.allAgents === "boolean" && Array.isArray(suspensions.agents)
+              ? suspensions
+              : { error: "unrecognized suspension record shape" };
+          } catch (e) {
+            suspByVault[v.vaultId] = { error: `${e.code ? `${e.code} ` : ""}${e.message}` };
+          }
+        })
+    );
     if (stale()) return;
+    state.suspByVault = suspByVault;
     state.orgData = orgData;
+    // Client-side vault knowledge snapshot for browser-local pre-sign
+    // verification: the exact vault presentations the user is looking at.
+    state.vaultsById = {};
+    for (const v of vaults || []) { if (v && v.vaultId) state.vaultsById[v.vaultId] = v; }
     // Surface only the above-threshold approval workflow here; plain BUILT
     // below-threshold requests complete inside their own modal flow.
     state.openReqs = openReqs.filter((r) => r && r.aboveThreshold);
     const reqsByVault = {};
     for (const r of state.openReqs) (reqsByVault[r.vaultId] = reqsByVault[r.vaultId] || []).push(r);
+    const govByVault = {};
+    for (const p of govProposals) {
+      const vid = p && p.proposal && p.proposal.vaultId;
+      if (vid) (govByVault[vid] = govByVault[vid] || []).push(p);
+    }
     const activeOrgs = (orgData.organizations || []).filter((o) => !o.error && o.status !== "ARCHIVED");
     // A filter pointing at a removed/archived organization falls back to All.
     if (state.org !== "all" && state.org !== "unassigned" && !activeOrgs.some((o) => o.orgId === state.org)) state.org = "all";
@@ -778,7 +1267,7 @@
     const shown = v4.filter(matchesFilter).sort((a, b) => (STATUS_RANK[opOf(a)] ?? 5) - (STATUS_RANK[opOf(b)] ?? 5));
     const bar = filterBar(activeOrgs, counts);
     const body = shown.length
-      ? shown.map((v) => vaultCard(v, reqsByVault[v.vaultId] || [])).join("")
+      ? shown.map((v) => vaultCard(v, reqsByVault[v.vaultId] || [], govByVault[v.vaultId] || [])).join("")
       : `<div class="empty">No ${state.statusFilter.toLowerCase()} vaults.<div style="margin-top:0.8rem"><button class="primary" id="v4-empty-create">Create Vault</button></div></div>`;
     root.innerHTML = bar + body;
     // wire filter bar
@@ -811,6 +1300,19 @@
     const act = orgs.filter((o) => o.status !== "ARCHIVED");
     const arch = orgs.filter((o) => o.status === "ARCHIVED");
     const unassigned = (vaults || []).filter((v) => v && v.vaultId && !assignments[v.vaultId]).map((v) => v.vaultId);
+    // Governance/risk controls per ACTIVE organization (item 3). Best-effort
+    // and read-only display when the module or a fetch fails — this view
+    // must never block on it (mirrors the corrupt/error handling already
+    // used for organization records above).
+    const controlsUI = orgControlsUI();
+    const controlsByOrg = new Map();
+    if (controlsUI) {
+      await Promise.all(act.map(async (o) => {
+        try { controlsByOrg.set(o.orgId, await controlsUI.fetchControls(o.orgId)); }
+        catch { controlsByOrg.set(o.orgId, null); }
+      }));
+    }
+    if (stale()) return;
     const moveSelect = (vid, currentOrgId) =>
       `<select data-orgassign="${esc(vid)}"><option value="">Unassigned</option>` +
       act.map((o) => `<option value="${esc(o.orgId)}"${o.orgId === currentOrgId ? " selected" : ""}>${esc(o.name)}</option>`).join("") +
@@ -856,13 +1358,25 @@
         `<details class="adv"><summary>Members &amp; roles (organization metadata)</summary>` +
         `<div class="hint">Organization roles and assignments are application metadata. They do not grant or modify Kaspa covenant authority. An organization "approver" is NOT a v0.4.1 covenant approver — covenant approvers are set on the vault itself.</div>` +
         memberLines + memberForm + `</details>`;
+      // Governance/risk controls (item 3): CAS-versioned hosted-workflow
+      // configuration. Never rendered for an archived organization (restore
+      // it first) or when the module/fetch failed (read-only notice).
+      const controlsBlock = archived
+        ? ""
+        : `<details class="adv"><summary>Governance &amp; risk controls</summary>` +
+          (controlsUI
+            ? controlsByOrg.get(o.orgId) !== null && controlsByOrg.get(o.orgId) !== undefined
+              ? controlsUI.renderControlsFormHtml(controlsByOrg.get(o.orgId))
+              : `<div class="hint">Controls could not be loaded for this organization.</div>`
+            : `<div class="hint">The controls editor module is not loaded on this page.</div>`) +
+          `</details>`;
       return (
         `<div class="panel"><div class="vault-head"><span class="vault-title">${esc(o.name)}</span>` +
         `<span><span class="badge ${archived ? "PAUSED" : "ACTIVE"}">${esc(o.status)}</span></span></div>` +
         `<div class="kv-line">${vids.length} vault${vids.length === 1 ? "" : "s"} assigned · ${(o.members || []).length} member${(o.members || []).length === 1 ? "" : "s"} · metadata version ${o.version}</div>` +
         `<div class="actions">${actions}</div>` +
         `<details class="adv"><summary>Assigned vaults</summary>${vaultLines}</details>` +
-        membersBlock + `</div>`
+        membersBlock + controlsBlock + `</div>`
       );
     };
     root.innerHTML =
@@ -898,6 +1412,43 @@
         note("Member removed (metadata only).", "good");
       } catch (err) { note(`Remove member failed: ${err.code || ""} ${err.message}`, "bad"); }
       render();
+    }));
+    // Governance/risk controls (item 3): CAS-versioned save. A
+    // VERSION_CONFLICT is NEVER retried with the stale edit — it is
+    // surfaced as reload-and-retry (this org's card re-renders from fresh
+    // server state; the admin re-applies their edit against the new
+    // version, never a blind overwrite).
+    root.querySelectorAll("[data-controls-form]").forEach((f) => f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const cu = orgControlsUI();
+      if (!cu) { note("The controls editor module failed to load.", "bad"); return; }
+      const orgId = f.getAttribute("data-org-id");
+      const expectedVersion = Number(f.getAttribute("data-org-version"));
+      const values = {
+        approverAddresses: f.querySelector('[name="approverAddresses"]')?.value ?? "",
+        m: f.querySelector('[name="m"]')?.value ?? "",
+        delayHours: f.querySelector('[name="delayHours"]')?.value ?? "",
+        onAdapterError: f.querySelector('[name="onAdapterError"]')?.value ?? "",
+        onEmpty: f.querySelector('[name="onEmpty"]')?.value ?? "",
+        timeoutMs: f.querySelector('[name="timeoutMs"]')?.value ?? "",
+        reviewRequired: !!f.querySelector('[name="reviewRequired"]')?.checked,
+        adaptersJson: f.querySelector('[name="adaptersJson"]')?.value ?? ""
+      };
+      const submitBtn = f.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        await cu.saveControls(orgId, values, { expectedVersion });
+        note("Governance & risk controls saved. This is hosted coordination only — it never grants or modifies Kaspa covenant authority.", "good");
+      } catch (err) {
+        if (err.versionConflict) {
+          note("These controls changed since you loaded this form — reloading the current version. Re-apply your edit and save again.", "warn");
+        } else {
+          note(`Save controls failed: ${err.code || ""} ${err.message}`, "bad");
+          if (submitBtn) submitBtn.disabled = false;
+          return;
+        }
+      }
+      render(); // reload-and-retry: always re-fetches fresh controls, never keeps the stale form
     }));
     // Assign a currently-unassigned vault to this organization (metadata only).
     root.querySelectorAll("[data-orgadd]").forEach((sel) => (sel.onchange = async () => {
@@ -990,10 +1541,17 @@
     let events = [];
     try { ({ events = [] } = await getJSON("/audit?limit=300")); } catch (e) { if (!stale()) root.innerHTML = `<div class="empty">Could not load activity: ${esc(e.message)}</div>`; return; }
     if (stale()) return;
+    // Event-type label mirrors the server's own per-org audit mapping
+    // (server/src/api.js eventTypeOf): governance/risk/intent are hosted-
+    // coordination records, NOT verified chain transactions, and must
+    // never be badged "CHAIN" — that label is reserved for actual
+    // transaction-pipeline audit rows (the untyped default here).
+    const EVENT_TYPE_LABEL = { metadata: "METADATA", governance: "GOVERNANCE", risk: "RISK", intent: "INTENT" };
     const row = (e) => {
-      const isMeta = e.kind === "metadata";
-      const tag = isMeta ? `<span class="tag meta">METADATA</span>` : `<span class="tag chain">CHAIN</span>`;
-      const verified = !isMeta && /verified|advanced|recovered|created/i.test(e.action || "") ? ` <span class="badge ACTIVE">CHAIN_VERIFIED</span>` : "";
+      const label = EVENT_TYPE_LABEL[e.kind];
+      const isChain = !label;
+      const tag = `<span class="tag ${isChain ? "chain" : "meta"}">${label || "CHAIN"}</span>`;
+      const verified = isChain && /verified|advanced|recovered|created/i.test(e.action || "") ? ` <span class="badge ACTIVE">CHAIN_VERIFIED</span>` : "";
       return (
         `<div class="evt">${tag} <b>${esc(e.action || "event")}</b>` +
         (e.vaultId ? ` · vault <span class="mono">${esc(short(e.vaultId))}</span>` : "") +
@@ -1005,7 +1563,7 @@
     };
     root.innerHTML =
       `<div class="panel"><h3 style="margin-top:0">Activity</h3>` +
-      `<div class="hint">Chain events are transactions verified against Kaspa consensus. Metadata events are off-chain application records (organizations, assignments) — they are never chain-enforced.</div></div>` +
+      `<div class="hint">CHAIN events are transactions verified against Kaspa consensus. GOVERNANCE, RISK, and INTENT events are hosted-workflow coordination and evidence — like METADATA (organizations, assignments), they are never chain-enforced and grant no covenant authority on their own.</div></div>` +
       `<div class="panel">${events.length ? events.map(row).join("") : `<div class="empty">No activity yet.</div>`}</div>`;
   }
 
@@ -1061,6 +1619,50 @@
 
   const promptKas = (m) => { const v = window.prompt(m); if (v === null) return null; return v.trim() || null; };
 
+  /* ---- hosted agent suspend/unsuspend (fullscale surface 21 web
+   * composition; POST /vaults/:id/agent-suspensions) ----
+   * COORDINATION CONTROL ONLY — NEVER A COVENANT CONTROL. The confirm
+   * copy states it, the state banner renders the server's
+   * NOT_COVENANT_NOTICE verbatim, and the covenant controls (Pause /
+   * Remove agent) stay rendered alongside — a suspension never replaces
+   * them. The flip is CAS-guarded with the loaded record's version
+   * (VERSION_CONFLICT reloads); with the state UNKNOWN the UI refuses
+   * locally (fail closed) instead of flipping blind. Foreign vaults /
+   * unauthorized principals surface the server's 403/404 verbatim. */
+  async function suspendUpdate(vaultId, { op, agentPk, allAgents }) {
+    const current = (state.suspByVault && state.suspByVault[vaultId]) || null;
+    if (!current || current.error) {
+      note("Hosted suspension state is unknown for this vault — reload before changing it (failing closed).", "bad");
+      return;
+    }
+    const scope = allAgents === true ? "ALL agents of this vault" : `agent ${short(agentPk)}`;
+    const okConfirm =
+      op === "suspend"
+        ? window.confirm(
+            `Suspend ${scope} at the HOSTED layer?\n\n` +
+              `Coordination control only — NOT a covenant control. This makes the PolicyVault server refuse NEW build/finalize/submit requests for ${scope} instantly (free, reversible). ` +
+              `It CANNOT stop a malicious holder of the delegate key submitting transactions directly to a Kaspa node — only covenant-enforced controls (Pause, Remove agent, Close & recover) bind that adversary on-chain.\n\n` +
+              `For covenant-enforced protection, use Pause or Remove agent (instead, or as well).`
+          )
+        : window.confirm(
+            `Lift the hosted suspension for ${scope}?\n\nThis re-opens THIS server's pipeline for ${scope}; it changes nothing on-chain.`
+          );
+    if (!okConfirm) return;
+    try {
+      const body = { op, expectedVersion: current.version, ...(allAgents === true ? { allAgents: true } : { agentPk }) };
+      const { suspensions } = await postJSON(`/vaults/${vaultId}/agent-suspensions`, body);
+      if (state.suspByVault) state.suspByVault[vaultId] = suspensions;
+      note(`Hosted suspension updated (version ${suspensions && suspensions.version}). Coordination control only — never a covenant control; for on-chain protection use Pause or Remove agent.`, "good");
+    } catch (e) {
+      if (e && e.code === "VERSION_CONFLICT") {
+        note("Suspension state changed concurrently — reloading; retry the change against the fresh state.", "warn");
+      } else {
+        note(`Suspension update failed: ${e.code || ""} ${e.message}`, "bad");
+      }
+    }
+    render();
+  }
+
   function wireVault(root) {
     root.querySelectorAll("[data-spend]").forEach((b) => (b.onclick = async () => {
       const agentPk = b.getAttribute("data-spend");
@@ -1076,15 +1678,22 @@
     }));
     // ---- pending approval-request actions (server-state-driven) ----
     const openReq = (id) => (state.openReqs || []).find((r) => r.requestId === id);
+    // RESUMED flows (approver review / agent-sign-after-approvals): the
+    // original form context is gone, so the intent is reconstructed from the
+    // DURABLE server request — verification proves the frozen bytes do
+    // exactly what the displayed request claims, against THIS browser's own
+    // vault knowledge (the verify layer states this provenance in its notes).
     root.querySelectorAll("[data-approvereq]").forEach((b) => (b.onclick = () => {
       const req = openReq(b.getAttribute("data-approvereq"));
       if (!req) { note("Request no longer pending — refreshing.", "warn"); render(); return; }
-      reviewModal(req.review, () => approve(req), "Approve");
+      const verification = verifyForSigning({ request: req, vaultId: req.vaultId, role: "approver" });
+      reviewModal(req.review, () => approve(req, verification), "Approve", undefined, verification);
     }));
     root.querySelectorAll("[data-agentsign]").forEach((b) => (b.onclick = () => {
       const req = openReq(b.getAttribute("data-agentsign"));
       if (!req) { note("Request no longer pending — refreshing.", "warn"); render(); return; }
-      reviewModal(req.review, () => completeRequestFlow(req, req.action), "Sign spend");
+      const verification = verifyForSigning({ request: req, vaultId: req.vaultId, role: "agent" });
+      reviewModal(req.review, () => completeRequestFlow(req, req.action, verification), "Sign spend", undefined, verification);
     }));
     root.querySelectorAll("[data-cancelreq]").forEach((b) => (b.onclick = async () => {
       if (!window.confirm("Cancel this approval request?\n\nCollected approvals are discarded and nothing is broadcast. The vault itself is unaffected.")) return;
@@ -1094,16 +1703,14 @@
       } catch (e) { note(`Cancel failed: ${e.code || ""} ${e.message}`, "bad"); }
       render();
     }));
+    // Open governance proposal cards (item 1 persistent surface): opens the
+    // SAME ceremony modal the reactive GOVERNANCE_PROPOSAL_REQUIRED path
+    // uses, fetched fresh — action/params to retry are recovered from the
+    // proposal's own stored content (see openGovernanceCeremony).
+    root.querySelectorAll("[data-govopen]").forEach((b) => (b.onclick = () => {
+      openGovernanceCeremony({ proposalId: b.getAttribute("data-govopen") });
+    }));
     const vid = (b) => b.closest("[data-vault]").getAttribute("data-vault");
-    // owner ops are fuel-funded; auto-select the owner's largest UTXO from the server.
-    const withFuel = async (params, minSompi = "200000000") => {
-      try {
-        const { utxos } = await getJSON(`/wallet/fuel/${encodeURIComponent(state.address)}`);
-        const u = (utxos || []).find((x) => BigInt(x.amount) > BigInt(minSompi));
-        if (!u) { note(`No ordinary UTXO > ${(Number(minSompi) / 1e8)} KAS at ${short(state.address)} — fund the owner address first.`, "bad"); return null; }
-        return { ...params, fuel: { outpoint: u.outpoint, amount: u.amount, scriptPublicKeyHex: u.scriptPublicKeyHex } };
-      } catch (e) { note(`Could not fetch fuel: ${e.message}`, "bad"); return null; }
-    };
     const kasParam = async (b, prompt, key, action, label) => {
       const kas = promptKas(prompt); if (!kas) return;
       const sompi = kasToSompiClient(kas); if (sompi === null) { note("Invalid amount.", "bad"); return; }
@@ -1111,6 +1718,11 @@
     };
     root.querySelectorAll("[data-pause]").forEach((b) => (b.onclick = async () => { const p = await withFuel({}); if (p) runFlow(vid(b), "ownerPause", p, "Sign pause"); }));
     root.querySelectorAll("[data-unpause]").forEach((b) => (b.onclick = async () => { const p = await withFuel({}); if (p) runFlow(vid(b), "ownerUnpause", p, "Sign unpause"); }));
+    // ---- hosted agent suspend/unsuspend (surface 21; coordination-only) ----
+    root.querySelectorAll("[data-suspend]").forEach((b) => (b.onclick = () => suspendUpdate(vid(b), { op: "suspend", agentPk: b.getAttribute("data-suspend") })));
+    root.querySelectorAll("[data-unsuspend]").forEach((b) => (b.onclick = () => suspendUpdate(vid(b), { op: "unsuspend", agentPk: b.getAttribute("data-unsuspend") })));
+    root.querySelectorAll("[data-suspendall]").forEach((b) => (b.onclick = () => suspendUpdate(b.getAttribute("data-suspendall"), { op: "suspend", allAgents: true })));
+    root.querySelectorAll("[data-unsuspendall]").forEach((b) => (b.onclick = () => suspendUpdate(b.getAttribute("data-unsuspendall"), { op: "unsuspend", allAgents: true })));
     root.querySelectorAll("[data-topup]").forEach((b) => (b.onclick = () => kasParam(b, "Top up principal (KAS):", "topUpAmountSompi", "ownerTopUp", "Sign top-up")));
     root.querySelectorAll("[data-topupreserve]").forEach((b) => (b.onclick = () => kasParam(b, "Top up fee reserve (KAS):", "topUpReserveAmountSompi", "ownerTopUpReserve", "Sign reserve top-up")));
     root.querySelectorAll("[data-recover]").forEach((b) => (b.onclick = async () => { if (!window.confirm("Close and recover this vault? This is terminal.")) return; const p = await withFuel({}); if (p) runFlow(vid(b), "ownerRecover", p, "Sign recovery"); }));
@@ -1183,8 +1795,25 @@
     else render();
   });
 
-  // _walletSign is exposed for the BROWSER test layer only (it lets the
-  // regression suite prove the canonical-signInputs guard refuses malformed
-  // metadata BEFORE any provider call); production code never uses it.
-  window.PolicyVaultV4 = { render, _state: state, _session: session, _walletSign: walletSign };
+  // _walletSign / _reviewModal / _verifyForSigning / _runFlow /
+  // _openGovernanceCeremony / _openRiskHold are exposed for the BROWSER
+  // test layer only (they let the regression suites prove the
+  // canonical-signInputs guard and the browser-verification gate refuse
+  // BEFORE any provider call, that a refused verification renders the
+  // DO-NOT-SIGN modal without a signing action, and that a
+  // GOVERNANCE_PROPOSAL_REQUIRED / RISK_REVIEW_REQUIRED / RISK_DENIED
+  // refusal from runFlow is handed to the ceremony/hold UI rather than
+  // silently softened or bypassed); production code never uses them.
+  window.PolicyVaultV4 = {
+    render,
+    _state: state,
+    _session: session,
+    _walletSign: walletSign,
+    _reviewModal: reviewModal,
+    _verifyForSigning: verifyForSigning,
+    _runFlow: runFlow,
+    _openGovernanceCeremony: openGovernanceCeremony,
+    _openRiskHold: openRiskHold,
+    _suspendUpdate: suspendUpdate
+  };
 })();

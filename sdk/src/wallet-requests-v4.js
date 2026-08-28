@@ -32,7 +32,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
-const { persistJsonDurably, readJsonStrict } = require("./durable-json");
+const { getStore, Categories } = require("./store");
 const { assertOperationalNetwork } = require("./config");
 const { CONTRACT_VERSION_V4, resolveV4Abi, normalizeTemplateV4, normalizeStateV4, stateToJsonV4 } = require("./vault-state-v4");
 const { buildAgentTreeV4, generateAgentProofV4, normalizeAgentPolicyV4 } = require("./agent-merkle-v4");
@@ -48,6 +48,7 @@ const { submitApprovalV4, isCompleteV4, missingSlotsV4, collectedCountV4 } = req
 const { loadManifestV4, persistManifestV4, MANIFEST_SCHEMA_V4, registryEntryToJson } = require("./manifest-v4");
 const { resolveAddressIdentity, addressForXOnlyPubkey } = require("./address-identity");
 const { claimTransition, claimSubmission, persistReceipt } = require("./submission-claim");
+const { reserveForSpendBuild, consumeReservationForRequest, releaseReservationForRequest } = require("./budget-reservation");
 const { sompiToKas } = require("./amounts");
 const { appendAudit } = require("./audit");
 const { VaultStatus } = require("./manifest");
@@ -102,30 +103,39 @@ function fail(message, code) {
   return error;
 }
 
-function requestPath(config, requestId) {
-  return path.join(config.dataRoot, "requests", `${requestId}.json`);
+// Consensus amount params arrive over the API as untrusted JSON. `String(x)`
+// LAUNDERS a JSON number, array, or boolean into a valid-looking decimal
+// string before the strict downstream parseSompi ever sees it — and a JSON
+// number above 2^53 has already lost precision by the time it reaches here
+// (String(9007199254740993) === "9007199254740992"). Per the permanent
+// CLAUDE.md numeric rule, accept ONLY a bigint or a CANONICAL base-10 string
+// (no leading zeros except "0" itself, no sign/dot/space/hex), fail closed
+// on everything else, and return the canonical string form. This is a
+// boundary hardening; it does not alter core parseSompi's grammar.
+function canonicalAmountParam(value, field) {
+  if (typeof value === "bigint") {
+    if (value < 0n) throw fail(`${field} must not be negative`, "AMOUNT_INVALID");
+    return value.toString();
+  }
+  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value)) {
+    throw fail(`${field} must be a canonical base-10 sompi string or a bigint (numbers, arrays, leading zeros, and other forms are refused), got ${typeof value === "string" ? JSON.stringify(value) : typeof value}`, "AMOUNT_INVALID");
+  }
+  return value;
 }
-function saveRequest(config, request) {
-  persistJsonDurably({ filePath: requestPath(config, request.requestId), value: request });
+
+function requestPath(config, requestId) {
+  return path.join(config.dataRoot, "requests", `${requestId}.json`); // json-layout helper (tests/tools)
+}
+async function saveRequest(config, request) {
+  await getStore(config).write(Categories.REQUEST, request.requestId, request);
   return request;
 }
-function loadRequest(config, requestId) {
-  const p = requestPath(config, requestId);
-  return fs.existsSync(p) ? readJsonStrict(p, "wallet request") : null;
+async function loadRequest(config, requestId) {
+  return getStore(config).read(Categories.REQUEST, requestId);
 }
-function listVaultRequests(config, vaultId) {
-  const dir = path.join(config.dataRoot, "requests");
-  if (!fs.existsSync(dir)) return [];
-  const out = [];
-  for (const f of fs.readdirSync(dir)) {
-    if (!f.endsWith(".json")) continue;
-    try {
-      const r = readJsonStrict(path.join(dir, f), "wallet request");
-      if (r.vaultId === vaultId && r.schema === REQUEST_SCHEMA_V4) out.push(r);
-    } catch {
-      /* a corrupted request fails in its own flow */
-    }
-  }
+async function listVaultRequests(config, vaultId) {
+  const all = await getStore(config).listValues(Categories.REQUEST);
+  const out = all.filter((r) => r && r.vaultId === vaultId && r.schema === REQUEST_SCHEMA_V4);
   return out.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
 }
 
@@ -134,22 +144,14 @@ function listVaultRequests(config, vaultId) {
  * the browser re-derives ALL pending-approval UI from this durable server
  * state (never from in-memory browser state). Read-only.
  */
-function listWalletRequestsV4(config, { vaultId, states } = {}) {
-  const dir = path.join(config.dataRoot, "requests");
-  if (!fs.existsSync(dir)) return [];
-  const out = [];
-  for (const f of fs.readdirSync(dir)) {
-    if (!f.endsWith(".json")) continue;
-    try {
-      const r = readJsonStrict(path.join(dir, f), "wallet request");
-      if (r.schema !== REQUEST_SCHEMA_V4) continue;
-      if (vaultId !== undefined && r.vaultId !== vaultId) continue;
-      if (states !== undefined && !states.includes(r.state)) continue;
-      out.push(r);
-    } catch {
-      /* a corrupted request fails in its own flow */
-    }
-  }
+async function listWalletRequestsV4(config, { vaultId, states } = {}) {
+  const all = await getStore(config).listValues(Categories.REQUEST);
+  const out = all.filter((r) => {
+    if (!r || r.schema !== REQUEST_SCHEMA_V4) return false;
+    if (vaultId !== undefined && r.vaultId !== vaultId) return false;
+    if (states !== undefined && !states.includes(r.state)) return false;
+    return true;
+  });
   return out.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
 }
 
@@ -313,13 +315,13 @@ function planV4(config, manifest, action, params) {
       agentPk,
       sdkAction: "agentSpend",
       sdkParams: {
-        payAmountSompi: String(params.payAmountSompi),
+        payAmountSompi: canonicalAmountParam(params.payAmountSompi, "payAmountSompi"),
         agentPk,
         agents: registryPolicies(manifest),
         recipient: requireXOnly(params.recipient, "recipient"),
         recipients: [...entry.recipients],
-        periodsElapsed: params.periodsElapsed !== undefined ? String(params.periodsElapsed) : "0",
-        ...(params.reserveConsumedSompi !== undefined ? { reserveConsumedSompi: String(params.reserveConsumedSompi) } : {})
+        periodsElapsed: params.periodsElapsed !== undefined ? canonicalAmountParam(params.periodsElapsed, "periodsElapsed") : "0",
+        ...(params.reserveConsumedSompi !== undefined ? { reserveConsumedSompi: canonicalAmountParam(params.reserveConsumedSompi, "reserveConsumedSompi") } : {})
       }
     };
   }
@@ -350,9 +352,9 @@ function planV4(config, manifest, action, params) {
     case "ownerSetApprovers":
       return { role: "owner", sdkAction: "ownerSetApprovers", sdkParams: { newApprovers: params.newApprovers ?? {} } };
     case "ownerTopUp":
-      return { role: "owner", sdkAction: "ownerTopUp", sdkParams: { topUpAmountSompi: String(params.topUpAmountSompi) } };
+      return { role: "owner", sdkAction: "ownerTopUp", sdkParams: { topUpAmountSompi: canonicalAmountParam(params.topUpAmountSompi, "topUpAmountSompi") } };
     case "ownerTopUpReserve":
-      return { role: "owner", sdkAction: "ownerTopUpReserve", sdkParams: { topUpReserveAmountSompi: String(params.topUpReserveAmountSompi) } };
+      return { role: "owner", sdkAction: "ownerTopUpReserve", sdkParams: { topUpReserveAmountSompi: canonicalAmountParam(params.topUpReserveAmountSompi, "topUpReserveAmountSompi") } };
     case "ownerPause":
       return { role: "owner", sdkAction: "ownerPause", sdkParams: {} };
     case "ownerUnpause":
@@ -385,7 +387,7 @@ function normalizeFuel(fuel) {
  * SDK, and persists a durable BUILT request with the unsigned Safe JSON and
  * canonical review. No key, no broadcast.
  */
-function buildWalletRequestV4({ config, vaultId, action, params = {}, signerAddress }) {
+async function buildWalletRequestV4({ config, vaultId, action, params = {}, signerAddress }) {
   // Gate R (2026-08-22): operational networks are testnet-10 and dual-flag-
   // unlocked mainnet; everything else fails closed.
   try {
@@ -393,7 +395,7 @@ function buildWalletRequestV4({ config, vaultId, action, params = {}, signerAddr
   } catch (e) {
     throw fail(e.message, "BUILD_FAILED");
   }
-  const manifest = loadManifestV4(config, vaultId);
+  const manifest = await loadManifestV4(config, vaultId);
   if (!manifest) throw fail(`no v0.4 manifest for vault ${vaultId}`, "BUILD_FAILED");
   const abi = resolveV4Abi(manifest.contractVersion); // accepts the v0.4 family; fails closed otherwise
   // TERMINAL vaults (RECOVERED / TERMINATED_UNKNOWN — live === null) are
@@ -455,16 +457,40 @@ function buildWalletRequestV4({ config, vaultId, action, params = {}, signerAddr
   }
 
   // Unsigned Safe JSON for the wallet (bridge the frozen build to the
-  // KasWare signPskt contract).
+  // KasWare signPskt contract). finalize() first: Kaspa txids exclude
+  // signature scripts, so finalizing the UNSIGNED transaction stamps the
+  // true consensus id into the payload — the browser verifier holds the
+  // embedded id to strict equality with request.txId (F2-1,
+  // docs/postlaunch/f2-fee-state-recomputation.md).
   const { loadKaspa } = require("./chain");
   const kaspa = loadKaspa(config);
   const wtx = frozenToWasmTransaction(config, build.frozen);
+  wtx.finalize();
   const unsignedSafeJson = wtx.serializeToSafeJSON();
   const signInputs = build.frozen.inputs.map((_, index) => ({ index, sighashType: 1 }));
 
   const aboveThreshold = build.aboveThreshold === true;
   const requestId = crypto.randomUUID();
-  const request = saveRequest(config, {
+
+  /*
+   * PRE-PERSIST PERIOD-BUDGET RESERVATION (full-scale surface 15,
+   * sdk/src/budget-reservation.js). Agent spends take a durable
+   * reservation on this window's headroom BEFORE the request becomes
+   * durable, so concurrent builds can no longer optimistically over-
+   * commit the period budget: the over-committing build refuses HERE
+   * (BUDGET_RESERVED_EXCEEDED — pure, nothing persisted). Availability/
+   * coordination only — the covenant remains the sole financial
+   * authority; the finalize-time transition claim is unchanged. Owner
+   * operations and the zero-persistence simulate path take none.
+   */
+  let reservation = null;
+  if (isSpend) {
+    reservation = await reserveForSpendBuild(config, { manifest, build, requestId });
+  }
+
+  let request;
+  try {
+    request = await saveRequest(config, {
     schema: REQUEST_SCHEMA_V4,
     requestId,
     state: aboveThreshold ? RequestState.AWAITING_APPROVALS : RequestState.BUILT,
@@ -489,8 +515,17 @@ function buildWalletRequestV4({ config, vaultId, action, params = {}, signerAddr
     review: reviewForBuild(config, manifest, build),
     transaction: { unsignedSafeJson, signInputs, covenantInputIndex: 0 },
     txId: build.txId,
+    reservationKey: reservation ? reservation.key : null,
     createdAt: new Date().toISOString()
-  });
+    });
+  } catch (error) {
+    // The request never became durable: free the reservation (a crash here
+    // instead is reclaimed by the deterministic orphan sweep).
+    if (reservation) {
+      await releaseReservationForRequest(config, { schema: REQUEST_SCHEMA_V4, sdkAction: "agentSpend", vaultId, agentPk: plan.agentPk, requestId });
+    }
+    throw error;
+  }
   return request;
 }
 
@@ -498,11 +533,11 @@ function buildWalletRequestV4({ config, vaultId, action, params = {}, signerAddr
  * Create the approval package for an above-threshold spend request (lazy —
  * the first collectApproval call materializes it). Bound to the frozen tx.
  */
-function ensureApprovalPackage(config, request) {
+async function ensureApprovalPackage(config, request) {
   if (request.approvalPackage) return request.approvalPackage;
   const pkg = createApprovalPackageForBuildV4(request.build);
   request.approvalPackage = pkg;
-  saveRequest(config, request);
+  await saveRequest(config, request);
   return pkg;
 }
 
@@ -512,8 +547,8 @@ function ensureApprovalPackage(config, request) {
  * the SAME unsigned transaction the spender does (input 0). Returns the
  * updated request with approval progress.
  */
-function collectApprovalV4({ config, requestId, approverAddress, signedSafeJson, signatureHex }) {
-  const request = loadRequest(config, requestId);
+async function collectApprovalV4({ config, requestId, approverAddress, signedSafeJson, signatureHex }) {
+  const request = await loadRequest(config, requestId);
   if (!request) throw fail(`no request ${requestId}`, "BUILD_FAILED");
   if (request.schema !== REQUEST_SCHEMA_V4) throw fail("not a v0.4 request", "BUILD_FAILED");
   if (!request.aboveThreshold) throw fail("this spend does not require approvals", "BUILD_FAILED");
@@ -542,7 +577,7 @@ function collectApprovalV4({ config, requestId, approverAddress, signedSafeJson,
   // strip a 0x41 sigscript push prefix if present -> raw 65-byte sig
   if (sig.length === 132 && sig.startsWith("41")) sig = sig.slice(2);
 
-  let pkg = ensureApprovalPackage(config, request);
+  let pkg = await ensureApprovalPackage(config, request);
   try {
     pkg = submitApprovalV4(pkg, { signatureHex: sig, approverXOnly });
   } catch (e) {
@@ -552,7 +587,7 @@ function collectApprovalV4({ config, requestId, approverAddress, signedSafeJson,
   if (isCompleteV4(pkg)) {
     request.state = RequestState.BUILT; // enough approvals collected; ready to finalize
   }
-  saveRequest(config, request);
+  await saveRequest(config, request);
   return {
     request,
     approvals: { collected: collectedCountV4(pkg), required: Number(pkg.approvalM), complete: isCompleteV4(pkg), missingSlots: missingSlotsV4(pkg) }
@@ -573,6 +608,20 @@ function assertPackageImmutable(unsigned, signed) {
   if (JSON.stringify(strip(unsigned)) !== JSON.stringify(strip(signed))) {
     throw fail("signed package mutated a consensus-visible field", "SIGNATURE_INVALID");
   }
+}
+
+/*
+ * Move a request into a fail-closed state, persist it, and free its
+ * period-budget reservation (surface 15) — from these states the request
+ * can never reach broadcast, so its reserved headroom returns to the
+ * window. No-op release for non-spend requests; the admission sweep is
+ * the deterministic backstop if the process dies between the two writes.
+ */
+async function failRequestClosed(config, request, state, errorMessage) {
+  request.state = state;
+  if (errorMessage !== undefined) request.error = errorMessage;
+  await saveRequest(config, request);
+  await releaseReservationForRequest(config, request);
 }
 
 function runPreflight(finalTx) {
@@ -605,8 +654,8 @@ function runPreflight(finalTx) {
  * advance (nothing was broadcast); the request records the preflight-proven
  * successor.
  */
-function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
-  const request = loadRequest(config, requestId);
+async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
+  const request = await loadRequest(config, requestId);
   if (!request) throw fail(`no request ${requestId}`, "BUILD_FAILED");
   if (request.schema !== REQUEST_SCHEMA_V4) throw fail("not a v0.4 request", "BUILD_FAILED");
   if (request.state !== RequestState.BUILT) {
@@ -614,10 +663,9 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
     throw fail(`request ${requestId} is ${request.state}, not BUILT`, request.state);
   }
 
-  const manifest = loadManifestV4(config, request.vaultId);
+  const manifest = await loadManifestV4(config, request.vaultId);
   if (!manifest || !manifest.live || manifest.live.stateId !== request.predecessorStateId) {
-    request.state = RequestState.STALE;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.STALE);
     throw fail("vault advanced since this request was built — rebuild required", "STALE");
   }
 
@@ -625,9 +673,7 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   try {
     assertSignerAuthorizedV4(config, { role: request.signerRole, signerAddress: request.signerAddress, template: manifest.template, manifest, action: request.action, agentPk: request.agentPk });
   } catch (e) {
-    request.state = RequestState.AUTHORIZATION_FAILED;
-    request.error = e.message;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.AUTHORIZATION_FAILED, e.message);
     throw e;
   }
 
@@ -637,23 +683,20 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   try {
     signed = JSON.parse(signedSafeJson);
   } catch {
-    request.state = RequestState.SIGNATURE_INVALID;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.SIGNATURE_INVALID);
     throw fail("signed Safe JSON is not valid JSON", "SIGNATURE_INVALID");
   }
   assertPackageImmutable(unsigned, signed);
 
   const covenantSig = signed.inputs?.[0]?.signatureScript;
   if (!covenantSig) {
-    request.state = RequestState.WALLET_REJECTED;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.WALLET_REJECTED);
     throw fail("wallet did not sign the covenant input", "WALLET_REJECTED");
   }
   const hasFuel = request.build.hasFuelInput === true;
   const fuelSig = hasFuel ? signed.inputs?.[1]?.signatureScript : undefined;
   if (hasFuel && !fuelSig) {
-    request.state = RequestState.WALLET_REJECTED;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.WALLET_REJECTED);
     throw fail("wallet did not sign the fuel input", "WALLET_REJECTED");
   }
 
@@ -661,8 +704,7 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   let approvalPackage = null;
   if (request.aboveThreshold) {
     if (!request.approvalPackage || !isCompleteV4(request.approvalPackage)) {
-      request.state = RequestState.INSUFFICIENT_APPROVALS;
-      saveRequest(config, request);
+      await failRequestClosed(config, request, RequestState.INSUFFICIENT_APPROVALS);
       throw fail("insufficient approvals for this above-threshold spend", "INSUFFICIENT_APPROVALS");
     }
     approvalPackage = request.approvalPackage;
@@ -677,15 +719,13 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
       approvalPackage
     });
   } catch (e) {
-    request.state = e.code === "FEE_DRIFT" ? RequestState.PREFLIGHT_FAILED : RequestState.SIGNATURE_INVALID;
-    request.error = e.message;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, e.code === "FEE_DRIFT" ? RequestState.PREFLIGHT_FAILED : RequestState.SIGNATURE_INVALID, e.message);
     throw fail(`finalize failed: ${e.message}`, e.code || "SIGNATURE_INVALID");
   }
 
   request.state = RequestState.FINALIZED;
   request.txId = finalized.txId;
-  saveRequest(config, request);
+  await saveRequest(config, request);
 
   // Network hard gate (again) before preflight: the config must still be an
   // operational network and the request must be stamped with EXACTLY it.
@@ -699,17 +739,14 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
     preflightNetworkError = `request network ${request.networkId} != configured ${config.networkId}`;
   }
   if (preflightNetworkError) {
-    request.state = RequestState.PREFLIGHT_FAILED;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.PREFLIGHT_FAILED);
     throw fail(`network drift at preflight — ${preflightNetworkError}`, "PREFLIGHT_FAILED");
   }
 
   // PRODUCTION COVENANT VM PREFLIGHT (no broadcast).
   const verdict = runPreflight(finalized.finalTransaction);
   if (verdict.valid !== true) {
-    request.state = RequestState.PREFLIGHT_FAILED;
-    request.error = `VM preflight rejected: ${verdict.reason ?? "unknown"}`;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.PREFLIGHT_FAILED, `VM preflight rejected: ${verdict.reason ?? "unknown"}`);
     throw fail(request.error, "PREFLIGHT_FAILED");
   }
 
@@ -731,20 +768,24 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
         contractVersion: request.contractVersion
       };
   try {
-    claimTransition(config, { outpoint: request.predecessorOutpoint, action: request.action, txId: finalized.txId, vaultId: request.vaultId, stateId: request.predecessorStateId, expected });
+    await claimTransition(config, { outpoint: request.predecessorOutpoint, action: request.action, txId: finalized.txId, vaultId: request.vaultId, stateId: request.predecessorStateId, expected });
   } catch (e) {
-    request.state = RequestState.CLAIM_CONFLICT;
-    request.error = e.message;
-    saveRequest(config, request);
+    await failRequestClosed(config, request, RequestState.CLAIM_CONFLICT, e.message);
     throw e;
   }
-  claimSubmission(config, { txId: finalized.txId, vaultId: request.vaultId, action: request.action });
+  await claimSubmission(config, { txId: finalized.txId, vaultId: request.vaultId, action: request.action });
+
+  // Surface 15: mark the reservation CONSUMED by this finalized txid. The
+  // transition claim above REMAINS the exclusivity arbiter; the consumed
+  // reservation keeps counting against its period window until the
+  // manifest actually advances (the spend is in flight on this state).
+  await consumeReservationForRequest(config, request, { txId: finalized.txId });
 
   request.state = RequestState.PREFLIGHT_VERIFIED;
   request.finalTransaction = finalized.finalTransaction;
-  saveRequest(config, request);
+  await saveRequest(config, request);
 
-  appendAudit(config, {
+  await appendAudit(config, {
     vaultId: request.vaultId,
     action: request.action,
     actor: request.signerRole,
@@ -767,7 +808,7 @@ function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
  * covenant input to execute); we validate the SDK build and persist a BUILT
  * genesis request with the vault covenantId and initial registry.
  */
-function buildCreateWalletRequestV4({ config, templateInput, initialAgents = [], initialState, signerAddress, funding, label = "", contractVersion = CONTRACT_VERSION_V4 }) {
+async function buildCreateWalletRequestV4({ config, templateInput, initialAgents = [], initialState, signerAddress, funding, label = "", contractVersion = CONTRACT_VERSION_V4 }) {
   try {
     assertOperationalNetwork(config); // Gate R: testnet-10 or unlocked mainnet
   } catch (e) {
@@ -783,12 +824,12 @@ function buildCreateWalletRequestV4({ config, templateInput, initialAgents = [],
   const agentRoot = buildAgentTreeV4(policies).root;
 
   const state = normalizeStateV4({
-    protectedValue: String(initialState.protectedValue),
-    feeReserve: String(initialState.feeReserve),
+    protectedValue: canonicalAmountParam(initialState.protectedValue, "initialState.protectedValue"),
+    feeReserve: canonicalAmountParam(initialState.feeReserve, "initialState.feeReserve"),
     paused: "0",
     agentRoot,
     approvers: initialState.approvers ?? [],
-    approvalM: String(initialState.approvalM ?? "0"),
+    approvalM: canonicalAmountParam(initialState.approvalM ?? "0", "initialState.approvalM"),
     policyNonce: "0"
   });
 
@@ -809,10 +850,13 @@ function buildCreateWalletRequestV4({ config, templateInput, initialAgents = [],
   const { loadKaspa } = require("./chain");
   const kaspa = loadKaspa(config);
   const wtx = frozenToWasmTransaction(config, genesis.frozen);
+  // F2-1: finalize the unsigned tx so the payload embeds the consensus id
+  // (txids exclude signature scripts) — see the spend-path comment above.
+  wtx.finalize();
   const unsignedSafeJson = wtx.serializeToSafeJSON();
 
   const requestId = crypto.randomUUID();
-  return saveRequest(config, {
+  return await saveRequest(config, {
     schema: REQUEST_SCHEMA_V4,
     requestId,
     kind: "genesis",
@@ -867,11 +911,12 @@ function buildCreateWalletRequestV4({ config, templateInput, initialAgents = [],
   });
 }
 
-function markWalletRejected(config, requestId) {
-  const request = loadRequest(config, requestId);
+async function markWalletRejected(config, requestId) {
+  const request = await loadRequest(config, requestId);
   if (request && (request.state === RequestState.BUILT || request.state === RequestState.AWAITING_APPROVALS)) {
-    request.state = RequestState.WALLET_REJECTED;
-    saveRequest(config, request);
+    // Rejection releases the period-budget reservation (surface 15): the
+    // request can never reach broadcast, so its headroom returns to the window.
+    await failRequestClosed(config, request, RequestState.WALLET_REJECTED);
   }
   return request;
 }

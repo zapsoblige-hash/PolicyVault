@@ -1,0 +1,237 @@
+/*
+ * PolicyVault mobile — app styles.
+ *
+ * SECURITY-RELEVANT CSS RULES (mobile-architecture-decision.md §6.3):
+ *
+ *   - `.fullvalue` NEVER truncates. No `text-overflow: ellipsis`, no
+ *     `-webkit-line-clamp`, no fixed height with hidden overflow. Every
+ *     value-bearing string (address, public key, KAS amount, digest,
+ *     payload) is wrapped and shown in full. Eliding an address on a
+ *     small screen is the most likely way this ceremony gets silently
+ *     weakened, so the style sheet forbids it structurally.
+ *   - `.interstitial` is OPAQUE and covers the viewport. A refusal owns
+ *     the screen; it is not a toast, banner, or draggable sheet.
+ *   - The refusal palette is never the only signal — the markup also
+ *     carries an icon and the words DO NOT SIGN.
+ */
+
+:root {
+  --bg: #0e1116;
+  --panel: #171c24;
+  --panel-2: #1e2530;
+  --border: #2a323f;
+  --text: #e6edf3;
+  --muted: #93a1b1;
+  --accent: #4da3ff;
+  --good: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+header {
+  padding: calc(0.8rem + env(safe-area-inset-top)) 1rem 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.6rem; }
+
+.tabs { display: flex; gap: 0.35rem; overflow-x: auto; padding-bottom: 0.6rem; }
+.tab {
+  flex: 0 0 auto;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+}
+.tab.active { color: var(--text); border-color: var(--accent); font-weight: 700; }
+
+.banner {
+  background: rgba(210, 153, 34, 0.15);
+  border-bottom: 1px solid rgba(210, 153, 34, 0.4);
+  color: var(--warn);
+  text-align: center;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.banner.bad {
+  background: rgba(248, 81, 73, 0.15);
+  border-bottom-color: rgba(248, 81, 73, 0.45);
+  color: var(--bad);
+}
+
+main { padding: 1rem; max-width: 780px; margin: 0 auto; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.panel h2 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.7rem;
+}
+
+.card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.8rem;
+  margin: 0.7rem 0;
+}
+.card-head { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; }
+
+.sub { border-top: 1px solid var(--border); padding-top: 0.6rem; margin-top: 0.6rem; }
+.sub-head { font-weight: 700; font-size: 0.82rem; margin-bottom: 0.3rem; }
+
+.row { border-top: 1px solid var(--border); padding: 0.7rem 0; }
+.row:first-child { border-top: none; }
+
+.kv { margin: 0.35rem 0; }
+.kv .k {
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ------------------------------------------------------------------ */
+/* NO TRUNCATION, EVER. See the header comment.                        */
+/* ------------------------------------------------------------------ */
+.fullvalue {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  /* deliberately absent: text-overflow, -webkit-line-clamp, max-height */
+}
+
+.note { color: var(--muted); font-size: 0.8rem; margin: 0.4rem 0; }
+.note.hard { color: var(--warn); }
+.note.alt { color: var(--accent); }
+
+.unavailable {
+  border: 1px dashed var(--warn);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  margin: 0.6rem 0;
+  background: rgba(210, 153, 34, 0.07);
+}
+.unavailable-head {
+  color: var(--warn);
+  font-weight: 700;
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.unavailable-why { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+
+.servererr { border: 1px solid var(--bad); border-radius: 10px; padding: 0.7rem; }
+.servererr-head { color: var(--bad); font-weight: 700; font-size: 0.8rem; margin-bottom: 0.3rem; }
+
+/* ------------------------------------------------------------------ */
+/* Verdict                                                             */
+/* ------------------------------------------------------------------ */
+
+.verdict { border-radius: 10px; padding: 0.9rem; margin: 0.8rem 0; border: 2px solid var(--border); }
+.verdict.pass { border-color: var(--good); background: rgba(63, 185, 80, 0.08); }
+.verdict.refuse { border-color: var(--bad); background: rgba(248, 81, 73, 0.1); }
+
+.verdict-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.verdict-icon { font-size: 1.3rem; }
+.verdict-title { font-weight: 800; letter-spacing: 0.05em; font-size: 1rem; }
+.verdict.pass .verdict-title, .verdict.pass .verdict-icon { color: var(--good); }
+.verdict.refuse .verdict-title, .verdict.refuse .verdict-icon { color: var(--bad); }
+
+.verdict-lines .line { margin: 0.25rem 0; }
+.verdict-notes { border-top: 1px solid var(--border); margin-top: 0.7rem; padding-top: 0.6rem; }
+.verdict-notes .note-line { color: var(--muted); font-size: 0.75rem; margin: 0.2rem 0; }
+
+.diag { border-top: 1px solid var(--border); margin-top: 0.7rem; padding-top: 0.6rem; }
+.diag-head { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.diag-codes { color: var(--bad); margin-top: 0.25rem; }
+
+/* A refusal OWNS THE SCREEN: opaque, full viewport, not dismissible by
+ * dragging, and reachable only through an explicit Cancel. */
+.interstitial {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 100;
+  overflow: auto;
+  padding: calc(1rem + env(safe-area-inset-top)) 1rem 1rem;
+}
+.interstitial-card { max-width: 640px; margin: 0 auto; }
+
+/* ------------------------------------------------------------------ */
+/* Controls                                                            */
+/* ------------------------------------------------------------------ */
+
+.btn {
+  display: block;
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+  margin: 0.6rem 0 0;
+}
+.btn.primary { background: var(--accent); color: #08111e; font-weight: 700; border-color: var(--accent); }
+.btn.cancel { border-color: var(--bad); color: var(--bad); }
+
+label { display: block; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.7rem; }
+
+.field, .doc {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+.doc {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  resize: vertical;
+}
+
+.frame {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem;
+  margin: 0.5rem 0;
+}
+.doc-dump { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem; margin-top: 0.5rem; }
+
+footer { color: var(--muted); font-size: 0.75rem; padding: 1.5rem 1rem 2.5rem; text-align: center; line-height: 1.7; }
+footer .scaffold { color: var(--warn); font-weight: 700; }

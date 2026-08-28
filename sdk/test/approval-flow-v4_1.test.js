@@ -49,14 +49,14 @@ const OWNER = 1, AGENT = 0x1e, APPR_A = 0x51, APPR_B = 0x52, RECIP = 0x28, UNREL
 const VAULT_A = "77".repeat(32); // approval-flow vault (2-of-2)
 const VAULT_B = "78".repeat(32); // below-threshold control vault (2-of-2 too)
 
-function seedVault(vaultId, outpointTx) {
+async function seedVault(vaultId, outpointTx) {
   const registry = [{ agentPk: XO(AGENT), maxPerSpend: (20n * KAS).toString(), periodBudget: (50n * KAS).toString(), periodLengthDaa: "864000", periodStartDaa: "541000000", periodSpent: "0", approvalThreshold: (5n * KAS).toString(), agentMaxFeePerTx: (1n * KAS).toString(), recipients: [XO(RECIP)] }];
   const template = { owner: XO(OWNER), vaultId };
   const policies = registry.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
   const state = normalizeStateV4({ protectedValue: (1000n * KAS).toString(), feeReserve: (5n * KAS).toString(), paused: "0", agentRoot: buildAgentTreeV4(policies).root, approvers: [XO(APPR_A), XO(APPR_B)], approvalM: "2", policyNonce: "0" });
   const compiled = compileExactStateV4({ config, template, state, contractVersion: CONTRACT_VERSION_V4_1 });
   const stateId = computeStateIdV4({ networkId: config.networkId, template, state, contractVersion: CONTRACT_VERSION_V4_1 });
-  persistManifestV4(config, {
+  await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4, contractVersion: CONTRACT_VERSION_V4_1, networkId: config.networkId, vaultId,
     label: `approval-flow-${vaultId.slice(0, 2)}`, status: "ACTIVE", template, agentRegistry: registry,
     live: { state: stateToJsonV4(state), stateId, outpoint: { transactionId: outpointTx, index: 0 }, outpointValue: (state.protectedValue + state.feeReserve).toString(), scriptSha256: compiled.scriptSha256, covenantId: "41".repeat(32) },
@@ -79,13 +79,18 @@ async function waitFor(fn, ms = 120000) {
 }
 const claimFiles = (kind) => {
   const dir = path.join(config.dataRoot, "claims", kind);
-  return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  // Budget reservations (surface 15) reuse the TRANSITION_CLAIM storage
+  // category under resv-/resvlock- key prefixes; they are pre-build
+  // availability records, NOT the exclusivity CLAIM these assertions are
+  // about. Exclude them so the invariant tested stays "no transition
+  // exclusivity claim", not "the shared directory is byte-empty".
+  return (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((n) => !n.startsWith("resv-") && !n.startsWith("resvlock-"));
 };
 
 let server;
 before(async () => {
-  seedVault(VAULT_A, "45".repeat(32));
-  seedVault(VAULT_B, "46".repeat(32));
+  await seedVault(VAULT_A, "45".repeat(32));
+  await seedVault(VAULT_B, "46".repeat(32));
   server = createServer(config);
   await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
 });
@@ -94,7 +99,7 @@ after(() => server && server.close());
 /* jsdom over the REAL production browser code. The wallet session is the ONE
  * mocked seam; `setAccount` re-emits a snapshot exactly like a real KasWare
  * account switch (a security event for the app). POST */
-function openApp(role, { prompts = [] } = {}) {
+async function openApp(role, { prompts = [] } = {}) {
   const html = fs.readFileSync(path.join(__dirname, "..", "..", "web", "index.html"), "utf8").replace(/<script src="[^"]*"><\/script>/g, "");
   const appV4 = fs.readFileSync(path.join(__dirname, "..", "..", "web", "app-v4.js"), "utf8");
   const dom = new JSDOM(html, { url: `${ORIGIN}/`, runScripts: "outside-only", pretendToBeVisual: true });
@@ -174,7 +179,7 @@ test("INCIDENT REGRESSION: the agent cannot finalize at 0/2 — refused, nothing
 });
 
 test("BROWSER: the agent is never offered premature signing; duplicate builds are cancellable", async () => {
-  const app = openApp(AGENT, { prompts: [ADDR(RECIP), "6"] });
+  const app = await openApp(AGENT, { prompts: [ADDR(RECIP), "6"] });
   await app.tabAll();
   // The durable pending request renders from SERVER state with no sign action.
   const banner = await waitFor(() => app.banner(REQ.requestId));
@@ -203,7 +208,7 @@ test("BROWSER: the agent is never offered premature signing; duplicate builds ar
 });
 
 test("BROWSER: approver A approves (fresh session = reload restore at 0/2) -> 1 of 2; account switch discards an open modal", async () => {
-  const app = openApp(APPR_A);
+  const app = await openApp(APPR_A);
   await app.tabAll();
   const banner = await waitFor(() => app.banner(REQ.requestId));
   const btn = banner.querySelector("[data-approvereq]");
@@ -249,7 +254,7 @@ test("API: the same approver cannot count twice; an unrelated wallet has no appr
 });
 
 test("BROWSER: approver B approves (fresh session = reload restore at 1/2) -> 2 of 2; commitment unchanged; state BUILT", async () => {
-  const app = openApp(APPR_B);
+  const app = await openApp(APPR_B);
   await app.tabAll();
   const banner = await waitFor(() => { const b = app.banner(REQ.requestId); return b && b.querySelector("[data-approvereq]") ? b : null; });
   assert.match(banner.textContent, /1 of 2 approved/, "reload restored backend truth at 1/2");
@@ -267,14 +272,14 @@ test("BROWSER: approver B approves (fresh session = reload restore at 1/2) -> 2 
 
 test("BROWSER: only the acting agent gets Sign spend after 2/2; an unrelated wallet sees read-only progress; finalize succeeds", async () => {
   // Unrelated wallet: progress only, no actions.
-  const stranger = openApp(UNRELATED);
+  const stranger = await openApp(UNRELATED);
   await stranger.tabAll();
   const roBanner = await waitFor(() => stranger.banner(REQ.requestId));
   assert.match(roBanner.textContent, /Approved — awaiting agent signature/);
   assert.ok(!roBanner.querySelector("[data-agentsign]") && !roBanner.querySelector("[data-approvereq]") && !roBanner.querySelector("[data-cancelreq]"), "unrelated wallet has no authority");
 
   // Acting agent: Review & sign spend -> FINALIZE (server re-verifies approvals).
-  const app = openApp(AGENT);
+  const app = await openApp(AGENT);
   await app.tabAll();
   const banner = await waitFor(() => { const b = app.banner(REQ.requestId); return b && b.querySelector("[data-agentsign]") ? b : null; });
   assert.match(banner.textContent, /2 of 2 approved/);

@@ -8,9 +8,8 @@
  */
 
 const path = require("path");
-const fs = require("fs");
 
-const { persistJsonDurably, readJsonStrict } = require("./durable-json");
+const { getStore, Categories } = require("./store");
 const { normalizePolicy, normalizeState, computeStateId, normalizeHex } = require("./vault-state");
 const { CONTRACT_VERSION } = require("./config");
 
@@ -113,31 +112,20 @@ function normalizeManifest(input) {
   });
 }
 
-function loadManifest(config, vaultId) {
-  const filePath = manifestPath(config, vaultId);
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-  return normalizeManifest(readJsonStrict(filePath, "vault manifest"));
+async function loadManifest(config, vaultId) {
+  const stored = await getStore(config).read(Categories.VAULT, vaultId);
+  return stored === null ? null : normalizeManifest(stored);
 }
 
-function persistManifest(config, manifest) {
+async function persistManifest(config, manifest) {
   const normalized = normalizeManifest({ ...manifest, updatedAt: new Date().toISOString() });
-  persistJsonDurably({
-    filePath: manifestPath(config, normalized.vaultId),
-    value: normalized
-  });
+  await getStore(config).write(Categories.VAULT, normalized.vaultId, normalized);
   return normalized;
 }
 
-function listVaultIds(config) {
-  const dir = path.join(config.dataRoot, "vaults");
-  if (!fs.existsSync(dir)) {
-    return [];
-  }
-  return fs
-    .readdirSync(dir)
-    .filter((name) => /^[0-9a-f]{64}$/.test(name) && fs.existsSync(path.join(dir, name, "manifest.json")));
+async function listVaultIds(config) {
+  const keys = await getStore(config).listKeys(Categories.VAULT);
+  return keys.filter((name) => /^[0-9a-f]{64}$/.test(name));
 }
 
 module.exports = {

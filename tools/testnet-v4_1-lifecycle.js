@@ -96,12 +96,12 @@ async function main() {
     const rec = { label, action, txId: result.txId, predecessor: `${built.predecessorOutpoint.transactionId}:${built.predecessorOutpoint.index}`, successorIndex: result.expected.index ?? null, feeSompi: acc.fee, reserveConsumed: acc.reserveConsumed, protectedBefore: acc.predecessorProtected, protectedAfter: acc.successorProtected, reserveBefore: acc.predecessorFeeReserve, reserveAfter: acc.successorFeeReserve, payment: built.payment ? built.payment.value : null };
     evidence.transactions.push(rec);
     log(`  CHAIN_VERIFIED txid=${result.txId} fee=${acc.fee} reserveConsumed=${acc.reserveConsumed}`);
-    auditRoots(label, vaultId);
+    await auditRoots(label, vaultId);
     return { built, result };
   }
 
-  function auditRoots(label, vaultId) {
-    const m = loadManifestV4(config, vaultId); // loader recomputes + requires root-equality
+  async function auditRoots(label, vaultId) {
+    const m = await loadManifestV4(config, vaultId); // loader recomputes + requires root-equality
     if (!m.live) {
       // terminal (RECOVERED/closed): no live successor to audit.
       const audit = { label, terminal: true, status: m.status, live: null };
@@ -136,19 +136,19 @@ async function main() {
     const genSigned = signerFor(owner).signInputs(genReq.transaction.unsignedSafeJson, genReq.transaction.signInputs);
     const genResult = await submit4.submitCreateWalletRequestV4({ config, requestId: genReq.requestId, signedSafeJson: genSigned, rpc });
     if (genResult.request.state !== "CHAIN_VERIFIED") throw new Error(`genesis state ${genResult.request.state}`);
-    const mGen0 = loadManifestV4(config, vaultId);
+    const mGen0 = await loadManifestV4(config, vaultId);
     if (mGen0.contractVersion !== V4_1) throw new Error(`genesis manifest version ${mGen0.contractVersion} != ${V4_1}`);
     log(`GENESIS CHAIN_VERIFIED vault=${vaultId.slice(0,12)} txid=${genResult.txId} version=${mGen0.contractVersion}`);
     evidence.vaultId = vaultId;
     evidence.contractVersion = V4_1;
     evidence.transactions.push({ label: "genesis", action: "createVault", txId: genResult.txId, contractVersion: mGen0.contractVersion, protected: (100n * KAS).toString(), reserve: (5n * KAS).toString() });
-    auditRoots("genesis", vaultId);
+    await auditRoots("genesis", vaultId);
 
     // ---------- AGENT A reserve-funded spend (below threshold) ----------
     await doAction("agentA reserve spend #1", { vaultId, action: "agentSpend", params: { agentPk: XO(agentA.secret), recipient: recipientX, payAmountSompi: (4n * KAS).toString() }, signerKey: agentA });
     // ---------- AGENT A second spend (accumulation) ----------
     const { built: spend2 } = await doAction("agentA reserve spend #2", { vaultId, action: "agentSpend", params: { agentPk: XO(agentA.secret), recipient: recipientX, payAmountSompi: (4n * KAS).toString() }, signerKey: agentA });
-    const mAfter2 = loadManifestV4(config, vaultId);
+    const mAfter2 = await loadManifestV4(config, vaultId);
     const aSpent = mAfter2.agentRegistry.find((e) => e.policy.agentPk === XO(agentA.secret)).policy.periodSpent;
     if (aSpent !== 8n * KAS) throw new Error(`accumulation failed: agent A periodSpent=${aSpent}, expected 8 KAS`);
     log(`  accumulation proven: agent A periodSpent = ${aSpent} (8 KAS)`);
@@ -159,7 +159,7 @@ async function main() {
     await doAction("owner addAgent B", { vaultId, action: "addAgent", params: { agent: agentBPolicy, fuel: await fetchFuel(owner.address, 2n * KAS) }, signerKey: owner });
     // ---------- AGENT B spend (independence) ----------
     await doAction("agentB reserve spend", { vaultId, action: "agentSpend", params: { agentPk: XO(agentB.secret), recipient: recipientX, payAmountSompi: (3n * KAS).toString() }, signerKey: agentB });
-    const mB = loadManifestV4(config, vaultId);
+    const mB = await loadManifestV4(config, vaultId);
     const aSpentAfterB = mB.agentRegistry.find((e) => e.policy.agentPk === XO(agentA.secret)).policy.periodSpent;
     if (aSpentAfterB !== 8n * KAS) throw new Error(`independence failed: agent A periodSpent changed to ${aSpentAfterB}`);
     log(`  independence proven: agent A periodSpent unchanged (${aSpentAfterB}); agent B spent 3 KAS`);
@@ -182,7 +182,7 @@ async function main() {
 
     // ---------- TERMINAL recovery ----------
     await doAction("owner recover (terminal)", { vaultId, action: "ownerRecover", params: { fuel: await fetchFuel(owner.address, 2n * KAS) }, signerKey: owner });
-    const mFinal = loadManifestV4(config, vaultId);
+    const mFinal = await loadManifestV4(config, vaultId);
     if (mFinal.status !== "RECOVERED" || mFinal.live !== null) throw new Error(`recover did not close the vault: status=${mFinal.status}`);
     log(`  recovery proven: vault RECOVERED, no successor outpoint`);
 

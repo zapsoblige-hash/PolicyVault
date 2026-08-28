@@ -1,28 +1,29 @@
-# PolicyVault Covenant Spec v0.4 — frozen prior version (superseded by v0.4.1)
+# PolicyVault Covenant Spec v0.4 — PRODUCTION-VM-PROVEN + PRODUCTION-BYTE-PROVEN (NOT LIVE-TESTNET-VERIFIED)
 
-Status: ABI frozen, implemented, VM-proven and production-byte-proven;
-superseded by v0.4.1 (identical semantics, standard-mempool sig-op count)
-as the deployed protocol — see `docs/covenant-spec-v0.4.1.md`. `contracts/PolicyVault.v0.4.sil`
+Status: ABI FROZEN at Checkpoint B and IMPLEMENTED as the production
+covenant at Checkpoint C (2026-08-18). `contracts/PolicyVault.v0.4.sil`
 exists (deterministic generator `tools/gen_v4.js`, byte-identical
 regeneration test), the `pv_call_encoder` has an additive `policyvault-0.4`
 dispatch, and the SDK low-level state compiler exists
 (`sdk/src/{vault-state-v4,contract-compiler-v4}.js`). The full byte path is
-proven on the real VM (see the implementation record at the end for measured
+proven on the real VM (see the Checkpoint-C section at the end for measured
 facts). NOT yet live-testnet-verified. High-level SDK transaction builders,
 API, and UI are deliberately NOT implemented yet. v0.1/v0.2/v0.3 remain
 unchanged and byte-identical.
 
-Evidence: isolated VM experiments during the design gate, then
-production-byte tests
+Evidence: Checkpoint-B experiments
+(`contracts/experiments/V4{Combined,Fee,Agent}Probe.sil`,
+`tests/vm/tests/v4_experiment_*.rs`) + Checkpoint-C production-byte tests
 (`tests/vm/tests/v4_production.rs`, `v4_encoder_integration.rs`,
 `sdk/test/vault-state-v4.test.js`, `sdk/test/fee-mass.test.js`).
 
 ## Scope
 
 v0.4 adds the two FINAL major consensus features:
-- **Covenant-controlled fee reserve** (FR-1).
+- **Covenant-controlled fee reserve** (FR-1) — `docs/v04-fee-reserve-design.md`.
 - **Multiple independent delegates / AI agents** (MD-3) with per-agent
-  authenticated policy and per-agent approval thresholds.
+  authenticated policy — `docs/v04-multi-delegate-design.md`, per-agent
+  approvals via `docs/v04-approval-model.md`.
 
 The single v0.3 delegate and its per-delegate policy fields MOVE INTO the
 per-agent leaf, so fixed vault state shrinks even as capability grows.
@@ -138,7 +139,7 @@ Owner (single owner signature — MODEL 2 governance):
 - **ownerPause** / **ownerUnpause** — flip `paused`; nonce preserved.
 - **ownerRecover** — terminal; pays `protectedValue + feeReserve` to owner.
 
-Dropped vs the initial draft: `ownerSetMaxFeePerTx` (fee cap is now
+Dropped vs the Checkpoint-A draft: `ownerSetMaxFeePerTx` (fee cap is now
 per-agent in the leaf, changed via `ownerSetAgentRoot`).
 
 ### Per-entrypoint state-change permissions (frozen)
@@ -178,7 +179,7 @@ replay defense. (VM-experiment-proven: `v4c_owner_ops` requires the +1.)
 
 ## 6. FROZEN value conservation
 
-Summary:
+See `docs/v04-security-review.md` §"Conservation equations". Summary:
 `fee = reserveConsumed + (externalIn − externalOut)`, and the covenant
 requires `reserveConsumed ≤ fee`, so `externalOut ≤ externalIn`: no covenant
 value (principal or reserve) can escape to a non-pinned output; principal
@@ -188,7 +189,7 @@ by the spending agent's own `agentMaxFeePerTx`.
 ## 7. Migration / versioning
 
 v0.3 → v0.4 in-lineage migration is **VM-EXPERIMENT-PROVEN IMPOSSIBLE**
-(proven during the design gate: the real production v0.3 covenant rejects a
+(`v4_experiment_migration.rs`: the real production v0.3 covenant rejects a
 v0.4-template successor). Upgrade = v0.3 `ownerRecover` → v0.4 create (new
 covenantId/lineage). v0.4 gets contractVersion `policyvault-0.4`, its own
 encoder dispatch arm, compiler, normalizer, SDK builders, manifest support,
@@ -197,19 +198,22 @@ independently interpretable.
 
 ## 8. Implementation status
 
-ARCHITECTURE FROZEN + EXPERIMENT-PROVEN via isolated probes before
-production implementation (recorded below).
+ARCHITECTURE FROZEN + EXPERIMENT-PROVEN via isolated probes. NOT yet
+production-implemented. Next: Checkpoint C (production
+`PolicyVault.v0.4.sil` from this ABI, deterministic generator, encoder
+dispatch, exact state compiler, production-byte integration, mutation
+matrix, mass/fee) then the directive's checkpoint map.
 
 ---
 
-## Implementation record — production covenant + byte path (MEASURED)
+## Checkpoint C (2026-08-18) — PRODUCTION covenant + byte path (MEASURED)
 
 Status upgraded: the frozen ABI is now IMPLEMENTED as the production
 covenant `contracts/PolicyVault.v0.4.sil` (deterministic generator
 `tools/gen_v4.js`, byte-identical regeneration test) and PROVEN through the
 real byte path. NOT yet live-testnet-verified.
 
-**Measured production facts (supersede the design projections):**
+**Measured production facts (supersede the Checkpoint-B projections):**
 - redeem script: **18,839 bytes** (smaller than v0.3's 28,483 — the single
   delegate + fixed policy fields moved into the per-agent leaf).
 - state region: **441 bytes** (exactly as frozen), 17 mutable fields.
@@ -259,17 +263,18 @@ LIVE-TESTNET-VERIFIED.**
 
 ---
 
-## Implementation record — high-level SDK construction layer (OFFLINE)
+## Checkpoint E (2026-08-18) — high-level SDK construction layer (OFFLINE)
 
 The v0.4 high-level SDK transaction-construction layer is now IMPLEMENTED and
-PRODUCTION-BYTE-PROVEN offline, on top of the frozen covenant.
+PRODUCTION-BYTE-PROVEN offline, on top of the frozen Checkpoint-D covenant.
 Production covenant bytes are UNCHANGED (SHA256 unchanged; `tools/gen_v4.js`
 regenerates byte-identically). New modules: `agent-merkle-v4`,
 `vault-transitions-v4`, `compute-budget-v4`, `approval-package-v4`,
 `vault-builders-v4` (+ `normalizeStateV4ForRecovery` added to
 `vault-state-v4`). The reused v0.3 recipient tree reproduces the frozen v0.4
-covenant walk byte-for-byte (no fork). A funds-critical agent-tree padding finding was found and closed during
-the hostile review (unspendable padding leaf `SHA256(0x50563400)`; duplicate-last padding would
+covenant walk byte-for-byte (no fork). See `docs/v04-security-review.md`
+Checkpoint-E section for the funds-critical agent-tree padding finding
+(unspendable padding leaf `SHA256(0x50563400)`; duplicate-last padding would
 have created extra spendable budget lanes) and the full 42-vector
-production-byte matrix. Status: v0.4 is VM-proven and production-byte-proven; live deployment
-uses v0.4.1.
+production-byte matrix. Status remains PRODUCTION-VM-PROVEN +
+PRODUCTION-BYTE-PROVEN, NOT LIVE-TESTNET-VERIFIED. Mainnet remains gate R.

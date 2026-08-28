@@ -38,14 +38,14 @@ function tempConfig() {
   return loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-orgapi-")) });
 }
 
-function seedVault(config, vaultId) {
+async function seedVault(config, vaultId) {
   const template = normalizeTemplateV2({ owner: OWNER_X, vaultId });
   const state = normalizeStateV2({
     protectedValue: "10000000000", periodStartDaa: "1000", periodSpent: "0", paused: "0",
     delegate: DELEGATE_X, maxPerSpend: "1000000000", periodBudget: "5000000000",
     periodLengthDaa: "600", recipients: [RECIP_X], delegateActive: "1", policyNonce: "0"
   });
-  persistManifestV2(config, {
+  await persistManifestV2(config, {
     schema: MANIFEST_SCHEMA_V2, contractVersion: CONTRACT_VERSION_V2, networkId: config.networkId,
     vaultId, label: `vault-${vaultId.slice(0, 4)}`, status: "ACTIVE", template,
     live: {
@@ -73,7 +73,7 @@ async function expectApiError(promise, status, code) {
 test("org APIs: create/list/get/rename/members/vaults/audit round trip", async () => {
   const config = tempConfig();
   const VA = "aa".repeat(32);
-  seedVault(config, VA);
+  await seedVault(config, VA);
 
   const created = (await call(config, "POST", "/organizations", { name: "Acme" })).body.organization;
   const got = (await call(config, "GET", `/organizations/${created.orgId}`)).body;
@@ -106,8 +106,8 @@ test("isolation: org A never exposes org B members/vaults/audit; mismatched ids 
   const config = tempConfig();
   const VA = "aa".repeat(32);
   const VB = "bb".repeat(32);
-  seedVault(config, VA);
-  seedVault(config, VB);
+  await seedVault(config, VA);
+  await seedVault(config, VB);
 
   const a = (await call(config, "POST", "/organizations", { name: "Org A" })).body.organization;
   const b = (await call(config, "POST", "/organizations", { name: "Org B" })).body.organization;
@@ -140,7 +140,7 @@ test("isolation: org A never exposes org B members/vaults/audit; mismatched ids 
 test("AUTHORITY: org roles grant nothing; real covenant authority needs no membership", async () => {
   const config = tempConfig();
   const VA = "aa".repeat(32);
-  seedVault(config, VA);
+  await seedVault(config, VA);
 
   const orgRec = (await call(config, "POST", "/organizations", { name: "Authority Test" })).body.organization;
   // UNRELATED_X is 'owner'+'administrator'+'treasurer'+'approver' in org metadata…
@@ -170,7 +170,7 @@ test("AUTHORITY: org roles grant nothing; real covenant authority needs no membe
 
   // The REAL owner and delegate have no org member records at all — their
   // covenant authority is untouched by that absence.
-  const manifest = require("../src/manifest-v2").loadManifestV2(config, VA);
+  const manifest = await require("../src/manifest-v2").loadManifestV2(config, VA);
   assert.equal(
     assertSignerAuthorized(config, { role: "owner", signerAddress: addressForXOnlyPubkey(config, OWNER_X), template: manifest.template, state: manifest.live.state, action: "ownerTopUp" }),
     OWNER_X
@@ -184,7 +184,7 @@ test("AUTHORITY: org roles grant nothing; real covenant authority needs no membe
 test("metadata corruption degrades gracefully: vaults stay visible, orgs marked corrupt", async () => {
   const config = tempConfig();
   const VA = "aa".repeat(32);
-  seedVault(config, VA);
+  await seedVault(config, VA);
   const orgRec = (await call(config, "POST", "/organizations", { name: "Fragile" })).body.organization;
   await call(config, "POST", `/organizations/${orgRec.orgId}/vaults`, { vaultId: VA, expectedVersion: 0 });
 
@@ -209,10 +209,10 @@ test("metadata corruption degrades gracefully: vaults stay visible, orgs marked 
 test("assignment validation through the API: unknown vault 404, closed vaults assignable", async () => {
   const config = tempConfig();
   const VA = "aa".repeat(32);
-  seedVault(config, VA);
+  await seedVault(config, VA);
   // Mark the vault RECOVERED (closed) — still assignable for history.
-  const m = require("../src/manifest-v2").loadManifestV2(config, VA);
-  persistManifestV2(config, { ...m, status: "RECOVERED", live: null });
+  const m = await require("../src/manifest-v2").loadManifestV2(config, VA);
+  await persistManifestV2(config, { ...m, status: "RECOVERED", live: null });
 
   const orgRec = (await call(config, "POST", "/organizations", { name: "Archive" })).body.organization;
   await expectApiError(

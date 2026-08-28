@@ -1,0 +1,3213 @@
+{
+ "schema": "policyvault-core-model-golden/v2",
+ "apiSurface": {
+  "vaultStateV2": {
+   "keys": [
+    "CONTRACT_VERSION_V2",
+    "computeStateIdV2",
+    "migrateSuccessorV2",
+    "normalizeStateV2",
+    "normalizeTemplateV2",
+    "pauseSuccessorV2",
+    "revokeSuccessorV2",
+    "rolloverSuccessorV2",
+    "rotateSuccessorV2",
+    "spendSuccessorV2",
+    "stateToJson",
+    "topUpSuccessorV2"
+   ],
+   "types": {
+    "CONTRACT_VERSION_V2": "string",
+    "computeStateIdV2": "function",
+    "migrateSuccessorV2": "function",
+    "normalizeStateV2": "function",
+    "normalizeTemplateV2": "function",
+    "pauseSuccessorV2": "function",
+    "revokeSuccessorV2": "function",
+    "rolloverSuccessorV2": "function",
+    "rotateSuccessorV2": "function",
+    "spendSuccessorV2": "function",
+    "stateToJson": "function",
+    "topUpSuccessorV2": "function"
+   }
+  },
+  "vaultStateV3": {
+   "keys": [
+    "APPROVER_SENTINEL",
+    "CONTRACT_VERSION_V3",
+    "MAX_APPROVERS",
+    "computeStateIdV3",
+    "normalizeApprovers",
+    "normalizeRecipientRoot",
+    "normalizeStateV3",
+    "normalizeStateV3ForRecovery",
+    "normalizeTemplateV3",
+    "stateToJsonV3"
+   ],
+   "types": {
+    "APPROVER_SENTINEL": "string",
+    "CONTRACT_VERSION_V3": "string",
+    "MAX_APPROVERS": "number",
+    "computeStateIdV3": "function",
+    "normalizeApprovers": "function",
+    "normalizeRecipientRoot": "function",
+    "normalizeStateV3": "function",
+    "normalizeStateV3ForRecovery": "function",
+    "normalizeTemplateV3": "function",
+    "stateToJsonV3": "function"
+   }
+  },
+  "vaultStateV4": {
+   "keys": [
+    "APPROVER_SENTINEL",
+    "CONTRACT_VERSION_V4",
+    "CONTRACT_VERSION_V4_1",
+    "MAX_APPROVERS",
+    "OWNER_OP_SELECTOR_V4_1",
+    "V4_ABIS",
+    "computeStateIdV4",
+    "normalizeApprovers",
+    "normalizeStateV4",
+    "normalizeStateV4ForRecovery",
+    "normalizeTemplateV4",
+    "resolveV4Abi",
+    "stateToJsonV4"
+   ],
+   "types": {
+    "APPROVER_SENTINEL": "string",
+    "CONTRACT_VERSION_V4": "string",
+    "CONTRACT_VERSION_V4_1": "string",
+    "MAX_APPROVERS": "number",
+    "OWNER_OP_SELECTOR_V4_1": "object",
+    "V4_ABIS": "object",
+    "computeStateIdV4": "function",
+    "normalizeApprovers": "function",
+    "normalizeStateV4": "function",
+    "normalizeStateV4ForRecovery": "function",
+    "normalizeTemplateV4": "function",
+    "resolveV4Abi": "function",
+    "stateToJsonV4": "function"
+   }
+  },
+  "vaultTransitionsV3": {
+   "keys": [
+    "MAX_APPROVERS",
+    "migrateSuccessorV3",
+    "pauseSuccessorV3",
+    "recoverPlanV3",
+    "revokeSuccessorV3",
+    "rolloverSuccessorV3",
+    "rotateSuccessorV3",
+    "setApproversSuccessorV3",
+    "setRecipientRootSuccessorV3",
+    "spendSuccessorV3",
+    "topUpSuccessorV3"
+   ],
+   "types": {
+    "MAX_APPROVERS": "number",
+    "migrateSuccessorV3": "function",
+    "pauseSuccessorV3": "function",
+    "recoverPlanV3": "function",
+    "revokeSuccessorV3": "function",
+    "rolloverSuccessorV3": "function",
+    "rotateSuccessorV3": "function",
+    "setApproversSuccessorV3": "function",
+    "setRecipientRootSuccessorV3": "function",
+    "spendSuccessorV3": "function",
+    "topUpSuccessorV3": "function"
+   }
+  },
+  "vaultTransitionsV4": {
+   "keys": [
+    "MAX_APPROVERS",
+    "MAX_PERIODS_ELAPSED",
+    "agentSpendSuccessorV4",
+    "pauseSuccessorV4",
+    "recoverPlanV4",
+    "setAgentRootSuccessorV4",
+    "setApproversSuccessorV4",
+    "topUpReserveSuccessorV4",
+    "topUpSuccessorV4"
+   ],
+   "types": {
+    "MAX_APPROVERS": "number",
+    "MAX_PERIODS_ELAPSED": "bigint",
+    "agentSpendSuccessorV4": "function",
+    "pauseSuccessorV4": "function",
+    "recoverPlanV4": "function",
+    "setAgentRootSuccessorV4": "function",
+    "setApproversSuccessorV4": "function",
+    "topUpReserveSuccessorV4": "function",
+    "topUpSuccessorV4": "function"
+   }
+  },
+  "recipientMerkle": {
+   "keys": [
+    "LEAF_DOMAIN",
+    "MAX_DEPTH",
+    "MAX_RECIPIENTS",
+    "buildRecipientTree",
+    "generateRecipientProof",
+    "leafHash",
+    "verifyRecipientProof"
+   ],
+   "types": {
+    "LEAF_DOMAIN": "object",
+    "MAX_DEPTH": "number",
+    "MAX_RECIPIENTS": "number",
+    "buildRecipientTree": "function",
+    "generateRecipientProof": "function",
+    "leafHash": "function",
+    "verifyRecipientProof": "function"
+   }
+  },
+  "feeMass": {
+   "keys": [
+    "MINIMUM_RELAY_TRANSACTION_FEE",
+    "STANDARD_MASS_CAP",
+    "calculateRequiredFee",
+    "computeMass",
+    "describeWasmTransaction",
+    "estimatedSerializedSize",
+    "feeMass",
+    "finalizeWithExactFee",
+    "validateComputeBudget"
+   ],
+   "types": {
+    "MINIMUM_RELAY_TRANSACTION_FEE": "bigint",
+    "STANDARD_MASS_CAP": "bigint",
+    "calculateRequiredFee": "function",
+    "computeMass": "function",
+    "describeWasmTransaction": "function",
+    "estimatedSerializedSize": "function",
+    "feeMass": "function",
+    "finalizeWithExactFee": "function",
+    "validateComputeBudget": "function"
+   }
+  },
+  "computeBudgetV3": {
+   "keys": [
+    "V3_BUDGET",
+    "assertBudgetSufficient",
+    "selectComputeBudgetV3"
+   ],
+   "types": {
+    "V3_BUDGET": "object",
+    "assertBudgetSufficient": "function",
+    "selectComputeBudgetV3": "function"
+   }
+  },
+  "computeBudgetV4": {
+   "keys": [
+    "V4_BUDGET",
+    "assertBudgetSufficientV4",
+    "selectComputeBudgetV4"
+   ],
+   "types": {
+    "V4_BUDGET": "object",
+    "assertBudgetSufficientV4": "function",
+    "selectComputeBudgetV4": "function"
+   }
+  }
+ },
+ "vaultStateV2": {
+  "constants": {
+   "CONTRACT_VERSION_V2": "policyvault-0.2"
+  },
+  "template": {
+   "owner": "1111111111111111111111111111111111111111111111111111111111111111",
+   "vaultId": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "normalizeState": {
+   "three": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "onePadded": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+   },
+   "twoPadded": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+   },
+   "rejects": {
+    "zeroRecipients": {
+     "threw": true,
+     "message": "vault-state-v2: state.recipients must contain 1 to 3 recipients",
+     "code": null
+    },
+    "fourRecipients": {
+     "threw": true,
+     "message": "vault-state-v2: state.recipients must contain 1 to 3 recipients",
+     "code": null
+    },
+    "budgetBelowMax": {
+     "threw": true,
+     "message": "vault-state-v2: state.periodBudget must be >= state.maxPerSpend",
+     "code": null
+    },
+    "pausedTwo": {
+     "threw": true,
+     "message": "vault-state-v2: state.paused out of range [0, 1]",
+     "code": null
+    },
+    "daaOverThreshold": {
+     "threw": true,
+     "message": "vault-state-v2: state.periodStartDaa must be below the DAA lock-time threshold",
+     "code": null
+    },
+    "zeroProtected": {
+     "threw": true,
+     "message": "amounts: state.protectedValue must be greater than zero",
+     "code": null
+    },
+    "nonceOverflow": {
+     "threw": true,
+     "message": "vault-state-v2: state.policyNonce out of range [0, 1000000000]",
+     "code": null
+    },
+    "missing": {
+     "threw": true,
+     "message": "vault-state-v2: state object is required",
+     "code": null
+    }
+   }
+  },
+  "stateIds": {
+   "testnet": "3e0a9064fe4a7217f02541f665b329e17098bb5cd7e31d37df3b8d30d8a60af5",
+   "mainnet": "149a4b761f951f49e2efda577e0c8e28c89ea8719510d7f9fc5fbf5843a03e9e",
+   "onePadded": "d4c330664b5faf9c423e1ab04aea97186691f11e29a6ec754286aba517d7a5e2",
+   "rejects": {
+    "emptyNetwork": {
+     "threw": true,
+     "message": "vault-state-v2: networkId is required for the state ID",
+     "code": null
+    }
+   }
+  },
+  "successors": {
+   "spend": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "100000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "4900000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "rollover": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "100000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541259200"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "4900000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "pause": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "1"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "unpauseAfterPause": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "revoke": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "0"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "rotate": {
+    "delegate": "4444444444444444444444444444444444444444444444444444444444444444",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "topUp": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5250000000"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "migrate": {
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "200000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "1"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipients": [
+     "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    ]
+   },
+   "rejects": {
+    "spendOverMax": {
+     "threw": true,
+     "message": "vault-state-v2: spend exceeds maxPerSpend",
+     "code": null
+    },
+    "spendOverBudget": {
+     "threw": true,
+     "message": "vault-state-v2: spend exceeds the remaining period budget",
+     "code": null
+    },
+    "spendAll": {
+     "threw": true,
+     "message": "vault-state-v2: spend would not leave a positive successor value",
+     "code": null
+    },
+    "spendPaused": {
+     "threw": true,
+     "message": "vault-state-v2: spend: vault is paused",
+     "code": null
+    },
+    "spendRevoked": {
+     "threw": true,
+     "message": "vault-state-v2: spend: delegate is revoked",
+     "code": null
+    },
+    "rolloverZeroPeriods": {
+     "threw": true,
+     "message": "vault-state-v2: periodsElapsed out of range [1, 1000]",
+     "code": null
+    },
+    "rolloverTooMany": {
+     "threw": true,
+     "message": "vault-state-v2: periodsElapsed out of range [1, 1000]",
+     "code": null
+    },
+    "pauseAgain": {
+     "threw": true,
+     "message": "vault-state-v2: vault is already paused",
+     "code": null
+    },
+    "revokeAgain": {
+     "threw": true,
+     "message": "vault-state-v2: delegate is already revoked",
+     "code": null
+    }
+   }
+  },
+  "stateToJson": {
+   "protectedValue": "5000000000",
+   "periodStartDaa": "541000000",
+   "periodSpent": "0",
+   "paused": "0",
+   "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+   "maxPerSpend": "100000000",
+   "periodBudget": "1000000000",
+   "periodLengthDaa": "86400",
+   "recipients": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+   ],
+   "delegateActive": "1",
+   "policyNonce": "0"
+  }
+ },
+ "vaultStateV3": {
+  "constants": {
+   "CONTRACT_VERSION_V3": "policyvault-0.3",
+   "MAX_APPROVERS": 10,
+   "APPROVER_SENTINEL": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "template": {
+   "owner": "1111111111111111111111111111111111111111111111111111111111111111",
+   "vaultId": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "normalizeApprovers": {
+   "canonicalized": {
+    "activeCount": 3,
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ]
+   },
+   "slotsPreserved": {
+    "activeCount": 2,
+    "approvers": [
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ]
+   },
+   "rejects": {
+    "tooMany": {
+     "threw": true,
+     "message": "vault-state-v3: state.approvers has 11 entries; max is 10",
+     "code": null
+    },
+    "duplicate": {
+     "threw": true,
+     "message": "vault-state-v3: state.approvers[1] duplicates an earlier approver key — active approver keys must be distinct",
+     "code": null
+    },
+    "sentinelActive": {
+     "threw": true,
+     "message": "vault-state-v3: state.approvers[0] is the all-zero sentinel; pass only active approver keys",
+     "code": null
+    },
+    "slotsWrongLength": {
+     "threw": true,
+     "message": "vault-state-v3: state.approverSlots must be exactly 10 slots (sentinel = 64 zero hex)",
+     "code": null
+    },
+    "slotsDuplicate": {
+     "threw": true,
+     "message": "vault-state-v3: state.approverSlots[1] duplicates an earlier active approver key — active approver keys must be distinct",
+     "code": null
+    }
+   }
+  },
+  "normalizeRecipientRoot": {
+   "accepts": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+   "rejects": {
+    "threw": true,
+    "message": "vault-state: state.recipientRoot must be 32-byte lowercase hex",
+    "code": null
+   }
+  },
+  "normalizeState": {
+   "withApprovers": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "noApproverTier": {
+    "activeApproverCount": 0,
+    "approvalM": {
+     "__bigint__": "0"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "100000000"
+    },
+    "approvers": [
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "slotLayoutPreserved": {
+    "activeApproverCount": 2,
+    "approvalM": {
+     "__bigint__": "1"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "rejects": {
+    "mZeroWithApprovers": {
+     "threw": true,
+     "message": "vault-state-v3: state.approvalM must be >= 1 when approvers are configured",
+     "code": null
+    },
+    "mOverActive": {
+     "threw": true,
+     "message": "vault-state-v3: state.approvalM (4) exceeds the active approver count (3)",
+     "code": null
+    },
+    "noApproversThresholdBelowMax": {
+     "threw": true,
+     "message": "vault-state-v3: a vault with no approvers must set approvalThresholdAmount >= maxPerSpend so a spend can never require approvals",
+     "code": null
+    },
+    "budgetBelowMax": {
+     "threw": true,
+     "message": "vault-state-v3: state.periodBudget must be >= state.maxPerSpend",
+     "code": null
+    },
+    "daaOverThreshold": {
+     "threw": true,
+     "message": "vault-state-v3: state.periodStartDaa must be below the DAA lock-time threshold",
+     "code": null
+    },
+    "missingNonce": {
+     "threw": true,
+     "message": "amounts: state.policyNonce must be a BigInt or decimal string, got undefined",
+     "code": null
+    },
+    "missing": {
+     "threw": true,
+     "message": "vault-state-v3: state object is required",
+     "code": null
+    }
+   }
+  },
+  "recoveryParse": {
+   "malformedAccepted": {
+    "activeApproverCount": 2,
+    "approvalM": {
+     "__bigint__": "99"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "0"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "7"
+    },
+    "periodBudget": {
+     "__bigint__": "1"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "recoveryParse": true
+   },
+   "rejects": {
+    "tooManySlots": {
+     "threw": true,
+     "message": "vault-state-v3: recovery parse requires an approver slot array of at most 10 entries",
+     "code": null
+    },
+    "badHex": {
+     "threw": true,
+     "message": "vault-state: state.approverSlots[0] must be 32-byte lowercase hex",
+     "code": null
+    }
+   }
+  },
+  "stateIds": {
+   "testnet": "b215ff3164f2406742c82162b1541210c6ad7092d8ca7c2fc1264b269e1911f1",
+   "mainnet": "038905e7be3893607d98a9454621b7fa3628f33d0b7199317cb6d51e89f5b622",
+   "slots": "03acb07044caf65a6326cd93e5044b40709174f773a917ed8d830bc16a2fa575",
+   "rejects": {
+    "emptyNetwork": {
+     "threw": true,
+     "message": "vault-state-v3: networkId is required for the state ID",
+     "code": null
+    },
+    "missingNonce": {
+     "threw": true,
+     "message": "vault-state-v3: state.policyNonce is required (BigInt) — refusing an implicit default for a consensus-visible value",
+     "code": null
+    }
+   }
+  },
+  "stateToJson": {
+   "protectedValue": "5000000000",
+   "periodStartDaa": "541000000",
+   "periodSpent": "0",
+   "paused": "0",
+   "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+   "delegateActive": "1",
+   "maxPerSpend": "100000000",
+   "periodBudget": "1000000000",
+   "periodLengthDaa": "86400",
+   "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+   "approverSlots": [
+    "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+    "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000"
+   ],
+   "approvalM": "2",
+   "approvalThresholdAmount": "50000000",
+   "policyNonce": "0"
+  }
+ },
+ "vaultStateV4": {
+  "constants": {
+   "APPROVER_SENTINEL": "0000000000000000000000000000000000000000000000000000000000000000",
+   "CONTRACT_VERSION_V4": "policyvault-0.4",
+   "CONTRACT_VERSION_V4_1": "policyvault-0.4.1",
+   "MAX_APPROVERS": 10,
+   "OWNER_OP_SELECTOR_V4_1": {
+    "ownerPause": 4,
+    "ownerSetAgentRoot": 0,
+    "ownerSetApprovers": 1,
+    "ownerTopUp": 2,
+    "ownerTopUpReserve": 3,
+    "ownerUnpause": 5
+   },
+   "V4_ABIS": {
+    "policyvault-0.4": {
+     "buildSubdir": "build-v4",
+     "consolidatedOwner": false,
+     "contractRelPath": "contracts/PolicyVault.v0.4.sil",
+     "version": "policyvault-0.4"
+    },
+    "policyvault-0.4.1": {
+     "buildSubdir": "build-v4_1",
+     "consolidatedOwner": true,
+     "contractRelPath": "contracts/PolicyVault.v0.4.1.sil",
+     "version": "policyvault-0.4.1"
+    }
+   }
+  },
+  "resolveAbi": {
+   "v4": {
+    "buildSubdir": "build-v4",
+    "consolidatedOwner": false,
+    "contractRelPath": "contracts/PolicyVault.v0.4.sil",
+    "version": "policyvault-0.4"
+   },
+   "v41": {
+    "buildSubdir": "build-v4_1",
+    "consolidatedOwner": true,
+    "contractRelPath": "contracts/PolicyVault.v0.4.1.sil",
+    "version": "policyvault-0.4.1"
+   },
+   "defaultUndefined": {
+    "buildSubdir": "build-v4",
+    "consolidatedOwner": false,
+    "contractRelPath": "contracts/PolicyVault.v0.4.sil",
+    "version": "policyvault-0.4"
+   },
+   "defaultNull": {
+    "buildSubdir": "build-v4",
+    "consolidatedOwner": false,
+    "contractRelPath": "contracts/PolicyVault.v0.4.sil",
+    "version": "policyvault-0.4"
+   },
+   "rejects": {
+    "unknown": {
+     "threw": true,
+     "message": "vault-state-v4: unknown contract version \"policyvault-9.9\" for the v0.4 family — failing closed (no cross-version fallback)",
+     "code": null
+    },
+    "v3NotInFamily": {
+     "threw": true,
+     "message": "vault-state-v4: unknown contract version \"policyvault-0.3\" for the v0.4 family — failing closed (no cross-version fallback)",
+     "code": null
+    }
+   }
+  },
+  "template": {
+   "owner": "1111111111111111111111111111111111111111111111111111111111111111",
+   "vaultId": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "normalizeState": {
+   "withApprovers": {
+    "activeApproverCount": 3,
+    "agentRoot": "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7",
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    }
+   },
+   "zeroApprovers": {
+    "activeApproverCount": 0,
+    "agentRoot": "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7",
+    "approvalM": {
+     "__bigint__": "0"
+    },
+    "approvers": [
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    }
+   },
+   "slotLayoutPreserved": {
+    "activeApproverCount": 2,
+    "agentRoot": "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7",
+    "approvalM": {
+     "__bigint__": "1"
+    },
+    "approvers": [
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    }
+   },
+   "rejects": {
+    "mZeroWithApprovers": {
+     "threw": true,
+     "message": "vault-state-v4: state.approvalM must be >= 1 when approvers are configured",
+     "code": null
+    },
+    "mOverActive": {
+     "threw": true,
+     "message": "vault-state-v4: state.approvalM (4) exceeds the active approver count (3)",
+     "code": null
+    },
+    "mNonZeroNoApprovers": {
+     "threw": true,
+     "message": "vault-state-v4: state.approvalM must be 0 when there are no active approvers",
+     "code": null
+    },
+    "pausedTwo": {
+     "threw": true,
+     "message": "vault-state-v4: state.paused out of range [0, 1]",
+     "code": null
+    },
+    "zeroProtected": {
+     "threw": true,
+     "message": "amounts: state.protectedValue must be greater than zero",
+     "code": null
+    },
+    "negativeReserve": {
+     "threw": true,
+     "message": "amounts: state.feeReserve must be a base-10 digit string, got \"-1\"",
+     "code": null
+    },
+    "badAgentRoot": {
+     "threw": true,
+     "message": "vault-state: state.agentRoot must be 32-byte lowercase hex",
+     "code": null
+    },
+    "duplicateApprovers": {
+     "threw": true,
+     "message": "vault-state-v4: state.approvers[1] duplicates an earlier approver key — active approver keys must be distinct",
+     "code": null
+    },
+    "missing": {
+     "threw": true,
+     "message": "vault-state-v4: state object is required",
+     "code": null
+    }
+   }
+  },
+  "normalizeApprovers": {
+   "canonicalized": {
+    "activeCount": 2,
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ]
+   },
+   "slotsPreserved": {
+    "activeCount": 2,
+    "approvers": [
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ]
+   }
+  },
+  "recoveryParse": {
+   "malformedAccepted": {
+    "activeApproverCount": 2,
+    "agentRoot": "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7",
+    "approvalM": {
+     "__bigint__": "99"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "7"
+    },
+    "policyNonce": {
+     "__bigint__": "0"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recoveryParse": true
+   },
+   "rejects": {
+    "tooManySlots": {
+     "threw": true,
+     "message": "vault-state-v4: recovery parse requires an approver slot array of at most 10 entries",
+     "code": null
+    }
+   }
+  },
+  "stateIds": {
+   "v4Testnet": "4db63c712f8d103ff0eaa873bc5ede29b37351edcb606b22acc229afefe13602",
+   "v41Testnet": "7ff33a578a01b1835f88ae236dedc64bcb5f82bb0a756e2c03dc017c6c04c20f",
+   "defaultIsV4": "4db63c712f8d103ff0eaa873bc5ede29b37351edcb606b22acc229afefe13602",
+   "v4Mainnet": "bd0388c933776e64102f5b6dc66100bcdc63ab109da55a6c53a941bc6066d880",
+   "rejects": {
+    "emptyNetwork": {
+     "threw": true,
+     "message": "vault-state-v4: networkId is required for the state ID",
+     "code": null
+    },
+    "missingNonce": {
+     "threw": true,
+     "message": "vault-state-v4: state.policyNonce is required (BigInt) — refusing an implicit default for a consensus-visible value",
+     "code": null
+    }
+   }
+  },
+  "stateToJson": {
+   "protectedValue": "5000000000",
+   "feeReserve": "300000000",
+   "paused": "0",
+   "agentRoot": "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7",
+   "approverSlots": [
+    "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+    "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0000000000000000000000000000000000000000000000000000000000000000"
+   ],
+   "approvalM": "2",
+   "policyNonce": "0"
+  }
+ },
+ "vaultTransitionsV3": {
+  "constants": {
+   "MAX_APPROVERS": 10
+  },
+  "successors": {
+   "spend": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "100000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "5"
+    },
+    "protectedValue": {
+     "__bigint__": "4900000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "rollover": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "100000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541259200"
+    },
+    "policyNonce": {
+     "__bigint__": "5"
+    },
+    "protectedValue": {
+     "__bigint__": "4900000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "pause": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "1"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "5"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "unpause": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "5"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "revoke": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "0"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "5"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "rotate": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "4444444444444444444444444444444444444444444444444444444444444444",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "5"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "topUp": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "5"
+    },
+    "protectedValue": {
+     "__bigint__": "5250000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "migrate": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "200000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "2000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "6"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "setRecipientRoot": {
+    "activeApproverCount": 3,
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "50000000"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "6"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "setApprovers": {
+    "activeApproverCount": 2,
+    "approvalM": {
+     "__bigint__": "1"
+    },
+    "approvalThresholdAmount": {
+     "__bigint__": "0"
+    },
+    "approvers": [
+     "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "delegateActive": {
+     "__bigint__": "1"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "policyNonce": {
+     "__bigint__": "6"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    },
+    "recipientRoot": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   "recoverStrict": {
+    "payoutValue": {
+     "__bigint__": "5000000000"
+    },
+    "payoutXOnly": "1111111111111111111111111111111111111111111111111111111111111111",
+    "terminal": true
+   },
+   "recoverFromRecoveryParse": {
+    "payoutValue": {
+     "__bigint__": "5000000000"
+    },
+    "payoutXOnly": "1111111111111111111111111111111111111111111111111111111111111111",
+    "terminal": true
+   }
+  },
+  "rejects": {
+   "spendPaused": {
+    "threw": true,
+    "message": "vault-transitions-v3: spend: vault is paused",
+    "code": null
+   },
+   "spendRevoked": {
+    "threw": true,
+    "message": "vault-transitions-v3: spend: delegate is revoked",
+    "code": null
+   },
+   "spendOverMax": {
+    "threw": true,
+    "message": "vault-transitions-v3: spend exceeds maxPerSpend",
+    "code": null
+   },
+   "spendOverBudget": {
+    "threw": true,
+    "message": "vault-transitions-v3: spend exceeds maxPerSpend",
+    "code": null
+   },
+   "spendAll": {
+    "threw": true,
+    "message": "vault-transitions-v3: spend would not leave a positive successor value",
+    "code": null
+   },
+   "rolloverZeroPeriods": {
+    "threw": true,
+    "message": "vault-transitions-v3: periodsElapsed out of range [1, 1000]",
+    "code": null
+   },
+   "rolloverTooMany": {
+    "threw": true,
+    "message": "vault-transitions-v3: periodsElapsed out of range [1, 1000]",
+    "code": null
+   },
+   "pauseAgain": {
+    "threw": true,
+    "message": "vault-transitions-v3: vault is already paused",
+    "code": null
+   },
+   "revokeAgain": {
+    "threw": true,
+    "message": "vault-transitions-v3: delegate is already revoked",
+    "code": null
+   },
+   "migrateForeignKey": {
+    "threw": true,
+    "message": "vault-transitions-v3: migratePolicy cannot change recipientRoot — only maxPerSpend/periodBudget/periodLengthDaa",
+    "code": null
+   },
+   "setApproversEmpty": {
+    "threw": true,
+    "message": "vault-transitions-v3: the covenant cannot transition to a zero-approver configuration (ownerSetApprovers requires 1 <= approvalM <= activeCount); the zero-approver tier exists only at genesis",
+    "code": null
+   },
+   "setApproversMissingM": {
+    "threw": true,
+    "message": "vault-transitions-v3: setApprovers requires approvalM",
+    "code": null
+   },
+   "recoveryParseRefused": {
+    "threw": true,
+    "message": "vault-transitions-v3: spend: a recovery-mode state parse can only be used for ownerRecover — refusing ordinary transition",
+    "code": null
+   },
+   "recoverBadState": {
+    "threw": true,
+    "message": "vault-transitions-v3: recover: normalized predecessor state is required",
+    "code": null
+   }
+  }
+ },
+ "vaultTransitionsV4": {
+  "constants": {
+   "MAX_APPROVERS": 10,
+   "MAX_PERIODS_ELAPSED": {
+    "__bigint__": "1000"
+   }
+  },
+  "agentSpend": {
+   "belowThreshold": {
+    "aboveThreshold": false,
+    "agentProof": {
+     "pathBits": {
+      "__bigint__": "0"
+     },
+     "siblingsHex": "9c1c25b5e8162cd06646eb665a6ef1b00b3af9d9770baeab7232597952cf68f14aed86e37b172e39390fa2f0ced4955d2fb398637627846ccbda71e8619fef49"
+    },
+    "lockTime": {
+     "__bigint__": "0"
+    },
+    "newPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "1000000000"
+     },
+     "periodStartDaa": {
+      "__bigint__": "541000000"
+     }
+    },
+    "newSpent": {
+     "__bigint__": "1000000000"
+    },
+    "newStart": {
+     "__bigint__": "541000000"
+    },
+    "payAmount": {
+     "__bigint__": "1000000000"
+    },
+    "previousPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "0"
+     },
+     "periodStartDaa": {
+      "__bigint__": "541000000"
+     }
+    },
+    "reserveConsumed": {
+     "__bigint__": "0"
+    },
+    "successor": {
+     "activeApproverCount": 3,
+     "agentRoot": "1c2728564dcc0c85551d2ac306c96068ddc5d74a5ea414fd289143abb5a61276",
+     "approvalM": {
+      "__bigint__": "2"
+     },
+     "approvers": [
+      "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000"
+     ],
+     "feeReserve": {
+      "__bigint__": "300000000"
+     },
+     "paused": {
+      "__bigint__": "0"
+     },
+     "policyNonce": {
+      "__bigint__": "7"
+     },
+     "protectedValue": {
+      "__bigint__": "49000000000"
+     }
+    }
+   },
+   "withRollover": {
+    "aboveThreshold": false,
+    "agentProof": {
+     "pathBits": {
+      "__bigint__": "0"
+     },
+     "siblingsHex": "9c1c25b5e8162cd06646eb665a6ef1b00b3af9d9770baeab7232597952cf68f14aed86e37b172e39390fa2f0ced4955d2fb398637627846ccbda71e8619fef49"
+    },
+    "lockTime": {
+     "__bigint__": "543592000"
+    },
+    "newPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "1000000000"
+     },
+     "periodStartDaa": {
+      "__bigint__": "543592000"
+     }
+    },
+    "newSpent": {
+     "__bigint__": "1000000000"
+    },
+    "newStart": {
+     "__bigint__": "543592000"
+    },
+    "payAmount": {
+     "__bigint__": "1000000000"
+    },
+    "previousPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "0"
+     },
+     "periodStartDaa": {
+      "__bigint__": "541000000"
+     }
+    },
+    "reserveConsumed": {
+     "__bigint__": "0"
+    },
+    "successor": {
+     "activeApproverCount": 3,
+     "agentRoot": "7501ce32164825245e148177171bc205715f7b198ab41e4b666c1531e3cb816b",
+     "approvalM": {
+      "__bigint__": "2"
+     },
+     "approvers": [
+      "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000"
+     ],
+     "feeReserve": {
+      "__bigint__": "300000000"
+     },
+     "paused": {
+      "__bigint__": "0"
+     },
+     "policyNonce": {
+      "__bigint__": "7"
+     },
+     "protectedValue": {
+      "__bigint__": "49000000000"
+     }
+    }
+   },
+   "aboveThreshold": {
+    "aboveThreshold": true,
+    "agentProof": {
+     "pathBits": {
+      "__bigint__": "0"
+     },
+     "siblingsHex": "9c1c25b5e8162cd06646eb665a6ef1b00b3af9d9770baeab7232597952cf68f14aed86e37b172e39390fa2f0ced4955d2fb398637627846ccbda71e8619fef49"
+    },
+    "lockTime": {
+     "__bigint__": "0"
+    },
+    "newPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "6000000000"
+     },
+     "periodStartDaa": {
+      "__bigint__": "541000000"
+     }
+    },
+    "newSpent": {
+     "__bigint__": "6000000000"
+    },
+    "newStart": {
+     "__bigint__": "541000000"
+    },
+    "payAmount": {
+     "__bigint__": "6000000000"
+    },
+    "previousPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "0"
+     },
+     "periodStartDaa": {
+      "__bigint__": "541000000"
+     }
+    },
+    "reserveConsumed": {
+     "__bigint__": "0"
+    },
+    "successor": {
+     "activeApproverCount": 3,
+     "agentRoot": "beace17e693f79b469278a09efff19df9d04a5b0e2b31da583d54fbd9861f682",
+     "approvalM": {
+      "__bigint__": "2"
+     },
+     "approvers": [
+      "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000"
+     ],
+     "feeReserve": {
+      "__bigint__": "300000000"
+     },
+     "paused": {
+      "__bigint__": "0"
+     },
+     "policyNonce": {
+      "__bigint__": "7"
+     },
+     "protectedValue": {
+      "__bigint__": "44000000000"
+     }
+    }
+   },
+   "withReserve": {
+    "aboveThreshold": false,
+    "agentProof": {
+     "pathBits": {
+      "__bigint__": "0"
+     },
+     "siblingsHex": "9c1c25b5e8162cd06646eb665a6ef1b00b3af9d9770baeab7232597952cf68f14aed86e37b172e39390fa2f0ced4955d2fb398637627846ccbda71e8619fef49"
+    },
+    "lockTime": {
+     "__bigint__": "0"
+    },
+    "newPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "1000000000"
+     },
+     "periodStartDaa": {
+      "__bigint__": "541000000"
+     }
+    },
+    "newSpent": {
+     "__bigint__": "1000000000"
+    },
+    "newStart": {
+     "__bigint__": "541000000"
+    },
+    "payAmount": {
+     "__bigint__": "1000000000"
+    },
+    "previousPolicy": {
+     "agentMaxFeePerTx": {
+      "__bigint__": "100000000"
+     },
+     "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+     "approvalThreshold": {
+      "__bigint__": "5000000000"
+     },
+     "maxPerSpend": {
+      "__bigint__": "20000000000"
+     },
+     "periodBudget": {
+      "__bigint__": "100000000000"
+     },
+     "periodLengthDaa": {
+      "__bigint__": "864000"
+     },
+     "periodSpent": {
+      "__bigint__": "0"
+     },
+     "periodStartDaa": {
+      "__bigint__": "541000000"
+     }
+    },
+    "reserveConsumed": {
+     "__bigint__": "50000000"
+    },
+    "successor": {
+     "activeApproverCount": 3,
+     "agentRoot": "1c2728564dcc0c85551d2ac306c96068ddc5d74a5ea414fd289143abb5a61276",
+     "approvalM": {
+      "__bigint__": "2"
+     },
+     "approvers": [
+      "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "0000000000000000000000000000000000000000000000000000000000000000"
+     ],
+     "feeReserve": {
+      "__bigint__": "250000000"
+     },
+     "paused": {
+      "__bigint__": "0"
+     },
+     "policyNonce": {
+      "__bigint__": "7"
+     },
+     "protectedValue": {
+      "__bigint__": "49000000000"
+     }
+    }
+   },
+   "rejects": {
+    "paused": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: vault is paused",
+     "code": null
+    },
+    "wrongRoot": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: the agent policy proof does not verify against the live agentRoot — stale tree or forged policy",
+     "code": "AGENT_PROOF_INVALID"
+    },
+    "forgedProof": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: the agent policy proof does not verify against the live agentRoot — stale tree or forged policy",
+     "code": "AGENT_PROOF_INVALID"
+    },
+    "overMaxPerSpend": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: payAmount exceeds this agent's maxPerSpend",
+     "code": null
+    },
+    "overBudget": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: spend exceeds this agent's remaining period budget",
+     "code": null
+    },
+    "tooManyPeriods": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: periodsElapsed out of range [0, 1000]",
+     "code": null
+    },
+    "drainsVault": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: spend would not leave a positive successor protectedValue (covenant requires newProtected > 0)",
+     "code": null
+    },
+    "overAgentFeeCap": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: reserveConsumed exceeds this agent's agentMaxFeePerTx",
+     "code": "OVER_AGENT_FEE_CAP"
+    },
+    "overReserve": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: reserveConsumed exceeds the available fee reserve",
+     "code": "INSUFFICIENT_RESERVE"
+    },
+    "noApproverTier": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: payAmount exceeds this agent's approvalThreshold but the vault has no approver configuration (approvalM 0) — the covenant rejects this spend; the owner must ownerSetApprovers or re-policy the agent first",
+     "code": "NO_APPROVER_TIER"
+    },
+    "recoveryParseRefused": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: a recovery-mode state parse can only be used for ownerRecover — refusing ordinary transition",
+     "code": null
+    },
+    "missingProof": {
+     "threw": true,
+     "message": "vault-transitions-v4: agentSpend: agentProof { siblingsHex, pathBits } is required",
+     "code": null
+    }
+   }
+  },
+  "ownerOps": {
+   "setAgentRoot": {
+    "activeApproverCount": 3,
+    "agentRoot": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "8"
+    },
+    "protectedValue": {
+     "__bigint__": "50000000000"
+    }
+   },
+   "setApprovers": {
+    "activeApproverCount": 2,
+    "agentRoot": "ae6f6cb6523686e775d701c68b076caf93e1a2e42e8d061c9842788425a2ebcb",
+    "approvalM": {
+     "__bigint__": "1"
+    },
+    "approvers": [
+     "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "8"
+    },
+    "protectedValue": {
+     "__bigint__": "50000000000"
+    }
+   },
+   "setApproversSlots": {
+    "activeApproverCount": 1,
+    "agentRoot": "ae6f6cb6523686e775d701c68b076caf93e1a2e42e8d061c9842788425a2ebcb",
+    "approvalM": {
+     "__bigint__": "1"
+    },
+    "approvers": [
+     "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "8"
+    },
+    "protectedValue": {
+     "__bigint__": "50000000000"
+    }
+   },
+   "topUp": {
+    "activeApproverCount": 3,
+    "agentRoot": "ae6f6cb6523686e775d701c68b076caf93e1a2e42e8d061c9842788425a2ebcb",
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "7"
+    },
+    "protectedValue": {
+     "__bigint__": "50250000000"
+    }
+   },
+   "topUpReserve": {
+    "activeApproverCount": 3,
+    "agentRoot": "ae6f6cb6523686e775d701c68b076caf93e1a2e42e8d061c9842788425a2ebcb",
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "370000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "7"
+    },
+    "protectedValue": {
+     "__bigint__": "50000000000"
+    }
+   },
+   "pause": {
+    "activeApproverCount": 3,
+    "agentRoot": "ae6f6cb6523686e775d701c68b076caf93e1a2e42e8d061c9842788425a2ebcb",
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "1"
+    },
+    "policyNonce": {
+     "__bigint__": "7"
+    },
+    "protectedValue": {
+     "__bigint__": "50000000000"
+    }
+   },
+   "unpause": {
+    "activeApproverCount": 3,
+    "agentRoot": "ae6f6cb6523686e775d701c68b076caf93e1a2e42e8d061c9842788425a2ebcb",
+    "approvalM": {
+     "__bigint__": "2"
+    },
+    "approvers": [
+     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+     "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "feeReserve": {
+     "__bigint__": "300000000"
+    },
+    "paused": {
+     "__bigint__": "0"
+    },
+    "policyNonce": {
+     "__bigint__": "7"
+    },
+    "protectedValue": {
+     "__bigint__": "50000000000"
+    }
+   },
+   "rejects": {
+    "setApproversEmpty": {
+     "threw": true,
+     "message": "vault-transitions-v4: the covenant cannot transition to a zero-approver configuration (ownerSetApprovers requires 1 <= approvalM <= activeCount); the zero-approver tier exists only at genesis",
+     "code": null
+    },
+    "setApproversMissingM": {
+     "threw": true,
+     "message": "vault-transitions-v4: setApprovers requires approvalM",
+     "code": null
+    },
+    "setApproversMissingSet": {
+     "threw": true,
+     "message": "vault-transitions-v4: setApprovers requires the new approver set (approvers or approverSlots)",
+     "code": null
+    },
+    "topUpZero": {
+     "threw": true,
+     "message": "amounts: topUpAmount must be greater than zero",
+     "code": null
+    },
+    "pauseAgain": {
+     "threw": true,
+     "message": "vault-transitions-v4: vault is already paused",
+     "code": null
+    },
+    "unpauseActive": {
+     "threw": true,
+     "message": "vault-transitions-v4: vault is already active",
+     "code": null
+    },
+    "recoveryParseRefused": {
+     "threw": true,
+     "message": "vault-transitions-v4: setAgentRoot: a recovery-mode state parse can only be used for ownerRecover — refusing ordinary transition",
+     "code": null
+    }
+   }
+  },
+  "recover": {
+   "strict": {
+    "payoutValue": {
+     "__bigint__": "50300000000"
+    },
+    "payoutXOnly": "1111111111111111111111111111111111111111111111111111111111111111",
+    "terminal": true
+   },
+   "fromRecoveryParse": {
+    "payoutValue": {
+     "__bigint__": "50300000000"
+    },
+    "payoutXOnly": "1111111111111111111111111111111111111111111111111111111111111111",
+    "terminal": true
+   },
+   "rejects": {
+    "badState": {
+     "threw": true,
+     "message": "vault-transitions-v4: recover: normalized predecessor state is required",
+     "code": null
+    }
+   }
+  }
+ },
+ "recipientMerkle": {
+  "constants": {
+   "LEAF_DOMAIN": {
+    "__buffer__": "50563301"
+   },
+   "MAX_DEPTH": 16,
+   "MAX_RECIPIENTS": 65536
+  },
+  "leafHashHex": "4596b1c136e6d716bc7ccbb35ebe785c38f8805c6e9e2e830cbd7fbb8d0b35c5",
+  "trees": {
+   "one": {
+    "root": "4596b1c136e6d716bc7ccbb35ebe785c38f8805c6e9e2e830cbd7fbb8d0b35c5",
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "leafCount": 1,
+    "depth": 0
+   },
+   "singleRootIsLeaf": true,
+   "two": {
+    "root": "7632de37225100ffa53eb81c77a5f3914ce9c804f88d44712d2e74de6d0952eb",
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "leafCount": 2,
+    "depth": 1
+   },
+   "dupCollapsed": true,
+   "three": {
+    "root": "8a8cd066ef8599b5693a08aa4b9dc3bcec2c347298f46b3f0524b30714eebd13",
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ],
+    "leafCount": 4,
+    "depth": 2
+   },
+   "five": {
+    "root": "b81b55d56712baca9813df1372710f4d6299165f82b785a7c9d7eb9ca90de53d",
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ],
+    "leafCount": 8,
+    "depth": 3
+   },
+   "rejects": {
+    "empty": {
+     "threw": true,
+     "message": "recipient-merkle-v3: recipients must be a non-empty array — a vault with no recipients cannot spend",
+     "code": null
+    },
+    "notArray": {
+     "threw": true,
+     "message": "recipient-merkle-v3: recipients must be a non-empty array — a vault with no recipients cannot spend",
+     "code": null
+    },
+    "badKey": {
+     "threw": true,
+     "message": "vault-state: recipients[0] must be 32-byte lowercase hex",
+     "code": null
+    }
+   }
+  },
+  "proofs": {
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+    "siblingsHex": "df526762f1b45eac72718df5532f30f28c48c66041f9b32c69180285980073de585fa863260a3b160d62ab50da46b8dda7258914cc83e8b091843a46e8701694495280ec3b0e7843784275bc0eaacaeaa781a3f3b8dbd7f40928be9168f69502",
+    "pathBits": "0",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+    "siblingsHex": "4596b1c136e6d716bc7ccbb35ebe785c38f8805c6e9e2e830cbd7fbb8d0b35c5585fa863260a3b160d62ab50da46b8dda7258914cc83e8b091843a46e8701694495280ec3b0e7843784275bc0eaacaeaa781a3f3b8dbd7f40928be9168f69502",
+    "pathBits": "1",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc": {
+    "siblingsHex": "c4ee495398a045015e0d80160168de8e2d35c4593f074b547630399c5d750b317632de37225100ffa53eb81c77a5f3914ce9c804f88d44712d2e74de6d0952eb495280ec3b0e7843784275bc0eaacaeaa781a3f3b8dbd7f40928be9168f69502",
+    "pathBits": "2",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd": {
+    "siblingsHex": "3d7ed655305bcf1e547c5e305aa1c4d9bb6ea80afa1ce30e70f97fbc09b4c8e47632de37225100ffa53eb81c77a5f3914ce9c804f88d44712d2e74de6d0952eb495280ec3b0e7843784275bc0eaacaeaa781a3f3b8dbd7f40928be9168f69502",
+    "pathBits": "3",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": {
+    "siblingsHex": "71bcaff0d4d69a043cb40bd3aca5dca5bf4213c371a726854e163b0069476c85c6ef721896c22f7f9bde83911201e96f285f3ab3f485587002e8a33d969b2a9f3b9fa971a5be51ba49fded925cd79fb032b51f4c4fb2bb1587733151b2a1a619",
+    "pathBits": "4",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   }
+  },
+  "verify": {
+   "excessPathBits": false,
+   "rejects": {
+    "notInTree": {
+     "threw": true,
+     "message": "recipient-merkle-v3: recipient 7777777777777777777777777777777777777777777777777777777777777777 is not in this tree — refusing to fabricate a proof",
+     "code": null
+    },
+    "oddHex": {
+     "threw": true,
+     "message": "recipient-merkle-v3: siblingsHex must be lowercase hex",
+     "code": null
+    },
+    "notMultipleOf32": {
+     "threw": true,
+     "message": "recipient-merkle-v3: siblings length must be a multiple of 32 bytes",
+     "code": null
+    },
+    "tooDeep": {
+     "threw": true,
+     "message": "recipient-merkle-v3: proof depth 17 exceeds the covenant maximum 16",
+     "code": null
+    },
+    "pathBitsOutOfRange": {
+     "threw": true,
+     "message": "recipient-merkle-v3: pathBits out of range [0, 65536)",
+     "code": null
+    }
+   }
+  }
+ },
+ "feeMass": {
+  "constants": {
+   "MINIMUM_RELAY_TRANSACTION_FEE": {
+    "__bigint__": "100000"
+   },
+   "STANDARD_MASS_CAP": {
+    "__bigint__": "500000"
+   }
+  },
+  "small": {
+   "size": "266",
+   "computeMass": {
+    "computeMass": {
+     "__bigint__": "1626"
+    },
+    "size": {
+     "__bigint__": "266"
+    }
+   },
+   "feeMass": {
+    "computeMass": {
+     "__bigint__": "1626"
+    },
+    "feeMass": {
+     "__bigint__": "1626"
+    },
+    "normalizedTransient": {
+     "__bigint__": "532"
+    },
+    "size": {
+     "__bigint__": "266"
+    },
+    "transientMass": {
+     "__bigint__": "1064"
+    }
+   },
+   "requiredFee": {
+    "computeMass": {
+     "__bigint__": "1626"
+    },
+    "feeMass": {
+     "__bigint__": "1626"
+    },
+    "minimumRequiredFee": {
+     "__bigint__": "162600"
+    },
+    "normalizedTransient": {
+     "__bigint__": "532"
+    },
+    "size": {
+     "__bigint__": "266"
+    },
+    "transientMass": {
+     "__bigint__": "1064"
+    }
+   }
+  },
+  "covenantShaped": {
+   "size": "5526",
+   "feeMass": {
+    "computeMass": {
+     "__bigint__": "50666"
+    },
+    "feeMass": {
+     "__bigint__": "50666"
+    },
+    "normalizedTransient": {
+     "__bigint__": "11052"
+    },
+    "size": {
+     "__bigint__": "5526"
+    },
+    "transientMass": {
+     "__bigint__": "22104"
+    }
+   },
+   "requiredFee": {
+    "computeMass": {
+     "__bigint__": "50666"
+    },
+    "feeMass": {
+     "__bigint__": "50666"
+    },
+    "minimumRequiredFee": {
+     "__bigint__": "5066600"
+    },
+    "normalizedTransient": {
+     "__bigint__": "11052"
+    },
+    "size": {
+     "__bigint__": "5526"
+    },
+    "transientMass": {
+     "__bigint__": "22104"
+    }
+   }
+  },
+  "describeWasm": {
+   "inputs": [
+    {
+     "computeBudget": 10,
+     "signatureScriptHex": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+    }
+   ],
+   "outputs": [
+    {
+     "hasCovenant": true,
+     "scriptHex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    {
+     "hasCovenant": false,
+     "scriptHex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    }
+   ],
+   "payloadHex": "beef",
+   "version": 1
+  },
+  "validateComputeBudget": {
+   "accepts": {
+    "__undefined__": true
+   },
+   "rejects": {
+    "threw": true,
+    "message": "fee-mass: covenant input compute budget is 99, expected 100",
+    "code": null
+   }
+  },
+  "finalize": {
+   "fixed": {
+    "result": {
+     "actualFee": {
+      "__bigint__": "1231600"
+     },
+     "change": {
+      "__bigint__": "298768400"
+     },
+     "requiredFee": {
+      "__bigint__": "1226600"
+     }
+    },
+    "outputValues": [
+     "700000000",
+     "298768400"
+    ]
+   },
+   "rejects": {
+    "cannotCover": {
+     "threw": true,
+     "message": "fee-mass: inputs 700000100 cannot cover outputs 700000000 + fee 1226600",
+     "code": null
+    },
+    "lengthDrift": {
+     "threw": true,
+     "message": "fee-mass: signature-script length for input 0 changed on re-sign (120 -> 121); fee did not converge",
+     "code": null
+    }
+   }
+  },
+  "rejects": {
+   "versionZero": {
+    "threw": true,
+    "message": "fee-mass: this module is for transaction version >= 1 (Toccata)",
+    "code": null
+   },
+   "oddHex": {
+    "threw": true,
+    "message": "fee-mass: expected an even-length hex string, got \"abc\"",
+    "code": null
+   },
+   "nonHex": {
+    "threw": true,
+    "message": "fee-mass: expected an even-length hex string, got \"zz\"",
+    "code": null
+   },
+   "missingBudget": {
+    "threw": true,
+    "message": "fee-mass: v1 input is missing computeBudget",
+    "code": null
+   },
+   "overMassCap": {
+    "threw": true,
+    "message": "fee-mass: fee_mass 600400 exceeds the standard mass cap 500000",
+    "code": null
+   }
+  }
+ },
+ "computeBudgetV3": {
+  "table": {
+   "ORDINARY_INPUT": 10,
+   "OWNER_OP": 29,
+   "RECOVER": 16,
+   "SPEND_DELEGATE_ONLY": 31,
+   "SPEND_WITH_APPROVALS": 135
+  },
+  "select": {
+   "delegateSpend.below": 31,
+   "delegateSpend.above": 135,
+   "rolloverAndSpend.below": 31,
+   "rolloverAndSpend.above": 135,
+   "ownerPause": 29,
+   "ownerUnpause": 29,
+   "revokeDelegate": 29,
+   "rotateDelegate": 29,
+   "ownerTopUp": 29,
+   "migratePolicy": 29,
+   "ownerSetRecipientRoot": 29,
+   "ownerSetApprovers": 29,
+   "ownerRecover": 16
+  },
+  "assert": {
+   "exact": 16,
+   "over": 20,
+   "rejects": {
+    "below": {
+     "threw": true,
+     "message": "compute-budget-v3: committed compute budget 134 is below the proven-safe minimum 135 for delegateSpend",
+     "code": null
+    },
+    "nonInteger": {
+     "threw": true,
+     "message": "compute-budget-v3: committed compute budget 16.5 is below the proven-safe minimum 16 for ownerRecover",
+     "code": null
+    },
+    "unknownOp": {
+     "threw": true,
+     "message": "compute-budget-v3: unknown v0.3 operation \"createVaultX\" — failing closed",
+     "code": null
+    },
+    "missingThreshold": {
+     "threw": true,
+     "message": "compute-budget-v3: delegateSpend budget selection requires aboveThreshold (boolean)",
+     "code": null
+    }
+   }
+  }
+ },
+ "computeBudgetV4": {
+  "table": {
+   "ORDINARY_INPUT": 10,
+   "OWNER_OP": 30,
+   "RECOVER": 15,
+   "SPEND_NO_APPROVALS": 32,
+   "SPEND_WITH_APPROVALS": 134
+  },
+  "select": {
+   "agentSpend.below": 32,
+   "agentSpend.above": 134,
+   "ownerSetAgentRoot": 30,
+   "ownerSetApprovers": 30,
+   "ownerTopUp": 30,
+   "ownerTopUpReserve": 30,
+   "ownerPause": 30,
+   "ownerUnpause": 30,
+   "ownerRecover": 15
+  },
+  "assert": {
+   "exact": 15,
+   "over": 40,
+   "rejects": {
+    "below": {
+     "threw": true,
+     "message": "compute-budget-v4: committed compute budget 133 is below the proven-safe minimum 134 for agentSpend",
+     "code": null
+    },
+    "nonInteger": {
+     "threw": true,
+     "message": "compute-budget-v4: committed compute budget 15.5 is below the proven-safe minimum 15 for ownerRecover",
+     "code": null
+    },
+    "unknownOp": {
+     "threw": true,
+     "message": "compute-budget-v4: unknown v0.4 operation \"delegateSpend\" — failing closed",
+     "code": null
+    },
+    "missingThreshold": {
+     "threw": true,
+     "message": "compute-budget-v4: agentSpend budget selection requires aboveThreshold (boolean)",
+     "code": null
+    }
+   }
+  }
+ }
+}

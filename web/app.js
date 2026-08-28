@@ -11,7 +11,10 @@
 /* global PolicyVaultWallet, PolicyVaultIdentity */
 (() => {
   const API = "/api/v1";
-  const { WalletState, KasWareAdapter, MockAdapter } = PolicyVaultWallet;
+  // KasWareAdapter (the legacy direct-KasWare implementation) is
+  // intentionally NOT destructured here — production code must never
+  // construct it; see makeKasWareAdapter's fail-closed replacement below.
+  const { WalletState, MockAdapter } = PolicyVaultWallet;
 
   const ui = {
     state: WalletState.DISCONNECTED,
@@ -34,6 +37,12 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const shortId = (id) => (id ? id.slice(0, 10) + "…" + id.slice(-6) : "—");
   const kas = (v) => (v === undefined || v === null ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 8 }));
+  // Server-derived network display label — never a hardcoded network name.
+  // ui.serverNetwork is set from GET /network/status in boot() below; the
+  // fallback phrase is shown only before that resolves. Display-only:
+  // every real network check stays on verifyNetwork()'s comparison against
+  // ui.serverNetwork (the server's own reported networkId), never a guess.
+  const networkLabel = () => ui.serverNetwork || "the configured network";
 
   async function getJSON(p) {
     const r = await fetch(API + p);
@@ -96,10 +105,39 @@
       adapter: ui.adapter ?? null
     };
   }
+  // KasWare connects THROUGH the Universal Signer Interface adapter
+  // (web/signer-kasware-adapter.js) ONLY: every signature runs through
+  // core/signer executeSigning with its fail-closed capability / scheme /
+  // live-network / pre+post-identity gates, and KasWare-specific code lives
+  // only in that adapter file.
+  //
+  // FAIL CLOSED, never bypass (PostLaunchUpgradeOG completion-standard item
+  // 4): if the USI adapter module failed to load (a build/deployment
+  // defect, an old bundle, a load-order problem — /index.html always loads
+  // it, so this should never happen in a correctly served page), this used
+  // to silently fall back to the legacy direct-KasWare adapter
+  // (web/wallet.js KasWareAdapter), bypassing every one of those gates
+  // without any visible sign to the user. That bypass is removed: absence
+  // of the USI adapter now returns web/wallet.js's
+  // createSigningUnavailableAdapter() stub instead — `detect()` still
+  // reflects whether the KasWare extension itself is present (so the UI
+  // does not lie and claim "not installed"), but every signing/identity
+  // method refuses with USI_UNAVAILABLE, surfaced through the normal
+  // WalletState.ERROR path with a message naming the real cause.
+  // web/wallet.js's KasWareAdapter class is retained ONLY as the
+  // reference/parity fixture for web/test/signer-kasware-adapter.test.js
+  // (byte-identical-behavior proof) — production code must never
+  // construct it for signing.
+  function makeKasWareAdapter() {
+    if (window.PolicyVaultKasWareSigner && typeof window.PolicyVaultKasWareSigner.createKasWareSessionAdapter === "function") {
+      return window.PolicyVaultKasWareSigner.createKasWareSessionAdapter({ win: window });
+    }
+    return PolicyVaultWallet.createSigningUnavailableAdapter();
+  }
   window.PolicyVaultWalletSession = {
     active: walletSnapshot,
     subscribe(cb) { walletListeners.push(cb); try { cb(walletSnapshot()); } catch { /* isolate */ } return () => { const i = walletListeners.indexOf(cb); if (i >= 0) walletListeners.splice(i, 1); }; },
-    connect(kind) { return connectWith(kind === "mock" ? new MockAdapter(API) : new KasWareAdapter()); },
+    connect(kind) { return connectWith(kind === "mock" ? new MockAdapter(API) : makeKasWareAdapter()); },
     disconnect() { return disconnect(); }
   };
 
@@ -195,6 +233,153 @@
     }
   }
 
+  /* ---------------- hosted authentication (Phase B) ----------------
+   * WALLET CONNECTED and HOSTED SESSION AUTHENTICATED are different
+   * states: connecting a wallet never signs in, and a hosted session
+   * grants tenancy identity ONLY — it never signs transactions and never
+   * substitutes for owner/agent/approver covenant signatures. The session
+   * token lives in an HttpOnly cookie the page cannot read; this module
+   * holds only non-secret status. Active only when the server reports
+   * authMode enabled (self-hosted servers show nothing). */
+  const hostedAuth = { enabled: false, state: "SIGNED_OUT", session: null, boundAddress: null, boundNetwork: null };
+
+  function renderAuth(detail) {
+    const btn = $("btn-auth");
+    const chip = $("auth-status");
+    if (!btn || !chip) return;
+    if (!hostedAuth.enabled) {
+      btn.style.display = "none";
+      chip.style.display = "none";
+      return;
+    }
+    const s = hostedAuth.state;
+    const label = {
+      SIGNED_OUT: ui.address ? "Wallet connected — not signed in" : "Wallet disconnected",
+      SIGNING: "Signing authentication challenge…",
+      AUTHENTICATED: `Signed in as ${shortId(hostedAuth.boundAddress)}`,
+      EXPIRED: "Session expired — sign in again",
+      WALLET_CHANGED: "Wallet changed — sign in again",
+      NETWORK_CHANGED: "Network changed — sign in again",
+      UNSUPPORTED: "Account type not supported for sign-in"
+    }[s] || s;
+    chip.style.display = "";
+    chip.textContent = label + (detail ? ` — ${detail}` : "");
+    btn.style.display = "";
+    btn.textContent = s === "AUTHENTICATED" ? "Sign out" : "Sign in";
+    btn.disabled = s === "SIGNING" || (s !== "AUTHENTICATED" && ui.state !== WalletState.READY);
+  }
+
+  function setAuthState(state, detail) {
+    hostedAuth.state = state;
+    if (state !== "AUTHENTICATED") { hostedAuth.session = null; }
+    renderAuth(detail);
+  }
+
+  /* Restore/refresh from the SERVER'S truth (survives reload; §14). A live
+   * server session for a DIFFERENT wallet/network than the current browser
+   * one is never adopted — the server binding is immutable and the client
+   * simply refuses to treat it as usable for the new identity. */
+  async function refreshAuthSession() {
+    if (!hostedAuth.enabled) return;
+    try {
+      const s = await getJSON("/auth/session");
+      if (!s.authenticated) {
+        setAuthState(hostedAuth.state === "AUTHENTICATED" ? "EXPIRED" : "SIGNED_OUT");
+        return;
+      }
+      if (ui.address && (s.walletAddress !== ui.address || s.networkId !== ui.network)) {
+        setAuthState(s.walletAddress !== ui.address ? "WALLET_CHANGED" : "NETWORK_CHANGED");
+        return;
+      }
+      hostedAuth.session = s;
+      hostedAuth.boundAddress = s.walletAddress;
+      hostedAuth.boundNetwork = s.networkId;
+      setAuthState("AUTHENTICATED");
+    } catch {
+      setAuthState("SIGNED_OUT");
+    }
+  }
+
+  async function hostedSignIn() {
+    if (ui.state !== WalletState.READY || !ui.adapter) {
+      note("Connect the wallet on the correct network before signing in.", "warn");
+      return;
+    }
+    const forAddress = ui.address;
+    const forNetwork = ui.network;
+    setAuthState("SIGNING");
+    try {
+      const { challenge } = await postJSON("/auth/challenge", { walletAddress: forAddress });
+      // The wallet extension displays this exact text in its own popup —
+      // including "This signature only signs you in. It cannot move funds."
+      // Under the USI session adapter the expectations bind the interface's
+      // own identity/network gates to THIS sign-in attempt; the legacy
+      // adapter ignores the extra argument (same challenge bytes either way).
+      const signature = await ui.adapter.signAuthMessage(challenge.message, { expectedSignerAddress: forAddress, network: forNetwork });
+      // The wallet may have switched mid-flow: a signature for one identity
+      // must never be submitted as another. Fail closed and re-render.
+      if (ui.address !== forAddress || ui.network !== forNetwork) {
+        setAuthState("WALLET_CHANGED");
+        return;
+      }
+      const publicKey = await ui.adapter.getPublicKeyRaw();
+      const res = await postJSON("/auth/verify", { nonce: challenge.nonce, signature, publicKey, walletAddress: forAddress });
+      hostedAuth.session = res.session;
+      hostedAuth.boundAddress = forAddress;
+      hostedAuth.boundNetwork = forNetwork;
+      setAuthState("AUTHENTICATED");
+    } catch (e) {
+      if (e.code === "AUTH_ACCOUNT_TYPE_UNSUPPORTED") {
+        setAuthState("UNSUPPORTED");
+        note(e.message, "warn");
+      } else if (e.walletCategory === "USER_REJECTED") {
+        setAuthState("SIGNED_OUT");
+        note("Sign-in cancelled.", "warn");
+      } else {
+        setAuthState("SIGNED_OUT");
+        note(`Sign-in failed: ${e.message}`, "warn");
+      }
+    }
+  }
+
+  async function hostedSignOut() {
+    try { await postJSON("/auth/logout", {}); } catch { /* server-side expiry also invalidates */ }
+    hostedAuth.boundAddress = null;
+    hostedAuth.boundNetwork = null;
+    setAuthState("SIGNED_OUT");
+  }
+
+  /* Wallet account/network switches are SECURITY EVENTS for the hosted
+   * session too (§16): the client immediately stops treating the session
+   * as usable for the new identity and revokes the old cookie session. */
+  walletListeners.push((snap) => {
+    if (!hostedAuth.enabled) return;
+    if (hostedAuth.state === "AUTHENTICATED") {
+      if (snap.address !== hostedAuth.boundAddress) {
+        setAuthState("WALLET_CHANGED");
+        postJSON("/auth/logout", {}).catch(() => {});
+      } else if (snap.network !== hostedAuth.boundNetwork) {
+        setAuthState("NETWORK_CHANGED");
+        postJSON("/auth/logout", {}).catch(() => {});
+      }
+    } else {
+      renderAuth(); // button enablement follows wallet readiness
+    }
+  });
+
+  async function initHostedAuth() {
+    try {
+      const health = await getJSON("/health");
+      hostedAuth.enabled = health.authMode === "enabled";
+    } catch {
+      hostedAuth.enabled = false;
+    }
+    const btn = $("btn-auth");
+    if (btn) btn.onclick = () => (hostedAuth.state === "AUTHENTICATED" ? hostedSignOut() : hostedSignIn());
+    if (hostedAuth.enabled) await refreshAuthSession();
+    renderAuth();
+  }
+
   /* ---------------- request flow (review -> sign -> progress) ---------------- */
 
   const PROGRESS_ORDER = ["BUILT", "AWAITING SIGNATURE", "SIGNED", "FINALIZED", "SUBMITTING", "SUBMITTED", "CHAIN_VERIFIED"];
@@ -251,7 +436,7 @@
    */
   async function runWalletFlow(buildFn, label, addressBook) {
     if (ui.state !== WalletState.READY) {
-      note("Connect a wallet on testnet-10 first.", "warn");
+      note(`Connect a wallet on ${networkLabel()} first.`, "warn");
       return;
     }
     let request;
@@ -428,7 +613,7 @@
 
   $("create-form")?.addEventListener?.("submit", async (ev) => {
     ev.preventDefault();
-    if (ui.state !== WalletState.READY) return note("Connect a wallet on testnet-10 first.", "warn");
+    if (ui.state !== WalletState.READY) return note(`Connect a wallet on ${networkLabel()} first.`, "warn");
     const f = new FormData(ev.target);
     const dep = promptCheck(f.get("deposit"), "deposit");
     const cap = promptCheck(f.get("cap"), "per-spend cap");
@@ -927,6 +1112,20 @@
   /* ---------------- boot ---------------- */
 
   async function boot() {
+    // Staging identity (Phase E): a hosted staging deployment reports
+    // staging:true from /health; the banner must say NON-PRODUCTION even
+    // when the node is unreachable. Server-declared, never inferred.
+    getJSON("/health").then((h) => {
+      if (h && h.staging) {
+        const b = $("testnet-banner");
+        // /health always reports networkId (server/src/api.js) — never a
+        // hardcoded fallback network name here; an unreadable value fails
+        // closed to a neutral label rather than assuming testnet-10.
+        const net = typeof h.networkId === "string" && h.networkId ? h.networkId.toUpperCase() : "UNKNOWN NETWORK";
+        b.textContent = `${net} STAGING — NON-PRODUCTION · no real value · this is not the production site`;
+        b.style.display = "";
+      }
+    }).catch(() => {});
     try {
       const net = await getJSON("/network/status");
       ui.serverNetwork = net.networkId;
@@ -937,7 +1136,10 @@
     }
 
     // Provider roster: KasWare always listed; Mock only if the dev endpoint responds.
-    const kasware = new KasWareAdapter();
+    // KasWare goes through the Universal-Signer-Interface session adapter
+    // (see makeKasWareAdapter above); the connect/reconnect/event surface is
+    // unchanged for every consumer.
+    const kasware = makeKasWareAdapter();
     $("btn-connect-kasware").onclick = () => connectWith(kasware);
     $("btn-connect-kasware").disabled = false;
     fetch(API + "/wallet/dev-accounts").then((r) => {
@@ -960,6 +1162,7 @@
     }
     if (!ui.address) setWalletState(kasware.detect() ? WalletState.DISCONNECTED : WalletState.NOT_DETECTED);
 
+    await initHostedAuth();
     await loadOrgs();
     await loadVaults();
   }

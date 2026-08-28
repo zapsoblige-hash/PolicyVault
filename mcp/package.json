@@ -1,0 +1,13 @@
+{
+  "name": "policyvault-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PolicyVault MCP server — a thin, machine-identity-authenticated stdio adapter over the PolicyVault REST/Agent API. Zero runtime dependencies.",
+  "license": "Apache-2.0",
+  "main": "server.js",
+  "bin": { "policyvault-mcp": "./server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test --test-concurrency=1 test/"
+  }
+}

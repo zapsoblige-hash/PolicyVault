@@ -1,7 +1,9 @@
 # PolicyVault Covenant Specification — v0.2
 
-Status: **TESTNET-VERIFIED** (2026-08-13). Source: `contracts/PolicyVault.v0.2.sil`
+Status: **TESTNET-VERIFIED** (2026-08-13; see docs/testnet-evidence.md
+"Vault 4"). Source: `contracts/PolicyVault.v0.2.sil`
 (4708-byte script, state region start=1 len=246, 9 entrypoints).
+Design rationale and lineage proofs: `docs/v02-lineage-findings.md`.
 v0.1 (`contracts/PolicyVault.v0.1.beta.sil`) remains immutable and separately
 deployed; v0.2 is an explicit new contract version.
 

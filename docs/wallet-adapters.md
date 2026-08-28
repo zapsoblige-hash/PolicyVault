@@ -168,7 +168,7 @@ controls disabled.
 2. Add provider-specific tests alongside the generic contract tests in
    `sdk/test/wallet-adapter.test.js` (fake only the provider global).
 3. Run the full flow against testnet with the new adapter and record
-   manual compatibility evidence.
+   manual compatibility evidence in `docs/testnet-evidence.md`.
 
 The production-byte rule applies: adapters must not construct or modify
 consensus-visible bytes — if a new browser component ever does, it needs
@@ -188,13 +188,13 @@ downstream validator.
 - ~~Real-KasWare manual lifecycle pending~~ — **MANUALLY VERIFIED
   2026-08-16**: the full v0.2 lifecycle, including Close Vault & Withdraw
   and a reconciliation / Verify Vault State scenario, was executed by the
-  user with a real KasWare wallet.
+  user with a real KasWare wallet (`docs/testnet-evidence.md` "Vault 5").
 - Rollover spends (`rolloverAndSpend`) are exposed via the API but not
   yet surfaced as a dashboard control.
 - One fuel UTXO per operation is selected; consolidation UX is future
   work.
 
-## v0.4 owner / agent / approver signing
+## Checkpoint G (2026-08-19) — v0.4 owner / agent / approver signing
 
 The v0.4 integration reuses the exact wallet-adapter contract as v0.2:
 `signInputs(unsignedSafeJson, signInputs)` → signed Safe JSON, which maps to

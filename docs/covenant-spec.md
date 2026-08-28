@@ -38,7 +38,7 @@ int initPeriodStartDaa        // DAA score at/before creation
 Rationale: immutable policy lives in constructor params (part of the
 template), mutable accounting lives in state fields. Changing policy is
 therefore a *template change* = policy migration (v0.2), which preserves the
-earlier-production lesson that state region vs template region are distinct
+JobVault lesson that state region vs template region are distinct
 (`state_layout`).
 
 Note: allowlist size N is fixed per compiled artifact. v0.1 ships N = 3

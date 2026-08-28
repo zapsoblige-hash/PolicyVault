@@ -1,0 +1,12 @@
+# /etc/cloudflared/config.yml — production NAMED tunnel (runbook §4.2).
+# TEMPLATE ONLY. The real file lives on the droplet beside the tunnel
+# credential <TUNNEL_ID>.json (SECRET, mode 600 — never in git, never in
+# an image). Compose runs cloudflared inside the pvnet network, so the
+# origin service is the app container name. DNS routing to
+# app.policy-vault.org happens ONLY at deploy step §11.16 (record LAST).
+tunnel: REPLACE_WITH_TUNNEL_ID
+credentials-file: /etc/cloudflared/REPLACE_WITH_TUNNEL_ID.json
+ingress:
+  - hostname: app.policy-vault.org
+    service: http://app:3080
+  - service: http_status:404

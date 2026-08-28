@@ -55,7 +55,7 @@ function extractSchnorr(hex) {
 }
 
 async function setPaused({ config, vaultId, ownerKey, pause }) {
-  const manifest = loadManifest(config, vaultId);
+  const manifest = await loadManifest(config, vaultId);
   if (!manifest) {
     fail(`no manifest for vault ${vaultId}`);
   }
@@ -181,8 +181,8 @@ async function setPaused({ config, vaultId, ownerKey, pause }) {
 
     const txId = transaction.finalize().toString().toLowerCase();
 
-    claimTransition(config, { outpoint: manifest.live.outpoint, action: fn, txId, vaultId, stateId: manifest.live.stateId });
-    claimSubmission(config, { txId, vaultId, action: fn });
+    await claimTransition(config, { outpoint: manifest.live.outpoint, action: fn, txId, vaultId, stateId: manifest.live.stateId });
+    await claimSubmission(config, { txId, vaultId, action: fn });
 
     const submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
     if (String(submitted.transactionId ?? submitted).toLowerCase() !== txId) {
@@ -211,7 +211,7 @@ async function setPaused({ config, vaultId, ownerKey, pause }) {
       fail(`submitted ${txId} but the successor was not observed — claim preserved; reconcile`);
     }
 
-    persistManifest(config, {
+    await persistManifest(config, {
       ...manifest,
       status: pause ? VaultStatus.PAUSED : VaultStatus.ACTIVE,
       policy: manifestPolicyInput(policy),
@@ -232,7 +232,7 @@ async function setPaused({ config, vaultId, ownerKey, pause }) {
       latestTransitionTxId: txId
     });
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId,
       action: fn,
@@ -242,7 +242,7 @@ async function setPaused({ config, vaultId, ownerKey, pause }) {
         actualFeeSompi: feeResult.actualFee.toString()
       }
     });
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId,
       action: pause ? "vault_paused" : "vault_unpaused",
       actor: "owner",

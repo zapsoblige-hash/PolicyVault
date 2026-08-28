@@ -55,7 +55,7 @@ async function main() {
     return built;
   }
   const reqState = (id) => wr4.loadRequest(config, id).state;
-  const live = (vaultId) => { const m = loadManifestV4(config, vaultId); return m.live ? `${m.live.outpoint.transactionId}:${m.live.outpoint.index}` : null; };
+  const live = async (vaultId) => { const m = await loadManifestV4(config, vaultId); return m.live ? `${m.live.outpoint.transactionId}:${m.live.outpoint.index}` : null; };
   async function pollReconcile(vaultId) { let r; for (let i = 0; i < 40; i++) { r = await reconcileVaultV4(config, vaultId, { rpc }); if (r.status !== "CLAIM_PENDING") return r; await new Promise((x) => setTimeout(x, 2000)); } return r; }
 
   try {
@@ -73,7 +73,7 @@ async function main() {
     // finalizes and claims the predecessor; the second FAILS CLOSED with
     // CLAIM_CONFLICT. Then exactly one is submitted and wins. ----
     {
-      const before = live(vaultId);
+      const before = await live(vaultId);
       const A = readySpend(vaultId, 3n); // finalize -> claims the predecessor outpoint
       let bErr = null;
       try { readySpend(vaultId, 4n); } catch (e) { bErr = e; } // same predecessor
@@ -81,7 +81,7 @@ async function main() {
       const r = await submit4.submitWalletRequestV4({ config, requestId: A.requestId, rpc });
       assert(r.request.state === "CHAIN_VERIFIED", `the one prepared transition wins, got ${r.request.state}`);
       await pollReconcile(vaultId);
-      const after = live(vaultId);
+      const after = await live(vaultId);
       assert(after !== before && after.startsWith(r.txId), "vault advanced to exactly the one winner");
       log(`CASE 1 conflict: 1st finalize claims predecessor; 2nd fails closed CLAIM_CONFLICT; winner ${r.txId.slice(0, 10)} ✓`);
       evidence.cases.push({ case: "finalize-serialization", secondFinalize: bErr.code, winnerTx: r.txId, oneWinner: true });
@@ -90,16 +90,16 @@ async function main() {
     // ---- CASE 2: duplicate submit of the SAME (already CHAIN_VERIFIED) request
     // is idempotent — no second broadcast, no double transition. ----
     {
-      const mid = live(vaultId);
+      const mid = await live(vaultId);
       const A = readySpend(vaultId, 3n);
       const r1 = await submit4.submitWalletRequestV4({ config, requestId: A.requestId, rpc });
       assert(r1.request.state === "CHAIN_VERIFIED", "first submit wins");
       await pollReconcile(vaultId);
-      const at = live(vaultId);
+      const at = await live(vaultId);
       assert(at.startsWith(r1.txId) && at !== mid, "advanced once");
       let dupErr = null, dupOk = null;
       try { dupOk = await submit4.submitWalletRequestV4({ config, requestId: A.requestId, rpc }); } catch (e) { dupErr = e; }
-      assert(live(vaultId) === at, "duplicate submit must NOT cause a second/double transition");
+      assert((await live(vaultId)) === at, "duplicate submit must NOT cause a second/double transition");
       log(`CASE 2 duplicate submit: ${dupErr ? "rejected (" + (dupErr.code || dupErr.message.slice(0, 40)) + ")" : "idempotent " + dupOk.request.state}; no double transition ✓`);
       evidence.cases.push({ case: "duplicate-submit", secondOutcome: dupErr ? (dupErr.code || "REJECTED") : dupOk.request.state, noDoubleTransition: true });
     }

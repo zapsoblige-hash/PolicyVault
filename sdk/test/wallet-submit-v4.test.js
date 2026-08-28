@@ -41,27 +41,27 @@ function agentEntry(kp, recips, over = {}) {
 }
 const REGISTRY = [agentEntry(agentA, [recipient, other]), agentEntry(agentB, [other])];
 
-function seed() {
+async function seed() {
   const policies = REGISTRY.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
   const agentRoot = buildAgentTreeV4(policies).root;
   const state = normalizeStateV4({ protectedValue: (1000n * KAS).toString(), feeReserve: (5n * KAS).toString(), paused: "0", agentRoot, approvers: [], approvalM: "0", policyNonce: "0" });
   const compiled = compileExactStateV4({ config, template: { owner: template.owner, vaultId: VAULT_ID }, state });
   const stateId = computeStateIdV4({ networkId: config.networkId, template, state });
-  return persistManifestV4(config, {
+  return await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4, contractVersion: CONTRACT_VERSION_V4, networkId: config.networkId, vaultId: VAULT_ID, label: "t", status: "ACTIVE", template, agentRegistry: REGISTRY,
     live: { state: stateToJsonV4(state), stateId, outpoint: { transactionId: "42".repeat(32), index: 0 }, outpointValue: (state.protectedValue + state.feeReserve).toString(), scriptSha256: compiled.scriptSha256, covenantId: "41".repeat(32) },
     creationTxId: "42".repeat(32), latestTransitionTxId: null, lastTransition: null
   });
 }
 
-test("H1: RequestState carries the live submission states", () => {
+test("H1: RequestState carries the live submission states", async () => {
   for (const s of ["SUBMITTING", "SUBMITTED", "CHAIN_VERIFIED", "SUBMISSION_REJECTED", "RECONCILIATION_REQUIRED", "TERMINATED_UNKNOWN"]) {
     assert.equal(RequestState[s], s, `RequestState.${s}`);
   }
 });
 
-test("H5: registry advance math (agentSpend accumulation) reconstructs the successor root", () => {
-  const manifest = seed();
+test("H5: registry advance math (agentSpend accumulation) reconstructs the successor root", async () => {
+  const manifest = await seed();
   // Simulate a spend request's derived successor: agent A periodSpent += 4 KAS.
   const request = {
     sdkAction: "agentSpend",
@@ -85,8 +85,8 @@ test("H5: registry advance math (agentSpend accumulation) reconstructs the succe
   assert.equal(foldAgentPolicyV4(newLeafPolicy, proof.siblingsHex, proof.pathBits), successorRoot, "single-leaf fold == rebuilt successor root");
 });
 
-test("H5: value/approver/pause ops leave the registry unchanged; setAgentRoot ops carry the new registry", () => {
-  const manifest = seed();
+test("H5: value/approver/pause ops leave the registry unchanged; setAgentRoot ops carry the new registry", async () => {
+  const manifest = await seed();
   const unchanged = deriveSuccessorRegistry(manifest, { sdkAction: "ownerTopUp", build: {} });
   assert.equal(unchanged.length, 2);
   assert.equal(unchanged.find((e) => e.agentPk === XO(agentA)).periodSpent, "0");
@@ -95,8 +95,8 @@ test("H5: value/approver/pause ops leave the registry unchanged; setAgentRoot op
   assert.deepEqual(carried, newReg);
 });
 
-test("H: manifestToJson round-trips through the strict normalizer", () => {
-  const manifest = seed();
+test("H: manifestToJson round-trips through the strict normalizer", async () => {
+  const manifest = await seed();
   const round = require("../src/manifest-v4").normalizeManifestV4(manifestToJson(manifest));
   assert.equal(round.agentRegistryRoot, manifest.agentRegistryRoot);
   assert.equal(round.live.stateId, manifest.live.stateId);

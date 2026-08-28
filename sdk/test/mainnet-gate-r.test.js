@@ -94,7 +94,7 @@ function agentEntry(kp, recipients) {
 const REGISTRY = [agentEntry(agentA, [recipient, other])];
 
 let seedCounter = 0;
-function seedManifest(config) {
+async function seedManifest(config) {
   seedCounter += 1;
   const outTxId = seedCounter.toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const policies = REGISTRY.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
@@ -105,7 +105,7 @@ function seedManifest(config) {
   });
   const compiled = compileExactStateV4({ config, template, state });
   const stateId = computeStateIdV4({ networkId: config.networkId, template, state });
-  return persistManifestV4(config, {
+  return await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4, contractVersion: CONTRACT_VERSION_V4, networkId: config.networkId,
     vaultId: VAULT_ID, label: "gate-r", status: "ACTIVE", template, agentRegistry: REGISTRY,
     live: {
@@ -140,7 +140,7 @@ function walletSeamSign(secretHex, unsignedSafeJson, signInputs) {
 
 /* ------------------------------- §R1 config ------------------------------- */
 
-test("§R1 the dual-flag mainnet lock SURVIVES Gate R (both sides still required)", () => {
+test("§R1 the dual-flag mainnet lock SURVIVES Gate R (both sides still required)", async () => {
   withEnv({ POLICYVAULT_ALLOW_MAINNET: undefined, KASPA_RPC_URL: undefined }, () => {
     assert.throws(() => loadConfig({ networkId: "mainnet", rpcUrl: "ws://x", dataRoot: mainRoot }), /mainnet mode is locked/);
     assert.throws(() => loadConfig({ networkId: "mainnet", allowMainnet: true, rpcUrl: "ws://x", dataRoot: mainRoot }), /mainnet mode is locked/);
@@ -151,7 +151,7 @@ test("§R1 the dual-flag mainnet lock SURVIVES Gate R (both sides still required
   assert.throws(() => loadConfig({ networkId: "devnet" }), /unknown networkId/);
 });
 
-test("§R1 mainnet requires an EXPLICIT RPC URL (never the testnet default) and defaults to the data-mainnet root", () => {
+test("§R1 mainnet requires an EXPLICIT RPC URL (never the testnet default) and defaults to the data-mainnet root", async () => {
   withEnv({ POLICYVAULT_ALLOW_MAINNET: "true", KASPA_RPC_URL: undefined }, () => {
     assert.throws(() => loadConfig({ networkId: "mainnet", allowMainnet: true, dataRoot: mainRoot }), /explicit KASPA_RPC_URL/);
     const viaEnvUrl = withEnv({ KASPA_RPC_URL: "ws://127.0.0.1:17110" }, () => loadConfig({ networkId: "mainnet", allowMainnet: true }));
@@ -161,7 +161,7 @@ test("§R1 mainnet requires an EXPLICIT RPC URL (never the testnet default) and 
   });
 });
 
-test("§R1 assertOperationalNetwork: testnet-10 and UNLOCKED mainnet only; everything else fails closed", () => {
+test("§R1 assertOperationalNetwork: testnet-10 and UNLOCKED mainnet only; everything else fails closed", async () => {
   assert.equal(assertOperationalNetwork(testnetConfig), "testnet-10");
   assert.equal(assertOperationalNetwork(mainnetConfig), "mainnet");
   assert.throws(() => assertOperationalNetwork({ ...mainnetConfig, allowMainnet: false }), /dual-flag unlock/);
@@ -170,7 +170,7 @@ test("§R1 assertOperationalNetwork: testnet-10 and UNLOCKED mainnet only; every
   assert.throws(() => assertOperationalNetwork(undefined), /not an operational/);
 });
 
-test("§R1 requiredAddressPrefix maps the operational networks and refuses the rest", () => {
+test("§R1 requiredAddressPrefix maps the operational networks and refuses the rest", async () => {
   assert.equal(requiredAddressPrefix("testnet-10"), "kaspatest");
   assert.equal(requiredAddressPrefix("mainnet"), "kaspa");
   assert.throws(() => requiredAddressPrefix("devnet"), /no address prefix/);
@@ -178,7 +178,7 @@ test("§R1 requiredAddressPrefix maps the operational networks and refuses the r
 
 /* ------------------------------ §R2 startup ------------------------------ */
 
-test("§R2 mainnet startup still refuses dev signer / test hooks / legacy create; clean posture reports ENABLED broadcast", () => {
+test("§R2 mainnet startup still refuses dev signer / test hooks / legacy create; clean posture reports ENABLED broadcast", async () => {
   for (const arm of [{ POLICYVAULT_DEV_SIGNER: "1" }, { PV_TEST_CRASH_AT: "AFTER_SUBMITTING" }, { POLICYVAULT_LEGACY_CREATE: "1" }]) {
     withEnv({ POLICYVAULT_DEV_SIGNER: undefined, PV_TEST_CRASH_AT: undefined, POLICYVAULT_LEGACY_CREATE: undefined, ...arm }, () => {
       assert.throws(() => validateStartup(mainnetConfig), /must not be enabled on mainnet/);
@@ -192,9 +192,9 @@ test("§R2 mainnet startup still refuses dev signer / test hooks / legacy create
 
 /* ------------------------- §R3 mainnet pipeline -------------------------- */
 
-test("§R3 v0.4.1 agentSpend BUILD -> sign -> FINALIZE -> production covenant VM PREFLIGHT on MAINNET (offline)", () => {
-  seedManifest(mainnetConfig);
-  const req = buildWalletRequestV4({
+test("§R3 v0.4.1 agentSpend BUILD -> sign -> FINALIZE -> production covenant VM PREFLIGHT on MAINNET (offline)", async () => {
+  await seedManifest(mainnetConfig);
+  const req = await buildWalletRequestV4({
     config: mainnetConfig, vaultId: VAULT_ID, action: "agentSpend",
     params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) },
     signerAddress: MADDR(agentA)
@@ -203,28 +203,26 @@ test("§R3 v0.4.1 agentSpend BUILD -> sign -> FINALIZE -> production covenant VM
   assert.equal(req.networkId, "mainnet");
   assert.equal(req.review.fundingMode, "RESERVE-FUNDED");
   const signed = walletSeamSign(SEC(0x1e), req.transaction.unsignedSafeJson, req.transaction.signInputs);
-  const done = finalizeWalletRequestV4({ config: mainnetConfig, requestId: req.requestId, signedSafeJson: signed });
+  const done = await finalizeWalletRequestV4({ config: mainnetConfig, requestId: req.requestId, signedSafeJson: signed });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
   assert.equal(done.txId, req.txId);
 });
 
-test("§R3 the create builder's network gate is OPEN on mainnet (fails later, on input validation — not on network)", () => {
-  assert.throws(
-    () => buildCreateWalletRequestV4({ config: mainnetConfig, templateInput: null, initialAgents: [], initialState: { protectedValue: "1" }, signerAddress: MADDR(owner), funding: null }),
+test("§R3 the create builder's network gate is OPEN on mainnet (fails later, on input validation — not on network)", async () => {
+  await assert.rejects(async () => buildCreateWalletRequestV4({ config: mainnetConfig, templateInput: null, initialAgents: [], initialState: { protectedValue: "1" }, signerAddress: MADDR(owner), funding: null }),
     (e) => !/operational|testnet-10 only|network/.test(e.message)
   );
   const devnetish = { ...mainnetConfig, networkId: "devnet" };
-  assert.throws(
-    () => buildCreateWalletRequestV4({ config: devnetish, templateInput: null, initialAgents: [], initialState: { protectedValue: "1" }, signerAddress: MADDR(owner), funding: null }),
+  await assert.rejects(async () => buildCreateWalletRequestV4({ config: devnetish, templateInput: null, initialAgents: [], initialState: { protectedValue: "1" }, signerAddress: MADDR(owner), funding: null }),
     /not an operational/
   );
 });
 
 /* ------------------------ §R4 cross-network refusal ----------------------- */
 
-test("§R4 a BUILT request whose durable network stamp drifts from the config is refused at FINALIZE (nothing preflights)", () => {
-  seedManifest(mainnetConfig);
-  const req = buildWalletRequestV4({
+test("§R4 a BUILT request whose durable network stamp drifts from the config is refused at FINALIZE (nothing preflights)", async () => {
+  await seedManifest(mainnetConfig);
+  const req = await buildWalletRequestV4({
     config: mainnetConfig, vaultId: VAULT_ID, action: "agentSpend",
     params: { payAmountSompi: (3n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) },
     signerAddress: MADDR(agentA)
@@ -234,35 +232,32 @@ test("§R4 a BUILT request whose durable network stamp drifts from the config is
   raw.networkId = "testnet-10"; // simulated cross-network contamination
   fs.writeFileSync(p, JSON.stringify(raw, null, 2));
   const signed = walletSeamSign(SEC(0x1e), req.transaction.unsignedSafeJson, req.transaction.signInputs);
-  assert.throws(
-    () => finalizeWalletRequestV4({ config: mainnetConfig, requestId: req.requestId, signedSafeJson: signed }),
+  await assert.rejects(async () => finalizeWalletRequestV4({ config: mainnetConfig, requestId: req.requestId, signedSafeJson: signed }),
     /network drift at preflight/
   );
 });
 
-test("§R4 build refuses non-operational and un-unlocked configs outright", () => {
-  assert.throws(
-    () => buildWalletRequestV4({ config: { ...testnetConfig, networkId: "devnet" }, vaultId: VAULT_ID, action: "agentSpend", params: {}, signerAddress: TADDR(agentA) }),
+test("§R4 build refuses non-operational and un-unlocked configs outright", async () => {
+  await assert.rejects(async () => buildWalletRequestV4({ config: { ...testnetConfig, networkId: "devnet" }, vaultId: VAULT_ID, action: "agentSpend", params: {}, signerAddress: TADDR(agentA) }),
     /not an operational/
   );
-  assert.throws(
-    () => buildWalletRequestV4({ config: { ...mainnetConfig, allowMainnet: false }, vaultId: VAULT_ID, action: "agentSpend", params: {}, signerAddress: MADDR(agentA) }),
+  await assert.rejects(async () => buildWalletRequestV4({ config: { ...mainnetConfig, allowMainnet: false }, vaultId: VAULT_ID, action: "agentSpend", params: {}, signerAddress: MADDR(agentA) }),
     /dual-flag unlock/
   );
 });
 
 test("§R4 reconcile refuses a manifest stamped with a FOREIGN network before touching any node", async () => {
-  seedManifest(mainnetConfig);
+  await seedManifest(mainnetConfig);
   const { reconcileVaultV4 } = require("../src/reconcile-v4");
   // A testnet-configured process pointed (wrongly) at the mainnet data root:
   const foreign = loadConfig({ dataRoot: mainRoot });
-  await assert.rejects(reconcileVaultV4(foreign, VAULT_ID), /manifest network mainnet != configured testnet-10/);
+  await assert.rejects(() => reconcileVaultV4(foreign, VAULT_ID), /manifest network mainnet != configured testnet-10/);
 });
 
 /* ------------------------------ §R5 API layer ----------------------------- */
 
 test("§R5 the v4 API demands addresses of the CONFIGURED network (kaspa: on mainnet) and the dev signer stays dead", async () => {
-  seedManifest(mainnetConfig);
+  await seedManifest(mainnetConfig);
   // testnet-prefixed signer on a mainnet server -> BAD_SIGNER
   await assert.rejects(
     handle(mainnetConfig, "POST", ["wallet", "v4", "requests"], {}, { vaultId: VAULT_ID, action: "agentSpend", params: {}, signerAddress: TADDR(agentA) }),

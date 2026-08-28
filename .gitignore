@@ -1,6 +1,6 @@
 node_modules/
-data/
-data-mainnet/
+dist/
+build/
 .env
 .env.*
 *.log
@@ -11,6 +11,13 @@ temp/
 keys/
 wallets/
 secrets/
+backups/
+data/
+data-mainnet/
 tests/vm/target/
 tests/vm/Cargo.lock
+deploy/vendor/
+deploy/*.env
+__pycache__/
+*.pyc
 .DS_Store

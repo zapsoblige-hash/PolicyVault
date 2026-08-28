@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "policyvault-client"
+version = "0.1.0"
+description = "Thin, stdlib-only Python client for the PolicyVault REST/Agent API"
+readme = "README.md"
+requires-python = ">=3.10"
+# Apache-2.0 — the license the owner selected for PolicyVault (2026-08-23);
+# its express patent grant matches the project's permanent no-patents
+# commitment. Never substitute another license.
+license = "Apache-2.0"
+keywords = ["kaspa", "policyvault", "treasury", "agent", "covenant"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Typing :: Typed",
+]
+
+# ZERO third-party runtime dependencies, permanently. The client is
+# urllib.request + json + secrets + dataclasses from the standard library.
+# Adding a dependency here would put a third party inside the trust path of
+# every request an AI agent makes against a treasury.
+dependencies = []
+
+[project.optional-dependencies]
+# Tests run on the stdlib `unittest` runner and need nothing installed.
+# pytest, if present, collects the same unittest.TestCase classes unchanged.
+test = []
+
+[project.urls]
+Homepage = "https://github.com/zapsoblige-hash/PolicyVault"
+Source = "https://github.com/zapsoblige-hash/PolicyVault"
+
+# NOT PUBLISHED. This package is not on PyPI and must not be uploaded:
+# publication of PolicyVault artifacts is an explicit owner gate
+# (CLAUDE.md, "Product & publication policy"). The metadata above exists so
+# the package can be installed from a local checkout
+# (`pip install ./python`) and so its identity is stable when the owner
+# does authorize publication.
+
+[tool.setuptools]
+packages = ["policyvault_client"]
+
+[tool.setuptools.package-data]
+policyvault_client = ["py.typed"]

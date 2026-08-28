@@ -37,12 +37,12 @@ const KAS = 100000000n;
 const OWNER = 1, AGENT = 0x1e, RECIP = 0x28;
 const VAULT = "7a".repeat(32);
 
-function seedTerminalVault() {
+async function seedTerminalVault() {
   // Mirrors the REAL post-ownerRecover manifest shape (status RECOVERED,
   // live null, historical registry retained) — the schema the live H2 vault
   // 0c3e785f… persisted after its chain-verified terminal recovery.
   const registry = [{ agentPk: XO(AGENT), maxPerSpend: (20n * KAS).toString(), periodBudget: (50n * KAS).toString(), periodLengthDaa: "864000", periodStartDaa: "541000000", periodSpent: "0", approvalThreshold: (5n * KAS).toString(), agentMaxFeePerTx: (1n * KAS).toString(), recipients: [XO(RECIP)] }];
-  persistManifestV4(config, {
+  await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4, contractVersion: "policyvault-0.4.1", networkId: config.networkId, vaultId: VAULT,
     label: "terminal-history", status: "RECOVERED", template: { owner: XO(OWNER), vaultId: VAULT }, agentRegistry: registry,
     live: null, creationTxId: "42".repeat(32), latestTransitionTxId: "43".repeat(32), lastTransition: null
@@ -58,7 +58,7 @@ const manifestBytes = () => fs.readFileSync(path.join(config.dataRoot, "vaults",
 let server;
 let ORIGIN = null, BASE = null;
 before(async () => {
-  seedTerminalVault();
+  await seedTerminalVault();
   server = createServer(config);
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   ORIGIN = `http://127.0.0.1:${server.address().port}`;

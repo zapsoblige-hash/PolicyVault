@@ -70,7 +70,7 @@ async function reconcileVaultV2(
   vaultId,
   { rpc: providedRpc, stalePendingMinimumMs = DEFAULT_STALE_PENDING_MINIMUM_MS, allowClaimRelease = true } = {}
 ) {
-  const manifest = loadManifestV2(config, vaultId);
+  const manifest = await loadManifestV2(config, vaultId);
   if (!manifest) {
     fail(`no v0.2 manifest for vault ${vaultId}`);
   }
@@ -90,7 +90,7 @@ async function reconcileVaultV2(
     }
     const currentAddress = covenantAddress(config, current.scriptBytes);
     const liveRef = await findOutpoint(rpc, currentAddress, manifest.live.outpoint.transactionId, manifest.live.outpoint.index);
-    const claim = loadTransitionClaim(config, manifest.live.outpoint);
+    const claim = await loadTransitionClaim(config, manifest.live.outpoint);
 
     if (liveRef) {
       if (!claim) {
@@ -121,9 +121,9 @@ async function reconcileVaultV2(
       if (!stillLive || effectNow) {
         return { status: "CLAIM_PENDING", vaultId, reason: "state changed during release check" };
       }
-      releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
-      releaseSubmissionClaim(config, claim.txId);
-      appendAudit(config, {
+      await releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
+      await releaseSubmissionClaim(config, claim.txId);
+      await appendAudit(config, {
         vaultId,
         action: "stale_claim_released",
         actor: "system",
@@ -139,7 +139,7 @@ async function reconcileVaultV2(
       const proven = await proveExpectedEffect(rpc, claim);
       if (proven && claim.expected.kind === "successor") {
         const e = claim.expected;
-        persistManifestV2(config, {
+        await persistManifestV2(config, {
           ...manifest,
           status: Number(e.state.paused) === 1 ? VaultStatus.PAUSED : VaultStatus.ACTIVE,
           template: { owner: manifest.template.owner, vaultId: manifest.template.vaultId },
@@ -162,13 +162,13 @@ async function reconcileVaultV2(
             newOutpoint: { transactionId: e.txId, index: Number(e.index) }
           }
         });
-        persistReceipt(config, {
+        await persistReceipt(config, {
           txId: e.txId,
           vaultId,
           action: claim.action,
           proof: { successorOutpoint: `${e.txId}:${e.index}`, value: e.valueSompi, reconciled: true }
         });
-        appendAudit(config, {
+        await appendAudit(config, {
           vaultId,
           action: "reconciled_advanced",
           actor: "system",
@@ -181,7 +181,7 @@ async function reconcileVaultV2(
       }
       if (proven && claim.expected.kind === "recover") {
         const e = claim.expected;
-        persistManifestV2(config, {
+        await persistManifestV2(config, {
           ...manifest,
           status: VaultStatus.RECOVERED,
           template: { owner: manifest.template.owner, vaultId: manifest.template.vaultId },
@@ -197,13 +197,13 @@ async function reconcileVaultV2(
             newOutpoint: null
           }
         });
-        persistReceipt(config, {
+        await persistReceipt(config, {
           txId: e.txId,
           vaultId,
           action: "ownerRecover",
           proof: { consumedOutpoint: `${manifest.live.outpoint.transactionId}:${manifest.live.outpoint.index}`, recoveredValue: e.valueSompi, reconciled: true }
         });
-        appendAudit(config, {
+        await appendAudit(config, {
           vaultId,
           action: "reconciled_recovered",
           actor: "system",
@@ -216,7 +216,7 @@ async function reconcileVaultV2(
     }
 
     /* No claim, no expected record, or effect unproven: fail closed. */
-    persistManifestV2(config, {
+    await persistManifestV2(config, {
       ...manifest,
       status: VaultStatus.TERMINATED_UNKNOWN,
       template: { owner: manifest.template.owner, vaultId: manifest.template.vaultId },
@@ -225,7 +225,7 @@ async function reconcileVaultV2(
       latestTransitionTxId: claim?.txId ?? manifest.latestTransitionTxId,
       lastTransition: manifest.lastTransition
     });
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId,
       action: "reconciled_unknown",
       actor: "system",

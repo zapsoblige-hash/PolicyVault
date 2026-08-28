@@ -29,14 +29,14 @@ function tempConfig() {
   return loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-orglc-")) });
 }
 
-function seedVault(config, vaultId) {
+async function seedVault(config, vaultId) {
   const template = normalizeTemplateV2({ owner: OWNER_X, vaultId });
   const state = normalizeStateV2({
     protectedValue: "10000000000", periodStartDaa: "1000", periodSpent: "0", paused: "0",
     delegate: DELEGATE_X, maxPerSpend: "1000000000", periodBudget: "5000000000",
     periodLengthDaa: "600", recipients: [RECIP_X], delegateActive: "1", policyNonce: "0"
   });
-  persistManifestV2(config, {
+  await persistManifestV2(config, {
     schema: MANIFEST_SCHEMA_V2, contractVersion: CONTRACT_VERSION_V2, networkId: config.networkId,
     vaultId, label: `vault-${vaultId.slice(0, 4)}`, status: "ACTIVE", template,
     live: {
@@ -68,7 +68,7 @@ async function expectApiError(promise, status, code) {
 test("§16 rename: name changes; vault association + covenant data untouched", async () => {
   const config = tempConfig();
   const VA = "aa".repeat(32);
-  seedVault(config, VA);
+  await seedVault(config, VA);
   const before = manifestSha(config, VA);
 
   const o = (await call(config, "POST", "/organizations", { name: "Ops" })).body.organization;
@@ -89,8 +89,8 @@ test("§16 archive/restore: visibility metadata only; archived orgs refuse NEW a
   const config = tempConfig();
   const VA = "aa".repeat(32);
   const VB = "bb".repeat(32);
-  seedVault(config, VA);
-  seedVault(config, VB);
+  await seedVault(config, VA);
+  await seedVault(config, VB);
   const beforeA = manifestSha(config, VA);
 
   const o = (await call(config, "POST", "/organizations", { name: "Seasonal" })).body.organization;
@@ -119,7 +119,7 @@ test("§16 archive/restore: visibility metadata only; archived orgs refuse NEW a
 test("§16 delete: empty org deletes; populated org is BLOCKED with its vault list; vaults never touched", async () => {
   const config = tempConfig();
   const VA = "aa".repeat(32);
-  seedVault(config, VA);
+  await seedVault(config, VA);
   const before = manifestSha(config, VA);
 
   const full = (await call(config, "POST", "/organizations", { name: "Busy" })).body.organization;
@@ -149,23 +149,23 @@ test("§16 delete: empty org deletes; populated org is BLOCKED with its vault li
   assert.equal(manifestSha(config, VA), before, "manifest bytes unchanged by assign/unassign/delete");
   assert.equal((await call(config, "GET", `/vaults/${VA}`)).body.status, "ACTIVE", "vault untouched by org deletion");
   // Audit trail recorded the lifecycle as metadata events.
-  const audit = require("../../server/src/audit").readAudit(config, { limit: 100 });
+  const audit = await require("../../server/src/audit").readAudit(config, { limit: 100 });
   for (const action of ["org_created", "org_deleted", "vault_assigned", "vault_unassigned"]) {
     assert.ok(audit.some((e) => e.kind === "metadata" && e.action === action), `audit has ${action}`);
   }
 });
 
-test("§16 module-level fail-closed: unknown org status rejected; pre-lifecycle records default ACTIVE", () => {
+test("§16 module-level fail-closed: unknown org status rejected; pre-lifecycle records default ACTIVE", async () => {
   const config = tempConfig();
-  const rec = org.createOrganization(config, { name: "Legacy" });
+  const rec = await org.createOrganization(config, { name: "Legacy" });
   // Simulate a pre-lifecycle record (no status field): loads as ACTIVE.
   const p = path.join(config.dataRoot, "orgs", `${rec.orgId}.json`);
   const raw = JSON.parse(fs.readFileSync(p, "utf8"));
   delete raw.status;
   fs.writeFileSync(p, JSON.stringify(raw));
-  assert.equal(org.loadOrganization(config, rec.orgId).status, "ACTIVE");
+  assert.equal((await org.loadOrganization(config, rec.orgId)).status, "ACTIVE");
   // Unknown status fails closed.
   raw.status = "SOFT_DELETED";
   fs.writeFileSync(p, JSON.stringify(raw));
-  assert.throws(() => org.loadOrganization(config, rec.orgId), (e) => e.code === "ORG_INVALID");
+  await assert.rejects(() => org.loadOrganization(config, rec.orgId), (e) => e.code === "ORG_INVALID");
 });

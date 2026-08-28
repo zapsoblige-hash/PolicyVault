@@ -50,14 +50,14 @@ const KAS = 100000000n;
 const OWNER = 1, AGENT = 0x1e, APPR_A = 0x51, APPR_B = 0x52, RECIP = 0x28;
 const VAULT = "79".repeat(32);
 
-function seed() {
+async function seed() {
   const registry = [{ agentPk: XO(AGENT), maxPerSpend: (20n * KAS).toString(), periodBudget: (50n * KAS).toString(), periodLengthDaa: "864000", periodStartDaa: "541000000", periodSpent: "0", approvalThreshold: (5n * KAS).toString(), agentMaxFeePerTx: (1n * KAS).toString(), recipients: [XO(RECIP)] }];
   const template = { owner: XO(OWNER), vaultId: VAULT };
   const policies = registry.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
   const state = normalizeStateV4({ protectedValue: (1000n * KAS).toString(), feeReserve: (5n * KAS).toString(), paused: "0", agentRoot: buildAgentTreeV4(policies).root, approvers: [XO(APPR_A), XO(APPR_B)], approvalM: "2", policyNonce: "0" });
   const compiled = compileExactStateV4({ config, template, state, contractVersion: CONTRACT_VERSION_V4_1 });
   const stateId = computeStateIdV4({ networkId: config.networkId, template, state, contractVersion: CONTRACT_VERSION_V4_1 });
-  persistManifestV4(config, {
+  await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4, contractVersion: CONTRACT_VERSION_V4_1, networkId: config.networkId, vaultId: VAULT,
     label: "approver-wallet", status: "ACTIVE", template, agentRegistry: registry,
     live: { state: stateToJsonV4(state), stateId, outpoint: { transactionId: "47".repeat(32), index: 0 }, outpointValue: (state.protectedValue + state.feeReserve).toString(), scriptSha256: compiled.scriptSha256, covenantId: "41".repeat(32) },
@@ -80,12 +80,17 @@ async function waitFor(fn, ms = 120000) {
 }
 const claimFiles = (kind) => {
   const dir = path.join(config.dataRoot, "claims", kind);
-  return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  // Budget reservations (surface 15) reuse the TRANSITION_CLAIM storage
+  // category under resv-/resvlock- key prefixes; they are pre-build
+  // availability records, NOT the exclusivity CLAIM these assertions are
+  // about. Exclude them so the invariant tested stays "no transition
+  // exclusivity claim", not "the shared directory is byte-empty".
+  return (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((n) => !n.startsWith("resv-") && !n.startsWith("resvlock-"));
 };
 
 let server;
 before(async () => {
-  seed();
+  await seed();
   server = createServer(config);
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   ORIGIN = `http://127.0.0.1:${server.address().port}`;
@@ -96,7 +101,7 @@ after(() => server && server.close());
 /* jsdom over the REAL production browser code; the wallet seam is an adapter
  * SPY: it records exactly what the app hands the provider, then either signs
  * with the REAL dev signer or throws the injected provider error. */
-function openApp(role, { providerError = null } = {}) {
+async function openApp(role, { providerError = null } = {}) {
   const html = fs.readFileSync(path.join(__dirname, "..", "..", "web", "index.html"), "utf8").replace(/<script src="[^"]*"><\/script>/g, "");
   const appV4 = fs.readFileSync(path.join(__dirname, "..", "..", "web", "app-v4.js"), "utf8");
   const dom = new JSDOM(html, { url: `${ORIGIN}/`, runScripts: "outside-only", pretendToBeVisual: true });
@@ -158,7 +163,7 @@ test("setup: above-threshold 2-of-2 request freezes explicit SIG_HASH_ALL signin
 });
 
 test("BROWSER: the approver hands the provider the CANONICAL FROZEN signInputs â€” never a reconstructed [{index:0}]", async () => {
-  const app = openApp(APPR_A);
+  const app = await openApp(APPR_A);
   await app.tabAll();
   const banner = await waitFor(() => { const b = app.banner(REQ.requestId); return b && b.querySelector("[data-approvereq]") ? b : null; });
   app.click(banner.querySelector("[data-approvereq]"));
@@ -179,7 +184,7 @@ test("BROWSER: the approver hands the provider the CANONICAL FROZEN signInputs â
 
 test("BROWSER: a provider WASM 'unreachable' error surfaces the stage + original exception and persists NOTHING", async () => {
   const boom = Object.assign(new Error("unreachable"), { name: "RuntimeError" });
-  const app = openApp(APPR_B, { providerError: boom });
+  const app = await openApp(APPR_B, { providerError: boom });
   const manifestPath = path.join(config.dataRoot, "vaults", VAULT, "manifest.json");
   const manifestBefore = fs.readFileSync(manifestPath);
   const reqBefore = JSON.parse(fs.readFileSync(path.join(config.dataRoot, "requests", `${REQ.requestId}.json`), "utf8"));
@@ -205,7 +210,7 @@ test("BROWSER: a provider WASM 'unreachable' error surfaces the stage + original
 });
 
 test("BROWSER: the canonical-signInputs guard refuses malformed metadata BEFORE any provider call", async () => {
-  const app = openApp(APPR_B);
+  const app = await openApp(APPR_B);
   await app.tabAll();
   const ws = app.window.PolicyVaultV4._walletSign;
   // The exact shape that panicked real KasWare: missing sighashType.
@@ -228,7 +233,7 @@ test("API: approver A's signature cannot fill approver B's slot (identity-bound 
 });
 
 test("BROWSER: approver B completes 2-of-2 through the canonical path; frozen commitment intact end-to-end", async () => {
-  const app = openApp(APPR_B);
+  const app = await openApp(APPR_B);
   await app.tabAll();
   const banner = await waitFor(() => { const b = app.banner(REQ.requestId); return b && b.querySelector("[data-approvereq]") ? b : null; });
   app.click(banner.querySelector("[data-approvereq]"));

@@ -15,7 +15,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 test("tools/gen_v3.js regenerates contracts/PolicyVault.v0.3.sil byte-identically", () => {
-  const repoRoot = path.join(process.env.HOME, "policyvault");
+  const repoRoot = path.resolve(__dirname, "..", ".."); // checkout-relative (public portability)
   const outPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "pv3-gen-")), "regen.sil");
   const result = spawnSync("node", [path.join(repoRoot, "tools/gen_v3.js")], {
     encoding: "utf8",

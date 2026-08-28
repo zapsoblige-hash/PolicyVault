@@ -98,7 +98,7 @@ fn base_state(delegate: &Keypair, root: [u8; 32], approvers: [[u8; 32]; 10], m: 
 }
 
 fn templated_source(s: &V3) -> String {
-    let path = format!("{}/policyvault/contracts/PolicyVault.v0.3.sil", std::env::var("HOME").unwrap());
+    let path = format!("{}/../../contracts/PolicyVault.v0.3.sil", env!("CARGO_MANIFEST_DIR"));
     let mut src = std::fs::read_to_string(&path).unwrap();
     let r = |src: String, from: &str, to: String| {
         assert!(src.contains(from), "template anchor missing: {from}");

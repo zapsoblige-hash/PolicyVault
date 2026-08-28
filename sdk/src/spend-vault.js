@@ -104,7 +104,7 @@ function extractSchnorrSignature(signatureHex, label) {
  * within-period path; >= 1 selects rolloverAndSpend with a CLTV lock time.
  */
 async function spendFromVault({ config, vaultId, delegateKey, payAmount, recipientIndex, periodsElapsed = 0 }) {
-  const manifest = loadManifest(config, vaultId);
+  const manifest = await loadManifest(config, vaultId);
   if (!manifest) {
     fail(`no manifest for vault ${vaultId}`);
   }
@@ -285,14 +285,14 @@ async function spendFromVault({ config, vaultId, delegateKey, payAmount, recipie
     const txId = transaction.finalize().toString().toLowerCase();
 
     /* Durable claims: transition (exact outpoint) + submission. */
-    claimTransition(config, {
+    await claimTransition(config, {
       outpoint: manifest.live.outpoint,
       action,
       txId,
       vaultId,
       stateId: manifest.live.stateId
     });
-    claimSubmission(config, { txId, vaultId, action });
+    await claimSubmission(config, { txId, vaultId, action });
 
     const submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
@@ -323,7 +323,7 @@ async function spendFromVault({ config, vaultId, delegateKey, payAmount, recipie
       fail(`submitted ${txId} but the successor was not observed — claim preserved; reconcile before retrying`);
     }
 
-    persistManifest(config, {
+    await persistManifest(config, {
       ...manifest,
       status: VaultStatus.ACTIVE,
       policy: manifestPolicyInput(policy),
@@ -344,7 +344,7 @@ async function spendFromVault({ config, vaultId, delegateKey, payAmount, recipie
       latestTransitionTxId: txId
     });
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId,
       action,
@@ -356,7 +356,7 @@ async function spendFromVault({ config, vaultId, delegateKey, payAmount, recipie
       }
     });
 
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId,
       action: action === "rolloverAndSpend" ? "delegate_spend_rollover" : "delegate_spend",
       actor: "delegate",

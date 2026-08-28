@@ -199,7 +199,7 @@ async function createVault({ config, policyInput, fundingKey, delegateAddress, d
     }
 
     /* Durable claim before broadcast. */
-    claimSubmission(config, { txId, vaultId: policy.vaultId, action: "createVault" });
+    await claimSubmission(config, { txId, vaultId: policy.vaultId, action: "createVault" });
 
     const submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
@@ -228,7 +228,7 @@ async function createVault({ config, policyInput, fundingKey, delegateAddress, d
       );
     }
 
-    const manifest = persistManifest(config, {
+    const manifest = await persistManifest(config, {
       schema: MANIFEST_SCHEMA,
       contractVersion: CONTRACT_VERSION,
       networkId: config.networkId,
@@ -253,7 +253,7 @@ async function createVault({ config, policyInput, fundingKey, delegateAddress, d
       latestTransitionTxId: null
     });
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId: policy.vaultId,
       action: "createVault",
@@ -266,7 +266,7 @@ async function createVault({ config, policyInput, fundingKey, delegateAddress, d
       }
     });
 
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId: policy.vaultId,
       action: "vault_created",
       actor: "owner",

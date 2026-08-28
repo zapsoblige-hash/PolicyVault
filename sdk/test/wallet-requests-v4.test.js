@@ -70,13 +70,13 @@ function stateFor(registry, over = {}) {
  * cases never collide on the transition claim (that collision IS the
  * two-tab protection, exercised deliberately elsewhere). */
 let seedCounter = 0;
-function seedManifest(registry, over = {}) {
+async function seedManifest(registry, over = {}) {
   seedCounter += 1;
   const outTxId = seedCounter.toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const state = stateFor(registry, over);
   const compiled = compileExactStateV4({ config, template: { owner: template.owner, vaultId: VAULT_ID }, state });
   const stateId = computeStateIdV4({ networkId: config.networkId, template, state });
-  return persistManifestV4(config, {
+  return await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4,
     contractVersion: CONTRACT_VERSION_V4,
     networkId: config.networkId,
@@ -118,9 +118,9 @@ function secretOf(kp) {
   return v;
 }
 
-test("G6: reserve-funded agent spend — BUILD (agent authz) -> sign -> FINALIZE -> VM preflight PASS", () => {
-  seedManifest(REGISTRY);
-  const req = buildWalletRequestV4({
+test("G6: reserve-funded agent spend — BUILD (agent authz) -> sign -> FINALIZE -> VM preflight PASS", async () => {
+  await seedManifest(REGISTRY);
+  const req = await buildWalletRequestV4({
     config, vaultId: VAULT_ID, action: "agentSpend",
     params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) },
     signerAddress: ADDR(agentA)
@@ -131,14 +131,14 @@ test("G6: reserve-funded agent spend — BUILD (agent authz) -> sign -> FINALIZE
   assert.equal(req.review.fundingMode, "RESERVE-FUNDED");
   assert.equal(req.transaction.signInputs.length, 1); // reserve-funded: only the covenant input
   const signed = devSign(req, agentA);
-  const done = finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed });
+  const done = await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
   assert.equal(done.txId, req.txId);
 });
 
-test("G6: fuel-funded agent spend with an explicit fuel UTXO -> preflight PASS", () => {
-  seedManifest(REGISTRY);
-  const req = buildWalletRequestV4({
+test("G6: fuel-funded agent spend with an explicit fuel UTXO -> preflight PASS", async () => {
+  await seedManifest(REGISTRY);
+  const req = await buildWalletRequestV4({
     config, vaultId: VAULT_ID, action: "agentSpend",
     params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient), fuel: fuelUtxo() },
     signerAddress: ADDR(agentA)
@@ -149,22 +149,22 @@ test("G6: fuel-funded agent spend with an explicit fuel UTXO -> preflight PASS",
   // test the agent also owns the fuel — sign both with the agent key would
   // fail input 1 (wrong key). Use a signer that owns both by making fuel a
   // p2pk to the agent. Rebuild with agent-owned fuel:
-  const req2 = buildWalletRequestV4({
+  const req2 = await buildWalletRequestV4({
     config, vaultId: VAULT_ID, action: "agentSpend",
     params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient),
       fuel: { outpoint: { transactionId: "43".repeat(32), index: 1 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${XO(agentA)}ac` } },
     signerAddress: ADDR(agentA)
   });
   const signed = devSign(req2, agentA);
-  const done = finalizeWalletRequestV4({ config, requestId: req2.requestId, signedSafeJson: signed });
+  const done = await finalizeWalletRequestV4({ config, requestId: req2.requestId, signedSafeJson: signed });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
 });
 
-test("G6/G7: above-threshold spend requires approvals; freeze-before-collect; finalize after threshold", () => {
+test("G6/G7: above-threshold spend requires approvals; freeze-before-collect; finalize after threshold", async () => {
   // approvers configured on the vault, threshold 5 KAS, pay 6 KAS.
   const slots = approvers.map(XO).sort();
-  seedManifest(REGISTRY, { approvers: approvers.map(XO), approvalM: "2" });
-  const req = buildWalletRequestV4({
+  await seedManifest(REGISTRY, { approvers: approvers.map(XO), approvalM: "2" });
+  const req = await buildWalletRequestV4({
     config, vaultId: VAULT_ID, action: "agentSpend",
     params: { payAmountSompi: (6n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient), fuel: { outpoint: { transactionId: "43".repeat(32), index: 1 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${XO(agentA)}ac` } },
     signerAddress: ADDR(agentA)
@@ -173,60 +173,60 @@ test("G6/G7: above-threshold spend requires approvals; freeze-before-collect; fi
   assert.equal(req.state, RequestState.AWAITING_APPROVALS);
   // finalize before approvals must fail closed
   const signed = devSign(req, agentA);
-  assert.throws(() => finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed }), (e) => e.code === "INSUFFICIENT_APPROVALS");
+  await assert.rejects(async () => finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed }), (e) => e.code === "INSUFFICIENT_APPROVALS");
 
   // each approver signs input 0 of the SAME unsigned tx
   const approverSignedJson = (kp) => {
     const signer = makeDevSigner(config, { secretHex: SEC(secretOf(kp)), expectedAddress: ADDR(kp) });
     return signer.signInputs(req.transaction.unsignedSafeJson, [{ index: 0 }]);
   };
-  let r = collectApprovalV4({ config, requestId: req.requestId, approverAddress: ADDR(approvers[0]), signedSafeJson: approverSignedJson(approvers[0]) });
+  let r = await collectApprovalV4({ config, requestId: req.requestId, approverAddress: ADDR(approvers[0]), signedSafeJson: approverSignedJson(approvers[0]) });
   assert.equal(r.approvals.collected, 1);
   assert.equal(r.approvals.complete, false);
-  r = collectApprovalV4({ config, requestId: req.requestId, approverAddress: ADDR(approvers[1]), signedSafeJson: approverSignedJson(approvers[1]) });
+  r = await collectApprovalV4({ config, requestId: req.requestId, approverAddress: ADDR(approvers[1]), signedSafeJson: approverSignedJson(approvers[1]) });
   assert.equal(r.approvals.complete, true);
   assert.equal(r.request.state, RequestState.BUILT);
 
-  const done = finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed });
+  const done = await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
 });
 
-test("G6: owner ops (pause, topUp, topUpReserve, setApprovers) build+finalize+preflight; require fuel", () => {
+test("G6: owner ops (pause, topUp, topUpReserve, setApprovers) build+finalize+preflight; require fuel", async () => {
   const ownerFuel = { outpoint: { transactionId: "44".repeat(32), index: 0 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${XO(owner)}ac` };
-  const run = (action, params) => {
-    seedManifest(REGISTRY);
-    const req = buildWalletRequestV4({ config, vaultId: VAULT_ID, action, params: { ...params, fuel: ownerFuel }, signerAddress: ADDR(owner) });
+  const run = async (action, params) => {
+    await seedManifest(REGISTRY);
+    const req = await buildWalletRequestV4({ config, vaultId: VAULT_ID, action, params: { ...params, fuel: ownerFuel }, signerAddress: ADDR(owner) });
     const signed = devSign(req, owner);
-    return finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed });
+    return await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed });
   };
-  assert.equal(run("ownerPause", {}).state, RequestState.PREFLIGHT_VERIFIED);
-  assert.equal(run("ownerTopUp", { topUpAmountSompi: (10n * KAS).toString() }).state, RequestState.PREFLIGHT_VERIFIED);
-  assert.equal(run("ownerTopUpReserve", { topUpReserveAmountSompi: (2n * KAS).toString() }).state, RequestState.PREFLIGHT_VERIFIED);
-  assert.equal(run("ownerSetApprovers", { newApprovers: { approvers: approvers.map(XO), approvalM: "2" } }).state, RequestState.PREFLIGHT_VERIFIED);
+  assert.equal((await run("ownerPause", {})).state, RequestState.PREFLIGHT_VERIFIED);
+  assert.equal((await run("ownerTopUp", { topUpAmountSompi: (10n * KAS).toString() })).state, RequestState.PREFLIGHT_VERIFIED);
+  assert.equal((await run("ownerTopUpReserve", { topUpReserveAmountSompi: (2n * KAS).toString() })).state, RequestState.PREFLIGHT_VERIFIED);
+  assert.equal((await run("ownerSetApprovers", { newApprovers: { approvers: approvers.map(XO), approvalM: "2" } })).state, RequestState.PREFLIGHT_VERIFIED);
   // fuel required for owner ops
-  seedManifest(REGISTRY);
-  assert.throws(() => buildWalletRequestV4({ config, vaultId: VAULT_ID, action: "ownerPause", params: {}, signerAddress: ADDR(owner) }), /fuel UTXO/);
+  await seedManifest(REGISTRY);
+  await assert.rejects(async () => buildWalletRequestV4({ config, vaultId: VAULT_ID, action: "ownerPause", params: {}, signerAddress: ADDR(owner) }), /fuel UTXO/);
 });
 
-test("G4: high-level addAgent/removeAgent/rotateAgent map to ownerSetAgentRoot and preflight PASS", () => {
+test("G4: high-level addAgent/removeAgent/rotateAgent map to ownerSetAgentRoot and preflight PASS", async () => {
   const ownerFuel = { outpoint: { transactionId: "44".repeat(32), index: 0 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${XO(owner)}ac` };
-  seedManifest(REGISTRY);
+  await seedManifest(REGISTRY);
   const newAgent = agentEntry(KEY(0x55), [recipient]);
-  const req = buildWalletRequestV4({ config, vaultId: VAULT_ID, action: "addAgent", params: { agent: newAgent, fuel: ownerFuel }, signerAddress: ADDR(owner) });
+  const req = await buildWalletRequestV4({ config, vaultId: VAULT_ID, action: "addAgent", params: { agent: newAgent, fuel: ownerFuel }, signerAddress: ADDR(owner) });
   assert.equal(req.sdkAction, "ownerSetAgentRoot");
   assert.equal(req.highLevel, "addAgent");
   assert.equal(req.newRegistry.length, 3);
-  const done = finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: devSign(req, owner) });
+  const done = await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: devSign(req, owner) });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
   // the successor state carries the new root; the new registry travels in the claim's expected
   assert.equal(done.newRegistry.length, 3);
 });
 
-test("G6: ownerRecover preflight PASS (terminal, protected + reserve to owner)", () => {
+test("G6: ownerRecover preflight PASS (terminal, protected + reserve to owner)", async () => {
   const ownerFuel = { outpoint: { transactionId: "44".repeat(32), index: 0 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${XO(owner)}ac` };
-  seedManifest(REGISTRY);
-  const req = buildWalletRequestV4({ config, vaultId: VAULT_ID, action: "ownerRecover", params: { fuel: ownerFuel }, signerAddress: ADDR(owner) });
+  await seedManifest(REGISTRY);
+  const req = await buildWalletRequestV4({ config, vaultId: VAULT_ID, action: "ownerRecover", params: { fuel: ownerFuel }, signerAddress: ADDR(owner) });
   assert.equal(req.review.terminal.startsWith("VAULT CLOSED"), true);
-  const done = finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: devSign(req, owner) });
+  const done = await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: devSign(req, owner) });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
 });

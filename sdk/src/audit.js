@@ -3,43 +3,25 @@
 /*
  * Durable append-only audit log. Every meaningful vault operation produces
  * an event. Application-layer record; never a consensus value.
+ *
+ * Phase C: events flow through the persistence backend (JSONL file under
+ * the json backend, append-ordered audit_events rows under postgres).
+ * ORDERING/ATOMICITY SEMANTICS (ported, not redesigned): the audit write
+ * happens AFTER its mutation and is not atomic with it — exactly the
+ * released JSON behavior (a crash between mutation and audit loses the
+ * audit line, never the mutation). Both backends share that contract.
  */
 
-const fs = require("fs");
-const path = require("path");
+const { getStore } = require("./store");
 
-function auditPath(config) {
-  return path.join(config.dataRoot, "audit", "events.log");
-}
-
-function appendAudit(config, event) {
-  const dir = path.join(config.dataRoot, "audit");
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+async function appendAudit(config, event) {
   const record = { at: new Date().toISOString(), ...event };
-  fs.appendFileSync(auditPath(config), JSON.stringify(record) + "\n", { mode: 0o600 });
+  await getStore(config).appendAudit(record);
   return record;
 }
 
-function readAudit(config, { vaultId, limit = 200 } = {}) {
-  const file = auditPath(config);
-  if (!fs.existsSync(file)) {
-    return [];
-  }
-  const events = fs
-    .readFileSync(file, "utf8")
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-  const filtered = vaultId ? events.filter((e) => e.vaultId === vaultId) : events;
-  return filtered.slice(-limit).reverse();
+async function readAudit(config, { vaultId, limit = 200 } = {}) {
+  return getStore(config).readAudit({ vaultId, limit });
 }
 
 module.exports = { appendAudit, readAudit };

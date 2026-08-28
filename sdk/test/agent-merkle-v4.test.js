@@ -60,7 +60,9 @@ test("E1: leaf preimage is the exact frozen 124-byte layout", () => {
     approvalThreshold: "6",
     agentMaxFeePerTx: "7"
   });
-  const pre = agentLeafPreimage(p);
+  // agentLeafPreimage returns a plain Uint8Array (F1 byte-native refactor);
+  // read it through Buffer.from — the asserted BYTES are unchanged.
+  const pre = Buffer.from(agentLeafPreimage(p));
   assert.equal(pre.length, 124);
   assert.deepEqual([...pre.subarray(0, 4)], [0x50, 0x56, 0x34, 0x01]);
   assert.equal(pre.subarray(4, 36).toString("hex"), PK(0x30));

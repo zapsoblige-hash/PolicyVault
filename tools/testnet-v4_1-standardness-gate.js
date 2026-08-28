@@ -109,7 +109,7 @@ async function main() {
     const genResult = await submit4.submitCreateWalletRequestV4({ config, requestId: genReq.requestId, signedSafeJson: genSigned, rpc });
     if (genResult.request.state !== "CHAIN_VERIFIED") throw new Error(`genesis state ${genResult.request.state}`);
     log(`GENESIS CHAIN_VERIFIED vault=${vaultId.slice(0, 12)} txid=${genResult.txId}`);
-    const mGen = loadManifestV4(config, vaultId);
+    const mGen = await loadManifestV4(config, vaultId);
     if (mGen.contractVersion !== V4_1) throw new Error(`manifest version ${mGen.contractVersion} != ${V4_1}`);
     if (mGen.live.state.agentRoot !== mGen.agentRegistryRoot) throw new Error("genesis registry root != covenant agentRoot");
     evidence.vaultId = vaultId;
@@ -142,7 +142,7 @@ async function main() {
     log(`RELAYED + CHAIN_VERIFIED txid=${result.txId} (13 static sig-ops <= ${MAX_STANDARD_P2SH_SIG_OPS}; frozen v0.4 would be 18 -> rejected)`);
 
     // ---------- 4. registry reconstruction after the spend ----------
-    const mSpend = loadManifestV4(config, vaultId);
+    const mSpend = await loadManifestV4(config, vaultId);
     if (mSpend.live.state.agentRoot !== mSpend.agentRegistryRoot) throw new Error("post-spend registry root != covenant agentRoot");
     const acc = built.build.accounting;
     evidence.transactions.push({

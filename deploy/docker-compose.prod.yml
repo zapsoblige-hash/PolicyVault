@@ -1,0 +1,120 @@
+# PolicyVault PRODUCTION stack (hosted mainnet — runbook §11).
+#
+# On the app host this file and the filled secrets env live TOGETHER in
+# /opt/policyvault (compose file read-only; prod.env root:root 600):
+#
+#   docker compose -f /opt/policyvault/docker-compose.prod.yml \
+#     --env-file /opt/policyvault/prod.env <command>
+#
+# (service env_file entries resolve relative to this file's directory)
+#
+# Deployment of this file is gated on the exact owner authorization
+# recorded in docs/hosted-deployment-execution-log.md
+# ("Authorize PolicyVault hosted production deployment.", 2026-08-25).
+#
+# Topology (docs/hosted-production-runbook.md §1):
+#   internet -> Cloudflare edge (zone policy-vault.org)
+#            -> cloudflared NAMED tunnel (outbound-only, credential on host)
+#            -> app:3080 (compose-private network; NO published ports)
+#   app -> DigitalOcean Managed PostgreSQL (VPC-private endpoint, TLS)
+#   app -> trusted mainnet kaspad over the private WireGuard/SSH transport
+#          (Option A lean bootstrap; KASPA_RPC_URL in prod.env)
+#
+# Differences from staging (deliberate, per runbook):
+#   - NO postgres service: production persistence is DO Managed PostgreSQL
+#     (private endpoint; the compose network never carries a database).
+#   - NO build: section: production deploys the EXACT recorded
+#     content-addressed image (§10; verify `docker images --no-trunc`
+#     against the authorized image ID before `up`). Never build here.
+#   - cloudflared runs the authenticated NAMED tunnel from
+#     /etc/cloudflared (config.yml + <TUNNEL_ID>.json, host-owned,
+#     mode 600, uid 65532) — never a Quick Tunnel.
+#   - INITIAL PRODUCTION APP REPLICAS = 1 (runbook §1.1): the rate
+#     limiter, rpc/compute semaphores, and open-request quotas are
+#     process-local. Do NOT add replicas without the documented scaling
+#     gate.
+#
+# Startup order (§11): migrate (one-shot, advisory-locked, explicit) ->
+# app (fails closed without a current schema — never auto-migrates) ->
+# cloudflared -> DNS record LAST (§11.16).
+
+name: policyvault-prod
+
+services:
+  # One-shot schema migration (explicit deployment step, never automatic):
+  #   docker compose -f deploy/docker-compose.prod.yml \
+  #     --env-file /opt/policyvault/prod.env run --rm migrate
+  # MUST override the image ENTRYPOINT (server.js), not `command:` —
+  # compose `command` is APPENDED to the entrypoint (staging-proven).
+  migrate:
+    image: policyvault-app:${PV_PROD_APP_TAG:?set in /opt/policyvault/prod.env}
+    profiles: [ops]
+    entrypoint: ["node", "/app/server/src/migrate.js"]
+    env_file: [prod.env]
+    volumes:
+      # DO Managed PG per-cluster CA (public certificate material). With
+      # NODE_EXTRA_CA_CERTS=/app/pg-ca.crt in prod.env, the store's strict
+      # ssl { rejectUnauthorized: true } verification trusts exactly this
+      # cluster's CA — never a weakened/no-verify TLS mode.
+      - /opt/policyvault/pg-ca.crt:/app/pg-ca.crt:ro
+    networks: [pvnet]
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+  app:
+    image: policyvault-app:${PV_PROD_APP_TAG:?set in /opt/policyvault/prod.env}
+    env_file: [prod.env]
+    environment:
+      # Bind the container namespace interface; nothing is published, so
+      # the listener is reachable only from the compose network
+      # (cloudflared), never from the internet.
+      POLICYVAULT_BIND_ADDRESS: "0.0.0.0"
+    networks: [pvnet]
+    # NO ports: — ingress is exclusively the Cloudflare named Tunnel.
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      # postgres-mode data root holds only the network stamp + regenerable
+      # artifact cache (runbook §6): tmpfs is the staging-proven shape.
+      - /app/data:size=256m,uid=10001,gid=10001,mode=0700
+    volumes:
+      # DO Managed PG per-cluster CA (see migrate service note).
+      - /opt/policyvault/pg-ca.crt:/app/pg-ca.crt:ro
+    extra_hosts:
+      # Private kaspad transport termination on the droplet host (the
+      # WireGuard peer address or an SSH -L forward bound to the Docker
+      # bridge gateway). KASPA_RPC_URL in prod.env selects the address;
+      # this mapping exists so a host-terminated forward is reachable
+      # from the container as host-kaspad.
+      - "host-kaspad:host-gateway"
+    restart: unless-stopped
+    mem_limit: 1g
+    pids_limit: 256
+    cpus: 2
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  cloudflared:
+    image: ${PV_PROD_CLOUDFLARED_IMAGE:?set in /opt/policyvault/prod.env (pinned cloudflared image)}
+    # Authenticated NAMED tunnel (runbook §4.2). /etc/cloudflared on the
+    # host holds config.yml + <TUNNEL_ID>.json (SECRET: mode 600, owned
+    # by uid 65532 — the image's nonroot user — or root with a read
+    # grant). Ingress in config.yml points at http://app:3080 and falls
+    # through to http_status:404. DNS routing happens ONLY at §11.16.
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
+    volumes:
+      - /etc/cloudflared:/etc/cloudflared:ro
+    networks: [pvnet]
+    depends_on: [app]
+    restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+networks:
+  pvnet:
+    driver: bridge

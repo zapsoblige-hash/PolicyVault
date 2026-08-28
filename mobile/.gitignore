@@ -1,0 +1,21 @@
+# Dependencies (package-lock.json IS committed — it is the supply-chain record).
+node_modules/
+
+# GENERATED NATIVE PROJECTS — deliberately not committed.
+#
+# `npx cap add android` / `npx cap add ios` scaffold large Gradle and Xcode
+# trees from the Capacitor templates and then COPY the www/ payload into
+# them. Both were verified to run in this environment (see
+# docs/postlaunch/mobile-v1-scaffold.md), and the copied payload was proven
+# byte-identical to the repository sources by
+# `node tools/sync-portable.js --check-packaged`.
+#
+# They are not committed because they are (a) deterministically
+# regenerable with the npm scripts above, (b) a large native surface that
+# has never been BUILT or reviewed here — no Xcode, no Android SDK, no
+# CocoaPods in this environment — and committing an unbuilt, unreviewed
+# native tree would imply a level of verification that does not exist.
+# Regenerate with `npm run add:android` / `npm run add:ios`; both run the
+# portable-artifact gate before and the packaged-payload gate after.
+android/
+ios/

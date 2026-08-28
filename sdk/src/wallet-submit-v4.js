@@ -51,6 +51,7 @@ const {
 const { appendAudit } = require("./audit");
 const { VaultStatus } = require("./manifest");
 const { RequestState, loadRequest, saveRequest } = require("./wallet-requests-v4");
+const { releaseReservationForRequest } = require("./budget-reservation");
 const { assertOperationalNetwork } = require("./config");
 
 function fail(message, code) {
@@ -172,22 +173,23 @@ async function findOutpoint(rpc, address, txId, index) {
  * effect, and advance the manifest + registry atomically. testnet-10 only.
  */
 async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, pollAttempts = 30, pollDelayMs = 2000 }) {
-  const request = loadRequest(config, requestId);
+  const request = await loadRequest(config, requestId);
   if (!request) throw fail(`no request ${requestId}`, "BUILD_FAILED");
   if (request.schema !== "policyvault-wallet-request/v4") throw fail("not a v0.4 request", "BUILD_FAILED");
   if (request.state !== RequestState.PREFLIGHT_VERIFIED) throw fail(`request ${requestId} is ${request.state}, not PREFLIGHT_VERIFIED`, request.state);
   if (request.kind === "genesis") throw fail("use submitCreateWalletRequestV4 for genesis", "BUILD_FAILED");
 
-  const manifest = loadManifestV4(config, request.vaultId); // loader enforces registry root-equality
+  const manifest = await loadManifestV4(config, request.vaultId); // loader enforces registry root-equality
   if (!manifest || !manifest.live || manifest.live.stateId !== request.predecessorStateId) {
     request.state = RequestState.STALE;
-    saveRequest(config, request);
+    await saveRequest(config, request);
+    await releaseReservationForRequest(config, request); // surface 15: a stale request frees its budget headroom
     throw fail("vault advanced since this request was built — rebuild required", "STALE");
   }
   requireOperationalNetwork(config, request, manifest);
 
   // The transition claim must be held by THIS request+txid (created at G finalize).
-  const claim = loadTransitionClaim(config, request.predecessorOutpoint);
+  const claim = await loadTransitionClaim(config, request.predecessorOutpoint);
   if (!claim || claim.txId !== request.txId) {
     throw fail("no transition claim held by this request — reconcile", "CLAIM_CONFLICT");
   }
@@ -205,7 +207,8 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
     const liveRef = await findOutpoint(rpc, predecessor.address, manifest.live.outpoint.transactionId, manifest.live.outpoint.index);
     if (!liveRef) {
       request.state = RequestState.STALE;
-      saveRequest(config, request);
+      await saveRequest(config, request);
+      await releaseReservationForRequest(config, request); // surface 15
       throw fail("manifest live outpoint not on chain — reconcile first", "STALE");
     }
 
@@ -216,11 +219,11 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
     }
 
     // Submission claim keyed by the exact txid (idempotent).
-    claimSubmission(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
+    await claimSubmission(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
 
     // Persist SUBMITTING BEFORE the node call.
     request.state = RequestState.SUBMITTING;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     maybeCrash(config, "AFTER_SUBMITTING"); // crash-before-broadcast
 
     // Expected effect (re-derived; the successor address proves the state).
@@ -250,16 +253,17 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
         const stillLive = await findOutpoint(rpc, predecessor.address, manifest.live.outpoint.transactionId, manifest.live.outpoint.index).catch(() => null);
         const effect = await proveExpectedEffectV4(rpc, expected).catch(() => null);
         if (stillLive && !effect) {
-          releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
-          releaseSubmissionClaim(config, request.txId);
-          appendAudit(config, { vaultId: request.vaultId, action: "submission_rejected_claims_released", actor: "system", txId: request.txId, result: "REJECTED_BY_NODE", oldStateId: request.predecessorStateId, detail: message });
+          await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
+          await releaseSubmissionClaim(config, request.txId);
+          await appendAudit(config, { vaultId: request.vaultId, action: "submission_rejected_claims_released", actor: "system", txId: request.txId, result: "REJECTED_BY_NODE", oldStateId: request.predecessorStateId, detail: message });
           request.state = "SUBMISSION_REJECTED";
-          saveRequest(config, request);
+          await saveRequest(config, request);
+          await releaseReservationForRequest(config, request); // surface 15: mirrors the claim release (definitive rejection only)
           throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
         }
       }
       request.state = "RECONCILIATION_REQUIRED";
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`submit failed: ${message} — claims kept, reconcile required`, "RECONCILIATION_REQUIRED");
     }
 
@@ -268,12 +272,12 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
       // Node acknowledged SOMETHING — ambiguous. Keep claims.
       request.state = "RECONCILIATION_REQUIRED";
       request.error = `node returned ${returnedTxId}, expected ${request.txId}`;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(request.error + " — reconcile required", "RECONCILIATION_REQUIRED");
     }
 
     request.state = RequestState.SUBMITTED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     maybeCrash(config, "AFTER_SUBMITTED"); // crash-after-broadcast (ambiguity)
 
     // Exact chain proof.
@@ -284,23 +288,28 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
     }
     if (!proof) {
       request.state = "RECONCILIATION_REQUIRED";
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`submitted ${request.txId} but exact effect not observed — reconcile`, "RECONCILIATION_REQUIRED");
     }
     maybeCrash(config, "AFTER_PROOF"); // crash after accept, before advance
 
-    advanceManifestAndRegistryV4(config, manifest, request, expected);
+    await advanceManifestAndRegistryV4(config, manifest, request, expected);
     request.state = RequestState.CHAIN_VERIFIED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
+    // Surface 15: the manifest advanced — this spend's period accounting now
+    // lives in the durable registry (periodSpent), so the reservation record
+    // is complete and removed (the admission sweep would reclaim it anyway:
+    // its predecessorStateId no longer matches the live state).
+    await releaseReservationForRequest(config, request);
     maybeCrash(config, "AFTER_ADVANCE"); // crash after advance, before claim release
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId: request.txId,
       vaultId: request.vaultId,
       action: request.action,
       proof: { requestId, successorOutpoint: terminal ? null : `${request.txId}:${expected.index}`, value: expected.valueSompi, requiredFeeSompi: request.build.accounting.fee, actualFeeSompi: request.build.accounting.fee }
     });
-    appendAudit(config, { vaultId: request.vaultId, action: request.action, actor: request.signerRole, contractVersion: request.contractVersion, txId: request.txId, result: "CHAIN_VERIFIED", feeSompi: request.build.accounting.fee, oldStateId: request.predecessorStateId, newStateId: terminal ? null : request.successorStateId, via: "wallet" });
+    await appendAudit(config, { vaultId: request.vaultId, action: request.action, actor: request.signerRole, contractVersion: request.contractVersion, txId: request.txId, result: "CHAIN_VERIFIED", feeSompi: request.build.accounting.fee, oldStateId: request.predecessorStateId, newStateId: terminal ? null : request.successorStateId, via: "wallet" });
 
     return { request, txId: request.txId, expected };
   } finally {
@@ -341,9 +350,9 @@ async function proveExpectedEffectV4(rpc, expected) {
  * root-equality against the successor agentRoot (fail closed), and we reload
  * and reconstruct once more. For recovery: terminal, no successor.
  */
-function advanceManifestAndRegistryV4(config, manifest, request, expected) {
+async function advanceManifestAndRegistryV4(config, manifest, request, expected) {
   if (expected.kind === "recover") {
-    persistManifestV4(config, {
+    await persistManifestV4(config, {
       ...manifestToJson(manifest),
       status: VaultStatus.RECOVERED,
       live: null,
@@ -357,7 +366,7 @@ function advanceManifestAndRegistryV4(config, manifest, request, expected) {
   // place; value/approver/pause ops leave the registry unchanged.
   const successorRegistry = deriveSuccessorRegistry(manifest, request);
   const successorState = request.build.successorState;
-  const advanced = persistManifestV4(config, {
+  const advanced = await persistManifestV4(config, {
     ...manifestToJson(manifest),
     status: Number(successorState.paused) === 1 ? VaultStatus.PAUSED : VaultStatus.ACTIVE,
     agentRegistry: successorRegistry,
@@ -373,7 +382,7 @@ function advanceManifestAndRegistryV4(config, manifest, request, expected) {
     lastTransition: { action: request.action, txId: expected.txId, oldStateId: request.predecessorStateId, newStateId: expected.stateId, oldOutpoint: request.predecessorOutpoint, newOutpoint: { transactionId: expected.txId, index: Number(expected.index) } }
   });
   // Independent re-verification: reload from disk and reconstruct the root.
-  const reloaded = loadManifestV4(config, manifest.vaultId);
+  const reloaded = await loadManifestV4(config, manifest.vaultId);
   if (!reloaded.live || reloaded.agentRegistryRoot !== reloaded.live.state.agentRoot) {
     throw fail("post-advance registry reconstruction does not match the successor agentRoot — SECURITY STOP", "REGISTRY_DRIFT");
   }
@@ -452,7 +461,7 @@ function manifestToJson(manifest) {
  * covenant outpoint is chain-proven. testnet-10 only.
  */
 async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, rpc: providedRpc, pollAttempts = 30, pollDelayMs = 2000 }) {
-  const request = loadRequest(config, requestId);
+  const request = await loadRequest(config, requestId);
   if (!request) throw fail(`no request ${requestId}`, "BUILD_FAILED");
   if (request.kind !== "genesis" || request.schema !== "policyvault-wallet-request/v4") throw fail("not a v0.4 genesis request", "BUILD_FAILED");
   if (request.state !== RequestState.BUILT) throw fail(`genesis request is ${request.state}, not BUILT`, request.state);
@@ -468,7 +477,7 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
     signed = JSON.parse(signedSafeJson);
   } catch {
     request.state = RequestState.SIGNATURE_INVALID;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     throw fail("signed Safe JSON is not valid JSON", "SIGNATURE_INVALID");
   }
   assertGenesisImmutable(unsigned, signed);
@@ -481,7 +490,7 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
     const sig = signed.inputs[i]?.signatureScript;
     if (!sig) {
       request.state = RequestState.WALLET_REJECTED;
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`wallet did not sign funding input ${i}`, "WALLET_REJECTED");
     }
     ins[i].signatureScript = sig;
@@ -495,10 +504,10 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
     const txId = transaction.finalize().toString().toLowerCase();
     if (txId !== request.txId) throw fail(`reconstructed genesis txid ${txId} != frozen ${request.txId}`, "TXID_MISMATCH");
 
-    claimSubmission(config, { txId, vaultId: request.vaultId, action: "createVault" });
+    await claimSubmission(config, { txId, vaultId: request.vaultId, action: "createVault" });
     request.state = RequestState.SUBMITTING;
     request.txId = txId;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     maybeCrash(config, "AFTER_SUBMITTING");
 
     // The vault covenant address (for the exact proof).
@@ -514,22 +523,22 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
       const message = String(e.message ?? e).split("\n")[0];
       request.error = message;
       if (isDefinitiveSubmitRejection(message)) {
-        releaseSubmissionClaim(config, txId); // genesis has no transition claim
+        await releaseSubmissionClaim(config, txId); // genesis has no transition claim
         request.state = "SUBMISSION_REJECTED";
-        saveRequest(config, request);
+        await saveRequest(config, request);
         throw fail(`node rejected genesis: ${message}`, "SUBMISSION_REJECTED");
       }
       request.state = "RECONCILIATION_REQUIRED";
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`genesis submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
     }
     if (String(submitted.transactionId ?? submitted).toLowerCase() !== txId) {
       request.state = "RECONCILIATION_REQUIRED";
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail("node returned an unexpected genesis txid — reconcile", "RECONCILIATION_REQUIRED");
     }
     request.state = RequestState.SUBMITTED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     maybeCrash(config, "AFTER_SUBMITTED");
 
     // Prove the exact covenant vault output.
@@ -541,7 +550,7 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
     }
     if (!proof) {
       request.state = "RECONCILIATION_REQUIRED";
-      saveRequest(config, request);
+      await saveRequest(config, request);
       throw fail(`genesis ${txId} submitted but covenant output not observed — reconcile`, "RECONCILIATION_REQUIRED");
     }
     maybeCrash(config, "AFTER_PROOF");
@@ -549,7 +558,7 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
     // NOW create the authoritative manifest + initial registry (proven).
     const state = normalizeStateV4(request.initialState);
     const stateId = computeStateIdV4({ networkId: config.networkId, template: { owner: request.template.owner, vaultId: request.vaultId }, state, contractVersion: request.contractVersion });
-    persistManifestV4(config, {
+    await persistManifestV4(config, {
       schema: "policyvault-vault-manifest/v4",
       contractVersion: request.contractVersion,
       networkId: config.networkId,
@@ -564,14 +573,14 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
       lastTransition: null
     });
     // Independent post-create root reconstruction.
-    const reloaded = loadManifestV4(config, request.vaultId);
+    const reloaded = await loadManifestV4(config, request.vaultId);
     if (!reloaded.live || reloaded.agentRegistryRoot !== reloaded.live.state.agentRoot) {
       throw fail("post-genesis registry reconstruction mismatch — SECURITY STOP", "REGISTRY_DRIFT");
     }
-    persistReceipt(config, { txId, vaultId: request.vaultId, action: "createVault", proof: { requestId, outpoint: `${txId}:${request.vaultOutputIndex}`, covenantId: request.covenantId } });
-    appendAudit(config, { vaultId: request.vaultId, action: "vault_created", actor: "owner", contractVersion: request.contractVersion, txId, result: "CHAIN_VERIFIED", newStateId: stateId, via: "wallet" });
+    await persistReceipt(config, { txId, vaultId: request.vaultId, action: "createVault", proof: { requestId, outpoint: `${txId}:${request.vaultOutputIndex}`, covenantId: request.covenantId } });
+    await appendAudit(config, { vaultId: request.vaultId, action: "vault_created", actor: "owner", contractVersion: request.contractVersion, txId, result: "CHAIN_VERIFIED", newStateId: stateId, via: "wallet" });
     request.state = RequestState.CHAIN_VERIFIED;
-    saveRequest(config, request);
+    await saveRequest(config, request);
     return { request, txId, vaultAddress };
   } finally {
     if (owned) await rpc.disconnect();

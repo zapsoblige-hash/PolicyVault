@@ -127,7 +127,7 @@ fn base_state(root: [u8; 32]) -> S {
 }
 
 fn source(s: &S) -> String {
-    let path = format!("{}/policyvault/contracts/PolicyVault.v0.4.sil", std::env::var("HOME").unwrap());
+    let path = format!("{}/../../contracts/PolicyVault.v0.4.sil", env!("CARGO_MANIFEST_DIR"));
     let mut src = std::fs::read_to_string(&path).unwrap();
     let mut r = |from: String, to: String| {
         assert!(src.contains(&from), "anchor missing: {from}");

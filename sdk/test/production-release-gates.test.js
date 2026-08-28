@@ -53,7 +53,7 @@ async function waitFor(fn, ms = 30000) {
 
 /* ---------------------------- donation / support ---------------------------- */
 
-test("§9 donation validation: owner mainnet address accepted; testnet/malformed/empty fail closed", () => {
+test("§9 donation validation: owner mainnet address accepted; testnet/malformed/empty fail closed", async () => {
   // The owner-supplied production address validates as MAINNET (PubKeyECDSA —
   // a standard spendable receiving address; covenant identities remain
   // Schnorr-only through the separate address boundary).
@@ -163,7 +163,7 @@ test("§4 legacy v0.2 creation is DISABLED in production (explicit dev flag open
 
 /* --------------------------- network data separation --------------------------- */
 
-test("§11 a data root is stamped with its owning network; a cross-network process REFUSES it", () => {
+test("§11 a data root is stamped with its owning network; a cross-network process REFUSES it", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pv-netsep-"));
   const testnetConfig = loadConfig({ dataRoot: root });
   assertDataRootNetwork(testnetConfig); // stamps testnet-10
@@ -178,7 +178,7 @@ test("§11 a data root is stamped with its owning network; a cross-network proce
   assert.throws(() => createServer(loadConfig({ dataRoot: root })), /cross-network data contamination/);
 });
 
-test("§11 default data roots are per-network (mainnet never shares the testnet namespace)", () => {
+test("§11 default data roots are per-network (mainnet never shares the testnet namespace)", async () => {
   const t = loadConfig({});
   assert.equal(t.dataRoot, path.join(t.repoRoot, "data")); // checkout-relative
   // Mainnet config construction is locked (below), but the dataRoot rule is
@@ -188,7 +188,7 @@ test("§11 default data roots are per-network (mainnet never shares the testnet 
 
 /* ------------------------------ mainnet locking ------------------------------ */
 
-test("§12 mainnet remains DUAL-LOCKED: env flag AND explicit override are both required", () => {
+test("§12 mainnet remains DUAL-LOCKED: env flag AND explicit override are both required", async () => {
   assert.throws(() => loadConfig({ networkId: "mainnet" }), /mainnet mode is locked/);
   assert.throws(() => loadConfig({ networkId: "mainnet", allowMainnet: true }), /mainnet mode is locked/); // env flag absent
   const prev = process.env.POLICYVAULT_ALLOW_MAINNET;
@@ -200,9 +200,20 @@ test("§12 mainnet remains DUAL-LOCKED: env flag AND explicit override are both 
   }
 });
 
-test("§13/§14 startup validation refuses mainnet with dev signer / test hooks / legacy create armed", () => {
+test("§13/§14 startup validation refuses mainnet with dev signer / test hooks / legacy create armed", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pv-mainnet-guard-"));
-  const mainnetish = { networkId: "mainnet", dataRoot: root, allowMainnet: true, donationAddress: DEFAULT_DONATION_ADDRESS };
+  // A REAL dual-flag mainnet config through loadConfig (env flag +
+  // explicit override + explicit RPC URL — the Gate R deployment shape).
+  // Hand-rolled config objects are no longer accepted by validateStartup
+  // (it fails closed without the Phase D requestProtection block).
+  const prevAllow = process.env.POLICYVAULT_ALLOW_MAINNET;
+  process.env.POLICYVAULT_ALLOW_MAINNET = "true";
+  let mainnetish;
+  try {
+    mainnetish = loadConfig({ networkId: "mainnet", allowMainnet: true, rpcUrl: "ws://127.0.0.1:18110", dataRoot: root });
+  } finally {
+    if (prevAllow === undefined) delete process.env.POLICYVAULT_ALLOW_MAINNET; else process.env.POLICYVAULT_ALLOW_MAINNET = prevAllow;
+  }
   const prev = process.env.POLICYVAULT_DEV_SIGNER;
   process.env.POLICYVAULT_DEV_SIGNER = "1";
   try {
@@ -214,6 +225,11 @@ test("§13/§14 startup validation refuses mainnet with dev signer / test hooks 
   const report = validateStartup(mainnetish);
   assert.equal(report.devSigner, "disabled");
   assert.equal(report.mainnetBroadcast, "ENABLED"); // Gate R granted 2026-08-22: a dual-flag mainnet config is operational (mainnet-gate-r.test.js pins the posture)
+  // Hand-rolled configs (no requestProtection) refuse with a clear reason.
+  assert.throws(
+    () => validateStartup({ networkId: "mainnet", dataRoot: root, allowMainnet: true, donationAddress: DEFAULT_DONATION_ADDRESS }),
+    /lacks requestProtection/
+  );
 });
 
 test("§13 dev-signer routes are unavailable without the explicit dev environment", async () => {
@@ -240,8 +256,8 @@ test("§15 browser cross-origin POSTs are refused; same-origin and tool requests
 /* ------------------------------ Activity surface ------------------------------ */
 
 test("§7 Activity: durable audit events served with CHAIN/METADATA separation and rendered in the browser", async () => {
-  appendAudit(config, { kind: "metadata", orgId: "00000000-0000-0000-0000-000000000001", action: "org_created", detail: "Activity Test Org" });
-  appendAudit(config, { kind: "chain", vaultId: "aa".repeat(32), action: "spend_chain_verified", txId: "bb".repeat(32) });
+  await appendAudit(config, { kind: "metadata", orgId: "00000000-0000-0000-0000-000000000001", action: "org_created", detail: "Activity Test Org" });
+  await appendAudit(config, { kind: "chain", vaultId: "aa".repeat(32), action: "spend_chain_verified", txId: "bb".repeat(32) });
   const { j } = await get("/audit?limit=50");
   assert.ok(j.events.some((e) => e.kind === "metadata" && e.action === "org_created"));
   assert.ok(j.events.some((e) => e.kind !== "metadata" && e.action === "spend_chain_verified"));

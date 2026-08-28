@@ -1,0 +1,917 @@
+{
+ "schema": "policyvault-core-model-golden/v1",
+ "apiSurface": {
+  "amounts": {
+   "keys": [
+    "MAX_SOMPI",
+    "SOMPI_PER_KAS",
+    "kasToSompi",
+    "parsePositiveSompi",
+    "parseSompi",
+    "sompiToKas"
+   ],
+   "types": {
+    "MAX_SOMPI": "bigint",
+    "SOMPI_PER_KAS": "bigint",
+    "kasToSompi": "function",
+    "parsePositiveSompi": "function",
+    "parseSompi": "function",
+    "sompiToKas": "function"
+   }
+  },
+  "canonicalJson": {
+   "keys": [
+    "canonicalJsonStringify"
+   ],
+   "types": {
+    "canonicalJsonStringify": "function"
+   }
+  },
+  "vaultState": {
+   "keys": [
+    "computeStateId",
+    "normalizeHex",
+    "normalizePolicy",
+    "normalizeState",
+    "normalizeXOnlyPubkey",
+    "rolloverSuccessor",
+    "spendSuccessor"
+   ],
+   "types": {
+    "computeStateId": "function",
+    "normalizeHex": "function",
+    "normalizePolicy": "function",
+    "normalizeState": "function",
+    "normalizeXOnlyPubkey": "function",
+    "rolloverSuccessor": "function",
+    "spendSuccessor": "function"
+   }
+  },
+  "agentMerkle": {
+   "keys": [
+    "AGENT_LEAF_DOMAIN",
+    "AGENT_PADDING_DOMAIN",
+    "MAX_AGENTS",
+    "MAX_AGENT_DEPTH",
+    "PADDING_LEAF_HEX",
+    "addAgentV4",
+    "agentLeafHash",
+    "agentLeafPreimage",
+    "applyAgentSpendV4",
+    "buildAgentTreeV4",
+    "foldAgentPolicyV4",
+    "foldLeafV4",
+    "generateAgentProofV4",
+    "normalizeAgentPolicyV4",
+    "removeAgentV4",
+    "rotateAgentV4",
+    "updateAgentPolicyV4",
+    "verifyAgentProofV4"
+   ],
+   "types": {
+    "AGENT_LEAF_DOMAIN": "object",
+    "AGENT_PADDING_DOMAIN": "object",
+    "MAX_AGENTS": "number",
+    "MAX_AGENT_DEPTH": "number",
+    "PADDING_LEAF_HEX": "string",
+    "addAgentV4": "function",
+    "agentLeafHash": "function",
+    "agentLeafPreimage": "function",
+    "applyAgentSpendV4": "function",
+    "buildAgentTreeV4": "function",
+    "foldAgentPolicyV4": "function",
+    "foldLeafV4": "function",
+    "generateAgentProofV4": "function",
+    "normalizeAgentPolicyV4": "function",
+    "removeAgentV4": "function",
+    "rotateAgentV4": "function",
+    "updateAgentPolicyV4": "function",
+    "verifyAgentProofV4": "function"
+   }
+  }
+ },
+ "amounts": {
+  "constants": {
+   "MAX_SOMPI": {
+    "__bigint__": "2900000000000000000"
+   },
+   "SOMPI_PER_KAS": {
+    "__bigint__": "100000000"
+   }
+  },
+  "parseSompi": {
+   "accepts": {
+    "big": {
+     "__bigint__": "12345678901234567"
+    },
+    "bigintIn": {
+     "__bigint__": "5"
+    },
+    "leadingZeros": {
+     "__bigint__": "42"
+    },
+    "max": {
+     "__bigint__": "2900000000000000000"
+    },
+    "one": {
+     "__bigint__": "1"
+    },
+    "zero": {
+     "__bigint__": "0"
+    }
+   },
+   "rejects": {
+    "negativeString": {
+     "threw": true,
+     "message": "amounts: amount must be a base-10 digit string, got \"-1\"",
+     "code": null
+    },
+    "negativeBigint": {
+     "threw": true,
+     "message": "amounts: amount must not be negative",
+     "code": null
+    },
+    "decimal": {
+     "threw": true,
+     "message": "amounts: amount must be a base-10 digit string, got \"1.5\"",
+     "code": null
+    },
+    "exponent": {
+     "threw": true,
+     "message": "amounts: amount must be a base-10 digit string, got \"1e3\"",
+     "code": null
+    },
+    "empty": {
+     "threw": true,
+     "message": "amounts: amount must be a base-10 digit string, got \"\"",
+     "code": null
+    },
+    "hexish": {
+     "threw": true,
+     "message": "amounts: amount must be a base-10 digit string, got \"0x10\"",
+     "code": null
+    },
+    "number": {
+     "threw": true,
+     "message": "amounts: amount must be a BigInt or decimal string, got number",
+     "code": null
+    },
+    "nan": {
+     "threw": true,
+     "message": "amounts: amount must be a BigInt or decimal string, got number",
+     "code": null
+    },
+    "overMax": {
+     "threw": true,
+     "message": "amounts: amount exceeds maximum representable sompi",
+     "code": null
+    },
+    "namedField": {
+     "threw": true,
+     "message": "amounts: state.protectedValue must be a base-10 digit string, got \"bad\"",
+     "code": null
+    }
+   }
+  },
+  "parsePositiveSompi": {
+   "accepts": {
+    "one": {
+     "__bigint__": "1"
+    }
+   },
+   "rejects": {
+    "zero": {
+     "threw": true,
+     "message": "amounts: payAmount must be greater than zero",
+     "code": null
+    }
+   }
+  },
+  "kasToSompi": {
+   "accepts": {
+    "eightFrac": {
+     "__bigint__": "123456789"
+    },
+    "half": {
+     "__bigint__": "50000000"
+    },
+    "leadingZeros": {
+     "__bigint__": "710000000"
+    },
+    "nearMaxWhole": {
+     "__bigint__": "2899999999900000000"
+    },
+    "oneSompi": {
+     "__bigint__": "1"
+    },
+    "trimmed": {
+     "__bigint__": "314000000"
+    },
+    "whole": {
+     "__bigint__": "1200000000"
+    },
+    "zero": {
+     "__bigint__": "0"
+    }
+   },
+   "rejects": {
+    "nineFrac": {
+     "threw": true,
+     "message": "amounts: amount is not a valid KAS decimal string: \"1.234567890\"",
+     "code": null
+    },
+    "bareDot": {
+     "threw": true,
+     "message": "amounts: amount is not a valid KAS decimal string: \".5\"",
+     "code": null
+    },
+    "trailingDot": {
+     "threw": true,
+     "message": "amounts: amount is not a valid KAS decimal string: \"1.\"",
+     "code": null
+    },
+    "negative": {
+     "threw": true,
+     "message": "amounts: amount is not a valid KAS decimal string: \"-1\"",
+     "code": null
+    },
+    "exponent": {
+     "threw": true,
+     "message": "amounts: amount is not a valid KAS decimal string: \"1e2\"",
+     "code": null
+    },
+    "number": {
+     "threw": true,
+     "message": "amounts: amount must be a string KAS amount, got number",
+     "code": null
+    },
+    "overMax": {
+     "threw": true,
+     "message": "amounts: amount exceeds maximum representable sompi",
+     "code": null
+    }
+   }
+  },
+  "sompiToKas": {
+   "accepts": {
+    "zero": "0",
+    "oneSompi": "0.00000001",
+    "oneKas": "1",
+    "oneAndHalf": "1.5",
+    "tiny": "0.00000123",
+    "max": "29000000000",
+    "stringIn": "3.4"
+   },
+   "rejects": {
+    "negative": {
+     "threw": true,
+     "message": "amounts: amount must not be negative",
+     "code": null
+    }
+   }
+  }
+ },
+ "canonicalJson": {
+  "accepts": {
+   "keySorting": "{\"10\":4,\"9\":5,\"A\":3,\"a\":2,\"b\":1}",
+   "nested": "{\"first\":true,\"outer\":{\"a\":null,\"z\":[3,2,{\"a\":\"a\",\"b\":\"b\"}]}}",
+   "arrayOrderKept": "[3,1,2,[\"b\",\"a\"]]",
+   "unicode": "{\"A\":\"\\u0000tail\",\"é\":\"café\"}",
+   "primitives": "{\"big\":1e+21,\"f\":false,\"frac\":1.5,\"i\":0,\"n\":null,\"neg\":-7,\"negZero\":0,\"t\":true}",
+   "empties": "{\"a\":[],\"o\":{}}",
+   "escapes": "{\"s\":\"quote\\\" back\\\\ nl\\n tab\\t\"}",
+   "nullPrototype": "{\"a\":\"x\",\"z\":1}",
+   "topLevelString": "\"plain\"",
+   "topLevelNumber": "42"
+  },
+  "rejects": {
+   "bigint": {
+    "threw": true,
+    "message": "canonical-json: BigInt at $.v — consensus integers must be committed as strings",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "undefinedMember": {
+    "threw": true,
+    "message": "canonical-json: undefined at $.v — a commitment field may not be silently omitted",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "fn": {
+    "threw": true,
+    "message": "canonical-json: function at $.v — not JSON",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "nan": {
+    "threw": true,
+    "message": "canonical-json: non-finite number at $.v — failing closed",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "infinity": {
+    "threw": true,
+    "message": "canonical-json: non-finite number at $.v — failing closed",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "negInfinity": {
+    "threw": true,
+    "message": "canonical-json: non-finite number at $.v — failing closed",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "date": {
+    "threw": true,
+    "message": "canonical-json: non-plain object at $.v — refusing to canonicalize",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "map": {
+    "threw": true,
+    "message": "canonical-json: non-plain object at $.v — refusing to canonicalize",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "classInstance": {
+    "threw": true,
+    "message": "canonical-json: non-plain object at $.v — refusing to canonicalize",
+    "code": "CANONICAL_JSON_INVALID"
+   },
+   "nestedPath": {
+    "threw": true,
+    "message": "canonical-json: BigInt at $.a[0].deep.v — consensus integers must be committed as strings",
+    "code": "CANONICAL_JSON_INVALID"
+   }
+  }
+ },
+ "vaultState": {
+  "normalizePolicy": {
+   "one": {
+    "declaredRecipientCount": 1,
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "initPeriodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "initValue": {
+     "__bigint__": "5000000000"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "owner": "1111111111111111111111111111111111111111111111111111111111111111",
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "vaultId": "3333333333333333333333333333333333333333333333333333333333333333"
+   },
+   "two": {
+    "declaredRecipientCount": 2,
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "initPeriodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "initValue": {
+     "__bigint__": "5000000000"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "owner": "1111111111111111111111111111111111111111111111111111111111111111",
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "recipients": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "vaultId": "3333333333333333333333333333333333333333333333333333333333333333"
+   },
+   "three": {
+    "declaredRecipientCount": 3,
+    "delegate": "2222222222222222222222222222222222222222222222222222222222222222",
+    "initPeriodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "initValue": {
+     "__bigint__": "5000000000"
+    },
+    "maxPerSpend": {
+     "__bigint__": "100000000"
+    },
+    "owner": "1111111111111111111111111111111111111111111111111111111111111111",
+    "periodBudget": {
+     "__bigint__": "1000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "86400"
+    },
+    "recipients": [
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "vaultId": "3333333333333333333333333333333333333333333333333333333333333333"
+   },
+   "rejects": {
+    "zeroRecipients": {
+     "threw": true,
+     "message": "vault-state: policy.recipients must contain 1 to 3 recipients",
+     "code": null
+    },
+    "fourRecipients": {
+     "threw": true,
+     "message": "vault-state: policy.recipients must contain 1 to 3 recipients",
+     "code": null
+    },
+    "budgetBelowMax": {
+     "threw": true,
+     "message": "vault-state: policy.periodBudget must be >= policy.maxPerSpend",
+     "code": null
+    },
+    "badOwner": {
+     "threw": true,
+     "message": "vault-state: policy.owner must be 32-byte lowercase hex",
+     "code": null
+    },
+    "daaOverThreshold": {
+     "threw": true,
+     "message": "vault-state: policy.initPeriodStartDaa must be below the DAA lock-time threshold",
+     "code": null
+    },
+    "missing": {
+     "threw": true,
+     "message": "vault-state: policy object is required",
+     "code": null
+    }
+   }
+  },
+  "normalizeState": {
+   "s1": {
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "protectedValue": {
+     "__bigint__": "5000000000"
+    }
+   },
+   "s2": {
+    "paused": {
+     "__bigint__": "1"
+    },
+    "periodSpent": {
+     "__bigint__": "300000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541086400"
+    },
+    "protectedValue": {
+     "__bigint__": "4200000000"
+    }
+   },
+   "rejects": {
+    "pausedTwo": {
+     "threw": true,
+     "message": "vault-state: state.paused out of range [0, 1]",
+     "code": null
+    },
+    "zeroProtected": {
+     "threw": true,
+     "message": "amounts: state.protectedValue must be greater than zero",
+     "code": null
+    }
+   }
+  },
+  "computeStateId": {
+   "testnetS1": "81d835a7949f4dc24a78d05aa22aad80a2c33bd6e1622043891e8cd6b6d0e613",
+   "testnetS2": "b130a2341de848f1f5ab05fff02d1cb63c6f0bbe844fb8ce2b6b49c738981d92",
+   "mainnetS1": "45a67d8e5797d5955712fe40568f5aa345bb14efa46cd58e6e54f2c713c3d35f",
+   "mainnetS2": "2b22e5f511b709e173e1537df398956e8c7c7bf65ac6e1bc5f7aa5ce20be6164",
+   "rejects": {
+    "emptyNetwork": {
+     "threw": true,
+     "message": "vault-state: networkId is required for the state ID",
+     "code": null
+    }
+   }
+  },
+  "successors": {
+   "spend": {
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodSpent": {
+     "__bigint__": "100000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    },
+    "protectedValue": {
+     "__bigint__": "4900000000"
+    }
+   },
+   "rollover": {
+    "paused": {
+     "__bigint__": "0"
+    },
+    "periodSpent": {
+     "__bigint__": "100000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541259200"
+    },
+    "protectedValue": {
+     "__bigint__": "4900000000"
+    }
+   },
+   "rejects": {
+    "spendAll": {
+     "threw": true,
+     "message": "vault-state: spend would not leave a positive successor value",
+     "code": null
+    },
+    "zeroPeriods": {
+     "threw": true,
+     "message": "vault-state: periodsElapsed out of range [1, 1000]",
+     "code": null
+    },
+    "tooManyPeriods": {
+     "threw": true,
+     "message": "vault-state: periodsElapsed out of range [1, 1000]",
+     "code": null
+    }
+   }
+  },
+  "hexHelpers": {
+   "accepts": {
+    "trimmedLower": "abcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "mixedCase": "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+    "twoByte": "beef"
+   },
+   "rejects": {
+    "shortHex": {
+     "threw": true,
+     "message": "vault-state: field must be 32-byte lowercase hex",
+     "code": null
+    },
+    "nonHex": {
+     "threw": true,
+     "message": "vault-state: field must be 32-byte lowercase hex",
+     "code": null
+    },
+    "nonString": {
+     "threw": true,
+     "message": "vault-state: field must be a hex string",
+     "code": null
+    }
+   }
+  }
+ },
+ "agentMerkle": {
+  "constants": {
+   "AGENT_LEAF_DOMAIN": {
+    "__buffer__": "50563401"
+   },
+   "AGENT_PADDING_DOMAIN": {
+    "__buffer__": "50563400"
+   },
+   "MAX_AGENTS": 4096,
+   "MAX_AGENT_DEPTH": 12,
+   "PADDING_LEAF_HEX": "5c646a4a6876b59e313254411585f771fee77dba8d9e947d5bd4a777b2a1d7f8"
+  },
+  "leaf": {
+   "normalized": {
+    "agentMaxFeePerTx": {
+     "__bigint__": "100000000"
+    },
+    "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+    "approvalThreshold": {
+     "__bigint__": "5000000000"
+    },
+    "maxPerSpend": {
+     "__bigint__": "20000000000"
+    },
+    "periodBudget": {
+     "__bigint__": "100000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "864000"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    }
+   },
+   "preimageHex": "50563401aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00c817a80400000000e8764817000000002f0d000000000040013f2000000000000000000000000000f2052a0100000000e1f50500000000fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+   "hashHex": "f95ef0a29422af2af033b7b1f3ef5df443fb932b23fbfdfc37e46dd6765d1974",
+   "rejects": {
+    "zeroMaxPerSpend": {
+     "threw": true,
+     "message": "amounts: agentPolicy.maxPerSpend must be greater than zero",
+     "code": null
+    },
+    "badRoot": {
+     "threw": true,
+     "message": "vault-state: agentPolicy.agentRecipientRoot must be 32-byte lowercase hex",
+     "code": null
+    },
+    "missing": {
+     "threw": true,
+     "message": "agent-merkle-v4: agent policy object is required",
+     "code": null
+    }
+   }
+  },
+  "trees": {
+   "empty": {
+    "root": "5c646a4a6876b59e313254411585f771fee77dba8d9e947d5bd4a777b2a1d7f8",
+    "realCount": 0,
+    "leafCount": 1,
+    "depth": 0,
+    "order": []
+   },
+   "emptyRootIsPaddingLeaf": true,
+   "one": {
+    "root": "f95ef0a29422af2af033b7b1f3ef5df443fb932b23fbfdfc37e46dd6765d1974",
+    "realCount": 1,
+    "leafCount": 1,
+    "depth": 0,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+   },
+   "two": {
+    "root": "78160233260e6dee5e2f7ceb99ef540067f6b3fce812292bc005de249c4d190f",
+    "realCount": 2,
+    "leafCount": 2,
+    "depth": 1,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ]
+   },
+   "insertionOrderFree": true,
+   "three": {
+    "root": "1b1464521b273b6e630f7c7a742860d63bcdad5ffcba7e42397d580e9a75fe05",
+    "realCount": 3,
+    "leafCount": 4,
+    "depth": 2,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+   },
+   "five": {
+    "root": "3dab113ac218f4d316ffffde3f882c1546c5ac1d02971a769b521a7ce1a13666",
+    "realCount": 5,
+    "leafCount": 8,
+    "depth": 3,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ]
+   },
+   "rejects": {
+    "duplicate": {
+     "threw": true,
+     "message": "agent-merkle-v4: duplicate agentPk aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa — one key may hold exactly one policy leaf (duplicate leaves would be independent budget lanes)",
+     "code": "DUPLICATE_AGENT"
+    },
+    "notArray": {
+     "threw": true,
+     "message": "agent-merkle-v4: agents must be an array of agent-policy objects (may be empty)",
+     "code": null
+    }
+   }
+  },
+  "proofs": {
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+    "siblingsHex": "9c1c25b5e8162cd06646eb665a6ef1b00b3af9d9770baeab7232597952cf68f179aed6c7c33eda3ff21ea32d49e2bf190d26d818b7eb4c5b50d635f5eb94b76a801e3aa6016a311bdfb4405b7914e19d02866cf7af96234959966f532cf07c24",
+    "pathBits": "0",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+    "siblingsHex": "f95ef0a29422af2af033b7b1f3ef5df443fb932b23fbfdfc37e46dd6765d197479aed6c7c33eda3ff21ea32d49e2bf190d26d818b7eb4c5b50d635f5eb94b76a801e3aa6016a311bdfb4405b7914e19d02866cf7af96234959966f532cf07c24",
+    "pathBits": "1",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc": {
+    "siblingsHex": "99de2c5009d5640701e9a58cb14c9eb08cfa5e9462a2dec0466f5ca5d1d5b8ea78160233260e6dee5e2f7ceb99ef540067f6b3fce812292bc005de249c4d190f801e3aa6016a311bdfb4405b7914e19d02866cf7af96234959966f532cf07c24",
+    "pathBits": "2",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd": {
+    "siblingsHex": "8f441b712877dca8206af735531a47e51c8caf529c223e8dd43085134e995efc78160233260e6dee5e2f7ceb99ef540067f6b3fce812292bc005de249c4d190f801e3aa6016a311bdfb4405b7914e19d02866cf7af96234959966f532cf07c24",
+    "pathBits": "3",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   },
+   "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": {
+    "siblingsHex": "5c646a4a6876b59e313254411585f771fee77dba8d9e947d5bd4a777b2a1d7f8ac6dcaa4f1e075f04f5f56252ffb069ed193d83934a0521bd8c48eb70e74a54240f5fd6d079dcc2088b99aafa3c27840559efa92ff11ed439930e8a9573eaae3",
+    "pathBits": "4",
+    "depth": 3,
+    "verifies": true,
+    "wrongRoot": false
+   }
+  },
+  "fold": {
+   "foldAtoRoot": "3dab113ac218f4d316ffffde3f882c1546c5ac1d02971a769b521a7ce1a13666",
+   "foldPolicyAtoRoot": "3dab113ac218f4d316ffffde3f882c1546c5ac1d02971a769b521a7ce1a13666",
+   "excessPathBits": null,
+   "rejects": {
+    "oddHex": {
+     "threw": true,
+     "message": "agent-merkle-v4: siblingsHex must be lowercase hex",
+     "code": null
+    },
+    "notMultipleOf32": {
+     "threw": true,
+     "message": "agent-merkle-v4: siblings length must be a multiple of 32 bytes",
+     "code": null
+    },
+    "tooDeep": {
+     "threw": true,
+     "message": "agent-merkle-v4: proof depth 13 exceeds the covenant maximum 12",
+     "code": null
+    },
+    "pathBitsOutOfRange": {
+     "threw": true,
+     "message": "agent-merkle-v4: pathBits out of range [0, 4096)",
+     "code": null
+    },
+    "badLeaf": {
+     "threw": true,
+     "message": "agent-merkle-v4: leaf must be a 32-byte Buffer",
+     "code": null
+    }
+   }
+  },
+  "edits": {
+   "addB": {
+    "root": "78160233260e6dee5e2f7ceb99ef540067f6b3fce812292bc005de249c4d190f",
+    "realCount": 2,
+    "leafCount": 2,
+    "depth": 1,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ]
+   },
+   "addEqualsBuild": true,
+   "removeB": {
+    "root": "f95ef0a29422af2af033b7b1f3ef5df443fb932b23fbfdfc37e46dd6765d1974",
+    "realCount": 1,
+    "leafCount": 1,
+    "depth": 0,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+   },
+   "removeEqualsOne": true,
+   "update": {
+    "root": "38c4365dbf2f6426b34fe4d8dffc4f2807bb87aaf141d472f346199c44cccfdf",
+    "realCount": 2,
+    "leafCount": 2,
+    "depth": 1,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ]
+   },
+   "rotate": {
+    "root": "25e9bc282ada2823c0ddc996d751dae6c1695eef7b4454f83f78e30dabfdb85d",
+    "realCount": 2,
+    "leafCount": 2,
+    "depth": 1,
+    "order": [
+     "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+   },
+   "rejects": {
+    "addDuplicate": {
+     "threw": true,
+     "message": "agent-merkle-v4: agent aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa already exists — use updateAgentPolicyV4/rotateAgentV4",
+     "code": "DUPLICATE_AGENT"
+    },
+    "removeMissing": {
+     "threw": true,
+     "message": "agent-merkle-v4: agent 7777777777777777777777777777777777777777777777777777777777777777 is not in this tree — nothing to remove",
+     "code": null
+    },
+    "updateMissing": {
+     "threw": true,
+     "message": "agent-merkle-v4: agent 7777777777777777777777777777777777777777777777777777777777777777 is not in this tree — use addAgentV4",
+     "code": null
+    },
+    "rotateToSameKey": {
+     "threw": true,
+     "message": "agent-merkle-v4: rotation requires a NEW agent key — use updateAgentPolicyV4 to re-policy the same key",
+     "code": null
+    },
+    "rotateMissing": {
+     "threw": true,
+     "message": "agent-merkle-v4: agent 7777777777777777777777777777777777777777777777777777777777777777 is not in this tree — cannot rotate",
+     "code": null
+    }
+   }
+  },
+  "applyAgentSpend": {
+   "newRoot": "c45a7ac89fc4a21288903bfc0512dad96790cf190fe6878933b924c990e9c05e",
+   "previousPolicy": {
+    "agentMaxFeePerTx": {
+     "__bigint__": "100000000"
+    },
+    "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+    "approvalThreshold": {
+     "__bigint__": "5000000000"
+    },
+    "maxPerSpend": {
+     "__bigint__": "20000000000"
+    },
+    "periodBudget": {
+     "__bigint__": "100000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "864000"
+    },
+    "periodSpent": {
+     "__bigint__": "0"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541000000"
+    }
+   },
+   "newPolicy": {
+    "agentMaxFeePerTx": {
+     "__bigint__": "100000000"
+    },
+    "agentPk": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "agentRecipientRoot": "fafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+    "approvalThreshold": {
+     "__bigint__": "5000000000"
+    },
+    "maxPerSpend": {
+     "__bigint__": "20000000000"
+    },
+    "periodBudget": {
+     "__bigint__": "100000000000"
+    },
+    "periodLengthDaa": {
+     "__bigint__": "864000"
+    },
+    "periodSpent": {
+     "__bigint__": "250000000"
+    },
+    "periodStartDaa": {
+     "__bigint__": "541864000"
+    }
+   },
+   "shape": {
+    "root": "c45a7ac89fc4a21288903bfc0512dad96790cf190fe6878933b924c990e9c05e",
+    "realCount": 5,
+    "leafCount": 8,
+    "depth": 3,
+    "order": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+     "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+     "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ]
+   },
+   "rejects": {
+    "missingAgent": {
+     "threw": true,
+     "message": "agent-merkle-v4: agent 7777777777777777777777777777777777777777777777777777777777777777 is not in this tree — cannot advance accounting",
+     "code": null
+    }
+   }
+  }
+ }
+}

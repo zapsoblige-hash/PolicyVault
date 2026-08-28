@@ -34,7 +34,7 @@ const KAS: i64 = 100_000_000;
 const VAULT_ID_HEX: &str = "2222222222222222222222222222222222222222222222222222222222222222";
 
 fn encoder_path() -> PathBuf {
-    PathBuf::from(format!("{}/policyvault/tests/vm/target/debug/pv_call_encoder", std::env::var("HOME").unwrap()))
+    PathBuf::from(format!("{}/target/debug/pv_call_encoder", env!("CARGO_MANIFEST_DIR")))
 }
 
 fn hexs(bytes: &[u8]) -> String {

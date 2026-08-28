@@ -39,7 +39,7 @@ const RECIP_DOMAIN: [u8; 4] = [0x50, 0x56, 0x33, 0x01];
 const ZERO32: [u8; 32] = [0u8; 32];
 
 fn encoder_path() -> PathBuf {
-    PathBuf::from(format!("{}/policyvault/tests/vm/target/debug/pv_call_encoder", std::env::var("HOME").unwrap()))
+    PathBuf::from(format!("{}/target/debug/pv_call_encoder", env!("CARGO_MANIFEST_DIR")))
 }
 fn hexs(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
@@ -121,7 +121,7 @@ const NAMES: [&str; 10] = ["approver1","approver2","approver3","approver4","appr
 /// Exact-live-state source — the SAME templating the SDK contract-compiler-v4
 /// produces (anchors identical to PolicyVault.v0.4.sil initializers).
 fn templated_source(s: &S) -> String {
-    let path = format!("{}/policyvault/contracts/PolicyVault.v0.4.sil", std::env::var("HOME").unwrap());
+    let path = format!("{}/../../contracts/PolicyVault.v0.4.sil", env!("CARGO_MANIFEST_DIR"));
     let mut src = std::fs::read_to_string(&path).unwrap();
     let mut r = |from: String, to: String| {
         assert!(src.contains(&from), "anchor missing: {from}");

@@ -1,0 +1,119 @@
+# PolicyVault TESTNET-10 STAGING stack (Phase E). NON-PRODUCTION ONLY.
+#
+#   docker compose -f deploy/docker-compose.staging.yml --env-file deploy/staging.env ...
+#
+# Topology (mirrors the production shape at container scale):
+#   internet -> Cloudflare edge -> cloudflared (outbound tunnel) -> app:3080
+#   app -> postgres:5432          (compose-private network only)
+#   app -> host kaspad JSON wRPC  (via the host-side private forwarder,
+#                                  tools/staging-kaspad-proxy.js — bound to
+#                                  the Docker bridge interface only; the
+#                                  RPC ports are NEVER internet-reachable)
+#
+# NO service publishes a host port: the ONLY ingress is the Cloudflare
+# Tunnel. PostgreSQL is reachable only on the compose network. The app
+# container: non-root, read-only rootfs, bounded memory/pids/logs, tmpfs
+# scratch. Secrets come exclusively from deploy/staging.env (gitignored).
+#
+# Startup order: postgres (healthy) -> migrate (one-shot, advisory-locked)
+# -> app (fails closed if the schema is missing — it never auto-migrates)
+# -> cloudflared.
+
+name: policyvault-staging
+
+services:
+  postgres:
+    image: ${PV_STAGING_POSTGRES_IMAGE:?set in deploy/staging.env (pinned postgres image)}
+    environment:
+      POSTGRES_USER: ${PV_STAGING_PG_USER:?}
+      POSTGRES_PASSWORD: ${PV_STAGING_PG_PASSWORD:?}
+      POSTGRES_DB: ${PV_STAGING_PG_DATABASE:?}
+    volumes:
+      - pv-staging-pgdata:/var/lib/postgresql/data
+    networks: [pvnet]
+    # NO ports: — never published to the host or the internet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PV_STAGING_PG_USER} -d ${PV_STAGING_PG_DATABASE}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    mem_limit: 512m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # One-shot schema migration (explicit deployment step, never automatic):
+  #   docker compose ... run --rm migrate
+  migrate:
+    image: policyvault-app:${PV_STAGING_APP_TAG:-staging}
+    profiles: [ops]
+    # MUST override the image ENTRYPOINT (server.js), not `command:` —
+    # compose `command` is APPENDED to the entrypoint, which would run
+    # the server (found by the real Phase E-R container run: the server
+    # then fails closed on the missing schema instead of migrating).
+    entrypoint: ["node", "/app/server/src/migrate.js"]
+    env_file: [staging.env]
+    networks: [pvnet]
+    depends_on:
+      postgres: { condition: service_healthy }
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+  app:
+    image: policyvault-app:${PV_STAGING_APP_TAG:-staging}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        POLICYVAULT_BUILD_ID: ${POLICYVAULT_BUILD_ID:-}
+    env_file: [staging.env]
+    environment:
+      # Bind the container namespace interface; nothing is published, so
+      # the listener is reachable only from the compose network
+      # (cloudflared + tests), never from the internet.
+      POLICYVAULT_BIND_ADDRESS: "0.0.0.0"
+    networks: [pvnet]
+    depends_on:
+      postgres: { condition: service_healthy }
+    # NO ports: — ingress is exclusively the Cloudflare Tunnel.
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      - /app/data:size=256m,uid=10001,gid=10001,mode=0700
+    extra_hosts:
+      # The host-side kaspad forwarder (tools/staging-kaspad-proxy.js)
+      # listens on the Docker bridge gateway address only.
+      - "host-kaspad:host-gateway"
+    restart: unless-stopped
+    mem_limit: 1g
+    pids_limit: 256
+    cpus: 2
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  cloudflared:
+    image: ${PV_STAGING_CLOUDFLARED_IMAGE:?set in deploy/staging.env (pinned cloudflared image)}
+    # Quick Tunnel (TryCloudflare): outbound-only, no account, no token,
+    # random *.trycloudflare.com hostname — unmistakably non-production.
+    # The assigned URL appears in this service's logs and must match
+    # POLICYVAULT_APP_ORIGIN in staging.env (restart app after updating).
+    command: ["tunnel", "--no-autoupdate", "--url", "http://app:3080"]
+    networks: [pvnet]
+    depends_on: [app]
+    restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+networks:
+  pvnet:
+    driver: bridge
+
+volumes:
+  pv-staging-pgdata: {}

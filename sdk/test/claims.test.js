@@ -18,15 +18,14 @@ function tempConfig() {
 
 const outpoint = { transactionId: "a".repeat(64), index: 1 };
 
-test("transition claim is create-only: a second attempt on the same outpoint conflicts", () => {
+test("transition claim is create-only: a second attempt on the same outpoint conflicts", async () => {
   const { config, dataRoot } = tempConfig();
   try {
-    claimTransition(config, { outpoint, action: "delegateSpend", txId: "b".repeat(64), vaultId: "v", stateId: "s" });
-    assert.throws(
-      () => claimTransition(config, { outpoint, action: "ownerRecover", txId: "c".repeat(64), vaultId: "v", stateId: "s" }),
+    await claimTransition(config, { outpoint, action: "delegateSpend", txId: "b".repeat(64), vaultId: "v", stateId: "s" });
+    await assert.rejects(async () => claimTransition(config, { outpoint, action: "ownerRecover", txId: "c".repeat(64), vaultId: "v", stateId: "s" }),
       (e) => e.code === "CLAIM_CONFLICT"
     );
-    const loaded = loadTransitionClaim(config, outpoint);
+    const loaded = await loadTransitionClaim(config, outpoint);
     assert.equal(loaded.action, "delegateSpend");
     assert.equal(loaded.txId, "b".repeat(64));
   } finally {
@@ -34,12 +33,12 @@ test("transition claim is create-only: a second attempt on the same outpoint con
   }
 });
 
-test("two different outpoints can be claimed independently", () => {
+test("two different outpoints can be claimed independently", async () => {
   const { config, dataRoot } = tempConfig();
   try {
-    claimTransition(config, { outpoint, action: "delegateSpend", txId: "b".repeat(64), vaultId: "v", stateId: "s" });
+    await claimTransition(config, { outpoint, action: "delegateSpend", txId: "b".repeat(64), vaultId: "v", stateId: "s" });
     const other = { transactionId: "d".repeat(64), index: 0 };
-    assert.doesNotThrow(() =>
+    await assert.doesNotReject(() =>
       claimTransition(config, { outpoint: other, action: "delegateSpend", txId: "e".repeat(64), vaultId: "v", stateId: "s" })
     );
   } finally {
@@ -47,12 +46,12 @@ test("two different outpoints can be claimed independently", () => {
   }
 });
 
-test("submission claim is idempotent for the same txid", () => {
+test("submission claim is idempotent for the same txid", async () => {
   const { config, dataRoot } = tempConfig();
   try {
     const txId = "f".repeat(64);
-    const p1 = claimSubmission(config, { txId, vaultId: "v", action: "delegateSpend" });
-    const p2 = claimSubmission(config, { txId, vaultId: "v", action: "delegateSpend" });
+    const p1 = await claimSubmission(config, { txId, vaultId: "v", action: "delegateSpend" });
+    const p2 = await claimSubmission(config, { txId, vaultId: "v", action: "delegateSpend" });
     assert.equal(p1, p2);
   } finally {
     fs.rmSync(dataRoot, { recursive: true, force: true });

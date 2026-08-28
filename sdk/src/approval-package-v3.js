@@ -1,7 +1,8 @@
 "use strict";
 
 /*
- * PolicyVault v0.3 approval collection (Phase 4H §7–§10).
+ * PolicyVault v0.3 approval collection (Phase 4H §7–§10) — sdk
+ * COMPOSITION SHELL (shared-core extraction step 3).
  *
  * An approval package is the canonical, durable, serializable object an
  * above-threshold delegate spend collects approver signatures into. Its
@@ -19,22 +20,15 @@
  * minus output totals) — so a collected approval cannot survive any
  * mutation of the fields it authorizes.
  *
- * The package additionally carries a LOCAL COMMITMENT: sha256 over the
- * canonical serialization of every security-relevant field. Changing ANY
- * such field produces a different commitment and the package fails
- * integrity. THE COMMITMENT IS NOT A SIGNING DIGEST — approver authority
- * comes only from the Kaspa transaction signature. The commitment merely
- * identifies "this exact frozen approval package" and closes the fields
- * consensus does not commit (notably the covenant input's compute budget,
- * which the v1 sighash does NOT cover — see frozen-tx-v3.js).
- *
- * Fixed-slot semantics (production covenant): 10 slots x 65 bytes = one
- * 650-byte blob; slot i verifies ONLY approver i's configured key;
- * sentinel (all-zero) slots never count; the canonical absent/placeholder
- * signature is 64 x 0x00 || 0x01.
+ * The PURE package model (canonical commitment preimage + hasher — the
+ * G-2 key-order-independent serialization — fixed-slot bookkeeping,
+ * placeholder material, P2PK projection) lives in
+ * core/model/approval-package-v3.js and is re-exported here unchanged.
+ * This file keeps ONLY the members that reach the real consensus code
+ * through pv_tx_probe (creation, the integrity gate's txId/sighash
+ * re-derivation, approval submission, blob emission, JSON round-trip),
+ * verbatim from the pre-split implementation.
  */
-
-const crypto = require("crypto");
 
 const { parseSompi } = require("./amounts");
 const { normalizeHex } = require("./vault-state");
@@ -43,64 +37,26 @@ const { verifyRecipientProof } = require("./recipient-merkle-v3");
 const {
   normalizeFrozenTxV3,
   canonicalFrozenTxJson,
-  frozenTxCommitment,
   describeFrozenTx,
   verifyApprovalSignature
 } = require("./frozen-tx-v3");
+const {
+  APPROVAL_PACKAGE_SCHEMA,
+  PLACEHOLDER_APPROVAL,
+  p2pkScriptHex,
+  packageCommitmentV3,
+  collectedCount,
+  missingSlots,
+  isCompleteV3,
+  placeholderApprovalsBlob
+} = require("../../core/model/approval-package-v3");
 
-const APPROVAL_PACKAGE_SCHEMA = "policyvault-approval-package/v1";
-const PLACEHOLDER_APPROVAL = "00".repeat(64) + "01";
 const APPROVALS_BLOB_BYTES = 65 * MAX_APPROVERS;
 
 function fail(message, code) {
   const error = new Error(`approval-package-v3: ${message}`);
   if (code) error.code = code;
   throw error;
-}
-
-/* P2PK script for an x-only key: OpData32 push + key + OpCheckSig. */
-function p2pkScriptHex(xOnly) {
-  return `20${xOnly}ac`;
-}
-
-/*
- * The canonical commitment preimage: EVERY security-relevant field in a
- * fixed order. Excludes only `approvals` (the collected material — each
- * approval's validity is independently bound to the sighash), `createdAt`
- * (explicitly NONSECURITY metadata), and the commitment itself.
- */
-function commitmentPreimage(pkg) {
-  return JSON.stringify({
-    schema: pkg.schema,
-    contractVersion: pkg.contractVersion,
-    networkId: pkg.networkId,
-    vaultId: pkg.vaultId,
-    action: pkg.action,
-    predecessorOutpoint: { transactionId: pkg.predecessorOutpoint.transactionId, index: pkg.predecessorOutpoint.index },
-    predecessorStateId: pkg.predecessorStateId,
-    successorStateId: pkg.successorStateId,
-    policyNonce: pkg.policyNonce,
-    txId: pkg.txId,
-    covenantInputIndex: pkg.covenantInputIndex,
-    covenantSighash: pkg.covenantSighash,
-    frozenTransaction: pkg.frozenTransaction,
-    recipient: pkg.recipient,
-    payAmountSompi: pkg.payAmountSompi,
-    recipientProof: {
-      root: pkg.recipientProof.root,
-      siblingsHex: pkg.recipientProof.siblingsHex,
-      pathBits: pkg.recipientProof.pathBits
-    },
-    approvalThresholdAmount: pkg.approvalThresholdAmount,
-    approvalM: pkg.approvalM,
-    approverSlots: pkg.approverSlots,
-    computeBudget: pkg.computeBudget,
-    requiredFeeSompi: pkg.requiredFeeSompi
-  });
-}
-
-function packageCommitmentV3(pkg) {
-  return crypto.createHash("sha256").update(commitmentPreimage(pkg), "utf8").digest("hex");
 }
 
 /*
@@ -272,10 +228,6 @@ function assertPackageIntegrity(pkg) {
   return frozen;
 }
 
-function collectedCount(pkg) {
-  return pkg.approvals.filter((a) => typeof a === "string").length;
-}
-
 /*
  * Accept one approver signature into its FIXED slot.
  *   signatureHex — 65 bytes (64-byte Schnorr + 0x01), lowercase hex;
@@ -325,21 +277,6 @@ function submitApprovalV3(pkg, { signatureHex, approverXOnly, slotIndex }) {
   return { ...pkg, approvals };
 }
 
-/* Slots still missing a real approval (active slots only). */
-function missingSlots(pkg) {
-  const missing = [];
-  pkg.approverSlots.forEach((key, i) => {
-    if (key !== APPROVER_SENTINEL && pkg.approvals[i] === null) {
-      missing.push(i);
-    }
-  });
-  return missing;
-}
-
-function isCompleteV3(pkg) {
-  return BigInt(collectedCount(pkg)) >= BigInt(pkg.approvalM);
-}
-
 /*
  * Emit the exact 650-byte approvals blob for the covenant call: every
  * collected approval in its fixed slot, the canonical 65-byte placeholder
@@ -362,11 +299,6 @@ function approvalsBlobV3(pkg) {
     fail("internal: approvals blob is not 650 bytes");
   }
   return blob;
-}
-
-/* The all-placeholder blob for at/below-threshold delegate-only spends. */
-function placeholderApprovalsBlob() {
-  return PLACEHOLDER_APPROVAL.repeat(MAX_APPROVERS);
 }
 
 /* Durable JSON round-trip: load re-validates integrity fail-closed. */

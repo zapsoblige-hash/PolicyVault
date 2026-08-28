@@ -3,12 +3,43 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "PolicyVault SDK — exact live-state compilation, manifests, builders, submission, reconciliation for the PolicyVault Kaspa covenant.",
+  "description": "PolicyVault SDK — deterministic local verification (amounts, canonical JSON, vault state/transitions, Merkle commitments, fee/mass, approval packages, intent manifests, signer interface) plus a zero-dependency client for the PolicyVault API.",
+  "keywords": [
+    "policyvault",
+    "kaspa",
+    "covenant",
+    "non-custodial",
+    "treasury",
+    "delegated-spending",
+    "agent"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "main": "src/index.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./http-client": {
+      "types": "./types/http-client.d.ts",
+      "default": "./src/http-client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/",
+    "types/",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --test --test-concurrency=1 test/"
   },
   "dependencies": {
+    "pg": "^8.23.0",
     "websocket": "^1.0.35"
   },
   "devDependencies": {

@@ -186,19 +186,19 @@ Migration:
 
 ---
 
-## v0.4 invariants (architecture frozen — experiment-proven / source-proven)
+## v0.4 invariants (ARCHITECTURE FROZEN at Checkpoint B — EXPERIMENT-PROVEN / SOURCE-PROVEN)
 
 v0.4 adds a covenant-controlled fee reserve and multiple independent
-delegates/AI agents. Architecture frozen, implemented as
-the production covenant `PolicyVault.v0.4.sil`, VM-proven,
-production-byte-proven, and hostile-reviewed (production bytes unchanged,
-SHA256 8f87dea…; no funds/authority/consensus defect); deployment uses the
-semantically identical v0.4.1. These extend, and do not replace, the
-v0.1/v0.2/v0.3 invariants. Classes:
+delegates/AI agents. ARCHITECTURE FROZEN (Checkpoint B) and IMPLEMENTED as
+the production covenant `PolicyVault.v0.4.sil` (Checkpoint C, 2026-08-18):
+PRODUCTION-VM-PROVEN + PRODUCTION-BYTE-PROVEN + MAX-REVIEWED (Checkpoint D
+hostile review, 2026-08-18 — production bytes UNCHANGED, SHA256 8f87dea…; no
+funds/authority/consensus defect), NOT live-testnet-verified; these extend, and do not replace, the v0.1/v0.2/v0.3 invariants.
+Full ledger with evidence: `docs/v04-security-review.md`. Classes:
 VM-EXPERIMENT-PROVEN (real VM probe) / SOURCE-PROVEN / DESIGNED /
 UNRESOLVED-LOW. No funds-critical invariant is UNRESOLVED.
 
-Fee reserve:
+Fee reserve (`docs/v04-fee-reserve-design.md`):
 - **v4-FR1** protected principal cannot pay fees. (VM-EXPERIMENT-PROVEN)
 - **v4-FR2** the reserve cannot be redirected to a recipient; consumed
   reserve provably becomes network fee (`reserveConsumed <= fee`, with fee
@@ -209,7 +209,7 @@ Fee reserve:
 - **v4-FR5** owner tops up and recovers the reserve; an empty reserve
   never blocks recovery. (VM-EXPERIMENT-PROVEN)
 
-Multi-delegate / agents:
+Multi-delegate / agents (`docs/v04-multi-delegate-design.md`):
 - **v4-MD1** each agent's full policy is one authenticated Merkle leaf
   binding its key; a signature authorizes ONLY that leaf's exact policy.
   (VM-EXPERIMENT-PROVEN)
@@ -226,7 +226,7 @@ Multi-delegate / agents:
   UTXO (normal double-spend resolution); parallel throughput uses MD-4
   child vaults. (SOURCE-PROVEN; honest limitation)
 
-Approvals under agents (model D):
+Approvals under agents (`docs/v04-approval-model.md`, model D):
 - **v4-AP1** one vault-global 10-slot approver set + per-agent threshold;
   a spend above the agent's threshold needs ≥ `approvalM` approvals.
   (VM-EXPERIMENT-PROVEN)
@@ -238,9 +238,10 @@ Governance / migration:
 - **v4-GOV1** owner remains single-sig break-glass; approvals protect the
   delegate tier only, stated honestly. (CONFIRMED)
 - **v4-MG1** in-lineage v0.3→v0.4 migration impossible; upgrade =
-  `ownerRecover` → create v0.4. (structural; confirmed, not funds-critical)
+  `ownerRecover` → create v0.4. (DESIGNED; structural — confirm at
+  Checkpoint B/C, UNRESOLVED-LOW, not funds-critical)
 
-### Freeze additions
+### Checkpoint B freeze additions (2026-08-18)
 
 - **v4-FR-CAP** the per-transaction fee cap is per-agent
   (`agentMaxFeePerTx`, authenticated in the leaf); no global `maxFeePerTx`
@@ -253,7 +254,7 @@ Governance / migration:
   extOut)` with `reserveConsumed ≤ fee` ⇒ `extOut ≤ extIn`; principal moves
   only by the exact payment; reserve becomes only network fee bounded by
   `agentMaxFeePerTx`; no covenant value escapes a non-pinned output.
-  (VM-EXPERIMENT-PROVEN + SOURCE-PROVEN)
+  (VM-EXPERIMENT-PROVEN + SOURCE-PROVEN — `docs/v04-security-review.md`)
 - **v4-MG1** in-lineage v0.3→v0.4 migration impossible (real v0.3 covenant
   rejects a v0.4-template successor); upgrade = ownerRecover → create.
   (VM-EXPERIMENT-PROVEN)

@@ -143,6 +143,8 @@
         <span class="wallet-kv">network <b id="wallet-network">—</b></span>
         <span class="wstate" id="wallet-status">disconnected</span>
         <span style="flex:1"></span>
+        <span class="net" id="auth-status" style="display:none"></span>
+        <button id="btn-auth" style="display:none">Sign in</button>
         <button id="btn-connect-kasware" class="primary">Connect KasWare</button>
         <button id="btn-connect-mock" style="display:none">Connect mock signer (test)</button>
         <button id="btn-disconnect" style="display:none">Disconnect</button>
@@ -185,8 +187,23 @@
     <div id="v4-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:50"></div>
     <div id="notice" class="notice"></div>
 
+    <!-- Portable shared core in the browser (generated deterministic bundle:
+         web/tools/build-core-bundle.js) + browser-local pre-sign verification
+         + the KasWare Universal-Signer-Interface adapter. Load order matters:
+         core bundle first, then the modules that consume it, then the app. -->
+    <script src="/core-bundle.js"></script>
+    <script src="/verify-intent.js"></script>
+    <script src="/signer-kasware-adapter.js"></script>
     <script src="/wallet.js"></script>
     <script src="/identity.js"></script>
+    <!-- Governance ceremony / risk hold / org-controls UI (PostLaunchUpgradeOG
+         completion-standard items 1/2/3/6): presentational + hosted-workflow
+         coordination ABOVE the covenant boundary, never a second signing
+         path — governance-ui.js signs through the existing session adapter. -->
+    <script src="/gov-risk-explain.js"></script>
+    <script src="/governance-ui.js"></script>
+    <script src="/risk-ui.js"></script>
+    <script src="/org-controls-ui.js"></script>
     <script src="/app.js"></script>
     <script src="/app-v4.js"></script>
   </body>

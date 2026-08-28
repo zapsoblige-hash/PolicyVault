@@ -197,7 +197,7 @@ layer is defense in depth.
 
 DESIGN ONLY. Status: VM-EXP-PROVEN = rejected/accepted as stated on a real
 VM probe (`tests/vm/tests/v4_experiment_{fee_reserve,multi_agent}.rs`);
-SOURCE-PROVEN; DESIGNED rows were subsequently production-proven. Consensus remains
+SOURCE-PROVEN; DESIGNED = to be tested at Checkpoint C. Consensus remains
 the security boundary.
 
 Fee reserve:
@@ -250,7 +250,7 @@ Approvals / recovery / migration:
 | V4-MG2 | stale v0.3 package against v0.4 | MG3 | inert (outpoint consumed; different covenant) | DESIGNED |
 | V4-MG3 | wrong template/version dispatch | TX2 | fail closed; no fallback | DESIGNED |
 
-## v0.4 design freeze — additional hostile rows (VM-EXP-PROVEN)
+## v0.4 Checkpoint-B freeze — additional hostile rows (VM-EXP-PROVEN)
 
 Driven through `contracts/experiments/V4CombinedProbe.sil` (frozen design
 as one system) + `v4_experiment_migration.rs`. All REJECTED as required.
@@ -272,7 +272,7 @@ as one system) + `v4_experiment_migration.rs`. All REJECTED as required.
 | V4B-13 | v0.3 covenant produces a v0.4-template successor (in-lineage migration) | v4-MG1 | VM-EXP-PROVEN |
 | V4B-14 | recover from paused + malformed agentRoot + empty reserve | REC1/REC2 | VM-EXP-PROVEN |
 
-## v0.4 production-byte re-proof
+## v0.4 Checkpoint-C — production-byte re-proof (2026-08-18)
 
 Every V4-* / V4B-* row above is now RE-PROVEN on the PRODUCTION covenant
 `PolicyVault.v0.4.sil` via the real `pv_call_encoder` binary + real VM
@@ -284,7 +284,7 @@ per-agent fee cap, forged successor root, wrong version dispatch
 (policyvault-0.3 arm on a v0.4 call), truncated policy proof, terminal-shape
 mismatch, agent/recipient depth overflow. Status: PRODUCTION-BYTE-PROVEN.
 
-**Hostile review — MAX-REVIEWED.** Direct production-covenant VM
+**Checkpoint D (2026-08-18) — MAX-REVIEWED.** Direct production-covenant VM
 evidence added for the time/arithmetic rows: AVM-43 (max-sequence input to
 bypass CLTV) and AVM-44 (lock-time boundary) are now VM-proven —
 `require(tx.time >= newStart)` compiles to OpCheckLockTimeVerify, which rejects
@@ -296,7 +296,7 @@ injective at 2^32/2^53/large; the singleton successor is unique
 suite catches each broken funds/authority rule (0 blind spots). Production bytes
 UNCHANGED (SHA256 8f87dea…); MAX-REVIEWED is internal, not an external audit.
 
-## v0.4 application-integration threats
+## v0.4 application-integration threats (Checkpoint G, 2026-08-19)
 
 The v0.4 server/API integration adds an application trust boundary above the
 consensus boundary. The browser is untrusted; every browser-only protection has
@@ -313,4 +313,4 @@ bound to the exact frozen transaction (no cross-tx/recipient/nonce replay);
 per-agent fee cap and reserveConsumed≤fee enforced by the SDK (browser fee
 numbers not trusted). The integration is OFFLINE (production-covenant VM
 preflight, no broadcast); live-node submission/reconciliation threats are
-the live submission layer.
+Checkpoint H.

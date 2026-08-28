@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>PolicyVault</title>
+    <!--
+      SCRIPT ORDER IS LOAD-BEARING.
+
+        1. vendor/core-bundle.js    installs window.PolicyVaultCore
+        2. vendor/verify-intent.js  reads window.PolicyVaultCore at load time
+                                    and installs window.PolicyVaultVerifyIntent
+                                    (it installs a PERMANENTLY-REFUSING instance
+                                    if the core is missing, so a load failure
+                                    fails closed rather than silently disabling
+                                    verification)
+        3. vendor/http-client.js    needs PolicyVaultCore.require("crypto")
+        4. js/portable/*            no DOM, no platform imports
+        5. js/platform/*            DOM + host probing
+        6. js/app.js                screens
+
+      Files under vendor/ are copied VERBATIM from the repository by
+      mobile/tools/sync-portable.js and are sha256-pinned in
+      vendor-pins.json. Never hand-edit them; `node mobile/tools/
+      sync-portable.js --check` fails the build if they drift.
+    -->
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">PolicyVault</div>
+      <nav id="nav" class="tabs"></nav>
+    </header>
+    <div id="banner" class="banner"></div>
+    <main id="main"></main>
+    <footer>
+      <p>
+        PolicyVault is non-custodial. This app never holds a seed phrase, a private key,
+        or any signing secret, and it never will — signing happens in a separate signer
+        that keeps custody of its own key.
+      </p>
+      <p class="scaffold">
+        SCAFFOLD BUILD. Read/coordinate screens and on-device verification only.
+        No iOS or Android build of this tree has been produced or tested.
+      </p>
+    </footer>
+
+    <script src="vendor/core-bundle.js"></script>
+    <script src="vendor/verify-intent.js"></script>
+    <script src="vendor/http-client.js"></script>
+
+    <script src="js/portable/qr-frames.js"></script>
+    <script src="js/portable/airgap.js"></script>
+    <script src="js/portable/verification.js"></script>
+    <script src="js/portable/api.js"></script>
+    <script src="js/portable/signer-capabilities.js"></script>
+    <script src="js/portable/build-integrity.js"></script>
+
+    <script src="js/platform/env.js"></script>
+    <script src="js/platform/ui.js"></script>
+
+    <script src="js/app.js"></script>
+  </body>
+</html>

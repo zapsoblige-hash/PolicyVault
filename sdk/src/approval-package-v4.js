@@ -1,7 +1,8 @@
 "use strict";
 
 /*
- * PolicyVault v0.4 approval collection (Checkpoint E §E7/§E8).
+ * PolicyVault v0.4 approval collection (Checkpoint E §E7/§E8) — sdk
+ * COMPOSITION SHELL (shared-core extraction step 3).
  *
  * An approval package is the canonical, durable, serializable object an
  * above-threshold AGENT spend collects approver signatures into. Its
@@ -20,15 +21,6 @@
  * the fields it authorizes, and cannot be replayed against a different
  * predecessor outpoint (staleness is consensus-enforced).
  *
- * The package additionally carries a LOCAL COMMITMENT: sha256 over the
- * canonical serialization of every security-relevant field. Changing ANY
- * such field produces a different commitment and the package fails
- * integrity. THE COMMITMENT IS NOT A SIGNING DIGEST — approver authority
- * comes only from the Kaspa transaction signature. The commitment merely
- * identifies "this exact frozen approval package" and closes the fields
- * consensus does not commit (notably the covenant input's compute budget,
- * which the v1 sighash does NOT cover — see frozen-tx-v3.js).
- *
  * v0.4 differences from v0.3 (frozen ABI, docs/covenant-spec-v0.4.md):
  *   - the approval threshold is PER-AGENT (a leaf field), not vault state;
  *   - the recipient tree is PER-AGENT (leaf.agentRecipientRoot);
@@ -37,28 +29,37 @@
  *   - fee-reserve accounting (reserveConsumed) is a committed field and
  *     is cross-checked against the frozen covenant-value delta.
  *
- * Fixed-slot semantics (production covenant, unchanged from v0.3): 10
- * slots x 65 bytes = one 650-byte blob; slot i verifies ONLY approver i's
- * configured key; sentinel (all-zero) slots never count; the canonical
- * absent/placeholder signature is 64 x 0x00 || 0x01.
+ * The PURE package model (the v0.4 canonical commitment preimage + hasher
+ * — key-order-independent, the G-2 fix — and the fixed-slot bookkeeping)
+ * lives in core/model/approval-package-v4.js and is re-exported here
+ * unchanged. This file keeps ONLY the members that reach the real
+ * consensus code through pv_tx_probe (creation, the integrity gate's
+ * txId/sighash re-derivation, approval submission, blob emission, JSON
+ * round-trip), verbatim from the pre-split implementation.
  */
-
-const crypto = require("crypto");
 
 const { parseSompi } = require("./amounts");
 const { normalizeHex } = require("./vault-state");
 const { APPROVER_SENTINEL, MAX_APPROVERS, CONTRACT_VERSION_V4 } = require("./vault-state-v4");
 const { verifyRecipientProof } = require("./recipient-merkle-v3");
 const { normalizeAgentPolicyV4, verifyAgentProofV4, foldAgentPolicyV4 } = require("./agent-merkle-v4");
-const { PLACEHOLDER_APPROVAL, placeholderApprovalsBlob, p2pkScriptHex } = require("./approval-package-v3");
 const {
   normalizeFrozenTxV3,
   canonicalFrozenTxJson,
   describeFrozenTx,
   verifyApprovalSignature
 } = require("./frozen-tx-v3");
+const {
+  APPROVAL_PACKAGE_SCHEMA_V4,
+  PLACEHOLDER_APPROVAL,
+  placeholderApprovalsBlob,
+  p2pkScriptHex,
+  packageCommitmentV4,
+  collectedCountV4,
+  missingSlotsV4,
+  isCompleteV4
+} = require("../../core/model/approval-package-v4");
 
-const APPROVAL_PACKAGE_SCHEMA_V4 = "policyvault-approval-package/v4";
 const APPROVALS_BLOB_BYTES = 65 * MAX_APPROVERS;
 
 function fail(message, code) {
@@ -79,46 +80,6 @@ function policyToJson(policy) {
     agentMaxFeePerTx: policy.agentMaxFeePerTx.toString(),
     agentRecipientRoot: policy.agentRecipientRoot
   };
-}
-
-/*
- * The canonical commitment preimage: EVERY security-relevant field in a
- * fixed order. Excludes only `approvals` (the collected material — each
- * approval's validity is independently bound to the sighash), `createdAt`
- * (explicitly NONSECURITY metadata), and the commitment itself.
- */
-function commitmentPreimage(pkg) {
-  return JSON.stringify({
-    schema: pkg.schema,
-    contractVersion: pkg.contractVersion,
-    networkId: pkg.networkId,
-    vaultId: pkg.vaultId,
-    action: pkg.action,
-    predecessorOutpoint: { transactionId: pkg.predecessorOutpoint.transactionId, index: pkg.predecessorOutpoint.index },
-    predecessorStateId: pkg.predecessorStateId,
-    successorStateId: pkg.successorStateId,
-    policyNonce: pkg.policyNonce,
-    txId: pkg.txId,
-    covenantInputIndex: pkg.covenantInputIndex,
-    covenantSighash: pkg.covenantSighash,
-    frozenTransaction: pkg.frozenTransaction,
-    agentPolicy: pkg.agentPolicy,
-    agentProof: { root: pkg.agentProof.root, siblingsHex: pkg.agentProof.siblingsHex, pathBits: pkg.agentProof.pathBits },
-    successorAgentRoot: pkg.successorAgentRoot,
-    periodsElapsed: pkg.periodsElapsed,
-    recipient: pkg.recipient,
-    payAmountSompi: pkg.payAmountSompi,
-    recipientProof: { root: pkg.recipientProof.root, siblingsHex: pkg.recipientProof.siblingsHex, pathBits: pkg.recipientProof.pathBits },
-    reserveConsumedSompi: pkg.reserveConsumedSompi,
-    approvalM: pkg.approvalM,
-    approverSlots: pkg.approverSlots,
-    computeBudget: pkg.computeBudget,
-    requiredFeeSompi: pkg.requiredFeeSompi
-  });
-}
-
-function packageCommitmentV4(pkg) {
-  return crypto.createHash("sha256").update(commitmentPreimage(pkg), "utf8").digest("hex");
 }
 
 /*
@@ -366,10 +327,6 @@ function assertPackageIntegrityV4(pkg) {
   return frozen;
 }
 
-function collectedCountV4(pkg) {
-  return pkg.approvals.filter((a) => typeof a === "string").length;
-}
-
 /*
  * Accept one approver signature into its FIXED slot.
  *   signatureHex — 65 bytes (64-byte Schnorr + 0x01), lowercase hex;
@@ -417,21 +374,6 @@ function submitApprovalV4(pkg, { signatureHex, approverXOnly, slotIndex }) {
   const approvals = pkg.approvals.slice();
   approvals[canonicalSlot] = signatureHex;
   return { ...pkg, approvals };
-}
-
-/* Slots still missing a real approval (active slots only). */
-function missingSlotsV4(pkg) {
-  const missing = [];
-  pkg.approverSlots.forEach((key, i) => {
-    if (key !== APPROVER_SENTINEL && pkg.approvals[i] === null) {
-      missing.push(i);
-    }
-  });
-  return missing;
-}
-
-function isCompleteV4(pkg) {
-  return BigInt(collectedCountV4(pkg)) >= BigInt(pkg.approvalM);
 }
 
 /*

@@ -21,7 +21,11 @@ const WalletError = {
   SIGNING_UNSUPPORTED: "SIGNING_UNSUPPORTED",
   INVALID_SIGNATURE_RESPONSE: "INVALID_SIGNATURE_RESPONSE",
   INVALID_PUBLIC_KEY: "INVALID_PUBLIC_KEY",
-  PROVIDER_ERROR: "PROVIDER_ERROR"
+  PROVIDER_ERROR: "PROVIDER_ERROR",
+  // The Universal Signer Interface adapter module (web/signer-kasware-
+  // adapter.js) failed to load — see createSigningUnavailableAdapter below.
+  // Never produced by a real wallet provider.
+  USI_UNAVAILABLE: "USI_UNAVAILABLE"
 };
 
 function walletError(category, message, cause) {
@@ -79,6 +83,21 @@ function normalizeNetwork(n) {
   return s;
 }
 
+/*
+ * TEST-FIXTURE / REFERENCE ONLY as of the USI fail-closed change
+ * (PostLaunchUpgradeOG completion-standard item 4, 2026-08). Production
+ * code must NEVER construct this class for live signing: web/app.js's
+ * makeKasWareAdapter() connects through the Universal Signer Interface
+ * adapter (web/signer-kasware-adapter.js) exclusively and fails closed
+ * (createSigningUnavailableAdapter, below) if that module is absent —
+ * it no longer falls back here. This implementation is retained solely
+ * as the byte-identical-behavior reference fixture for
+ * web/test/signer-kasware-adapter.test.js, which proves the USI adapter
+ * reproduces this historically-proven implementation's exact provider
+ * invocations (signMessage/signPskt arguments, public-key normalization,
+ * network normalization, error taxonomy) rather than inventing new
+ * KasWare-facing behavior.
+ */
 /* ---- KasWare adapter (first concrete browser wallet) ---- */
 class KasWareAdapter {
   constructor() {
@@ -181,6 +200,46 @@ class KasWareAdapter {
     }
     return xonly;
   }
+  /*
+   * Hosted sign-in only: Kaspa personal-message signature over the
+   * server-issued challenge text. The Schnorr type is FORCED explicitly
+   * (never "auto" — auto could silently change the cryptographic scheme
+   * on Tangem-class accounts; the server refuses ECDSA regardless).
+   * This is authentication, not transaction signing: the message lives
+   * in the PersonalMessageSigningHash domain and cannot move funds.
+   */
+  async signAuthMessage(message) {
+    const kw = this._kw();
+    if (typeof kw.signMessage !== "function") {
+      throw walletError(WalletError.SIGNING_UNSUPPORTED, "KasWare does not support signMessage");
+    }
+    let sig;
+    try {
+      sig = await kw.signMessage(message, { type: "schnorr" });
+    } catch (e) {
+      if (e && (e.code === 4001 || /reject|denied/i.test(e.message || ""))) {
+        throw walletError(WalletError.USER_REJECTED, "You declined the sign-in signature", e);
+      }
+      throw walletError(WalletError.PROVIDER_ERROR, e.message || "signMessage failed", e);
+    }
+    if (typeof sig !== "string" || !/^[0-9a-f]{128}$/i.test(sig.trim())) {
+      throw walletError(WalletError.PROVIDER_ERROR, "wallet returned an unexpected sign-in signature format");
+    }
+    return sig.trim().toLowerCase();
+  }
+  /* Raw provider public key (66-hex compressed) for the auth verify call;
+   * transaction paths keep using the x-only normalization above. */
+  async getPublicKeyRaw() {
+    const kw = this._kw();
+    if (typeof kw.getPublicKey !== "function") {
+      throw walletError(WalletError.INVALID_PUBLIC_KEY, "KasWare does not expose getPublicKey");
+    }
+    const raw = await kw.getPublicKey();
+    if (typeof raw !== "string" || !raw.trim()) {
+      throw walletError(WalletError.INVALID_PUBLIC_KEY, "KasWare returned an empty public key");
+    }
+    return raw.trim().toLowerCase();
+  }
   on(event, cb) {
     if (this._listeners[event]) this._listeners[event].push(cb);
   }
@@ -221,6 +280,68 @@ class KasWareAdapter {
     }
     return signed;
   }
+}
+
+/*
+ * The FAIL-CLOSED replacement for the old silent-bypass fallback
+ * (PostLaunchUpgradeOG completion-standard item 4). Constructed by
+ * web/app.js's makeKasWareAdapter() ONLY when the Universal Signer
+ * Interface adapter module (web/signer-kasware-adapter.js) failed to
+ * load — never a normal operating state for a correctly served page.
+ *
+ * `detect()` still reports whether the KasWare extension itself is
+ * present (`win.kasware`), so the UI never lies and claims "wallet not
+ * installed" when the real problem is this app's own module failing to
+ * load. Every method that could move toward a signature — connect,
+ * getNetwork, the public-key getters, and both signing methods — refuses
+ * synchronously with WalletError.USI_UNAVAILABLE before touching
+ * `window.kasware` at all: there is no code path in this object that
+ * reaches a real provider call. disconnect/reconnect are inert no-ops
+ * (nothing was ever connected); getActiveAddress always returns null.
+ *
+ * `win` is injectable (mirrors signer-kasware-adapter.js's `options.win`
+ * convention) so this is unit-testable without mutating the global
+ * `window`; it defaults to the real `window` in the browser.
+ */
+function createSigningUnavailableAdapter(options = {}) {
+  const win = options.win !== undefined ? options.win : (typeof window !== "undefined" ? window : undefined);
+  const message =
+    "The secure signer module (Universal Signer Interface) failed to load — signing is unavailable on this page load. " +
+    "This is a build/deployment defect, not a problem with your wallet. Reload the page; if it persists, contact support.";
+  const refuse = async () => {
+    throw walletError(WalletError.USI_UNAVAILABLE, message);
+  };
+  return {
+    provider: "kasware-signing-unavailable",
+    label: "KasWare (signing unavailable)",
+    detect() {
+      return !!(win && win.kasware);
+    },
+    getCapabilities() {
+      return {
+        canSignTransaction: false,
+        canSignSpecificInputs: false,
+        canReturnRawSignedTx: false,
+        canSwitchNetwork: false,
+        canExposeXOnlyPubkey: false,
+        supportsAccountChangeEvents: false
+      };
+    },
+    connect: refuse,
+    async disconnect() {},
+    async reconnect() {
+      return null;
+    },
+    getActiveAddress() {
+      return null;
+    },
+    getNetwork: refuse,
+    getPublicKeyXOnly: refuse,
+    getPublicKeyRaw: refuse,
+    signAuthMessage: refuse,
+    signInputs: refuse,
+    on() {}
+  };
 }
 
 /*
@@ -305,6 +426,6 @@ class MockAdapter {
   }
 }
 
-const PolicyVaultWallet = { WalletError, WalletState, KasWareAdapter, MockAdapter, normalizeNetwork, normalizePublicKeyToXOnly };
+const PolicyVaultWallet = { WalletError, WalletState, KasWareAdapter, MockAdapter, createSigningUnavailableAdapter, normalizeNetwork, normalizePublicKeyToXOnly };
 if (typeof window !== "undefined") window.PolicyVaultWallet = PolicyVaultWallet;
 if (typeof module !== "undefined" && module.exports) module.exports = PolicyVaultWallet;

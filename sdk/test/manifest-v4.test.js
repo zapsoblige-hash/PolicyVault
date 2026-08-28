@@ -102,7 +102,7 @@ function manifestDoc(reg, state) {
   };
 }
 
-test("G2: a registry that reproduces the covenant agentRoot normalizes and round-trips", () => {
+test("G2: a registry that reproduces the covenant agentRoot normalizes and round-trips", async () => {
   const reg = registry();
   const state = stateForRegistry(reg);
   const m = normalizeManifestV4(manifestDoc(reg, state));
@@ -110,16 +110,16 @@ test("G2: a registry that reproduces the covenant agentRoot normalizes and round
   assert.equal(m.live.state.agentRoot, state.agentRoot);
   assert.equal(m.live.outpointValue, state.protectedValue + state.feeReserve);
   // persist + load round-trip
-  persistManifestV4(config, manifestDoc(reg, state));
-  const loaded = loadManifestV4(config, template.vaultId);
+  await persistManifestV4(config, manifestDoc(reg, state));
+  const loaded = await loadManifestV4(config, template.vaultId);
   assert.equal(loaded.agentRegistryRoot, state.agentRoot);
   assert.equal(loaded.agentRegistry.length, 2);
   // version-aware loader dispatches to v4
-  const any = loadAnyManifest(config, template.vaultId);
+  const any = await loadAnyManifest(config, template.vaultId);
   assert.equal(any.version, "v4");
 });
 
-test("G2: a registry that CANNOT reproduce the agentRoot fails closed", () => {
+test("G2: a registry that CANNOT reproduce the agentRoot fails closed", async () => {
   const reg = registry();
   const state = stateForRegistry(reg);
   // tamper an agent's cap in the registry so its leaf (and the root) changes,
@@ -132,7 +132,7 @@ test("G2: a registry that CANNOT reproduce the agentRoot fails closed", () => {
   );
 });
 
-test("G2: an agent whose declared recipient root disagrees with its recipient set fails closed", () => {
+test("G2: an agent whose declared recipient root disagrees with its recipient set fails closed", async () => {
   const reg = registry();
   const state = stateForRegistry(reg);
   const doc = manifestDoc(reg, state);
@@ -143,7 +143,7 @@ test("G2: an agent whose declared recipient root disagrees with its recipient se
   );
 });
 
-test("G2: outpoint value must equal protected + reserve; stateId must match", () => {
+test("G2: outpoint value must equal protected + reserve; stateId must match", async () => {
   const reg = registry();
   const state = stateForRegistry(reg);
   const badValue = manifestDoc(reg, state);
@@ -155,14 +155,14 @@ test("G2: outpoint value must equal protected + reserve; stateId must match", ()
   assert.throws(() => normalizeManifestV4(badStateId), /stateId does not match/);
 });
 
-test("G2: empty registry is canonical (unspendable-padding root) and must match an all-agents-removed state", () => {
+test("G2: empty registry is canonical (unspendable-padding root) and must match an all-agents-removed state", async () => {
   const emptyState = stateForRegistry([]);
   const m = normalizeManifestV4(manifestDoc([], emptyState));
   assert.equal(m.agentRegistry.length, 0);
   assert.equal(m.agentRegistryRoot, emptyState.agentRoot);
 });
 
-test("G2: unknown schema / contract version fails closed", () => {
+test("G2: unknown schema / contract version fails closed", async () => {
   const reg = registry();
   const state = stateForRegistry(reg);
   const doc = manifestDoc(reg, state);

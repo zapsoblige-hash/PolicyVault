@@ -27,7 +27,7 @@ const APP_V4 = fs.readFileSync(path.join(WEB, "app-v4.js"), "utf8");
 const OWNER = "kaspatest:qq" + "0".repeat(59);
 const fakeXOnly = (addr) => crypto.createHash("sha256").update(String(addr).trim()).digest("hex");
 
-function harness() {
+async function harness() {
   const dom = new JSDOM(HTML, { url: "http://127.0.0.1:3080/", runScripts: "outside-only", pretendToBeVisual: true });
   const { window } = dom;
   const calls = { create: [] };
@@ -91,7 +91,7 @@ async function openCreate(h) {
 }
 
 test("§13 one click adds exactly one blank row: 0→1, 1→2, …, 9→10, 10→still 10 (button disabled)", async () => {
-  const h = harness();
+  const h = await harness();
   await openCreate(h);
   for (let expected = 1; expected <= 10; expected++) {
     h.click(h.addBtn());
@@ -104,7 +104,7 @@ test("§13 one click adds exactly one blank row: 0→1, 1→2, …, 9→10, 10�
 });
 
 test("§13 listener idempotency: repeated renders (wallet emissions + tab switches) never multiply rows per click", async () => {
-  const h = harness();
+  const h = await harness();
   await openCreate(h);
   // Three wallet-session emissions while on the create view…
   h.emit(); h.emit(); h.emit();
@@ -120,7 +120,7 @@ test("§13 listener idempotency: repeated renders (wallet emissions + tab switch
 });
 
 test("§13 remove removes exactly the chosen row; other values preserved; new rows never clone", async () => {
-  const h = harness();
+  const h = await harness();
   await openCreate(h);
   for (let i = 0; i < 5; i++) h.click(h.addBtn());
   const rows = h.rows();
@@ -137,7 +137,7 @@ test("§13 remove removes exactly the chosen row; other values preserved; new ro
 });
 
 test("§17 budget period: presets kept, Custom shows value+unit (hours/days/weeks), copy is plain language, DAA only under Advanced", async () => {
-  const h = harness();
+  const h = await harness();
   const form = await openCreate(h);
   const sel = form.querySelector('[name="period"]');
   assert.deepEqual([...sel.options].map((o) => o.value), ["1h", "6h", "1d", "1w", "custom"]);
@@ -160,7 +160,7 @@ test("§17 budget period: presets kept, Custom shows value+unit (hours/days/week
 });
 
 test("§17 pre-Review validation blocks the server call: duplicate approvers, M > configured, empty row; field-local errors shown", async () => {
-  const h = harness();
+  const h = await harness();
   const form = await openCreate(h);
   // Fill an otherwise-valid form.
   h.set(form, "label", "H2 KasWare Acceptance");
@@ -202,7 +202,7 @@ test("§17 pre-Review validation blocks the server call: duplicate approvers, M 
 });
 
 test("§17 a valid form reaches the server with the canonical friendly body (custom period travels as {value,unit})", async () => {
-  const h = harness();
+  const h = await harness();
   const form = await openCreate(h);
   h.set(form, "label", "H2 KasWare Acceptance");
   h.set(form, "deposit", "20");

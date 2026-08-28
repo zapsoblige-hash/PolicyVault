@@ -1,8 +1,9 @@
 # PolicyVault Product Policy (PERMANENT — authoritative)
 
 Decided by the project owner, 2026-08-16. This is the authoritative
-record of PolicyVault's free-forever and voluntary-support policies.
-Where any other document disagrees, this file wins.
+record of PolicyVault's free-forever, voluntary-support, and
+private-until-authorized policies. Where any other document disagrees,
+this file wins.
 
 ## Free forever — including commercial use
 
@@ -65,21 +66,37 @@ commercial use. This is consistent with the free-forever / free-commercial
 / open-infrastructure / voluntary-support policy above. Trademark
 protection for the PolicyVault name/logo is distinct and permitted.
 
-## License
+## License (SELECTED: Apache-2.0, owner decision 2026-08-23)
 
-PolicyVault is licensed under the **Apache License 2.0** (owner-selected
-2026-08-23), chosen deliberately for its express patent grant — the legal
-counterpart of the no-patents commitment above. **Permanent constraint:
-the license permits free commercial use, and there will never be a
-separate paid commercial license.**
+The owner selected the **Apache License 2.0** at the clean-public-release
+preparation checkpoint (2026-08-23), chosen deliberately for its express
+patent grant — the legal counterpart of the no-patents commitment above.
+The public release tree (`~/policyvault-public`) carries `LICENSE` +
+`NOTICE`. **Permanent constraint (unchanged): the license permits free
+commercial use, and there will never be a separate paid commercial
+license.** Never substitute a different license.
 
-## Publication
+## Privacy / publication (private until explicitly authorized)
 
-This repository is the clean public release of PolicyVault. It was
-prepared under the owner's explicit release authorization after the
-internal production-readiness gates, the owner's explicit mainnet
-authorization, and a limited real-value mainnet smoke test all passed.
-The private engineering record (development history, internal directives,
-evidence archives) remains private by design. An independent professional
-security review is IMPORTANT, PLANNED, and POST-LAUNCH ACCEPTABLE — it
-has not occurred yet and is never claimed (see SECURITY.md).
+PolicyVault MUST REMAIN PRIVATE during development. The project owner has
+NOT authorized public release. Until explicit future authorization, do
+NOT: create a public GitHub repository; push to a public remote; publish
+source, covenant source, or detailed architecture/specs; publish testnet
+evidence; announce security architecture; create public packages/
+releases; start a public audit contest; or publish documentation
+externally.
+
+Local git commits are allowed. A private remote/backup may be used only
+if explicitly authorized separately.
+
+Intended future sequence (release policy UPDATED by the owner,
+2026-08-17): feature complete → security hardened → deployment complete →
+internal production-readiness gates pass → **owner authorizes publication**
+(privacy gate, unchanged) → **explicit owner mainnet authorization** (hard
+human gate, unchanged) → production mainnet launch. An independent
+professional security review is IMPORTANT, PLANNED, and POST-LAUNCH
+ACCEPTABLE — it may occur after launch and is no longer an absolute
+pre-mainnet blocker (it must never be falsely claimed as done). The
+privacy purpose is unchanged: prevent premature disclosure while
+PolicyVault is still being built; the project stays PRIVATE until the
+owner explicitly authorizes publication.

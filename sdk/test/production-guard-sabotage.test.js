@@ -60,14 +60,14 @@ async function withSabotage(absFile, from, to, scenario) {
 const freshConfig = (over = {}) => require("../src/config").loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-sab-")), ...over });
 
 // Shared fixtures for the terminal guard.
-function seedRecovered(config) {
+async function seedRecovered(config) {
   bustCache();
   const kaspa = require(config.rustyKaspaModule);
   const KEY = (v) => new kaspa.PrivateKey(v.toString(16).padStart(2, "0").repeat(32));
   const XO = (v) => KEY(v).toPublicKey().toXOnlyPublicKey().toString().toLowerCase();
   const { MANIFEST_SCHEMA_V4, persistManifestV4 } = require("../src/manifest-v4");
   const vaultId = "7b".repeat(32);
-  persistManifestV4(config, {
+  await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4, contractVersion: "policyvault-0.4.1", networkId: config.networkId, vaultId,
     label: "sab-terminal", status: "RECOVERED", template: { owner: XO(1), vaultId },
     agentRegistry: [{ agentPk: XO(0x1e), maxPerSpend: "1", periodBudget: "1", periodLengthDaa: "864000", periodStartDaa: "1", periodSpent: "0", approvalThreshold: "0", agentMaxFeePerTx: "1", recipients: [XO(0x28)] }],
@@ -78,26 +78,26 @@ function seedRecovered(config) {
 
 test("S1 terminal-vault write rejection is load-bearing", async () => {
   const config = freshConfig();
-  const { vaultId, agentAddr, XO } = seedRecovered(config);
-  const attempt = () => {
+  const { vaultId, agentAddr, XO } = await seedRecovered(config);
+  const attempt = async () => {
     const wr4 = require("../src/wallet-requests-v4");
     try {
-      wr4.buildWalletRequestV4({ config, vaultId, action: "agentSpend", params: { agentPk: XO(0x1e), recipient: XO(0x28), payAmountSompi: "1" }, signerAddress: agentAddr });
+      await wr4.buildWalletRequestV4({ config, vaultId, action: "agentSpend", params: { agentPk: XO(0x1e), recipient: XO(0x28), payAmountSompi: "1" }, signerAddress: agentAddr });
       return "BUILT";
     } catch (e) {
       return e.code;
     }
   };
-  assert.equal(attempt(), "VAULT_TERMINAL", "REAL guard refuses terminal writes with VAULT_TERMINAL");
+  assert.equal(await attempt(), "VAULT_TERMINAL", "REAL guard refuses terminal writes with VAULT_TERMINAL");
   await withSabotage(
     path.join(SDK_SRC, "wallet-requests-v4.js"),
     'if (!manifest.live) throw fail(`vault is ${manifest.status} (closed)',
     'if (false && !manifest.live) throw fail(`vault is ${manifest.status} (closed)',
-    () => {
-      assert.notEqual(attempt(), "VAULT_TERMINAL", "SABOTAGED guard no longer produces VAULT_TERMINAL -> protecting assertion is RED");
+    async () => {
+      assert.notEqual(await attempt(), "VAULT_TERMINAL", "SABOTAGED guard no longer produces VAULT_TERMINAL -> protecting assertion is RED");
     }
   );
-  assert.equal(attempt(), "VAULT_TERMINAL", "restored guard is green again");
+  assert.equal(await attempt(), "VAULT_TERMINAL", "restored guard is green again");
 });
 
 test("S2 dev-signer production disable is load-bearing", async () => {

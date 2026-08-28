@@ -32,8 +32,10 @@ use kaspa_consensus_core::tx::{
 };
 use kaspa_consensus_core::Hash;
 
-fn home() -> String {
-    std::env::var("HOME").expect("HOME")
+/// Repo root resolved from the workspace location (tests/vm -> repo root),
+/// so the suite runs from any checkout path.
+fn repo_root() -> String {
+    format!("{}/../..", env!("CARGO_MANIFEST_DIR"))
 }
 
 /// Generate the SDK vectors exactly once per test process.
@@ -41,7 +43,7 @@ fn vectors_dir() -> &'static PathBuf {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
     DIR.get_or_init(|| {
         let dir = std::env::temp_dir().join(format!("pv4-sdk-vectors-{}", std::process::id()));
-        let generator = format!("{}/policyvault/sdk/tools/gen-v4-vectors.js", home());
+        let generator = format!("{}/sdk/tools/gen-v4-vectors.js", repo_root());
         let out = Command::new("node")
             .arg(&generator)
             .arg(&dir)

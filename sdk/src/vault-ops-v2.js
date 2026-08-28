@@ -291,7 +291,7 @@ async function createVaultV2({ config, templateInput, initialStateInput, funding
       fail("preflight: network drifted");
     }
 
-    claimSubmission(config, { txId, vaultId: template.vaultId, action: "createVaultV2" });
+    await claimSubmission(config, { txId, vaultId: template.vaultId, action: "createVaultV2" });
 
     const submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
@@ -315,7 +315,7 @@ async function createVaultV2({ config, templateInput, initialStateInput, funding
       fail(`submitted ${txId} but the covenant outpoint was not observed — claim preserved; reconcile before any retry`);
     }
 
-    const manifest = persistManifestV2(config, {
+    const manifest = await persistManifestV2(config, {
       schema: MANIFEST_SCHEMA_V2,
       contractVersion: CONTRACT_VERSION_V2,
       networkId: config.networkId,
@@ -336,7 +336,7 @@ async function createVaultV2({ config, templateInput, initialStateInput, funding
       lastTransition: null
     });
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId: template.vaultId,
       action: "createVaultV2",
@@ -349,7 +349,7 @@ async function createVaultV2({ config, templateInput, initialStateInput, funding
       }
     });
 
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId: template.vaultId,
       action: "vault_created",
       actor: "owner",
@@ -524,7 +524,7 @@ async function executeTransitionV2({
 
     const txId = transaction.finalize().toString().toLowerCase();
 
-    claimTransition(config, {
+    await claimTransition(config, {
       outpoint: manifest.live.outpoint,
       action,
       txId,
@@ -544,7 +544,7 @@ async function executeTransitionV2({
         contractVersion: CONTRACT_VERSION_V2
       }
     });
-    claimSubmission(config, { txId, vaultId, action });
+    await claimSubmission(config, { txId, vaultId, action });
 
     /* TEST-ONLY crash injection (mission §55). Never set in production. */
     maybeCrash("PV_CRASH_AFTER_CLAIM", { action, txId });
@@ -576,7 +576,7 @@ async function executeTransitionV2({
       fail(`submitted ${txId} but the successor was not observed — claim preserved; reconcile before retrying`);
     }
 
-    persistManifestV2(config, {
+    await persistManifestV2(config, {
       ...manifest,
       status: successor.paused === 1n ? VaultStatus.PAUSED : VaultStatus.ACTIVE,
       template: { owner: template.owner, vaultId: template.vaultId },
@@ -600,7 +600,7 @@ async function executeTransitionV2({
       }
     });
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId,
       action,
@@ -612,7 +612,7 @@ async function executeTransitionV2({
       }
     });
 
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId,
       action: auditAction,
       actor: auditActor,
@@ -631,8 +631,8 @@ async function executeTransitionV2({
   }
 }
 
-function requireLiveV2(config, vaultId, allowPaused = true) {
-  const manifest = loadManifestV2(config, vaultId);
+async function requireLiveV2(config, vaultId, allowPaused = true) {
+  const manifest = await loadManifestV2(config, vaultId);
   if (!manifest) {
     fail(`no v0.2 manifest for vault ${vaultId}`);
   }
@@ -648,7 +648,7 @@ function requireLiveV2(config, vaultId, allowPaused = true) {
 /* ------------------------------------------------------------ operations */
 
 async function spendFromVaultV2({ config, vaultId, delegateKey, payAmount, recipientIndex, periodsElapsed = 0 }) {
-  const manifest = requireLiveV2(config, vaultId, false);
+  const manifest = await requireLiveV2(config, vaultId, false);
   const state = manifest.live.state;
   const pay = BigInt(payAmount);
   const periods = BigInt(periodsElapsed ?? 0);
@@ -684,7 +684,7 @@ async function spendFromVaultV2({ config, vaultId, delegateKey, payAmount, recip
 }
 
 async function setPausedV2({ config, vaultId, ownerKey, pause }) {
-  const manifest = requireLiveV2(config, vaultId);
+  const manifest = await requireLiveV2(config, vaultId);
   const successor = pauseSuccessorV2(manifest.live.state, pause);
   return executeTransitionV2({
     config,
@@ -698,7 +698,7 @@ async function setPausedV2({ config, vaultId, ownerKey, pause }) {
 }
 
 async function revokeDelegateV2({ config, vaultId, ownerKey }) {
-  const manifest = requireLiveV2(config, vaultId);
+  const manifest = await requireLiveV2(config, vaultId);
   const successor = revokeSuccessorV2(manifest.live.state);
   return executeTransitionV2({
     config,
@@ -712,7 +712,7 @@ async function revokeDelegateV2({ config, vaultId, ownerKey }) {
 }
 
 async function rotateDelegateV2({ config, vaultId, ownerKey, newDelegate }) {
-  const manifest = requireLiveV2(config, vaultId);
+  const manifest = await requireLiveV2(config, vaultId);
   const successor = rotateSuccessorV2(manifest.live.state, newDelegate);
   return executeTransitionV2({
     config,
@@ -728,7 +728,7 @@ async function rotateDelegateV2({ config, vaultId, ownerKey, newDelegate }) {
 }
 
 async function topUpVaultV2({ config, vaultId, ownerKey, topUpAmount }) {
-  const manifest = requireLiveV2(config, vaultId);
+  const manifest = await requireLiveV2(config, vaultId);
   const amount = BigInt(topUpAmount);
   const successor = topUpSuccessorV2(manifest.live.state, amount);
   return executeTransitionV2({
@@ -745,7 +745,7 @@ async function topUpVaultV2({ config, vaultId, ownerKey, topUpAmount }) {
 }
 
 async function migratePolicyV2({ config, vaultId, ownerKey, newPolicy }) {
-  const manifest = requireLiveV2(config, vaultId);
+  const manifest = await requireLiveV2(config, vaultId);
   const successor = migrateSuccessorV2(manifest.live.state, newPolicy ?? {});
   return executeTransitionV2({
     config,
@@ -765,7 +765,7 @@ async function migratePolicyV2({ config, vaultId, ownerKey, newPolicy }) {
 }
 
 async function recoverVaultV2({ config, vaultId, ownerKey }) {
-  const manifest = requireLiveV2(config, vaultId);
+  const manifest = await requireLiveV2(config, vaultId);
   const template = manifest.template;
   const state = manifest.live.state;
 
@@ -852,7 +852,7 @@ async function recoverVaultV2({ config, vaultId, ownerKey }) {
 
     const txId = transaction.finalize().toString().toLowerCase();
 
-    claimTransition(config, {
+    await claimTransition(config, {
       outpoint: manifest.live.outpoint,
       action: "ownerRecover",
       txId,
@@ -867,7 +867,7 @@ async function recoverVaultV2({ config, vaultId, ownerKey }) {
         contractVersion: CONTRACT_VERSION_V2
       }
     });
-    claimSubmission(config, { txId, vaultId, action: "ownerRecover" });
+    await claimSubmission(config, { txId, vaultId, action: "ownerRecover" });
 
     maybeCrash("PV_CRASH_AFTER_CLAIM", { action: "ownerRecover", txId });
 
@@ -888,7 +888,7 @@ async function recoverVaultV2({ config, vaultId, ownerKey }) {
       fail(`submitted ${txId} but the covenant outpoint is still live — claim preserved; reconcile before retrying`);
     }
 
-    persistManifestV2(config, {
+    await persistManifestV2(config, {
       ...manifest,
       status: VaultStatus.RECOVERED,
       template: { owner: template.owner, vaultId: template.vaultId },
@@ -905,7 +905,7 @@ async function recoverVaultV2({ config, vaultId, ownerKey }) {
       }
     });
 
-    persistReceipt(config, {
+    await persistReceipt(config, {
       txId,
       vaultId,
       action: "ownerRecover",
@@ -917,7 +917,7 @@ async function recoverVaultV2({ config, vaultId, ownerKey }) {
       }
     });
 
-    appendAudit(config, {
+    await appendAudit(config, {
       vaultId,
       action: "vault_recovered",
       actor: "owner",

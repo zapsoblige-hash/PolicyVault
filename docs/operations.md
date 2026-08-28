@@ -2,30 +2,23 @@
 
 ## Environment
 
-- Node: `kaspad` 2.0.1+, synced, **`--utxoindex`**. Default JSON wRPC
-  listeners: testnet-10 `ws://127.0.0.1:18210`, mainnet
-  `ws://127.0.0.1:18110` (Borsh listeners 17210/17110 — PolicyVault
-  speaks **JSON** wRPC).
+- Node: `kaspad` 2.0.1, **testnet-10**, `--utxoindex`, JSON wRPC
+  `ws://127.0.0.1:18210`, Borsh wRPC `ws://127.0.0.1:17210`.
 - Config: `sdk/src/config.js`. Overridable via `KASPA_NETWORK_ID`,
-  `KASPA_RPC_URL`, and `POLICYVAULT_API_PORT`. Mainnet requires
+  `KASPA_RPC_URL`, `POLICYVAULT_API_PORT`, and `dataRoot`. Mainnet requires
   `POLICYVAULT_ALLOW_MAINNET=true` **and** an explicit `allowMainnet`
-  override (the server derives it from the same env flag) **and** an
-  explicit `KASPA_RPC_URL` — see `docs/deployment.md`.
-- Data roots live inside the checkout and are per-network, network-stamped
-  (`.pv-network`): `data/` (testnet-10) and `data-mainnet/` (mainnet). A
-  process configured for one network refuses a root stamped for another.
+  override **and** an explicit `KASPA_RPC_URL` (Gate R granted 2026-08-22;
+  operational deployment procedure: `docs/production-release.md` §8). A
+  mainnet node needs kaspad 2.0.1+, synced, `--utxoindex` (mainnet JSON
+  wRPC default port 18110; Borsh is 17110 — PolicyVault speaks JSON).
 
 ## Start / stop
 
 ```bash
-node server/src/server.js          # http://127.0.0.1:3080
+# Backend + dashboard
+cd server && node src/server.js          # http://127.0.0.1:3080
 # stop: Ctrl-C (or kill the pid)
 ```
-
-Startup prints a posture report (network, data root, dev-signer /
-test-hook / legacy-create status, mainnet-broadcast status, donation
-configuration) and refuses to start on mainnet with any development or
-test hook enabled.
 
 ## Health & connectivity
 
@@ -45,60 +38,68 @@ curl -s http://127.0.0.1:3080/api/v1/vaults/<vaultId>/status   # + chainConfirme
 curl -s http://127.0.0.1:3080/api/v1/vaults/<vaultId>/audit
 ```
 
-On disk (per-network data root): `vaults/<id>/manifest.json`,
-`claims/transition/*`, `claims/submission/*`, `receipts/*`,
-`audit/events.log`.
+On disk (dataRoot, default `~/policyvault/data`):
+`vaults/<id>/manifest.json`, `claims/transition/*`, `claims/submission/*`,
+`receipts/*`, `audit/events.log`, `build/<stateId>/`.
 
 ## Reconcile a stuck submission (crash recovery)
 
 If a process died after broadcasting but before advancing a manifest, run
-Verify state — the dashboard button, or:
+reconcile-only. It never broadcasts; it advances local state only on chain
+proof, and fails closed to `TERMINATED_UNKNOWN` when a consumed outpoint has
+no verifiable successor:
 
-```bash
-curl -s -X POST http://127.0.0.1:3080/api/v1/vaults/<vaultId>/reconcile \
-  -H 'Content-Type: application/json' -d '{}'
+```js
+const { reconcileVault } = require("./sdk/src/reconcile");
+await reconcileVault(config, vaultId); // {status: CONSISTENT | ADVANCED | UNKNOWN}
 ```
 
-Reconciliation never broadcasts; it advances local state only on exact
-chain proof, releases stale claims only after proving the predecessor
-still live and the expected effect absent, and fails closed to
-`TERMINATED_UNKNOWN` when a consumed outpoint has no verifiable successor.
-Never hand-edit or delete claim files.
+`tools/testnet-crash-recovery.js` demonstrates the full crash-after-broadcast
+→ reconcile → RECOVERED flow.
 
 ## Backups & restore
 
-Back up the entire per-network data root. To restore: stop the server,
-copy the root back (including `.pv-network`), start, then run Verify
-state on each active vault — reconciliation re-proves live state against
-the chain and fails closed on divergence. Restoring an old backup cannot
-forge chain state: manifests advance only behind exact chain proof. The
-backup includes `orgs/` (organization metadata) — losing it loses business
-grouping only, never funds.
+Back up the entire `dataRoot`. It is self-describing: every manifest carries
+the exact policy + state and is re-derivable/re-compilable via
+`data/build/<stateId>/`. To restore, copy `dataRoot` back; the SDK re-reads
+manifests and re-verifies live outpoints against the node. The backup set
+includes `data/orgs/` (organization metadata + vault assignments) — losing
+it loses business grouping/member records only, never funds: chain state
+and vault manifests remain authoritative and vaults degrade to
+"Unassigned".
 
 ## Recover after a backend crash
 
-The backend holds no funds-critical in-memory state; restart it. Any
-in-flight transitions are recovered by reconcile (above), which reads the
-durable claims.
+The backend holds no funds-critical in-memory state; restart it. Any in-flight
+transitions are recovered by reconcile (above), which reads the durable claims.
 
 ## Rotate application secrets
 
-There are no PolicyVault-held signing secrets to rotate (non-custodial).
-Local test keys (used only by the optional testnet verification drivers)
-live under `keys/` (gitignored); regenerate by deleting the keyring file —
-the next driver run recreates it.
+There are no PolicyVault-held signing secrets to rotate (non-custodial). Test
+keys live under `keys/` (gitignored); regenerate by deleting the keyring file
+and re-running a tool, which recreates it.
 
 ## Deployment rollback
 
-Everything is versioned (covenant, state format, requests, manifests) and
-unknown versions fail closed. Roll back by redeploying the prior tagged
-source; never let a rollback silently change the network.
+The covenant is versioned (`policyvault-0.1-beta`); unknown versions fail
+closed. Roll back by pointing `config.contractSource` / `contractVersion` at
+the prior artifact. Never let a rollback silently change the network.
 
 ## Do NOT
 
 - log private keys or seed phrases;
 - infer success from a disappeared UTXO;
 - switch to mainnet or a public node silently;
-- hand-edit manifests or claims;
-- weaken funds-safety checks to satisfy a failing test — classify the
-  failure first.
+- weaken funds-safety checks to satisfy a failing test — classify the failure
+  first (CLAUDE.md, mission §69).
+
+## Production operations addendum (Checkpoint I)
+
+- Startup posture report: the server prints network, data root, dev-signer /
+  test-hook / legacy-create status, mainnet-broadcast status, and donation
+  configuration at listen time; a mainnet process refuses to start with any
+  development hook enabled, and every process refuses a data root stamped
+  for another network (`.pv-network`).
+- Backup/restore: copy the whole per-network data root; restore; run Verify
+  state per active vault. Full procedure: `docs/production-release.md` §6
+  (restoration exercised 2026-08-22).

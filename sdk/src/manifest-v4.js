@@ -29,7 +29,7 @@
 const path = require("path");
 const fs = require("fs");
 
-const { persistJsonDurably, readJsonStrict } = require("./durable-json");
+const { getStore, Categories } = require("./store");
 const { normalizeHex } = require("./vault-state");
 const {
   CONTRACT_VERSION_V4,
@@ -224,15 +224,12 @@ function normalizeTransition(input, contractVersion = CONTRACT_VERSION_V4) {
   });
 }
 
-function loadManifestV4(config, vaultId) {
-  const filePath = manifestPath(config, vaultId);
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-  return normalizeManifestV4(readJsonStrict(filePath, "vault manifest"));
+async function loadManifestV4(config, vaultId) {
+  const stored = await getStore(config).read(Categories.VAULT, vaultId);
+  return stored === null ? null : normalizeManifestV4(stored);
 }
 
-function persistManifestV4(config, manifest) {
+async function persistManifestV4(config, manifest) {
   const normalized = normalizeManifestV4({ ...manifest, updatedAt: new Date().toISOString() });
   const encoded = {
     ...normalized,
@@ -245,7 +242,7 @@ function persistManifestV4(config, manifest) {
         }
       : null
   };
-  persistJsonDurably({ filePath: manifestPath(config, normalized.vaultId), value: encoded });
+  await getStore(config).write(Categories.VAULT, normalized.vaultId, encoded);
   return normalized;
 }
 

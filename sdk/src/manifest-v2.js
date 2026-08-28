@@ -12,7 +12,7 @@
 const path = require("path");
 const fs = require("fs");
 
-const { persistJsonDurably, readJsonStrict } = require("./durable-json");
+const { getStore, Categories } = require("./store");
 const { normalizeHex } = require("./vault-state");
 const { normalizeTemplateV2, normalizeStateV2, computeStateIdV2, CONTRACT_VERSION_V2, stateToJson } = require("./vault-state-v2");
 const { VaultStatus, TERMINAL_STATUSES } = require("./manifest");
@@ -114,15 +114,12 @@ function normalizeManifestV2(input) {
   });
 }
 
-function loadManifestV2(config, vaultId) {
-  const filePath = manifestPath(config, vaultId);
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-  return normalizeManifestV2(readJsonStrict(filePath, "vault manifest"));
+async function loadManifestV2(config, vaultId) {
+  const stored = await getStore(config).read(Categories.VAULT, vaultId);
+  return stored === null ? null : normalizeManifestV2(stored);
 }
 
-function persistManifestV2(config, manifest) {
+async function persistManifestV2(config, manifest) {
   const normalized = normalizeManifestV2({ ...manifest, updatedAt: new Date().toISOString() });
   /* Re-encode live state JSON-safely (BigInt fields). */
   const encoded = {
@@ -135,7 +132,7 @@ function persistManifestV2(config, manifest) {
         }
       : null
   };
-  persistJsonDurably({ filePath: manifestPath(config, normalized.vaultId), value: encoded });
+  await getStore(config).write(Categories.VAULT, normalized.vaultId, encoded);
   return normalized;
 }
 
@@ -143,12 +140,11 @@ function persistManifestV2(config, manifest) {
  * Version-aware loader: dispatches on the stored schema tag. Unknown
  * schemas fail closed; callers get { version: "v1" | "v2", manifest }.
  */
-function loadAnyManifest(config, vaultId) {
-  const filePath = manifestPath(config, vaultId);
-  if (!fs.existsSync(filePath)) {
+async function loadAnyManifest(config, vaultId) {
+  const raw = await getStore(config).read(Categories.VAULT, vaultId);
+  if (raw === null) {
     return null;
   }
-  const raw = readJsonStrict(filePath, "vault manifest");
   if (raw.schema === MANIFEST_SCHEMA_V2) {
     return { version: "v2", manifest: normalizeManifestV2(raw) };
   }

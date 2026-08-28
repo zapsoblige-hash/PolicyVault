@@ -17,7 +17,7 @@ opcodes**. Kaspa's default mempool standardness check
 P2SH sig-ops with `post_toccata_p2sh_sig_scanner` and rejects any P2SH input
 whose redeem script exceeds `MAX_STANDARD_P2SH_SIG_OPS = 15`. So every v0.4
 covenant spend is **non-standard** and a default node refuses to relay it
-(observed on the first live broadcast attempt). v0.4
+(observed live in Checkpoint H; see `docs/v04-h-standardness-finding.md`). v0.4
 remains consensus-valid but unrelayable without `accept_non_standard`.
 
 v0.4.1 fixes this **at the covenant layer** by consolidating the six
@@ -123,7 +123,7 @@ Proven by cross-selector swap tests at both the VM layer
 a recover call that carries a selector (control-as-recover) and an
 `ownerControl` call that lacks a successor (recover-as-control).
 
-## 6. Verification
+## 6. Verification (this checkpoint)
 
 - **Standardness gate** (`v4_1_standardness_p2sh_sig_ops`): the ACTUAL compiled
   redeem script, inside a real `agentSpend` signature script, scanned by the
@@ -149,7 +149,7 @@ a recover call that carries a selector (control-as-recover) and an
   v0.4.1 genesis produces the 16,980-byte covenant with a distinct stateId; the
   six owner ops route through `ownerControl` + the correct opSelector; v0.4 is
   unchanged; unknown versions fail closed.
-- **LIVE**: a default testnet-10
+- **LIVE** (`docs/v041-standardness-live-evidence.json`): a default testnet-10
   node relayed a below-threshold `agentSpend` end-to-end (genesis
   `3543638d…`, spend `209631ae…`), node txid == frozen txid, exact chain
   proof, registry root reconstruction.

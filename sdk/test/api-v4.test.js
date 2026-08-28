@@ -55,7 +55,7 @@ function agentEntry(kp, recipients, over = {}) {
 const REGISTRY = [agentEntry(agentA, [recipient, other]), agentEntry(agentB, [other])];
 
 let seedCounter = 0;
-function seed(registry = REGISTRY, over = {}) {
+async function seed(registry = REGISTRY, over = {}) {
   seedCounter += 1;
   const outTxId = seedCounter.toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const policies = registry.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
@@ -63,7 +63,7 @@ function seed(registry = REGISTRY, over = {}) {
   const state = normalizeStateV4({ protectedValue: (1000n * KAS).toString(), feeReserve: (5n * KAS).toString(), paused: "0", agentRoot, approvers: over.approvers ?? [], approvalM: over.approvalM ?? "0", policyNonce: "0" });
   const compiled = compileExactStateV4({ config, template: { owner: template.owner, vaultId: VAULT_ID }, state });
   const stateId = computeStateIdV4({ networkId: config.networkId, template, state });
-  return persistManifestV4(config, {
+  return await persistManifestV4(config, {
     schema: MANIFEST_SCHEMA_V4, contractVersion: CONTRACT_VERSION_V4, networkId: config.networkId, vaultId: VAULT_ID,
     label: "api test", status: "ACTIVE", template, agentRegistry: registry,
     live: { state: stateToJsonV4(state), stateId, outpoint: { transactionId: outTxId, index: 0 }, outpointValue: (state.protectedValue + state.feeReserve).toString(), scriptSha256: compiled.scriptSha256, covenantId: "41".repeat(32) },
@@ -95,7 +95,7 @@ function secretOf(kp) {
 const agentFuel = (kp) => ({ outpoint: { transactionId: "43".repeat(32), index: 1 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${XO(kp)}ac` });
 
 test("G12: HTTP agentSpend -> authz -> BUILD -> sign -> FINALIZE -> production covenant VM preflight PASS", async () => {
-  seed();
+  await seed();
   const built = await POST(["wallet", "v4", "requests"], { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) }, signerAddress: ADDR(agentA) });
   assert.equal(built.status, 201);
   const req = built.body.request;
@@ -111,7 +111,7 @@ test("G12: HTTP agentSpend -> authz -> BUILD -> sign -> FINALIZE -> production c
 });
 
 test("G12: GET /vaults/:id presents the v0.4 vault (fee reserve + agent registry)", async () => {
-  seed();
+  await seed();
   const res = await GET(["vaults", VAULT_ID]);
   assert.equal(res.status, 200);
   assert.equal(res.body.contractVersion, CONTRACT_VERSION_V4);
@@ -122,7 +122,7 @@ test("G12: GET /vaults/:id presents the v0.4 vault (fee reserve + agent registry
 });
 
 test("G13 authz: owner cannot agentSpend; unrelated wallet cannot; agent cannot owner-op — all 403, zero durable mutation", async () => {
-  seed();
+  await seed();
   const before = fs.existsSync(path.join(dataRoot, "requests")) ? fs.readdirSync(path.join(dataRoot, "requests")).length : 0;
   // owner tries an agent spend
   await expectThrow(POST(["wallet", "v4", "requests"], { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) }, signerAddress: ADDR(owner) }), 403, "NOT_AGENT");
@@ -135,18 +135,18 @@ test("G13 authz: owner cannot agentSpend; unrelated wallet cannot; agent cannot 
 });
 
 test("G13 authz: an agent may spend only their OWN leaf (agent A signing for agent B is rejected)", async () => {
-  seed();
+  await seed();
   // signer is agent A but the params name agent B -> NOT_AGENT (signer != acting agent)
   await expectThrow(POST(["wallet", "v4", "requests"], { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentB), recipient: XO(other) }, signerAddress: ADDR(agentA) }), 403, "NOT_AGENT");
 });
 
 test("G13: unauthorized recipient (not in the agent's set) fails closed at BUILD", async () => {
-  seed();
+  await seed();
   await expectThrow(POST(["wallet", "v4", "requests"], { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(unrelated) }, signerAddress: ADDR(agentA) }), 422);
 });
 
 test("G7 via HTTP: above-threshold spend collects approvals then finalizes to preflight PASS", async () => {
-  seed(REGISTRY, { approvers: approvers.map(XO), approvalM: "2" });
+  await seed(REGISTRY, { approvers: approvers.map(XO), approvalM: "2" });
   const built = await POST(["wallet", "v4", "requests"], { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (6n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient), fuel: agentFuel(agentA) }, signerAddress: ADDR(agentA) });
   const req = built.body.request;
   assert.equal(req.state, "AWAITING_APPROVALS");
@@ -163,6 +163,6 @@ test("G7 via HTTP: above-threshold spend collects approvals then finalizes to pr
 });
 
 test("G1: unknown v0.4 action fails closed; no legacy fallback", async () => {
-  seed();
+  await seed();
   await expectThrow(POST(["wallet", "v4", "requests"], { vaultId: VAULT_ID, action: "delegateSpend", params: {}, signerAddress: ADDR(agentA) }), 422, "BUILD_FAILED");
 });

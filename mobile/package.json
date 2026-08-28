@@ -1,0 +1,37 @@
+{
+  "name": "policyvault-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "PolicyVault mobile client — a Capacitor shell hosting the byte-identical committed web/core-bundle.js + web/verify-intent.js. SCAFFOLD: read/coordinate control plane and on-device pre-sign verification. Not production-capable.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "sync:portable": "node tools/sync-portable.js",
+    "check:portable": "node tools/sync-portable.js --check",
+    "check:packaged": "node tools/sync-portable.js --check-packaged",
+    "pretest": "node tools/sync-portable.js --check",
+    "test": "node --test test/*.test.js",
+    "presync": "node tools/sync-portable.js --check",
+    "sync": "cap sync",
+    "postsync": "node tools/sync-portable.js --check-packaged",
+    "precopy": "node tools/sync-portable.js --check",
+    "copy": "cap copy",
+    "postcopy": "node tools/sync-portable.js --check-packaged",
+    "preadd:ios": "node tools/sync-portable.js --check",
+    "add:ios": "cap add ios",
+    "postadd:ios": "node tools/sync-portable.js --check-packaged",
+    "preadd:android": "node tools/sync-portable.js --check",
+    "add:android": "cap add android",
+    "postadd:android": "node tools/sync-portable.js --check-packaged"
+  },
+  "dependencies": {
+    "@capacitor/core": "7.6.8"
+  },
+  "devDependencies": {
+    "@capacitor/android": "7.6.8",
+    "@capacitor/cli": "7.6.8",
+    "@capacitor/ios": "7.6.8"
+  }
+}

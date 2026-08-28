@@ -65,10 +65,10 @@ function stateInput() {
   };
 }
 
-function seedVault(config) {
+async function seedVault(config) {
   const template = normalizeTemplateV2({ owner: OWNER_X, vaultId: VAULT_ID });
   const state = normalizeStateV2(stateInput());
-  persistManifestV2(config, {
+  await persistManifestV2(config, {
     schema: MANIFEST_SCHEMA_V2,
     contractVersion: CONTRACT_VERSION_V2,
     networkId: config.networkId,
@@ -117,7 +117,7 @@ const OWNER_ACTIONS = [
 
 test("A/C: delegate attempting every owner action fails NOT_OWNER with zero durable mutation", async () => {
   const config = tempConfig();
-  seedVault(config);
+  await seedVault(config);
   for (const [action, params] of OWNER_ACTIONS) {
     await assert.rejects(
       () => buildWalletRequestV2({ config, vaultId: VAULT_ID, action, params, signerAddress: DELEGATE_ADDR }),
@@ -130,7 +130,7 @@ test("A/C: delegate attempting every owner action fails NOT_OWNER with zero dura
 
 test("D: unrelated wallet attempting owner and delegate mutations fails with zero durable mutation", async () => {
   const config = tempConfig();
-  seedVault(config);
+  await seedVault(config);
   for (const [action, params] of OWNER_ACTIONS) {
     await assert.rejects(
       () => buildWalletRequestV2({ config, vaultId: VAULT_ID, action, params, signerAddress: UNRELATED_ADDR }),
@@ -146,7 +146,7 @@ test("D: unrelated wallet attempting owner and delegate mutations fails with zer
 
 test("E: owner attempting delegateSpend (owner != delegate) fails NOT_DELEGATE with zero durable mutation", async () => {
   const config = tempConfig();
-  seedVault(config);
+  await seedVault(config);
   await assert.rejects(
     () => buildWalletRequestV2({ config, vaultId: VAULT_ID, action: "delegateSpend", params: { payAmountSompi: "100000000", recipientIndex: 1 }, signerAddress: OWNER_ADDR }),
     (e) => e.code === "NOT_DELEGATE"
@@ -156,7 +156,7 @@ test("E: owner attempting delegateSpend (owner != delegate) fails NOT_DELEGATE w
 
 test("unknown action and malformed signer address fail closed before construction", async () => {
   const config = tempConfig();
-  seedVault(config);
+  await seedVault(config);
   await assert.rejects(
     () => buildWalletRequestV2({ config, vaultId: VAULT_ID, action: "adminDrain", params: {}, signerAddress: OWNER_ADDR }),
     (e) => e.code === "BUILD_FAILED" && /unknown action/.test(e.message)
@@ -186,7 +186,7 @@ test("create: funding signer must BE the template owner (NOT_OWNER otherwise, ze
   assertZeroDurableMutation(config);
 });
 
-test("every wallet action is present in the role map (fail-closed coverage)", () => {
+test("every wallet action is present in the role map (fail-closed coverage)", async () => {
   assert.deepEqual(
     Object.keys(ROLE_BY_ACTION).sort(),
     ["delegateSpend", "migratePolicy", "ownerPause", "ownerRecover", "ownerTopUp", "ownerUnpause", "revokeDelegate", "rolloverAndSpend", "rotateDelegate"].sort()
@@ -198,7 +198,7 @@ test("every wallet action is present in the role map (fail-closed coverage)", ()
 
 /* ---- submission-outcome classification (Bug 2) ---- */
 
-test("classification: node-evaluated rejections are DEFINITIVE", () => {
+test("classification: node-evaluated rejections are DEFINITIVE", async () => {
   assert.ok(isDefinitiveSubmitRejection(
     "Rejected transaction 12ffe0c2353ab546a3d91be0d7bdb635c667bc565441650ce76099938ae4f033: failed to verify the signature script: script ran, but verification failed"
   ));
@@ -206,7 +206,7 @@ test("classification: node-evaluated rejections are DEFINITIVE", () => {
   assert.ok(isDefinitiveSubmitRejection("Rejected transaction abc123: policy rejection: mass exceeds limit"));
 });
 
-test("classification: transport/ambiguous failures are NEVER definitive", () => {
+test("classification: transport/ambiguous failures are NEVER definitive", async () => {
   for (const message of [
     "websocket connection dropped before response",
     "RPC timeout after 15000ms",
@@ -224,34 +224,33 @@ test("classification: transport/ambiguous failures are NEVER definitive", () => 
 
 /* ---- claim release: guarded, idempotent, crash-safe (test 10) ---- */
 
-test("releaseTransitionClaim releases only the matching txId, idempotently", () => {
+test("releaseTransitionClaim releases only the matching txId, idempotently", async () => {
   const config = tempConfig();
   const outpoint = { transactionId: "aa".repeat(32), index: 1 };
   const txId = "bb".repeat(32);
-  claimTransition(config, { outpoint, action: "ownerTopUp", txId, vaultId: VAULT_ID, stateId: "22".repeat(32), expected: null });
+  await claimTransition(config, { outpoint, action: "ownerTopUp", txId, vaultId: VAULT_ID, stateId: "22".repeat(32), expected: null });
 
   // Wrong txId: refused loudly, claim intact.
-  assert.throws(
-    () => releaseTransitionClaim(config, { outpoint, txId: "cc".repeat(32) }),
+  await assert.rejects(async () => releaseTransitionClaim(config, { outpoint, txId: "cc".repeat(32) }),
     (e) => e.code === "CLAIM_CONFLICT" && /refusing to release/.test(e.message)
   );
-  assert.ok(loadTransitionClaim(config, outpoint), "claim must survive a mismatched release");
+  assert.ok(await loadTransitionClaim(config, outpoint), "claim must survive a mismatched release");
 
   // Matching txId: released; second call is a no-op (idempotent).
-  assert.equal(releaseTransitionClaim(config, { outpoint, txId }), true);
-  assert.equal(loadTransitionClaim(config, outpoint), null);
-  assert.equal(releaseTransitionClaim(config, { outpoint, txId }), false);
+  assert.equal(await releaseTransitionClaim(config, { outpoint, txId }), true);
+  assert.equal(await loadTransitionClaim(config, outpoint), null);
+  assert.equal(await releaseTransitionClaim(config, { outpoint, txId }), false);
 
   // The outpoint is immediately claimable again (vault usable).
-  claimTransition(config, { outpoint, action: "delegateSpend", txId: "dd".repeat(32), vaultId: VAULT_ID, stateId: "22".repeat(32), expected: null });
+  await claimTransition(config, { outpoint, action: "delegateSpend", txId: "dd".repeat(32), vaultId: VAULT_ID, stateId: "22".repeat(32), expected: null });
 });
 
-test("releaseSubmissionClaim is idempotent", () => {
+test("releaseSubmissionClaim is idempotent", async () => {
   const config = tempConfig();
   const txId = "ee".repeat(32);
-  claimSubmission(config, { txId, vaultId: VAULT_ID, action: "delegateSpend" });
+  await claimSubmission(config, { txId, vaultId: VAULT_ID, action: "delegateSpend" });
   assert.ok(fs.existsSync(submissionClaimPath(config, txId)));
-  assert.equal(releaseSubmissionClaim(config, txId), true);
+  assert.equal(await releaseSubmissionClaim(config, txId), true);
   assert.equal(fs.existsSync(submissionClaimPath(config, txId)), false);
-  assert.equal(releaseSubmissionClaim(config, txId), false);
+  assert.equal(await releaseSubmissionClaim(config, txId), false);
 });

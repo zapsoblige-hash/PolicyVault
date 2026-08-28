@@ -51,7 +51,7 @@ async function waitFor(fn, ms = 4000) {
   }
 }
 
-function seedLegacyVault(config, vaultId) {
+async function seedLegacyVault(config, vaultId) {
   const { persistManifestV2, MANIFEST_SCHEMA_V2 } = require(path.join(sdkRoot, "src/manifest-v2"));
   const { computeStateIdV2, normalizeTemplateV2, normalizeStateV2, CONTRACT_VERSION_V2 } = require(path.join(sdkRoot, "src/vault-state-v2"));
   const OWNER_X = "cbaedc26f03fd3ba02fc936f338e980c9e2172c5e23128877ed46827e935296f";
@@ -63,7 +63,7 @@ function seedLegacyVault(config, vaultId) {
     delegate: DELEGATE_X, maxPerSpend: "1000000000", periodBudget: "5000000000",
     periodLengthDaa: "600", recipients: [RECIP_X], delegateActive: "1", policyNonce: "0"
   });
-  persistManifestV2(config, {
+  await persistManifestV2(config, {
     schema: MANIFEST_SCHEMA_V2, contractVersion: CONTRACT_VERSION_V2, networkId: config.networkId,
     vaultId, label: "acceptance-legacy", status: "ACTIVE", template,
     live: {
@@ -80,7 +80,7 @@ function seedLegacyVault(config, vaultId) {
   if (config.networkId !== "testnet-10") { console.error("refusing: not testnet-10"); process.exit(2); }
   const keys = loadOrCreateTestKeys(loadConfig()); // real funded test owner (address use only — never signs here)
   const VAULT_A = "aa".repeat(32);
-  seedLegacyVault(config, VAULT_A);
+  await seedLegacyVault(config, VAULT_A);
 
   const server = createServer(config);
   await new Promise((r) => server.listen(PORT, "127.0.0.1", r));

@@ -1,0 +1,1399 @@
+{
+ "apiSurface": {
+  "frozenTx": {
+   "keys": [
+    "TX_PROBE_PATH",
+    "canonicalFrozenTxJson",
+    "describeFrozenTx",
+    "feeDescriptorFromFrozen",
+    "frozenToWasmTransaction",
+    "frozenTxCommitment",
+    "normalizeFrozenTxV3",
+    "verifyApprovalSignature"
+   ],
+   "types": {
+    "TX_PROBE_PATH": "string",
+    "canonicalFrozenTxJson": "function",
+    "describeFrozenTx": "function",
+    "feeDescriptorFromFrozen": "function",
+    "frozenToWasmTransaction": "function",
+    "frozenTxCommitment": "function",
+    "normalizeFrozenTxV3": "function",
+    "verifyApprovalSignature": "function"
+   }
+  },
+  "apV3": {
+   "keys": [
+    "APPROVAL_PACKAGE_SCHEMA",
+    "PLACEHOLDER_APPROVAL",
+    "approvalPackageToJson",
+    "approvalsBlobV3",
+    "assertPackageIntegrity",
+    "collectedCount",
+    "createApprovalPackageV3",
+    "isCompleteV3",
+    "loadApprovalPackage",
+    "missingSlots",
+    "p2pkScriptHex",
+    "packageCommitmentV3",
+    "placeholderApprovalsBlob",
+    "submitApprovalV3"
+   ],
+   "types": {
+    "APPROVAL_PACKAGE_SCHEMA": "string",
+    "PLACEHOLDER_APPROVAL": "string",
+    "approvalPackageToJson": "function",
+    "approvalsBlobV3": "function",
+    "assertPackageIntegrity": "function",
+    "collectedCount": "function",
+    "createApprovalPackageV3": "function",
+    "isCompleteV3": "function",
+    "loadApprovalPackage": "function",
+    "missingSlots": "function",
+    "p2pkScriptHex": "function",
+    "packageCommitmentV3": "function",
+    "placeholderApprovalsBlob": "function",
+    "submitApprovalV3": "function"
+   }
+  },
+  "apV4": {
+   "keys": [
+    "APPROVAL_PACKAGE_SCHEMA_V4",
+    "PLACEHOLDER_APPROVAL",
+    "approvalPackageToJsonV4",
+    "approvalsBlobV4",
+    "assertPackageIntegrityV4",
+    "collectedCountV4",
+    "createApprovalPackageV4",
+    "isCompleteV4",
+    "loadApprovalPackageV4",
+    "missingSlotsV4",
+    "p2pkScriptHex",
+    "packageCommitmentV4",
+    "placeholderApprovalsBlob",
+    "submitApprovalV4"
+   ],
+   "types": {
+    "APPROVAL_PACKAGE_SCHEMA_V4": "string",
+    "PLACEHOLDER_APPROVAL": "string",
+    "approvalPackageToJsonV4": "function",
+    "approvalsBlobV4": "function",
+    "assertPackageIntegrityV4": "function",
+    "collectedCountV4": "function",
+    "createApprovalPackageV4": "function",
+    "isCompleteV4": "function",
+    "loadApprovalPackageV4": "function",
+    "missingSlotsV4": "function",
+    "p2pkScriptHex": "function",
+    "packageCommitmentV4": "function",
+    "placeholderApprovalsBlob": "function",
+    "submitApprovalV4": "function"
+   }
+  }
+ },
+ "pure": {
+  "frozenTx": {
+   "canonicalJsonV3": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":1200,\"utxo\":{\"amount\":\"50000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"51\"},\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"blockDaaScore\":\"1000\"}},{\"previousOutpoint\":{\"transactionId\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"index\":1},\"sequence\":\"0\",\"computeBudget\":0,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac\"},\"covenantId\":null,\"blockDaaScore\":\"999\"}}],\"outputs\":[{\"value\":\"30000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac\"},\"covenant\":null},{\"value\":\"20000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"52\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\"}},{\"value\":\"99900000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}",
+   "canonicalJsonV4": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":2500,\"utxo\":{\"amount\":\"40000200000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"53\"},\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"blockDaaScore\":\"2000\"}},{\"previousOutpoint\":{\"transactionId\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"index\":2},\"sequence\":\"0\",\"computeBudget\":0,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac\"},\"covenantId\":null,\"blockDaaScore\":\"1999\"}}],\"outputs\":[{\"value\":\"5000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac\"},\"covenant\":null},{\"value\":\"35000199000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"54\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\"}},{\"value\":\"99900000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}",
+   "commitmentV3": "baf6de6fb553e09d9ee83871c64295ca47f342a35dda69f77fe30a5f5b564123",
+   "commitmentV4": "7e6f61f9fc1252e343edcd4be1441304f3e6c2f878a61917fcb96b32e7a1e618",
+   "denormalizedMatchesCanonical": true,
+   "roundTripStable": true,
+   "feeDescriptor": {
+    "version": 1,
+    "payloadHex": "",
+    "inputs": [
+     {
+      "signatureScriptHex": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "computeBudget": 1200
+     },
+     {
+      "signatureScriptHex": "",
+      "computeBudget": 0
+     }
+    ],
+    "outputs": [
+     {
+      "scriptHex": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac",
+      "hasCovenant": false
+     },
+     {
+      "scriptHex": "52",
+      "hasCovenant": true
+     },
+     {
+      "scriptHex": "20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac",
+      "hasCovenant": false
+     }
+    ]
+   },
+   "feeDescriptorEmptySigs": {
+    "version": 1,
+    "payloadHex": "",
+    "inputs": [
+     {
+      "signatureScriptHex": "",
+      "computeBudget": 2500
+     },
+     {
+      "signatureScriptHex": "",
+      "computeBudget": 0
+     }
+    ],
+    "outputs": [
+     {
+      "scriptHex": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac",
+      "hasCovenant": false
+     },
+     {
+      "scriptHex": "54",
+      "hasCovenant": true
+     },
+     {
+      "scriptHex": "20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac",
+      "hasCovenant": false
+     }
+    ]
+   },
+   "rejects": {
+    "notObject": {
+     "threw": true,
+     "message": "frozen-tx-v3: transaction descriptor is required",
+     "code": null
+    },
+    "badVersion": {
+     "threw": true,
+     "message": "frozen-tx-v3: frozen transactions must be version 1 (Toccata)",
+     "code": null
+    },
+    "noInputs": {
+     "threw": true,
+     "message": "frozen-tx-v3: at least one input is required",
+     "code": null
+    },
+    "noOutputs": {
+     "threw": true,
+     "message": "frozen-tx-v3: at least one output is required",
+     "code": null
+    },
+    "signatureScriptPresent": {
+     "threw": true,
+     "message": "frozen-tx-v3: inputs[0] must not carry a signatureScript — the frozen form is unsigned",
+     "code": null
+    },
+    "missingOutpoint": {
+     "threw": true,
+     "message": "frozen-tx-v3: inputs[0].previousOutpoint is required",
+     "code": null
+    },
+    "outpointIndexNegative": {
+     "threw": true,
+     "message": "frozen-tx-v3: inputs[0].previousOutpoint.index out of range",
+     "code": null
+    },
+    "outpointIndexOverflow": {
+     "threw": true,
+     "message": "frozen-tx-v3: inputs[0].previousOutpoint.index out of range",
+     "code": null
+    },
+    "budgetNegative": {
+     "threw": true,
+     "message": "frozen-tx-v3: inputs[0].computeBudget out of u16 range",
+     "code": null
+    },
+    "budgetOverflow": {
+     "threw": true,
+     "message": "frozen-tx-v3: inputs[0].computeBudget out of u16 range",
+     "code": null
+    },
+    "missingUtxo": {
+     "threw": true,
+     "message": "frozen-tx-v3: inputs[0].utxo is required (amount + scriptPublicKey + covenantId)",
+     "code": null
+    },
+    "oddSpkHex": {
+     "threw": true,
+     "message": "frozen-tx-v3: outputs[0].scriptPublicKey.scriptHex must be even-length hex",
+     "code": null
+    },
+    "spkVersionRange": {
+     "threw": true,
+     "message": "frozen-tx-v3: outputs[0].scriptPublicKey.version out of range",
+     "code": null
+    },
+    "covenantAuthorizingRange": {
+     "threw": true,
+     "message": "frozen-tx-v3: outputs[1].covenant.authorizingInput out of range",
+     "code": null
+    },
+    "badCovenantId": {
+     "threw": true,
+     "message": "vault-state: outputs[1].covenant.covenantId must be 32-byte lowercase hex",
+     "code": null
+    },
+    "wrongSubnetwork": {
+     "threw": true,
+     "message": "frozen-tx-v3: frozen transactions must use the native subnetwork",
+     "code": null
+    },
+    "gasNonzero": {
+     "threw": true,
+     "message": "frozen-tx-v3: frozen transactions must carry gas 0",
+     "code": null
+    },
+    "payloadNonempty": {
+     "threw": true,
+     "message": "frozen-tx-v3: frozen transactions must carry an empty payload",
+     "code": null
+    },
+    "negativeAmount": {
+     "threw": true,
+     "message": "amounts: inputs[0].utxo.amount must be a base-10 digit string, got \"-1\"",
+     "code": null
+    },
+    "floatAmount": {
+     "threw": true,
+     "message": "amounts: outputs[0].value must be a base-10 digit string, got \"1.5\"",
+     "code": null
+    },
+    "feeDescriptorWrongLength": {
+     "threw": true,
+     "message": "frozen-tx-v3: feeDescriptorFromFrozen needs one final sig-script length per input",
+     "code": null
+    },
+    "feeDescriptorNegativeLen": {
+     "threw": true,
+     "message": "frozen-tx-v3: sigScriptLengths[1] must be a non-negative integer",
+     "code": null
+    },
+    "feeDescriptorNonInteger": {
+     "threw": true,
+     "message": "frozen-tx-v3: sigScriptLengths[1] must be a non-negative integer",
+     "code": null
+    }
+   }
+  },
+  "apV3": {
+   "schema": "policyvault-approval-package/v1",
+   "placeholderApproval": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+   "p2pkScript": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac",
+   "placeholderBlob": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+   "syntheticCommitment": "a2462dfbca60d9b3e08eee30f78dd71f8e2ab60b08e36e3047e22993367ca7f6",
+   "syntheticCommitmentMutated": "2c38f2ad03355f0bd816b7599c4dcf4bf310a88e26dee70fce5c140915a59a9d",
+   "commitmentKeyOrderIndependent": true,
+   "commitmentIgnoresCreatedAtAndApprovals": true,
+   "collected": {
+    "empty": 0,
+    "one": 1,
+    "two": 2
+   },
+   "missing": {
+    "empty": [
+     0,
+     1,
+     2
+    ],
+    "afterOne": [
+     1,
+     2
+    ]
+   },
+   "complete": {
+    "empty": false,
+    "one": false,
+    "two": true
+   }
+  },
+  "apV4": {
+   "schema": "policyvault-approval-package/v4",
+   "placeholderApproval": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+   "p2pkScript": "20ababababababababababababababababababababababababababababababababac",
+   "placeholderBlob": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+   "syntheticCommitment": "c0d159913ba48f45e9bc188476bfe2ab2d88b203238c48ad9af0938373587eed",
+   "syntheticCommitmentMutated": "442f714aad354914f08c614c3fb7a2fdd06873eebfe6c98689561d4e73bf46b7",
+   "commitmentKeyOrderIndependent": true,
+   "commitmentIgnoresCreatedAtAndApprovals": true,
+   "collected": {
+    "empty": 0,
+    "one": 1
+   },
+   "missing": {
+    "empty": [
+     0,
+     1
+    ],
+    "afterOne": [
+     1
+    ]
+   },
+   "complete": {
+    "empty": false,
+    "one": true
+   }
+  }
+ },
+ "impure": {
+  "frozenTx": {
+   "probePathSuffixOk": true,
+   "describeV3": {
+    "txId": "b1665c5a8f326dfa066a54ed194339e167204a6cb6cb215be60e4a0143844226",
+    "sighashAll": [
+     "f6333675b78e594253a888b085870c121d17ae377e1ed4bc95bcded4c2a0a6ca",
+     "4cab5a81366169f177f0baa50c27045411cab6685a61e26a5dbcca9f7a3dfafc"
+    ]
+   },
+   "describeV4": {
+    "txId": "ec443771a9db70263773f07c4001eef6605aaac186b6f3c0605e20f0f2594f64",
+    "sighashAll": [
+     "9cc159ba840fbdfe7e7600981b00318fae5cf77718d79a170535e8682a9428dd",
+     "f8b95da5764cc9310a21fd6c9630971741dcb344b53688a6fb0dadbcc868309b"
+    ]
+   },
+   "verify": {
+    "indexOutOfRange": {
+     "threw": true,
+     "message": "frozen-tx-v3: verifyApprovalSignature: input index out of range",
+     "code": null
+    },
+    "badKey": {
+     "threw": true,
+     "message": "vault-state: approver key must be 32-byte lowercase hex",
+     "code": null
+    },
+    "nonHexSignature": {
+     "valid": false,
+     "reason": "signature must be lowercase hex"
+    },
+    "oddHexSignature": {
+     "valid": false,
+     "reason": "signature must be lowercase hex"
+    },
+    "cryptographicallyInvalid": {
+     "valid": false,
+     "reason": "invalid x-only public key"
+    }
+   }
+  },
+  "apV3": {
+   "createdPackage": {
+    "schema": "policyvault-approval-package/v1",
+    "contractVersion": "policyvault-0.3",
+    "networkId": "kaspa-testnet-10",
+    "vaultId": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+    "action": "delegateSpend",
+    "predecessorOutpoint": {
+     "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+     "index": 0
+    },
+    "predecessorStateId": "state-pred-1",
+    "successorStateId": "state-succ-1",
+    "policyNonce": "7",
+    "txId": "b1665c5a8f326dfa066a54ed194339e167204a6cb6cb215be60e4a0143844226",
+    "covenantInputIndex": 0,
+    "covenantSighash": "f6333675b78e594253a888b085870c121d17ae377e1ed4bc95bcded4c2a0a6ca",
+    "frozenTransaction": {
+     "version": 1,
+     "inputs": [
+      {
+       "previousOutpoint": {
+        "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 0
+       },
+       "sequence": "0",
+       "computeBudget": 1200,
+       "utxo": {
+        "amount": "50000000000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "51"
+        },
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222",
+        "blockDaaScore": "1000"
+       }
+      },
+      {
+       "previousOutpoint": {
+        "transactionId": "3333333333333333333333333333333333333333333333333333333333333333",
+        "index": 1
+       },
+       "sequence": "0",
+       "computeBudget": 0,
+       "utxo": {
+        "amount": "100000000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac"
+        },
+        "covenantId": null,
+        "blockDaaScore": "999"
+       }
+      }
+     ],
+     "outputs": [
+      {
+       "value": "30000000000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+       },
+       "covenant": null
+      },
+      {
+       "value": "20000000000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "52"
+       },
+       "covenant": {
+        "authorizingInput": 0,
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222"
+       }
+      },
+      {
+       "value": "99900000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac"
+       },
+       "covenant": null
+      }
+     ],
+     "lockTime": "0",
+     "subnetworkId": "0000000000000000000000000000000000000000",
+     "gas": "0",
+     "payload": ""
+    },
+    "recipient": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "payAmountSompi": "30000000000",
+    "recipientProof": {
+     "root": "f94f6e2fa7d5e3371dff82d0ab33e8f2e9b139005aa3f31bd1bc836b8eba2027",
+     "siblingsHex": "94f209577190531d566577a2c3b9e9a9b280c8aaec4607fb25e45e5d531c95be155e01273a31661e286a37695b06eac810d24d7380755358c17e3401c4b91ef3",
+     "pathBits": "0"
+    },
+    "approvalThresholdAmount": "10000000000",
+    "approvalM": "2",
+    "approverSlots": [
+     "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+     "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+     "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "computeBudget": 1200,
+    "requiredFeeSompi": "100000",
+    "approvals": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "commitment": "75920a9683244cf75ea00a103b259185eff950703c1ce2d540eb40c73a3cc3c7"
+   },
+   "createdAtIsNonSecurity": true,
+   "integrityReturnsFrozen": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":1200,\"utxo\":{\"amount\":\"50000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"51\"},\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"blockDaaScore\":\"1000\"}},{\"previousOutpoint\":{\"transactionId\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"index\":1},\"sequence\":\"0\",\"computeBudget\":0,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac\"},\"covenantId\":null,\"blockDaaScore\":\"999\"}}],\"outputs\":[{\"value\":\"30000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac\"},\"covenant\":null},{\"value\":\"20000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"52\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\"}},{\"value\":\"99900000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}",
+   "toJson": "{\"schema\":\"policyvault-approval-package/v1\",\"contractVersion\":\"policyvault-0.3\",\"networkId\":\"kaspa-testnet-10\",\"vaultId\":\"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1\",\"action\":\"delegateSpend\",\"predecessorOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"predecessorStateId\":\"state-pred-1\",\"successorStateId\":\"state-succ-1\",\"policyNonce\":\"7\",\"txId\":\"b1665c5a8f326dfa066a54ed194339e167204a6cb6cb215be60e4a0143844226\",\"covenantInputIndex\":0,\"covenantSighash\":\"f6333675b78e594253a888b085870c121d17ae377e1ed4bc95bcded4c2a0a6ca\",\"frozenTransaction\":{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":1200,\"utxo\":{\"amount\":\"50000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"51\"},\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"blockDaaScore\":\"1000\"}},{\"previousOutpoint\":{\"transactionId\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"index\":1},\"sequence\":\"0\",\"computeBudget\":0,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac\"},\"covenantId\":null,\"blockDaaScore\":\"999\"}}],\"outputs\":[{\"value\":\"30000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac\"},\"covenant\":null},{\"value\":\"20000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"52\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\"}},{\"value\":\"99900000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"},\"recipient\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"payAmountSompi\":\"30000000000\",\"recipientProof\":{\"root\":\"f94f6e2fa7d5e3371dff82d0ab33e8f2e9b139005aa3f31bd1bc836b8eba2027\",\"siblingsHex\":\"94f209577190531d566577a2c3b9e9a9b280c8aaec4607fb25e45e5d531c95be155e01273a31661e286a37695b06eac810d24d7380755358c17e3401c4b91ef3\",\"pathBits\":\"0\"},\"approvalThresholdAmount\":\"10000000000\",\"approvalM\":\"2\",\"approverSlots\":[\"c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1\",\"c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2\",\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\"],\"computeBudget\":1200,\"requiredFeeSompi\":\"100000\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"approvals\":[null,null,null,null,null,null,null,null,null,null],\"commitment\":\"75920a9683244cf75ea00a103b259185eff950703c1ce2d540eb40c73a3cc3c7\"}",
+   "loadRoundTrip": {
+    "schema": "policyvault-approval-package/v1",
+    "contractVersion": "policyvault-0.3",
+    "networkId": "kaspa-testnet-10",
+    "vaultId": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+    "action": "delegateSpend",
+    "predecessorOutpoint": {
+     "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+     "index": 0
+    },
+    "predecessorStateId": "state-pred-1",
+    "successorStateId": "state-succ-1",
+    "policyNonce": "7",
+    "txId": "b1665c5a8f326dfa066a54ed194339e167204a6cb6cb215be60e4a0143844226",
+    "covenantInputIndex": 0,
+    "covenantSighash": "f6333675b78e594253a888b085870c121d17ae377e1ed4bc95bcded4c2a0a6ca",
+    "frozenTransaction": {
+     "version": 1,
+     "inputs": [
+      {
+       "previousOutpoint": {
+        "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 0
+       },
+       "sequence": "0",
+       "computeBudget": 1200,
+       "utxo": {
+        "amount": "50000000000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "51"
+        },
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222",
+        "blockDaaScore": "1000"
+       }
+      },
+      {
+       "previousOutpoint": {
+        "transactionId": "3333333333333333333333333333333333333333333333333333333333333333",
+        "index": 1
+       },
+       "sequence": "0",
+       "computeBudget": 0,
+       "utxo": {
+        "amount": "100000000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac"
+        },
+        "covenantId": null,
+        "blockDaaScore": "999"
+       }
+      }
+     ],
+     "outputs": [
+      {
+       "value": "30000000000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+       },
+       "covenant": null
+      },
+      {
+       "value": "20000000000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "52"
+       },
+       "covenant": {
+        "authorizingInput": 0,
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222"
+       }
+      },
+      {
+       "value": "99900000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeac"
+       },
+       "covenant": null
+      }
+     ],
+     "lockTime": "0",
+     "subnetworkId": "0000000000000000000000000000000000000000",
+     "gas": "0",
+     "payload": ""
+    },
+    "recipient": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "payAmountSompi": "30000000000",
+    "recipientProof": {
+     "root": "f94f6e2fa7d5e3371dff82d0ab33e8f2e9b139005aa3f31bd1bc836b8eba2027",
+     "siblingsHex": "94f209577190531d566577a2c3b9e9a9b280c8aaec4607fb25e45e5d531c95be155e01273a31661e286a37695b06eac810d24d7380755358c17e3401c4b91ef3",
+     "pathBits": "0"
+    },
+    "approvalThresholdAmount": "10000000000",
+    "approvalM": "2",
+    "approverSlots": [
+     "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+     "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+     "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "computeBudget": 1200,
+    "requiredFeeSompi": "100000",
+    "approvals": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "commitment": "75920a9683244cf75ea00a103b259185eff950703c1ce2d540eb40c73a3cc3c7"
+   },
+   "completeBlob": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+   "createRejects": {
+    "missingNetworkId": {
+     "threw": true,
+     "message": "approval-package-v3: networkId is required",
+     "code": null
+    },
+    "badAction": {
+     "threw": true,
+     "message": "approval-package-v3: approval packages exist only for spend entrypoints, got \"spend\"",
+     "code": null
+    },
+    "covenantIndexRange": {
+     "threw": true,
+     "message": "approval-package-v3: covenantInputIndex out of range",
+     "code": null
+    },
+    "outpointMismatch": {
+     "threw": true,
+     "message": "approval-package-v3: frozen covenant input does not spend the stated predecessor outpoint — refusing an inconsistent package",
+     "code": null
+    },
+    "notAboveThreshold": {
+     "threw": true,
+     "message": "approval-package-v3: payAmount is not above approvalThresholdAmount — no approval package is required for delegate-only spends",
+     "code": null
+    },
+    "output0NotP2pkRecipient": {
+     "threw": true,
+     "message": "approval-package-v3: frozen output 0 is not P2PK(recipient) — the covenant binds the payment to output 0",
+     "code": null
+    },
+    "missingProof": {
+     "threw": true,
+     "message": "approval-package-v3: recipientProof { root, siblingsHex, pathBits } is required",
+     "code": null
+    },
+    "proofDoesNotVerify": {
+     "threw": true,
+     "message": "approval-package-v3: recipient proof does not verify against the stated root — refusing an inconsistent package",
+     "code": null
+    },
+    "slotsWrongLength": {
+     "threw": true,
+     "message": "approval-package-v3: approverSlots must be the exact 10-slot layout",
+     "code": null
+    },
+    "duplicateApprover": {
+     "threw": true,
+     "message": "approval-package-v3: approverSlots[1] duplicates an active approver key — the predecessor set is malformed (fails closed on chain too)",
+     "code": null
+    },
+    "approvalMZero": {
+     "threw": true,
+     "message": "approval-package-v3: approvalM < 1 with an above-threshold spend — the covenant rejects this predecessor (malformed genesis); failing closed early",
+     "code": null
+    },
+    "approvalMTooHigh": {
+     "threw": true,
+     "message": "approval-package-v3: approvalM 4 exceeds the active approver count 3 — this spend can never collect enough approvals",
+     "code": null
+    },
+    "feeMismatch": {
+     "threw": true,
+     "message": "approval-package-v3: stated fee 100001 != frozen inputs-minus-outputs 100000",
+     "code": null
+    },
+    "missingPredecessorStateId": {
+     "threw": true,
+     "message": "approval-package-v3: predecessorStateId is required",
+     "code": null
+    },
+    "missingSuccessorStateId": {
+     "threw": true,
+     "message": "approval-package-v3: successorStateId is required",
+     "code": null
+    }
+   },
+   "integrityRejects": {
+    "unknownSchema": {
+     "threw": true,
+     "message": "approval-package-v3: unknown approval-package schema \"policyvault-approval-package/v9\" — failing closed",
+     "code": null
+    },
+    "unknownContractVersion": {
+     "threw": true,
+     "message": "approval-package-v3: unknown contractVersion \"policyvault-9.9\" — failing closed",
+     "code": null
+    },
+    "mutatedField": {
+     "threw": true,
+     "message": "approval-package-v3: package commitment mismatch — a protected field was mutated after freeze; collected approvals are void",
+     "code": "PACKAGE_MUTATED"
+    },
+    "mutatedFrozenBody": {
+     "threw": true,
+     "message": "approval-package-v3: frozen transaction no longer matches the committed txId/sighash — package void",
+     "code": "PACKAGE_MUTATED"
+    }
+   },
+   "submitRejects": {
+    "unknownApprover": {
+     "threw": true,
+     "message": "approval-package-v3: signer dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd is not a configured approver for this package",
+     "code": "UNKNOWN_APPROVER"
+    },
+    "sentinelSigner": {
+     "threw": true,
+     "message": "approval-package-v3: the sentinel is not a signer identity",
+     "code": "UNKNOWN_APPROVER"
+    },
+    "wrongSlot": {
+     "threw": true,
+     "message": "approval-package-v3: signer c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1 belongs to slot 0, not slot 1 — approvals are fixed-slot-bound",
+     "code": "WRONG_SLOT"
+    },
+    "duplicateSlot": {
+     "threw": true,
+     "message": "approval-package-v3: slot 0 already holds an approval",
+     "code": "DUPLICATE_APPROVAL"
+    },
+    "badHex": {
+     "threw": true,
+     "message": "approval-package-v3: signature must be lowercase hex",
+     "code": "SIGNATURE_INVALID"
+    },
+    "wrongLength": {
+     "threw": true,
+     "message": "approval-package-v3: approvals must be exactly 65 bytes (64-byte Schnorr + sighash byte), got 2",
+     "code": "SIGNATURE_INVALID"
+    },
+    "wrongSighashByte": {
+     "threw": true,
+     "message": "approval-package-v3: approval sighash byte 0x02 != 0x01 — only SIG_HASH_ALL approvals are accepted",
+     "code": "SIGHASH_NOT_ALL"
+    },
+    "placeholderSignature": {
+     "threw": true,
+     "message": "approval-package-v3: the canonical placeholder is not a real approval",
+     "code": "SIGNATURE_INVALID"
+    },
+    "schnorrInvalid": {
+     "threw": true,
+     "message": "approval-package-v3: approval rejected: invalid x-only public key",
+     "code": "SIGNATURE_INVALID"
+    }
+   },
+   "blobRejects": {
+    "insufficient": {
+     "threw": true,
+     "message": "approval-package-v3: insufficient approvals: 0 collected, 2 required — refusing final construction",
+     "code": "INSUFFICIENT_APPROVALS"
+    }
+   },
+   "loadRejects": {
+    "invalidJson": {
+     "threw": true,
+     "message": "approval-package-v3: approval package is not valid JSON",
+     "code": null
+    },
+    "tamperedJson": {
+     "threw": true,
+     "message": "approval-package-v3: package commitment mismatch — a protected field was mutated after freeze; collected approvals are void",
+     "code": "PACKAGE_MUTATED"
+    },
+    "malformedApprovals": {
+     "threw": true,
+     "message": "approval-package-v3: approval package approvals array is malformed",
+     "code": null
+    }
+   }
+  },
+  "apV4": {
+   "createdPackage": {
+    "schema": "policyvault-approval-package/v4",
+    "contractVersion": "policyvault-0.4",
+    "networkId": "kaspa-testnet-10",
+    "vaultId": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+    "action": "agentSpend",
+    "predecessorOutpoint": {
+     "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+     "index": 0
+    },
+    "predecessorStateId": "state-pred-4",
+    "successorStateId": "state-succ-4",
+    "policyNonce": "9",
+    "txId": "ec443771a9db70263773f07c4001eef6605aaac186b6f3c0605e20f0f2594f64",
+    "covenantInputIndex": 0,
+    "covenantSighash": "9cc159ba840fbdfe7e7600981b00318fae5cf77718d79a170535e8682a9428dd",
+    "frozenTransaction": {
+     "version": 1,
+     "inputs": [
+      {
+       "previousOutpoint": {
+        "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 0
+       },
+       "sequence": "0",
+       "computeBudget": 2500,
+       "utxo": {
+        "amount": "40000200000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "53"
+        },
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222",
+        "blockDaaScore": "2000"
+       }
+      },
+      {
+       "previousOutpoint": {
+        "transactionId": "3333333333333333333333333333333333333333333333333333333333333333",
+        "index": 2
+       },
+       "sequence": "0",
+       "computeBudget": 0,
+       "utxo": {
+        "amount": "100000000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac"
+        },
+        "covenantId": null,
+        "blockDaaScore": "1999"
+       }
+      }
+     ],
+     "outputs": [
+      {
+       "value": "5000000000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+       },
+       "covenant": null
+      },
+      {
+       "value": "35000199000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "54"
+       },
+       "covenant": {
+        "authorizingInput": 0,
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222"
+       }
+      },
+      {
+       "value": "99900000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac"
+       },
+       "covenant": null
+      }
+     ],
+     "lockTime": "0",
+     "subnetworkId": "0000000000000000000000000000000000000000",
+     "gas": "0",
+     "payload": ""
+    },
+    "agentPolicy": {
+     "agentPk": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "maxPerSpend": "10000000000",
+     "periodBudget": "20000000000",
+     "periodLengthDaa": "1000",
+     "periodStartDaa": "5000",
+     "periodSpent": "100000",
+     "approvalThreshold": "1000000000",
+     "agentMaxFeePerTx": "5000",
+     "agentRecipientRoot": "0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94"
+    },
+    "agentProof": {
+     "root": "b94cb2b1c5ffc40dd8dc6efb4ab5685f400ed3d52e1fee9dca250bee4e8c228c",
+     "siblingsHex": "dd8b4a14fa5baa57cbb014c2b930df67aa9e990bd39149164c1f8a2faba09d08",
+     "pathBits": "0"
+    },
+    "successorAgentRoot": "e8b47789134fb4046e98b3952d50f03610d7434adae7ef0a95e71ed7df134589",
+    "periodsElapsed": "0",
+    "recipient": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "payAmountSompi": "5000000000",
+    "recipientProof": {
+     "root": "0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94",
+     "siblingsHex": "94f209577190531d566577a2c3b9e9a9b280c8aaec4607fb25e45e5d531c95be",
+     "pathBits": "0"
+    },
+    "reserveConsumedSompi": "1000",
+    "approvalM": "1",
+    "approverSlots": [
+     "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+     "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "computeBudget": 2500,
+    "requiredFeeSompi": "101000",
+    "approvals": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "commitment": "8d6374c30e58ec0405271c447cb18606f883d41775a6e5559ea12762ccf144b5"
+   },
+   "createdPackageRolled": {
+    "schema": "policyvault-approval-package/v4",
+    "contractVersion": "policyvault-0.4",
+    "networkId": "kaspa-testnet-10",
+    "vaultId": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+    "action": "agentSpend",
+    "predecessorOutpoint": {
+     "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+     "index": 0
+    },
+    "predecessorStateId": "state-pred-4",
+    "successorStateId": "state-succ-4",
+    "policyNonce": "9",
+    "txId": "ec443771a9db70263773f07c4001eef6605aaac186b6f3c0605e20f0f2594f64",
+    "covenantInputIndex": 0,
+    "covenantSighash": "9cc159ba840fbdfe7e7600981b00318fae5cf77718d79a170535e8682a9428dd",
+    "frozenTransaction": {
+     "version": 1,
+     "inputs": [
+      {
+       "previousOutpoint": {
+        "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 0
+       },
+       "sequence": "0",
+       "computeBudget": 2500,
+       "utxo": {
+        "amount": "40000200000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "53"
+        },
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222",
+        "blockDaaScore": "2000"
+       }
+      },
+      {
+       "previousOutpoint": {
+        "transactionId": "3333333333333333333333333333333333333333333333333333333333333333",
+        "index": 2
+       },
+       "sequence": "0",
+       "computeBudget": 0,
+       "utxo": {
+        "amount": "100000000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac"
+        },
+        "covenantId": null,
+        "blockDaaScore": "1999"
+       }
+      }
+     ],
+     "outputs": [
+      {
+       "value": "5000000000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+       },
+       "covenant": null
+      },
+      {
+       "value": "35000199000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "54"
+       },
+       "covenant": {
+        "authorizingInput": 0,
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222"
+       }
+      },
+      {
+       "value": "99900000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac"
+       },
+       "covenant": null
+      }
+     ],
+     "lockTime": "0",
+     "subnetworkId": "0000000000000000000000000000000000000000",
+     "gas": "0",
+     "payload": ""
+    },
+    "agentPolicy": {
+     "agentPk": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "maxPerSpend": "10000000000",
+     "periodBudget": "20000000000",
+     "periodLengthDaa": "1000",
+     "periodStartDaa": "5000",
+     "periodSpent": "100000",
+     "approvalThreshold": "1000000000",
+     "agentMaxFeePerTx": "5000",
+     "agentRecipientRoot": "0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94"
+    },
+    "agentProof": {
+     "root": "b94cb2b1c5ffc40dd8dc6efb4ab5685f400ed3d52e1fee9dca250bee4e8c228c",
+     "siblingsHex": "dd8b4a14fa5baa57cbb014c2b930df67aa9e990bd39149164c1f8a2faba09d08",
+     "pathBits": "0"
+    },
+    "successorAgentRoot": "e1fd5af78b197b363a3bd2c29f47cd1d84fbd0519c7d58dd675a1781ea809952",
+    "periodsElapsed": "2",
+    "recipient": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "payAmountSompi": "5000000000",
+    "recipientProof": {
+     "root": "0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94",
+     "siblingsHex": "94f209577190531d566577a2c3b9e9a9b280c8aaec4607fb25e45e5d531c95be",
+     "pathBits": "0"
+    },
+    "reserveConsumedSompi": "1000",
+    "approvalM": "1",
+    "approverSlots": [
+     "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+     "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "computeBudget": 2500,
+    "requiredFeeSompi": "101000",
+    "approvals": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "commitment": "f5f3fe349fab04dfaafacc8ac65981063d39f81bc4503ede83bcddce0e66fe26"
+   },
+   "createdAtIsNonSecurity": true,
+   "integrityReturnsFrozen": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":2500,\"utxo\":{\"amount\":\"40000200000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"53\"},\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"blockDaaScore\":\"2000\"}},{\"previousOutpoint\":{\"transactionId\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"index\":2},\"sequence\":\"0\",\"computeBudget\":0,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac\"},\"covenantId\":null,\"blockDaaScore\":\"1999\"}}],\"outputs\":[{\"value\":\"5000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac\"},\"covenant\":null},{\"value\":\"35000199000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"54\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\"}},{\"value\":\"99900000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}",
+   "toJson": "{\"schema\":\"policyvault-approval-package/v4\",\"contractVersion\":\"policyvault-0.4\",\"networkId\":\"kaspa-testnet-10\",\"vaultId\":\"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1\",\"action\":\"agentSpend\",\"predecessorOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"predecessorStateId\":\"state-pred-4\",\"successorStateId\":\"state-succ-4\",\"policyNonce\":\"9\",\"txId\":\"ec443771a9db70263773f07c4001eef6605aaac186b6f3c0605e20f0f2594f64\",\"covenantInputIndex\":0,\"covenantSighash\":\"9cc159ba840fbdfe7e7600981b00318fae5cf77718d79a170535e8682a9428dd\",\"frozenTransaction\":{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":2500,\"utxo\":{\"amount\":\"40000200000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"53\"},\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"blockDaaScore\":\"2000\"}},{\"previousOutpoint\":{\"transactionId\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"index\":2},\"sequence\":\"0\",\"computeBudget\":0,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac\"},\"covenantId\":null,\"blockDaaScore\":\"1999\"}}],\"outputs\":[{\"value\":\"5000000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac\"},\"covenant\":null},{\"value\":\"35000199000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"54\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"2222222222222222222222222222222222222222222222222222222222222222\"}},{\"value\":\"99900000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"},\"agentPolicy\":{\"agentPk\":\"b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1\",\"maxPerSpend\":\"10000000000\",\"periodBudget\":\"20000000000\",\"periodLengthDaa\":\"1000\",\"periodStartDaa\":\"5000\",\"periodSpent\":\"100000\",\"approvalThreshold\":\"1000000000\",\"agentMaxFeePerTx\":\"5000\",\"agentRecipientRoot\":\"0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94\"},\"agentProof\":{\"root\":\"b94cb2b1c5ffc40dd8dc6efb4ab5685f400ed3d52e1fee9dca250bee4e8c228c\",\"siblingsHex\":\"dd8b4a14fa5baa57cbb014c2b930df67aa9e990bd39149164c1f8a2faba09d08\",\"pathBits\":\"0\"},\"successorAgentRoot\":\"e8b47789134fb4046e98b3952d50f03610d7434adae7ef0a95e71ed7df134589\",\"periodsElapsed\":\"0\",\"recipient\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"payAmountSompi\":\"5000000000\",\"recipientProof\":{\"root\":\"0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94\",\"siblingsHex\":\"94f209577190531d566577a2c3b9e9a9b280c8aaec4607fb25e45e5d531c95be\",\"pathBits\":\"0\"},\"reserveConsumedSompi\":\"1000\",\"approvalM\":\"1\",\"approverSlots\":[\"c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1\",\"c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\",\"0000000000000000000000000000000000000000000000000000000000000000\"],\"computeBudget\":2500,\"requiredFeeSompi\":\"101000\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"approvals\":[null,null,null,null,null,null,null,null,null,null],\"commitment\":\"8d6374c30e58ec0405271c447cb18606f883d41775a6e5559ea12762ccf144b5\"}",
+   "loadRoundTrip": {
+    "schema": "policyvault-approval-package/v4",
+    "contractVersion": "policyvault-0.4",
+    "networkId": "kaspa-testnet-10",
+    "vaultId": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+    "action": "agentSpend",
+    "predecessorOutpoint": {
+     "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+     "index": 0
+    },
+    "predecessorStateId": "state-pred-4",
+    "successorStateId": "state-succ-4",
+    "policyNonce": "9",
+    "txId": "ec443771a9db70263773f07c4001eef6605aaac186b6f3c0605e20f0f2594f64",
+    "covenantInputIndex": 0,
+    "covenantSighash": "9cc159ba840fbdfe7e7600981b00318fae5cf77718d79a170535e8682a9428dd",
+    "frozenTransaction": {
+     "version": 1,
+     "inputs": [
+      {
+       "previousOutpoint": {
+        "transactionId": "1111111111111111111111111111111111111111111111111111111111111111",
+        "index": 0
+       },
+       "sequence": "0",
+       "computeBudget": 2500,
+       "utxo": {
+        "amount": "40000200000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "53"
+        },
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222",
+        "blockDaaScore": "2000"
+       }
+      },
+      {
+       "previousOutpoint": {
+        "transactionId": "3333333333333333333333333333333333333333333333333333333333333333",
+        "index": 2
+       },
+       "sequence": "0",
+       "computeBudget": 0,
+       "utxo": {
+        "amount": "100000000",
+        "scriptPublicKey": {
+         "version": 0,
+         "scriptHex": "20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac"
+        },
+        "covenantId": null,
+        "blockDaaScore": "1999"
+       }
+      }
+     ],
+     "outputs": [
+      {
+       "value": "5000000000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+       },
+       "covenant": null
+      },
+      {
+       "value": "35000199000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "54"
+       },
+       "covenant": {
+        "authorizingInput": 0,
+        "covenantId": "2222222222222222222222222222222222222222222222222222222222222222"
+       }
+      },
+      {
+       "value": "99900000",
+       "scriptPublicKey": {
+        "version": 0,
+        "scriptHex": "20fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdac"
+       },
+       "covenant": null
+      }
+     ],
+     "lockTime": "0",
+     "subnetworkId": "0000000000000000000000000000000000000000",
+     "gas": "0",
+     "payload": ""
+    },
+    "agentPolicy": {
+     "agentPk": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+     "maxPerSpend": "10000000000",
+     "periodBudget": "20000000000",
+     "periodLengthDaa": "1000",
+     "periodStartDaa": "5000",
+     "periodSpent": "100000",
+     "approvalThreshold": "1000000000",
+     "agentMaxFeePerTx": "5000",
+     "agentRecipientRoot": "0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94"
+    },
+    "agentProof": {
+     "root": "b94cb2b1c5ffc40dd8dc6efb4ab5685f400ed3d52e1fee9dca250bee4e8c228c",
+     "siblingsHex": "dd8b4a14fa5baa57cbb014c2b930df67aa9e990bd39149164c1f8a2faba09d08",
+     "pathBits": "0"
+    },
+    "successorAgentRoot": "e8b47789134fb4046e98b3952d50f03610d7434adae7ef0a95e71ed7df134589",
+    "periodsElapsed": "0",
+    "recipient": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "payAmountSompi": "5000000000",
+    "recipientProof": {
+     "root": "0093aabe89e3eeefe698baaa8676044d1f74428636b14683165ed50b38ee7e94",
+     "siblingsHex": "94f209577190531d566577a2c3b9e9a9b280c8aaec4607fb25e45e5d531c95be",
+     "pathBits": "0"
+    },
+    "reserveConsumedSompi": "1000",
+    "approvalM": "1",
+    "approverSlots": [
+     "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+     "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000",
+     "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "computeBudget": 2500,
+    "requiredFeeSompi": "101000",
+    "approvals": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "commitment": "8d6374c30e58ec0405271c447cb18606f883d41775a6e5559ea12762ccf144b5"
+   },
+   "completeBlob": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+   "createRejects": {
+    "missingNetworkId": {
+     "threw": true,
+     "message": "approval-package-v4: networkId is required",
+     "code": null
+    },
+    "covenantIndexRange": {
+     "threw": true,
+     "message": "approval-package-v4: covenantInputIndex out of range",
+     "code": null
+    },
+    "outpointMismatch": {
+     "threw": true,
+     "message": "approval-package-v4: frozen covenant input does not spend the stated predecessor outpoint — refusing an inconsistent package",
+     "code": null
+    },
+    "inputValueMismatch": {
+     "threw": true,
+     "message": "approval-package-v4: frozen covenant input carries 40000200000 sompi but the stated predecessor holds protected 40000000001 + reserve 200000",
+     "code": null
+    },
+    "notAboveThreshold": {
+     "threw": true,
+     "message": "approval-package-v4: payAmount is not above this agent's approvalThreshold — no approval package is required for agent-only spends",
+     "code": null
+    },
+    "consumedAboveAgentMaxFee": {
+     "threw": true,
+     "message": "approval-package-v4: reserveConsumed exceeds this agent's agentMaxFeePerTx — the covenant rejects this spend",
+     "code": null
+    },
+    "consumedAboveReserve": {
+     "threw": true,
+     "message": "approval-package-v4: reserveConsumed exceeds this agent's agentMaxFeePerTx — the covenant rejects this spend",
+     "code": null
+    },
+    "missingAgentProof": {
+     "threw": true,
+     "message": "approval-package-v4: agentProof { root, siblingsHex, pathBits } is required",
+     "code": null
+    },
+    "agentProofDoesNotVerify": {
+     "threw": true,
+     "message": "approval-package-v4: agent-policy proof does not verify against the stated agentRoot — refusing an inconsistent package",
+     "code": null
+    },
+    "successorRootNotFold": {
+     "threw": true,
+     "message": "approval-package-v4: successorAgentRoot does not equal the single-leaf accounting fold — refusing an inconsistent package",
+     "code": null
+    },
+    "output0NotP2pkRecipient": {
+     "threw": true,
+     "message": "approval-package-v4: frozen output 0 is not P2PK(recipient) — the covenant binds the payment to output 0",
+     "code": null
+    },
+    "recipientRootNotAgents": {
+     "threw": true,
+     "message": "approval-package-v4: recipient proof root is not this agent's agentRecipientRoot — recipients are authorized per agent leaf",
+     "code": null
+    },
+    "slotsWrongLength": {
+     "threw": true,
+     "message": "approval-package-v4: approverSlots must be the exact 10-slot layout",
+     "code": null
+    },
+    "duplicateApprover": {
+     "threw": true,
+     "message": "approval-package-v4: approverSlots[1] duplicates an active approver key — the predecessor set is malformed (fails closed on chain too)",
+     "code": null
+    },
+    "approvalMZero": {
+     "threw": true,
+     "message": "approval-package-v4: approvalM < 1 with an above-threshold spend — the covenant rejects this predecessor; failing closed early",
+     "code": null
+    },
+    "approvalMTooHigh": {
+     "threw": true,
+     "message": "approval-package-v4: approvalM 3 exceeds the active approver count 2 — this spend can never collect enough approvals",
+     "code": null
+    },
+    "feeMismatch": {
+     "threw": true,
+     "message": "approval-package-v4: stated fee 101001 != frozen inputs-minus-outputs 101000",
+     "code": null
+    },
+    "consumedFarAboveLimits": {
+     "threw": true,
+     "message": "approval-package-v4: reserveConsumed exceeds this agent's agentMaxFeePerTx — the covenant rejects this spend",
+     "code": null
+    },
+    "missingPredecessorStateId": {
+     "threw": true,
+     "message": "approval-package-v4: predecessorStateId is required",
+     "code": null
+    }
+   },
+   "integrityRejects": {
+    "unknownSchema": {
+     "threw": true,
+     "message": "approval-package-v4: unknown approval-package schema \"policyvault-approval-package/v1\" — failing closed",
+     "code": null
+    },
+    "unknownContractVersion": {
+     "threw": true,
+     "message": "approval-package-v4: unknown contractVersion \"policyvault-0.3\" — failing closed",
+     "code": null
+    },
+    "mutatedField": {
+     "threw": true,
+     "message": "approval-package-v4: package commitment mismatch — a protected field was mutated after freeze; collected approvals are void",
+     "code": "PACKAGE_MUTATED"
+    }
+   },
+   "submitRejects": {
+    "unknownApprover": {
+     "threw": true,
+     "message": "approval-package-v4: signer dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd is not a configured approver for this package",
+     "code": "UNKNOWN_APPROVER"
+    },
+    "wrongSlot": {
+     "threw": true,
+     "message": "approval-package-v4: signer c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2 belongs to slot 1, not slot 0 — approvals are fixed-slot-bound",
+     "code": "WRONG_SLOT"
+    },
+    "wrongSighashByte": {
+     "threw": true,
+     "message": "approval-package-v4: approval sighash byte 0x00 != 0x01 — only SIG_HASH_ALL approvals are accepted",
+     "code": "SIGHASH_NOT_ALL"
+    },
+    "placeholderSignature": {
+     "threw": true,
+     "message": "approval-package-v4: the canonical placeholder is not a real approval",
+     "code": "SIGNATURE_INVALID"
+    },
+    "schnorrInvalid": {
+     "threw": true,
+     "message": "approval-package-v4: approval rejected: invalid x-only public key",
+     "code": "SIGNATURE_INVALID"
+    }
+   },
+   "blobRejects": {
+    "insufficient": {
+     "threw": true,
+     "message": "approval-package-v4: insufficient approvals: 0 collected, 1 required — refusing final construction",
+     "code": "INSUFFICIENT_APPROVALS"
+    }
+   },
+   "loadRejects": {
+    "invalidJson": {
+     "threw": true,
+     "message": "approval-package-v4: approval package is not valid JSON",
+     "code": null
+    },
+    "tamperedJson": {
+     "threw": true,
+     "message": "approval-package-v4: package commitment mismatch — a protected field was mutated after freeze; collected approvals are void",
+     "code": "PACKAGE_MUTATED"
+    }
+   }
+  }
+ }
+}

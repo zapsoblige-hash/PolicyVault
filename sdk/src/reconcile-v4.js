@@ -64,10 +64,10 @@ function expectedFromClaim(config, manifest, claim) {
 
 /* Advance the manifest for a proven successor, deriving the successor
  * registry from the request that produced this transaction (durable). */
-function advanceFromClaim(config, manifest, claim, expected) {
-  const request = listVaultRequests(config, manifest.vaultId).find((r) => r.txId === claim.txId);
+async function advanceFromClaim(config, manifest, claim, expected) {
+  const request = (await listVaultRequests(config, manifest.vaultId)).find((r) => r.txId === claim.txId);
   if (!request) fail(`no durable request found for claimed tx ${claim.txId} — cannot reconstruct the successor registry; failing closed`);
-  advanceManifestAndRegistryV4(config, manifest, request, expected);
+  await advanceManifestAndRegistryV4(config, manifest, request, expected);
   return request;
 }
 
@@ -75,7 +75,7 @@ function advanceFromClaim(config, manifest, claim, expected) {
  * Reconcile one v0.4 vault against chain truth. Returns a status object.
  */
 async function reconcileVaultV4(config, vaultId, { rpc: providedRpc, stalePendingMinimumMs = DEFAULT_STALE_PENDING_MINIMUM_MS, allowClaimRelease = true } = {}) {
-  const manifest = loadManifestV4(config, vaultId); // loader enforces registry root-equality
+  const manifest = await loadManifestV4(config, vaultId); // loader enforces registry root-equality
   if (!manifest) fail(`no v0.4 manifest for vault ${vaultId}`);
   resolveV4Abi(manifest.contractVersion); // accepts the v0.4 family; fails closed otherwise
   if (!manifest.live) return { status: "TERMINAL", vaultStatus: manifest.status };
@@ -90,7 +90,7 @@ async function reconcileVaultV4(config, vaultId, { rpc: providedRpc, stalePendin
     if (current.scriptSha256 !== manifest.live.scriptSha256) fail("compiled current state does not match the manifest script hash — failing closed");
     const currentAddress = current.address;
     const liveRef = await findOutpoint(rpc, currentAddress, manifest.live.outpoint.transactionId, manifest.live.outpoint.index);
-    const claim = loadTransitionClaim(config, manifest.live.outpoint);
+    const claim = await loadTransitionClaim(config, manifest.live.outpoint);
 
     if (liveRef) {
       if (!claim) return { status: "CONSISTENT", vaultId };
@@ -106,9 +106,19 @@ async function reconcileVaultV4(config, vaultId, { rpc: providedRpc, stalePendin
       const stillLive = await findOutpoint(rpc, currentAddress, manifest.live.outpoint.transactionId, manifest.live.outpoint.index);
       const effectNow = expected ? await proveExpectedEffectV4(rpc, expected) : null;
       if (!stillLive || effectNow) return { status: "CLAIM_PENDING", vaultId, reason: "state changed during release check" };
-      releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
-      releaseSubmissionClaim(config, claim.txId);
-      appendAudit(config, { vaultId, action: "stale_claim_released", actor: "system", txId: claim.txId, result: "RELEASED", oldStateId: manifest.live.stateId });
+      await releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
+      await releaseSubmissionClaim(config, claim.txId);
+      // Surface 15: the request behind this released claim can no longer
+      // reach broadcast (its claim is gone), so its period-budget
+      // reservation is released with it. This path is the one release the
+      // admission sweep CANNOT infer on its own — the predecessor state is
+      // still live here, so the reservation is not context-stale.
+      const staleRequest = (await listVaultRequests(config, vaultId)).find((r) => r.txId === claim.txId);
+      if (staleRequest) {
+        const { releaseReservationForRequest } = require("./budget-reservation");
+        await releaseReservationForRequest(config, staleRequest);
+      }
+      await appendAudit(config, { vaultId, action: "stale_claim_released", actor: "system", txId: claim.txId, result: "RELEASED", oldStateId: manifest.live.stateId });
       return { status: "CLAIM_RELEASED", vaultId, claimTxId: claim.txId };
     }
 
@@ -117,20 +127,20 @@ async function reconcileVaultV4(config, vaultId, { rpc: providedRpc, stalePendin
       const expected = expectedFromClaim(config, manifest, claim);
       const proven = expected ? await proveExpectedEffectV4(rpc, expected) : null;
       if (proven && expected.kind === "successor") {
-        advanceFromClaim(config, manifest, claim, expected);
+        await advanceFromClaim(config, manifest, claim, expected);
         // idempotent claim cleanup (guarded release checks the txId)
-        releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
-        releaseSubmissionClaim(config, claim.txId);
-        persistReceipt(config, { txId: expected.txId, vaultId, action: claim.action, proof: { successorOutpoint: `${expected.txId}:${expected.index}`, value: expected.valueSompi, reconciled: true } });
-        appendAudit(config, { vaultId, action: "reconciled_advanced", actor: "system", txId: expected.txId, result: "CHAIN_VERIFIED", oldStateId: manifest.live.stateId, newStateId: expected.stateId });
+        await releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
+        await releaseSubmissionClaim(config, claim.txId);
+        await persistReceipt(config, { txId: expected.txId, vaultId, action: claim.action, proof: { successorOutpoint: `${expected.txId}:${expected.index}`, value: expected.valueSompi, reconciled: true } });
+        await appendAudit(config, { vaultId, action: "reconciled_advanced", actor: "system", txId: expected.txId, result: "CHAIN_VERIFIED", oldStateId: manifest.live.stateId, newStateId: expected.stateId });
         return { status: "ADVANCED", to: claim.action, txId: expected.txId, stateId: expected.stateId };
       }
       if (proven && expected.kind === "recover") {
-        advanceManifestAndRegistryV4(config, manifest, listVaultRequests(config, vaultId).find((r) => r.txId === claim.txId) ?? { predecessorOutpoint: manifest.live.outpoint, predecessorStateId: manifest.live.stateId, sdkAction: "ownerRecover", action: claim.action }, expected);
-        releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
-        releaseSubmissionClaim(config, claim.txId);
-        persistReceipt(config, { txId: expected.txId, vaultId, action: "ownerRecover", proof: { consumedOutpoint: `${manifest.live.outpoint.transactionId}:${manifest.live.outpoint.index}`, recoveredValue: expected.valueSompi, reconciled: true } });
-        appendAudit(config, { vaultId, action: "reconciled_recovered", actor: "system", txId: expected.txId, result: "CHAIN_VERIFIED", oldStateId: manifest.live.stateId });
+        await advanceManifestAndRegistryV4(config, manifest, (await listVaultRequests(config, vaultId)).find((r) => r.txId === claim.txId) ?? { predecessorOutpoint: manifest.live.outpoint, predecessorStateId: manifest.live.stateId, sdkAction: "ownerRecover", action: claim.action }, expected);
+        await releaseTransitionClaim(config, { outpoint: manifest.live.outpoint, txId: claim.txId });
+        await releaseSubmissionClaim(config, claim.txId);
+        await persistReceipt(config, { txId: expected.txId, vaultId, action: "ownerRecover", proof: { consumedOutpoint: `${manifest.live.outpoint.transactionId}:${manifest.live.outpoint.index}`, recoveredValue: expected.valueSompi, reconciled: true } });
+        await appendAudit(config, { vaultId, action: "reconciled_recovered", actor: "system", txId: expected.txId, result: "CHAIN_VERIFIED", oldStateId: manifest.live.stateId });
         return { status: "ADVANCED", to: "RECOVERED", txId: expected.txId };
       }
     }
@@ -139,8 +149,8 @@ async function reconcileVaultV4(config, vaultId, { rpc: providedRpc, stalePendin
     // fail closed. Do NOT mutate the manifest to match a divergent reality.
     const { persistManifestV4 } = require("./manifest-v4");
     const { manifestToJson } = require("./wallet-submit-v4");
-    persistManifestV4(config, { ...manifestToJson(manifest), status: VaultStatus.TERMINATED_UNKNOWN, live: null, latestTransitionTxId: claim?.txId ?? manifest.latestTransitionTxId, lastTransition: manifest.lastTransition });
-    appendAudit(config, { vaultId, action: "reconciled_unknown", actor: "system", txId: claim?.txId, result: "FAIL_CLOSED", oldStateId: manifest.live.stateId });
+    await persistManifestV4(config, { ...manifestToJson(manifest), status: VaultStatus.TERMINATED_UNKNOWN, live: null, latestTransitionTxId: claim?.txId ?? manifest.latestTransitionTxId, lastTransition: manifest.lastTransition });
+    await appendAudit(config, { vaultId, action: "reconciled_unknown", actor: "system", txId: claim?.txId, result: "FAIL_CLOSED", oldStateId: manifest.live.stateId });
     return { status: "UNKNOWN", reason: claim ? "claim present but expected effect not proven (or a divergent successor exists)" : "live outpoint gone, no claim" };
   } finally {
     if (owned) await rpc.disconnect();

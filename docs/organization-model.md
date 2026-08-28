@@ -111,3 +111,18 @@ with matching member names next to — never instead of — the actual
 authority tags, and carry the assignment control with the disclaimer:
 "Organization assignment is local PolicyVault metadata and does not
 change on-chain ownership or permissions."
+
+## Hosted multi-tenancy (Phase C, 2026-08-23)
+
+In a hosted multi-user deployment (hosted authentication enabled),
+organizations become tenant-scoped: each record carries a `tenantOwner`
+(the creating wallet's x-only public key). The owner has full control;
+a member with a wallet identity gets read access. Foreign or unclaimed
+(pre-Phase-C / self-hosted) records are inaccessible in hosted mode
+(fail closed), and denials return 404 to avoid confirming another
+tenant's object exists. This is HOSTED APPLICATION authorization only —
+the permanent rule stands unchanged: an organization role NEVER grants
+Kaspa covenant authority (`docs/hosted-persistence.md`,
+`server/src/tenancy.js`). In the self-hosted single-operator product
+(hosted auth off) organizations behave exactly as before; tenancy is not
+enforced.

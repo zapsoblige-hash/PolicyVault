@@ -70,7 +70,7 @@ per contract version. Covenant inputs carry computeBudget 100 (v0.1) or 20
 bytes (this encoder, the exact-state compiler, serializers, finalizers) has
 an integration test that executes its exact output on the real VM
 (`tests/vm/tests/v2_encoder_integration.rs`, `pv_replay_probe`,
-`pv_compile_probe`).
+`pv_compile_probe`); see `docs/v02-production-boundary-audit.md`.
 
 ## Period accounting (the consensus time primitive)
 
@@ -137,11 +137,13 @@ TxScriptEngine against the production covenant under production sig-op
 pricing with the SDK's own committed budgets. The later API/UI layers
 consume these builders and never touch covenant byte internals.
 
-## v0.4 (frozen prior version — superseded by v0.4.1 for standard-mempool deployability)
+## v0.4 (PRODUCTION-VM-PROVEN + PRODUCTION-BYTE-PROVEN at Checkpoint C — NOT live-testnet-verified)
 
 v0.4 is the intended FINAL major consensus expansion (after it, prefer
 SDK/API/UI features over covenant growth). It adds two features, each
-proven by isolated VM experiments before the production covenant `PolicyVault.v0.4.sil` now exists (generator
+VM-experiment-proven via isolated probes
+(`contracts/experiments/V4FeeProbe.sil`, `V4AgentProbe.sil`;
+`docs/v04-experiment-results.md`) — the production covenant `PolicyVault.v0.4.sil` now exists (generator
 `tools/gen_v4.js`), driven through the real pv_call_encoder + VM:
 
 1. **Covenant-controlled fee reserve (FR-1).** One covenant UTXO holds
@@ -167,14 +169,16 @@ The single v0.3 delegate + its policy fields move INTO the agent leaf, so
 fixed covenant state shrinks even as capability grows. v0.3 remains the
 current reference covenant, unchanged; v0.4 is additive and
 version-dispatched (unknown versions fail closed). See
-`docs/covenant-spec-v0.4.md` and `docs/covenant-spec-v0.4.1.md`.
+`docs/covenant-spec-v0.4.md`, `docs/v04-fee-reserve-design.md`,
+`docs/v04-multi-delegate-design.md`, `docs/v04-approval-model.md`,
+`docs/v04-security-review.md`.
 
 The final PolicyVault is ONE universal application (navigation: Vaults /
 Agents / Approvals / Organizations / Activity) where Personal / AI Agent /
 Business are UX PRESETS over a single version-aware security engine —
 never separate engines or apps.
 
-## v0.4 application integration
+## v0.4 application integration (Checkpoint G, 2026-08-19)
 
 The v0.4 covenant is integrated into the server/API/dashboard/wallet
 architecture additively and version-aware. Durable state is
@@ -190,5 +194,4 @@ version-agnostic claim/manifest/address/signer infrastructure. `server/src/api.j
 dispatches `/wallet/v4/*` routes and presents v0.4 vaults (`presentVaultV4`).
 `web/app-v4.js` is the v0.4 dashboard. The pipeline is OFFLINE: it ends at
 production-covenant VM preflight (`pv_vm_preflight`) and does not broadcast;
-the live-node broadcast / chain proof / manifest advance is the separate
-live submission layer (`wallet-submit-v4` / `reconcile-v4`).
+the live-node broadcast/chain-proof/manifest-advance is Checkpoint H.
