@@ -67,8 +67,8 @@ const EXEMPT = {
   ],
   "app-v4.js": [
     12, // comment restating the two canonical values (dual-network)
-    30, // comment quoting the literal for documentation purposes
-    1780 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted by the W4 agent-suspend UI additions)
+    44, // comment quoting the literal for documentation purposes (shifted from 30 by the TRACK B phase 7 in-app docs-help additions — docsLink/docsHintIcon helpers)
+    1805 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted from 1780 by the same phase 7 additions)
   ],
   "wallet.js": [
     80, // normalizeNetwork(): canonical output-value production from an arbitrary provider string

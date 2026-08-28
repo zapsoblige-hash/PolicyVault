@@ -55,6 +55,9 @@
       .field .v { margin-top: 0.1rem; font-weight: 600; font-size: 0.9rem; }
       .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
       .hint { color: var(--muted); font-size: 0.75rem; margin-top: 0.4rem; }
+      .hint a { color: var(--accent); text-decoration: none; }
+      .hint a:hover { text-decoration: underline; }
+      a.docs-hint { margin: 0; display: inline-block; font-size: 0.85rem; line-height: 1.9; vertical-align: middle; }
       .upgrade-note { margin-top: 1rem; padding: 0.7rem; border: 1px dashed var(--warn); border-radius: 8px; color: var(--warn); font-size: 0.82rem; }
       .empty { color: var(--muted); text-align: center; padding: 2.2rem 1rem; }
       footer { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 2rem 1rem; line-height: 1.9; }
@@ -132,6 +135,7 @@
       <div class="brand"><img class="mark" src="/favicon.png" alt="" /> PolicyVault</div>
       <div style="display:flex; align-items:center; gap:0.8rem;">
         <span class="net" id="net">connecting…</span>
+        <a class="btnlink" href="https://docs.policy-vault.org" target="_blank" rel="noopener noreferrer">Docs</a>
         <button id="refresh">Refresh</button>
       </div>
     </header>

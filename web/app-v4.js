@@ -18,6 +18,20 @@
   const short = (id) => (id ? id.slice(0, 8) + "…" + id.slice(-6) : "—");
   const randomHex32 = () => Array.from(crypto.getRandomValues(new Uint8Array(32))).map((b) => b.toString(16).padStart(2, "0")).join("");
 
+  /* In-app contextual help (owner's docs addendum §8): a small link out to
+   * the live docs site, https://docs.policy-vault.org — small contextual
+   * explanations stay in the product; the deeper walkthrough lives in the
+   * docs. Always opens a new tab (never navigates away from an in-progress
+   * form/session) and never leaks a referrer. Slugs are verified against
+   * the live docs build, never guessed — see docs/postlaunch/ (TRACK B
+   * phase 7 report) for the verification list. Static text only: never
+   * pass anything user- or server-supplied through this (title text is a
+   * plain browser tooltip, not HTML, so it needs no separate escaping,
+   * but every string passed in here is a literal in THIS file). */
+  const DOCS_BASE = "https://docs.policy-vault.org";
+  const docsLink = (slug, label) => `<a href="${DOCS_BASE}/${slug}/" target="_blank" rel="noopener noreferrer">${label || "Learn more"}</a>`;
+  const docsHintIcon = (slug, title) => ` <a class="hint docs-hint" href="${DOCS_BASE}/${slug}/" target="_blank" rel="noopener noreferrer" title="${esc(title)}" aria-label="${esc(title)}">ⓘ</a>`;
+
   // No independent wallet state: the v0.4.1 app consumes the ONE canonical
   // browser wallet session (window.PolicyVaultWalletSession, owned by the global
   // Wallet panel). It never opens a second provider connection.
@@ -629,10 +643,12 @@
       `<div class="full"><label>Vault name</label><input name="label" placeholder="Operations Treasury" />${ferr("label")}</div>` +
       `<div><label>Deposit (KAS)</label><input name="deposit" placeholder="100" inputmode="decimal" />${ferr("deposit")}</div>` +
       `<div><label>Fee reserve (KAS)</label><input name="reserve" placeholder="5" inputmode="decimal" />` +
-      `<div class="hint">Pays permitted agent transaction fees without reducing protected principal.</div>${ferr("reserve")}</div>` +
+      `<div class="hint">Pays permitted agent transaction fees without reducing protected principal. ${docsLink("fee-reserve")}</div>${ferr("reserve")}</div>` +
       `<div class="full"><label>Owner</label><div class="kv-line"><span class="mono">${esc(state.address)}</span> <span class="badge ver">Connected wallet</span></div></div>` +
-      `<div class="full"><label>Initial agent — wallet address</label><input name="agent" class="mono" placeholder="${addrExample()}" autocomplete="off" />${ferr("agent")}</div>` +
-      `<div><label>Maximum per transaction (KAS)</label><input name="maxPerSpend" placeholder="2" inputmode="decimal" />${ferr("maxPerSpend")}</div>` +
+      `<div class="full"><label>Initial agent — wallet address</label><input name="agent" class="mono" placeholder="${addrExample()}" autocomplete="off" />${ferr("agent")}` +
+      `<div class="hint">A key the owner authorizes to spend from this vault, bounded by the policy below. ${docsLink("agent-delegate")}</div></div>` +
+      `<div><label>Maximum per transaction (KAS)</label><input name="maxPerSpend" placeholder="2" inputmode="decimal" />${ferr("maxPerSpend")}` +
+      `<div class="hint">Enforced by the covenant on every spend, regardless of who signs it. ${docsLink("per-transaction-limit")}</div></div>` +
       `<div><label>Budget per period (KAS)</label><input name="budget" placeholder="10" inputmode="decimal" />${ferr("budget")}</div>` +
       `<div><label>Budget resets approximately every</label><select name="period">` +
       `<option value="1h">1 hour</option><option value="6h">6 hours</option><option value="1d" selected>1 day</option><option value="1w">1 week</option>` +
@@ -640,18 +656,24 @@
       `<div class="inline" id="v4-period-custom" style="display:none;margin-top:0.3rem">` +
       `<input name="periodValue" inputmode="numeric" placeholder="1" style="max-width:90px" />` +
       `<select name="periodUnit"><option value="hour">hours</option><option value="day">days</option><option value="week">weeks</option></select></div>` +
-      `<div class="hint" id="v4-period-hint">Budget resets approximately every 1 day.</div>${ferr("period")}</div>` +
+      // v4-period-hint's text is REPLACED via .textContent as the period
+      // selector changes (see the input-change handler below) — a link
+      // embedded inside it would be wiped on the first interaction, so the
+      // docs link lives in its own static sibling instead, never touched.
+      `<div class="hint" id="v4-period-hint">Budget resets approximately every 1 day.</div>` +
+      `<div class="hint">A cumulative cap over a recurring window, tracked by the covenant using Kaspa consensus time. ${docsLink("periodic-budget")}</div>${ferr("period")}</div>` +
       `<div><label>Require approval above (KAS)</label><input name="approvalThreshold" placeholder="1" inputmode="decimal" />` +
-      `<div class="hint">At or below: the agent may sign alone. Above: vault approval policy applies.</div>${ferr("approvalThreshold")}</div>` +
+      `<div class="hint">At or below: the agent may sign alone. Above: vault approval policy applies. ${docsLink("approval-threshold")}</div>${ferr("approvalThreshold")}</div>` +
       `<div class="full"><label>Allowed recipients</label><div class="reclist" id="v4-recipients">` +
       rowHtml("recipient") +
-      `</div><button type="button" id="v4-add-recipient">+ Add recipient</button>${ferr("recipients")}</div>` +
+      `</div><button type="button" id="v4-add-recipient">+ Add recipient</button>${ferr("recipients")}` +
+      `<div class="hint">The agent may only pay addresses on this list — enforced by the covenant, not just the server. ${docsLink("destination-allowlist")}</div></div>` +
       `<div class="full"><h4 style="margin:0.6rem 0 0.2rem">Approval policy (optional)</h4>` +
       `<label>Required approvals (M)</label><input name="approvalM" placeholder="0" inputmode="numeric" style="max-width:120px" />${ferr("approvalM")}` +
       `<div class="reclist" id="v4-approvers" style="margin-top:0.5rem"></div>` +
       `<button type="button" id="v4-add-approver">+ Add approver</button>` +
       ` <span class="hint" id="v4-approver-summary" style="display:inline"></span>` +
-      `<div class="hint">Leave empty for an agent-only vault. Approvers are wallet addresses — at most 10, each distinct.</div>${ferr("approvers")}</div>` +
+      `<div class="hint">Leave empty for an agent-only vault. Approvers are wallet addresses — at most 10, each distinct. An approver cannot spend vault funds or act as the owner. ${docsLink("external-approver")}</div>${ferr("approvers")}</div>` +
       `<div class="full"><details class="adv"><summary>Advanced</summary>` +
       `<div class="cform" style="margin-top:0.6rem">` +
       `<div><label>Maximum network fee per transaction (KAS)</label><input name="maxFee" placeholder="0.10" inputmode="decimal" /><div class="hint">Optional. Defaults to a safe value for current v0.4.1 fees.</div>${ferr("maxFee")}</div>` +
@@ -1089,9 +1111,12 @@
         `<button data-topup="${esc(vault.vaultId)}">Top up principal</button><button data-topupreserve="${esc(vault.vaultId)}">Top up fee reserve</button>` +
         `<button data-setapprovers="${esc(vault.vaultId)}">Set approvers</button>` +
         (live.paused ? `<button data-unpause="${esc(vault.vaultId)}">Unpause</button>` : `<button data-pause="${esc(vault.vaultId)}">Pause</button>`) +
+        docsHintIcon("pause-and-revoke", "Pause: the owner's immediate, break-glass freeze on a vault, independent of any hosted workflow.") +
         suspAllBtn +
         `<button data-verify="${esc(vault.vaultId)}">Verify state</button>` +
-        `<button class="warn" data-recover="${esc(vault.vaultId)}">Close &amp; recover</button></div>`
+        `<button class="warn" data-recover="${esc(vault.vaultId)}">Close &amp; recover</button>` +
+        docsHintIcon("owner-recovery", "Owner recovery: a terminal, owner-signed break-glass operation to withdraw the vault's funds, independent of any hosted workflow.") +
+        `</div>`
       : "";
     // Live value fields render ONLY while live state exists. A closed vault
     // shows its terminal status without fabricating historical numbers (the

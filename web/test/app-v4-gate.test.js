@@ -48,6 +48,12 @@ function makeDom() {
         onclick: null,
         addEventListener() {},
         querySelectorAll: () => [],
+        // No real DOM: a selector query always finds nothing, exactly
+        // like an always-empty NodeList above. Code under test already
+        // null-checks this result (e.g. `if (sel && custom) ...` in
+        // app-v4.js syncCreateControls) for real optional form controls,
+        // so this stays honest rather than fabricating a match.
+        querySelector: () => null,
         classList: { toggle() {}, add() {}, remove() {} }
       });
     }
@@ -310,4 +316,68 @@ test("_verifyForSigning fails closed when the client has no vault knowledge for 
   const out = api._verifyForSigning({ request: s.request, vaultId: H.VAULT_ID, clientAction: "agentSpend", clientParams: s.clientParams, role: "agent" });
   assert.equal(out.ok, false);
   assert.ok(out.refusalCodes.includes("VAULT_KNOWLEDGE_MISSING"));
+});
+
+/* =================== TRACK B phase 7: in-app contextual docs help ===== *
+ * Owner's docs addendum §8: a "Docs" nav link + small contextual help
+ * affordances, each deep-linking to https://docs.policy-vault.org, with
+ * every slug VERIFIED against the local docs build (~/policyvault-docs/
+ * dist) rather than guessed — one of the coordinator's own example URLs
+ * (a hypothetical "/pause-revoke/") turned out not to exist; the real
+ * slug is "/pause-and-revoke/" (the docs build's own slugify: filename
+ * minus ".md", not further transformed).
+ *
+ * Two coverage levels, named honestly: (1) a REAL render — createView()
+ * is the actual production function reached through render() via the
+ * SAME vm-sandboxed app-v4.js execution every other test in this file
+ * uses, so the assertions below run against genuine output, not a
+ * source-text guess. (2) a STATIC source-text check for the two
+ * button-adjacent help icons (Pause/revoke, Owner recovery) in the vault
+ * detail view — that view's render path needs a full vaults-list +
+ * network-fetch fixture this suite does not already have wired, and
+ * building one is out of proportion to a small doc-link affordance;
+ * labeled STATIC rather than claimed as a render proof. */
+
+test("index.html: the header carries an external Docs link — new tab, no opener/referrer leak", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(
+    html,
+    /<a class="btnlink" href="https:\/\/docs\.policy-vault\.org" target="_blank" rel="noopener noreferrer">Docs<\/a>/,
+    "the header Docs link must be exactly this external, new-tab, no-opener/referrer anchor"
+  );
+});
+
+test("createView() (REAL render via app-v4.js's own render()): every create-form contextual-help concept links to its verified docs slug, new tab, no opener/referrer leak", async () => {
+  const { element, api } = loadApp({ session: sessionWith(spyAdapter()) });
+  api._state.ready = true;
+  api._state.view = "create";
+  await api.render();
+  const html = element("v4-root").innerHTML;
+  assert.ok(html.length > 500, "the create view actually rendered real form content, not an empty/fallback string");
+
+  const slugs = ["fee-reserve", "agent-delegate", "per-transaction-limit", "periodic-budget", "destination-allowlist", "approval-threshold", "external-approver"];
+  for (const slug of slugs) {
+    const anchor = `<a href="https://docs.policy-vault.org/${slug}/" target="_blank" rel="noopener noreferrer">Learn more</a>`;
+    assert.ok(html.includes(anchor), `create view is missing the docs help link to /${slug}/`);
+  }
+  // Nothing else on docs.policy-vault.org sneaks in, and the count matches
+  // exactly the concepts this view is responsible for (no duplicate, no
+  // missing, no stray domain typo).
+  const found = html.match(/href="https:\/\/docs\.policy-vault\.org\/[a-z-]+\/"/g) || [];
+  assert.equal(found.length, slugs.length, `expected exactly ${slugs.length} docs links in the create view, found ${found.length}: ${JSON.stringify(found)}`);
+});
+
+test("STATIC (source-text, not rendered — see note above): the Pause/revoke and Owner-recovery vault-action help icons reference their verified docs slugs, new tab, no opener/referrer leak", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "app-v4.js"), "utf8");
+  assert.match(src, /docsHintIcon\("pause-and-revoke",\s*"[^"]+"\)/, "the Pause/Unpause action must carry a docsHintIcon to /pause-and-revoke/");
+  assert.match(src, /docsHintIcon\("owner-recovery",\s*"[^"]+"\)/, "the Close & recover action must carry a docsHintIcon to /owner-recovery/");
+  // The helper itself: verified target/rel, and it is genuinely a link
+  // (not just a tooltip) — satisfies the docs addendum's "deep link"
+  // requirement, not only a hover title.
+  assert.match(
+    src,
+    /const docsHintIcon = \(slug, title\) => ` <a class="hint docs-hint" href="\$\{DOCS_BASE\}\/\$\{slug\}\/" target="_blank" rel="noopener noreferrer" title="\$\{esc\(title\)\}" aria-label="\$\{esc\(title\)\}">ⓘ<\/a>`;/,
+    "docsHintIcon must render a real external, new-tab, no-opener/referrer anchor, not merely a title attribute"
+  );
+  assert.match(src, /const DOCS_BASE = "https:\/\/docs\.policy-vault\.org";/);
 });

@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.1.0 — In-app documentation discovery
+
+A minimal, presentation-only successor to v1.0.0. Its single product
+change is making the documentation site, https://docs.policy-vault.org,
+discoverable from inside the application.
+
+### Added — web client only
+- Persistent **Docs** link in the application header (new tab,
+  `rel="noopener noreferrer"`).
+- Nine contextual help affordances deep-linking to verified
+  documentation pages: seven concept links in the vault-creation form
+  (fee reserve, agent/delegate, per-transaction limit, periodic budget,
+  destination allowlist, approval threshold, external approver) and two
+  vault-action help icons (pause/revoke, owner recovery). All link
+  targets are static literals verified against the live documentation
+  site; titles are escaped; anchors never leak an opener or referrer.
+- Three regression tests pinning the feature (header link, a real
+  render of the creation form proving exactly the expected links, and
+  the action-icon/helper shape).
+
+### Changed
+- Nothing else. The runtime difference between the v1.0.0 production
+  image and this release's image is exactly four `web/` files plus the
+  build identity: `web/index.html`, `web/app-v4.js`,
+  `web/test/app-v4-gate.test.js`, `web/test/network-strings.test.js`
+  (proven by a full per-file SHA256 manifest of both container
+  filesystems, 11,626 files each). Covenant bytes, transaction
+  construction, signing, wallet adapter, server authentication,
+  tenancy, policy enforcement, and the database schema (009) are
+  byte-identical to v1.0.0. No CSP change. No dependency change.
+
 ## v1.0.0 — Web/Agent Production Release (from v0.4.1)
 
 The platform around the (unchanged) v0.4.1 covenant grew from a self-hosted

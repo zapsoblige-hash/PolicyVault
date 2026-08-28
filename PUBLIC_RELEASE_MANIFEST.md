@@ -1,4 +1,4 @@
-# PolicyVault Public Release Manifest — v1.0.0 (Web/Agent Production Release)
+# PolicyVault Public Release Manifest — v1.1.0 (In-app documentation discovery)
 
 Every published path, why it is included, and everything intentionally
 excluded. This release was assembled as a FRESH tree (no git ancestry)
@@ -11,10 +11,10 @@ for publication.
 | Fact | Value |
 |---|---|
 | Live production | https://app.policy-vault.org |
-| Live image | `policyvault-app:fullscale-rc3`, digest `sha256:3ddd32e1ce8975ee987e94dd047995396fbd51531e49629318317282eb1f4f8e` |
-| Live buildId (served by `/api/v1/health`) | `49a2822` |
-| Private source commit the image was built from | `49a2822` (private repository; history not published — see below). `49a2822` = the accepted `0b6e2ab` production source + the external-approver discovery hotfix (`server/src/tenancy.js`, `server/src/api.js`) + its regression suites — see CHANGELOG "Fixed" |
-| Publication source snapshot | **every runtime directory the container copies (`core/ sdk/ server/ web/ contracts/`) is byte-identical between `49a2822` and this tree**; the only additions after `49a2822` are the production acceptance driver (`tools/prod-acceptance.js`) and release documentation (verified mechanically: 525 files byte-identical to the private source, 16 public-presentation-modified files documented below — none of them runtime — and 4 public-only release documents) |
+| Live image | `policyvault-app:fullscale-rc4`, digest `sha256:23207059026989827163119b90bef3f992a91678ee952294c5f51253ab887751` |
+| Live buildId (served by `/api/v1/health`) | `3a70563` |
+| Private source commit the image was built from | `3a70563` (private repository; history not published — see below). `3a70563` = the accepted `49a2822` production source (v1.0.0) + the in-app documentation-discovery web change ONLY (`web/index.html`, `web/app-v4.js`, two web test files) — see CHANGELOG v1.1.0. The full per-file SHA256 manifest of the v1.0.0 and v1.1.0 container filesystems (11,626 files each) differs in exactly those four `web/` files plus the build identity |
+| Publication source snapshot | **every runtime directory the container copies (`core/ sdk/ server/ web/ contracts/`) is byte-identical between `3a70563` and this tree**; verified mechanically against the private source: 535 files byte-identical, 6 public-presentation-modified files documented below — none of them runtime — and 4 public-only release documents. (The 10 VM test-portability files that were presentation-modified in v1.0.0 are now byte-identical: the private source carries the same portability fix.) |
 | Therefore | the runtime source in this repository is byte-for-byte the source of the live production image; the container copies `core/ sdk/ server/ web/ contracts/` plus vendored toolchain binaries per `deploy/Dockerfile` |
 | Covenant identity | `contracts/PolicyVault.v0.4.1.sil` (and priors) — byte-identical to the v0.4.1 public release; regenerate + verify with `tools/gen_v4_1.js` |
 
@@ -40,7 +40,7 @@ by a normal successor commit; no prior public history is rewritten.
 | `security/**` | 5 | internal hostile-AI adversarial suites (agent-boundary pinning) | verification-test |
 | `mobile/**` | 25 | native mobile scaffold — DEVELOPMENT status (README labeling; `docs/postlaunch/mobile-*`) | development |
 | `python/**` | 17 | stdlib Python client + parity/live-server tests | runtime + verification-test |
-| `tests/vm/**` | 23 | real Kaspa VM covenant workspace (Rust; production + adversarial + encoder/SDK-integration suites). Requires sibling public `silverscript` + `rusty-kaspa` checkouts. PUBLIC-PRESENTATION-MODIFIED (10 files, portability-only, new in this release): `src/lib.rs` and 9 test files resolve the repo root workspace-relatively (`CARGO_MANIFEST_DIR`) instead of assuming a `~/policyvault` checkout, so `cargo test` passes from any clone location (v0.4.1 shipped the hardcoded form); assertions unchanged. The 10 `*_experiment_*`/lineage test files are NOT published — they drive design-probe contracts under `contracts/experiments/`, which is intentionally excluded (see below) | verification-test |
+| `tests/vm/**` | 23 | real Kaspa VM covenant workspace (Rust; production + adversarial + encoder/SDK-integration suites). Requires sibling public `silverscript` + `rusty-kaspa` checkouts. `src/lib.rs` and the test files resolve the repo root workspace-relatively (`CARGO_MANIFEST_DIR`), so `cargo test` passes from any clone location; as of v1.1.0 these files are byte-identical to the private source (the same portability fix now lives on both sides). The 10 `*_experiment_*`/lineage test files are NOT published — they drive design-probe contracts under `contracts/experiments/`, which is intentionally excluded (see below) | verification-test |
 | `tools/` (18) | 18 | covenant generators (byte-identity), vendor staging, image privacy scan, served-app + staging acceptance drivers, the network-aware production acceptance driver (`prod-acceptance.js`), kaspad forwarder (testnet), backup/restore + header probes, testnet-10 v4/v4.1 live drivers | build + verification-test |
 | `deploy/` (7) | 7 | `Dockerfile`, staging + production compose examples, env TEMPLATES (no real values), cloudflared config template, droplet first-boot script (PUBLIC-PRESENTATION-MODIFIED: the operator SSH public key is no longer baked as a default — you must supply your own; stale internal ship-step notes genericized) | build |
 | `docs/` top (21) | 21 | protocol specs v0.2…v0.4.1, architecture, threat model, security invariants, fee/mass spec, wallet adapters, test plan, deployment, operations, organization model, product policy, hosted architecture/persistence/request-protection/threat-model/backup-restore/deployment | documentation |
@@ -56,6 +56,9 @@ never published:
   documents (`POLICYVAULT_CONTINUATION_NOTES.md`, `CLAUDE.md`,
   `POLICYVAULT_MISSION.md`, `POINT_NG.md`, completion-standard
   directives).
+- Internal decision/acceptance packets, including this release's
+  docs-discovery successor packet (deployment/acceptance evidence and
+  operational procedure — operational record, not source).
 - Internal checkpoint/evidence archives: testnet/mainnet acceptance
   evidence and plans, phase evidence, execution logs, production
   runbook + promotion packet, candidate records, remediation report +
