@@ -19,7 +19,12 @@
       .brand .mark { width: 24px; height: 24px; border-radius: 6px; display: block; }
       .net { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); font-size: 0.82rem; }
       .net .ok { color: var(--good); }
-      #testnet-banner { background: rgba(210,153,34,0.15); border-bottom: 1px solid rgba(210,153,34,0.4); color: var(--warn); text-align: center; padding: 0.35rem; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.05em; }
+      /* Network identity banner. Neutral (muted) while VERIFYING; amber warn
+         for a resolved TESTNET, an UNKNOWN/fail-closed state, and STAGING;
+         restrained muted-green for resolved MAINNET (inform, not dominate). */
+      #testnet-banner { background: var(--panel-2); border-bottom: 1px solid var(--border); color: var(--muted); text-align: center; padding: 0.35rem; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.05em; }
+      #testnet-banner[data-net="testnet"], #testnet-banner[data-net="unknown"], #testnet-banner[data-staging] { background: rgba(210,153,34,0.15); border-bottom: 1px solid rgba(210,153,34,0.4); color: var(--warn); }
+      #testnet-banner[data-net="mainnet"] { background: rgba(63,185,80,0.08); border-bottom: 1px solid rgba(63,185,80,0.25); color: var(--good); }
       main { max-width: 1080px; margin: 0 auto; padding: 1.5rem; }
       h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 1.6rem 0 0.8rem; }
       .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.3rem; margin-bottom: 1rem; }
@@ -130,7 +135,12 @@
     </style>
   </head>
   <body>
-    <div id="testnet-banner">TESTNET-10 — no real value · mainnet broadcasting is disabled</div>
+    <!-- Network identity banner (id kept for CSS/JS compatibility). Populated
+         by app.js from GET /api/v1/network/status — the server-verified node
+         network identity, the SAME value the signing gate (verifyNetwork)
+         compares against. Fail closed: the initial markup never names a
+         network; a failed/pending probe shows UNKNOWN, never a stale one. -->
+    <div id="testnet-banner">VERIFYING NETWORK…</div>
     <header>
       <div class="brand"><img class="mark" src="/favicon.png" alt="" /> PolicyVault</div>
       <div style="display:flex; align-items:center; gap:0.8rem;">
@@ -154,7 +164,7 @@
         <button id="btn-disconnect" style="display:none">Disconnect</button>
       </div>
 
-      <!-- PRIMARY PRODUCT: PolicyVault v0.4.1 (multi-agent treasury controls, live on testnet-10) -->
+      <!-- PRIMARY PRODUCT: PolicyVault v0.4.1 (multi-agent treasury controls) -->
       <div class="title-row"><span class="title">PolicyVault — Multi-agent treasury controls</span> <span class="badge ver">Protocol v0.4.1</span></div>
       <div id="v4-connect" class="panel wallet-row">
         <div id="v4-wallet" class="wallet-kv">Connect KasWare in the Wallet panel above to continue.</div>
@@ -168,7 +178,7 @@
         <button class="v4-tab" data-view="support">Support</button>
       </nav>
       <div id="v4-notice" class="panel" style="display:none"></div>
-      <div id="v4-root"><div class="empty">Connect a testnet-10 wallet to begin.</div></div>
+      <div id="v4-root"><div class="empty">Connect a wallet to begin.</div></div>
 
       <details id="legacy-section">
         <summary>Legacy vault compatibility — existing v0.2/v0.3 vaults remain supported for management, verification, history, and recovery. New vaults use the current protocol.</summary>

@@ -1,5 +1,60 @@
 # Changelog
 
+## v1.1.1 — Truthful, fail-closed network-identity banner
+
+A minimal, presentation-only successor to v1.1.0. Its single product
+change fixes a production presentation defect: the web client's top
+banner was a hardcoded `TESTNET-10` warning that was only corrected
+after a *successful* network-status probe — so a MAINNET deployment
+whose node probe failed kept displaying a stale, false network
+identity.
+
+### Fixed — web client only
+- The banner now derives ONLY from `GET /api/v1/network/status` — the
+  node-verified network identity (server-side `connectVerified`: node
+  network == configured network, synced, utxoindex), which is the same
+  server-reported identity the wallet signing gate compares against.
+  It is never derived from the hostname, a build-time constant, or
+  cached markup.
+- Initial markup is a neutral `VERIFYING NETWORK…` state (it never
+  names a network before one is verified).
+- Resolved mainnet → a restrained `MAINNET — real KAS` indicator;
+  resolved testnet → the explicit
+  `<NETWORK> — no real value · mainnet broadcasting is disabled`
+  warning; failed / malformed / pending →
+  `NETWORK STATUS UNKNOWN — verify connection before transacting`
+  (fail closed — never a stale or guessed network).
+- Stale-response guard: a late response (any outcome) can never
+  overwrite a newer resolution, in either direction. Bounded retry
+  after failure (15s → 30s → 60s cap, stops at first success), so open
+  pages self-heal after a transient node outage.
+- The hosted-staging `NON-PRODUCTION` label now owns the banner
+  outright — network resolution can never overwrite it.
+- The pre-JS `#v4-root` placeholder and an HTML comment no longer name
+  a network.
+
+### Tests
+- `web/test/network-banner.test.js` (new): 18 browser regressions
+  evaluating the real production `app.js` — mainnet / testnet /
+  pending / failure / malformed / retry-recovery / bounded backoff /
+  stale-response ordering / staging ownership / signing-gate
+  byte-identity / authoritative-source-only.
+- `web/test/network-strings.test.js`: the hardcoded-network-string
+  regression net now also covers `index.html` (pinned to zero
+  occurrences).
+
+### Changed
+- Nothing else. The runtime difference between the v1.1.0 production
+  image and this release's image is exactly four `web/` files plus the
+  build identity: `web/index.html`, `web/app.js`,
+  `web/test/network-banner.test.js` (new),
+  `web/test/network-strings.test.js`. The wallet network verification
+  gate (`verifyNetwork()`) is byte-identical — signing remains
+  unavailable wherever it already required a verified network.
+  Covenant bytes, transaction construction, signing, wallet adapter,
+  server authentication, tenancy, policy enforcement, and the database
+  schema (009) are unchanged. No CSP change. No dependency change.
+
 ## v1.1.0 — In-app documentation discovery
 
 A minimal, presentation-only successor to v1.0.0. Its single product

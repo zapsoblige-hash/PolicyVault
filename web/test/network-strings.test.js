@@ -44,7 +44,7 @@ function linesContaining(file, needle) {
 /* Files this worker owns and edited for item 5. core-bundle.js and
  * verify-intent.js are F1-owned (never touched by this worker) and are
  * intentionally NOT in this list — see the module comment above. */
-const OWNED_FILES = ["app.js", "app-v4.js", "wallet.js", "signer-kasware-adapter.js"];
+const OWNED_FILES = ["app.js", "app-v4.js", "wallet.js", "signer-kasware-adapter.js", "index.html"];
 
 /* Exact set of lines still legitimately carrying the literal
  * "testnet-10" string, keyed by file, after item 5's rewrite. Every one
@@ -63,8 +63,15 @@ const EXEMPT = {
   "app.js": [
     151, // comment: "Gate R: testnet-10 or mainnet" — already dual-network
     154, // `ui.serverNetwork !== "testnet-10" && ui.serverNetwork !== "mainnet"` — fail-closed validity gate against the two canonical values; untouched per the mission ("do not change gating logic")
-    1123 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10
+    1201 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10 (shifted from 1123 by the network-identity-banner fail-closed rework: applyNetworkBanner/refreshNetworkStatus)
   ],
+  // index.html: ZERO hardcoded network names. The banner div ships neutral
+  // "VERIFYING NETWORK…" markup (the stale-TESTNET-banner-on-mainnet
+  // production defect, 2026-08-29: the old hardcoded TESTNET-10 default
+  // survived any failed /network/status probe); the v4-root empty state and
+  // the product comment no longer name a network either. The #testnet-banner
+  // id/CSS selectors legitimately contain "testnet-" but not "testnet-10".
+  "index.html": [],
   "app-v4.js": [
     12, // comment restating the two canonical values (dual-network)
     44, // comment quoting the literal for documentation purposes (shifted from 30 by the TRACK B phase 7 in-app docs-help additions — docsLink/docsHintIcon helpers)

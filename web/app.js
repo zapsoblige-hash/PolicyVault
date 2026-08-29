@@ -1109,6 +1109,84 @@
     }
   }
 
+  /* ---------------- network identity banner ---------------- */
+
+  /*
+   * The top banner reports the network identity of the LIVE backend —
+   * GET /network/status, whose networkId is the NODE's own reported
+   * network, verified server-side (sdk/src/chain.js connectVerified:
+   * node network == configured network, synced, utxoindex). That is the
+   * SAME server-reported identity verifyNetwork() gates signing on
+   * (ui.serverNetwork), so the banner can never disagree with the
+   * transaction safety path. It never assumes a network: the initial
+   * markup is a neutral VERIFYING state, and a failed / malformed /
+   * still-pending probe shows NETWORK STATUS UNKNOWN (fail closed) —
+   * never a stale or guessed network name. A hosted staging deployment's
+   * NON-PRODUCTION label (set from /health in boot() below) owns the
+   * element outright; network resolution never overwrites it.
+   */
+  function applyNetworkBanner(networkId) {
+    const b = $("testnet-banner");
+    if (!b || b.dataset.staging) return; // staging label owns the banner
+    if (networkId === "mainnet") {
+      b.dataset.net = "mainnet";
+      b.textContent = "MAINNET — real KAS";
+    } else if (typeof networkId === "string" && networkId) {
+      b.dataset.net = "testnet";
+      b.textContent = `${networkId.toUpperCase()} — no real value · mainnet broadcasting is disabled`;
+    } else {
+      b.dataset.net = "unknown";
+      b.textContent = "NETWORK STATUS UNKNOWN — verify connection before transacting";
+    }
+    b.style.display = "";
+  }
+
+  let netProbeSeq = 0; // stale-response guard: only the newest probe may write
+  let netRetryDelay = 15000; // bounded backoff after failure: 15s → 30s → 60s cap
+  async function refreshNetworkStatus() {
+    const seq = ++netProbeSeq;
+    try {
+      const net = await getJSON("/network/status");
+      if (seq !== netProbeSeq) return; // a newer probe owns the display
+      const id = typeof net.networkId === "string" && net.networkId ? net.networkId : null;
+      // verifyNetwork() fails closed unless this is exactly one of the two
+      // canonical values — identical gate input to the previous behavior
+      // (null here is as unverifiable as the never-assigned initial null).
+      ui.serverNetwork = id;
+      if (id) {
+        $("net").innerHTML = `<span class="ok">●</span> ${esc(id)} · ${net.isSynced ? "synced" : "SYNCING"} · DAA ${esc(net.virtualDaaScore)}`;
+        applyNetworkBanner(id);
+      } else {
+        // Malformed response (no usable networkId): fail closed, keep probing.
+        $("net").textContent = "network unknown";
+        applyNetworkBanner(null);
+        scheduleNetworkRetry();
+      }
+    } catch {
+      if (seq !== netProbeSeq) return;
+      ui.serverNetwork = null;
+      $("net").textContent = "node unreachable";
+      applyNetworkBanner(null);
+      scheduleNetworkRetry();
+    }
+  }
+  function scheduleNetworkRetry() {
+    // Self-heals a transient node outage: open pages converge to the true
+    // network within one retry interval of the backend recovering. Retries
+    // stop at the first successful resolution.
+    setTimeout(refreshNetworkStatus, netRetryDelay);
+    netRetryDelay = Math.min(netRetryDelay * 2, 60000);
+  }
+
+  // BROWSER test layer only (web/test/network-banner.test.js): drives and
+  // inspects network-banner resolution against the REAL app.js. Production
+  // code never uses this.
+  window.PolicyVaultNetworkBanner = {
+    refresh: refreshNetworkStatus,
+    _apply: applyNetworkBanner,
+    _serverNetwork: () => ui.serverNetwork
+  };
+
   /* ---------------- boot ---------------- */
 
   async function boot() {
@@ -1122,18 +1200,12 @@
         // hardcoded fallback network name here; an unreadable value fails
         // closed to a neutral label rather than assuming testnet-10.
         const net = typeof h.networkId === "string" && h.networkId ? h.networkId.toUpperCase() : "UNKNOWN NETWORK";
+        b.dataset.staging = "1"; // owns the banner — network resolution never overwrites NON-PRODUCTION
         b.textContent = `${net} STAGING — NON-PRODUCTION · no real value · this is not the production site`;
         b.style.display = "";
       }
     }).catch(() => {});
-    try {
-      const net = await getJSON("/network/status");
-      ui.serverNetwork = net.networkId;
-      $("net").innerHTML = `<span class="ok">●</span> ${esc(net.networkId)} · ${net.isSynced ? "synced" : "SYNCING"} · DAA ${esc(net.virtualDaaScore)}`;
-      $("testnet-banner").style.display = net.networkId === "mainnet" ? "none" : "";
-    } catch {
-      $("net").textContent = "node unreachable";
-    }
+    await refreshNetworkStatus();
 
     // Provider roster: KasWare always listed; Mock only if the dev endpoint responds.
     // KasWare goes through the Universal-Signer-Interface session adapter

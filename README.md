@@ -18,7 +18,8 @@ The authority model, stated once and everywhere enforced:
 | Surface | Status |
 |---|---|
 | **Web / Agent platform** | **PRODUCTION — LIVE** at https://app.policy-vault.org (hosted deployment of this source; you can also fully self-host) |
-| Current production source | **PUBLIC — this repository** (buildId `3a70563`; exact identity chain in `PUBLIC_RELEASE_MANIFEST.md`) |
+| Current production source | **PUBLIC — this repository** (buildId `b33bf4e`; exact identity chain in `PUBLIC_RELEASE_MANIFEST.md`) |
+| Network-identity banner fix (v1.1.1) | The web client's network banner now derives from the server's node-verified `/network/status` and FAILS CLOSED to an explicit UNKNOWN state — never a stale or assumed network; see CHANGELOG |
 | In-app documentation discovery (v1.1.0) | Docs link + contextual help in the web client, deep-linking to https://docs.policy-vault.org — presentation-only successor; see CHANGELOG |
 | External-approver discovery fix (2026-08-27) | **DEPLOYED + AUTOMATED-ACCEPTED** (fail-closed availability defect, no funds/authority/privacy exposure; see CHANGELOG "Fixed". Acceptance was automated; no human acceptance test is claimed) |
 | Covenant protocol v0.4.1 | Mainnet-operational (real mainnet lifecycle evidence; see SECURITY.md for exactly what is proven and how) |
