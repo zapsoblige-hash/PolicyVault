@@ -309,5 +309,8 @@ test("the signing-path network gate is byte-identical (banner rework is presenta
 test("the banner derives ONLY from /network/status — never hostname, location, or a build constant", () => {
   const bannerSection = APP_JS.slice(APP_JS.indexOf("function applyNetworkBanner"), APP_JS.indexOf("async function boot"));
   assert.ok(!/location|hostname|BUILD/i.test(bannerSection), "no non-authoritative network identity source in the banner path");
-  assert.ok(/getJSON\("\/network\/status"\)/.test(bannerSection), "the banner path reads the authoritative network-status surface");
+  // fetchJSONRaw = the same authoritative /network/status surface, read
+  // WITHOUT the in-flight GET dedupe (a self-heal retry must never be
+  // absorbed by a potentially-hung earlier probe).
+  assert.ok(/fetchJSONRaw\("\/network\/status"\)/.test(bannerSection), "the banner path reads the authoritative network-status surface");
 });

@@ -44,11 +44,28 @@
   // ui.serverNetwork (the server's own reported networkId), never a guess.
   const networkLabel = () => ui.serverNetwork || "the configured network";
 
-  async function getJSON(p) {
+  /* In-flight GET de-duplication (UX responsiveness pass): concurrent
+   * identical GETs (e.g. two views asking for /organizations at once)
+   * share ONE request. Entries clear as soon as the request settles, so
+   * this is never a response cache — every new read after settlement hits
+   * the server again. Presentation-layer only: POSTs (all mutations,
+   * auth, signing) are NEVER deduplicated. */
+  const inflightGets = new Map();
+  async function fetchJSONRaw(p) {
     const r = await fetch(API + p);
     const j = await r.json();
     if (!r.ok) throw Object.assign(new Error(j.error?.message || r.statusText), { code: j.error?.code, payload: j });
     return j;
+  }
+  async function getJSON(p) {
+    if (inflightGets.has(p)) return inflightGets.get(p);
+    const req = fetchJSONRaw(p);
+    inflightGets.set(p, req);
+    try {
+      return await req;
+    } finally {
+      inflightGets.delete(p);
+    }
   }
   async function postJSON(p, body) {
     const r = await fetch(API + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -102,7 +119,13 @@
       network: ui.network ?? null,
       serverNetwork: ui.serverNetwork ?? null,
       provider: ui.adapter ? ui.adapter.label : null,
-      adapter: ui.adapter ?? null
+      adapter: ui.adapter ?? null,
+      // Hosted-session status for consumers' retained-state identity binding
+      // (UX responsiveness pass). "DISABLED" on self-hosted servers (authMode
+      // off), else the hostedAuth state machine's value. Consumers must
+      // treat any change as an identity event; this never carries the
+      // session token (which lives in an HttpOnly cookie).
+      auth: hostedAuth.enabled ? hostedAuth.state : "DISABLED"
     };
   }
   // KasWare connects THROUGH the Universal Signer Interface adapter
@@ -270,9 +293,34 @@
   }
 
   function setAuthState(state, detail) {
+    const prev = hostedAuth.state;
     hostedAuth.state = state;
     if (state !== "AUTHENTICATED") { hostedAuth.session = null; }
     renderAuth(detail);
+    if (prev !== state) {
+      // Auth transitions are identity events for retained/prefetched data:
+      // in-flight GET sharing is flushed, consumers (v0.4.1) are notified
+      // through the ONE canonical session snapshot (`auth` field), and the
+      // legacy dashboard's privileged data follows the session:
+      //  - INTO AUTHENTICATED: prefetch the predictable signed-in data
+      //    (organizations + vaults) so navigation is already populated;
+      //  - OUT OF AUTHENTICATED: drop privileged retained state immediately
+      //    (never render another session's data) and show the quiet
+      //    signed-out states.
+      inflightGets.clear();
+      if (state === "AUTHENTICATED") {
+        loadOrgs();
+        loadVaults();
+      } else if (prev === "AUTHENTICATED") {
+        ui.orgs = [];
+        ui.roleLabels = [];
+        ui.assignments = {};
+        ui.assignmentsError = null;
+        ui.vaults = [];
+        renderSignedOutData();
+      }
+      emitWalletChange();
+    }
   }
 
   /* Restore/refresh from the SERVER'S truth (survives reload; §14). A live
@@ -367,10 +415,11 @@
     }
   });
 
-  async function initHostedAuth() {
+  async function initHostedAuth(healthPromise) {
     try {
-      const health = await getJSON("/health");
-      hostedAuth.enabled = health.authMode === "enabled";
+      // Shares boot()'s single /health read; a standalone call still works.
+      const health = await (healthPromise ?? getJSON("/health"));
+      hostedAuth.enabled = !!health && health.authMode === "enabled";
     } catch {
       hostedAuth.enabled = false;
     }
@@ -692,7 +741,29 @@
     return search(preferred) ?? search(healthyOrgs());
   }
 
+  /* Signed-out is an EXPECTED state on a hosted server, not an error:
+   * privileged reads (organizations, vaults) are simply not made until an
+   * authenticated session exists, and the panels show quiet sign-in hints
+   * instead of auth-failure toasts. Self-hosted servers (authMode
+   * disabled) have no session gate and keep the original behavior.
+   * Authentication semantics are NOT touched — this only stops the client
+   * asking questions it already knows the answer to. */
+  const needsSignIn = () => hostedAuth.enabled && hostedAuth.state !== "AUTHENTICATED";
+  const isAuthRefusal = (e) => e && (e.code === "SESSION_INVALID" || e.code === "AUTH_REQUIRED" || e.code === "SESSION_EXPIRED");
+  function renderSignedOutData() {
+    renderOrgSelector();
+    renderOrgPanel();
+    const el = $("vaults");
+    if (el) el.innerHTML = `<div class="empty">Sign in to view your vaults.</div>`;
+  }
+
   async function loadOrgs() {
+    if (needsSignIn()) {
+      ui.orgs = [];
+      renderOrgSelector();
+      renderOrgPanel();
+      return;
+    }
     try {
       const data = await getJSON("/organizations");
       ui.orgs = data.organizations ?? [];
@@ -705,7 +776,13 @@
       if (corrupt.length) note(`${corrupt.length} organization record(s) are unreadable (metadata error). Vault funds are unaffected.`, "warn");
     } catch (e) {
       ui.orgs = [];
-      note(`Organizations unavailable: ${e.message}`, "warn");
+      // An auth refusal while signed out is the EXPECTED signed-out state
+      // (e.g. a session expired between the gate check and the response) —
+      // never an error toast. Authenticated failures still surface, and
+      // every non-auth error still surfaces regardless of session state.
+      if (!(isAuthRefusal(e) && needsSignIn())) {
+        note(`Organizations unavailable: ${e.message}`, "warn");
+      }
     }
     renderOrgSelector();
     renderOrgPanel();
@@ -1093,6 +1170,11 @@
   const autoVerified = new Set();
 
   async function loadVaults() {
+    if (needsSignIn()) {
+      ui.vaults = [];
+      $("vaults").innerHTML = `<div class="empty">Sign in to view your vaults.</div>`;
+      return;
+    }
     try {
       const { vaults } = await getJSON("/vaults");
       ui.vaults = vaults.filter(Boolean);
@@ -1105,7 +1187,11 @@
         }
       }
     } catch (e) {
-      $("vaults").innerHTML = `<div class="empty">Failed to load vaults: ${esc(e.message)}</div>`;
+      // Same expected-signed-out treatment as loadOrgs; every other failure
+      // (including authenticated failures) still renders visibly.
+      $("vaults").innerHTML = isAuthRefusal(e) && needsSignIn()
+        ? `<div class="empty">Sign in to view your vaults.</div>`
+        : `<div class="empty">Failed to load vaults: ${esc(e.message)}</div>`;
     }
   }
 
@@ -1146,7 +1232,11 @@
   async function refreshNetworkStatus() {
     const seq = ++netProbeSeq;
     try {
-      const net = await getJSON("/network/status");
+      // RAW (non-deduplicated) read on purpose: a self-heal retry must
+      // never be absorbed by a potentially-hung earlier probe — every
+      // banner probe is a genuinely fresh network-truth read, and the seq
+      // guard below keeps late responses from overwriting newer ones.
+      const net = await fetchJSONRaw("/network/status");
       if (seq !== netProbeSeq) return; // a newer probe owns the display
       const id = typeof net.networkId === "string" && net.networkId ? net.networkId : null;
       // verifyNetwork() fails closed unless this is exactly one of the two
@@ -1190,10 +1280,15 @@
   /* ---------------- boot ---------------- */
 
   async function boot() {
+    // ONE /health read serves the staging check, hosted-auth detection,
+    // AND (via window.PolicyVaultHealthPromise) the v0.4.1 module — the
+    // startup previously issued three duplicate /health requests.
+    const healthP = getJSON("/health").catch(() => null);
+    window.PolicyVaultHealthPromise = healthP;
     // Staging identity (Phase E): a hosted staging deployment reports
     // staging:true from /health; the banner must say NON-PRODUCTION even
     // when the node is unreachable. Server-declared, never inferred.
-    getJSON("/health").then((h) => {
+    healthP.then((h) => {
       if (h && h.staging) {
         const b = $("testnet-banner");
         // /health always reports networkId (server/src/api.js) — never a
@@ -1204,8 +1299,24 @@
         b.textContent = `${net} STAGING — NON-PRODUCTION · no real value · this is not the production site`;
         b.style.display = "";
       }
-    }).catch(() => {});
-    await refreshNetworkStatus();
+    });
+
+    // INDEPENDENT startup reads run CONCURRENTLY (UX responsiveness pass):
+    // the authoritative network probe, and the hosted-auth restore followed
+    // by the auth-gated initial data. Nothing whose ORDERING is a
+    // correctness property is parallelized: the wallet reconnect below
+    // still awaits the network probe before verifyNetwork() compares the
+    // wallet's network against ui.serverNetwork, and organizations/vaults
+    // are only requested once the session state is known.
+    const netP = refreshNetworkStatus();
+    const dataP = (async () => {
+      await initHostedAuth(healthP);
+      // Covers the signed-out and self-hosted paths (quiet states / open
+      // reads). On an AUTHENTICATED session restore, setAuthState's
+      // transition prefetch has already started these — the in-flight GET
+      // dedupe collapses the duplicates.
+      await Promise.all([loadOrgs(), loadVaults()]);
+    })();
 
     // Provider roster: KasWare always listed; Mock only if the dev endpoint responds.
     // KasWare goes through the Universal-Signer-Interface session adapter
@@ -1225,6 +1336,7 @@
     // Reload restore (convenience only; backend remains the source of truth).
     const preferred = localStorage.getItem("pv.walletProvider");
     if (preferred === "kasware" && kasware.detect()) {
+      await netP; // ordering: server network identity BEFORE any wallet comparison
       const restored = await kasware.reconnect().catch(() => null);
       if (restored) {
         ui.adapter = kasware;
@@ -1234,9 +1346,7 @@
     }
     if (!ui.address) setWalletState(kasware.detect() ? WalletState.DISCONNECTED : WalletState.NOT_DETECTED);
 
-    await initHostedAuth();
-    await loadOrgs();
-    await loadVaults();
+    await Promise.all([netP, dataP]);
   }
 
   /* ---------------- organization UI wiring ---------------- */

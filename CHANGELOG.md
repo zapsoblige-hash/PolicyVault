@@ -1,5 +1,70 @@
 # Changelog
 
+## v1.2.0 — Responsive client orchestration + quiet signed-out state
+
+A client-orchestration/presentation successor to v1.1.1. No server,
+schema, covenant, signing, or authentication-semantics change — the
+runtime difference is exactly five `web/` files (two application files,
+three test files) plus the build identity.
+
+### Fixed — signed-out UX (hosted deployments)
+- A fresh signed-out visit no longer shows the spurious
+  "Organizations unavailable: sign in to use this route" toast: on a
+  hosted server the client simply does not request privileged data
+  (organizations, vaults) until an authenticated session exists, and
+  shows quiet inline states instead ("Sign in to view your vaults." /
+  "Sign in to use Organizations."). An auth refusal that still occurs
+  while signed out (races) renders the same quiet state.
+  AUTHENTICATED failures and all non-auth errors surface exactly as
+  before; self-hosted (authMode disabled) behavior is unchanged;
+  authentication semantics are untouched.
+
+### Improved — responsiveness (client orchestration only)
+- Startup parallelized: the network probe, hosted-session restore, and
+  session-gated data loads run concurrently (the wallet reconnect still
+  awaits the authoritative network identity first — that ordering is a
+  correctness property). One `/health` request at startup instead of
+  three.
+- Views retain their last-good data bound to an identity epoch (wallet
+  address + wallet network + session status): returning to a tab paints
+  immediately with a truthful "Refreshing…" marker while an
+  authoritative background refresh runs. Wallet, account, network, and
+  session changes discard every retained entry and shared in-flight
+  read; a response that started under an older identity is discarded
+  (never painted, never cached). Cold views paint "Loading …"
+  immediately.
+- The vaults view's independent reads (vaults, organizations, open
+  approval requests, governance proposals) run concurrently, with the
+  per-vault suspension reads following as before (fail-closed
+  suspension rendering preserved verbatim); serial depth drops from
+  4–5 round-trips to 2. The Organizations view is parallelized the same
+  way.
+- Concurrent identical GETs share one in-flight request (never a
+  response cache; mutations are never deduplicated). The
+  network-identity banner probe deliberately bypasses this sharing so a
+  self-heal retry can never be absorbed by a hung earlier probe.
+- Signing in prefetches organizations + vaults and re-renders the
+  dashboard (previously nothing re-rendered after sign-in).
+- Immediate truthful progress states on financial actions:
+  "Preparing transaction…", "Waiting for KasWare…",
+  "signed — submitting…". **Pending is not success**: only the existing
+  authoritative CHAIN_VERIFIED outcome renders as success, and every
+  fail-closed path (RECONCILIATION_REQUIRED included) is unchanged.
+- The wallet-invocation path was audited and carries zero unrelated
+  awaits (fuel selection, transaction build, review, and the mandatory
+  browser verification are all required inputs/gates); a regression now
+  pins that unrelated reads cannot delay the wallet popup.
+
+### Tests
+- `web/test/ux-responsiveness.test.js` (new): 18 browser regressions —
+  the signed-out matrix, identity-epoch invalidation (wallet / network
+  / session), stale-response protection, in-flight dedupe, read
+  parallelism, signing independence from unrelated reads, wallet
+  rejection, and pending-is-not-success.
+- `web/test/network-banner.test.js`: probe-source assertion follows the
+  banner's dedupe exemption; `web/test/network-strings.test.js`:
+  pinned line numbers updated.
+
 ## v1.1.1 — Truthful, fail-closed network-identity banner
 
 A minimal, presentation-only successor to v1.1.0. Its single product

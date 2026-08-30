@@ -1,4 +1,4 @@
-# PolicyVault Public Release Manifest — v1.1.1 (Truthful, fail-closed network-identity banner)
+# PolicyVault Public Release Manifest — v1.2.0 (Responsive client orchestration + quiet signed-out state)
 
 Every published path, why it is included, and everything intentionally
 excluded. This release was assembled as a FRESH tree (no git ancestry)
@@ -11,10 +11,10 @@ for publication.
 | Fact | Value |
 |---|---|
 | Live production | https://app.policy-vault.org |
-| Live image | `policyvault-app:fullscale-rc5`, digest `sha256:2504444b7d06a06ac152e4698cd6d4627c0392d3c44479ecfc41c5d60ff77be2` |
-| Live buildId (served by `/api/v1/health`) | `b33bf4e` |
-| Private source commit the image was built from | `b33bf4e` (private repository; history not published — see below). `b33bf4e` = the accepted `3a70563` production source (v1.1.0) + the network-identity-banner web fix ONLY (`web/index.html`, `web/app.js`, two web test files — one new) — see CHANGELOG v1.1.1. The per-file SHA256 manifest of the v1.1.0 and v1.1.1 container filesystems (11,051 vs 11,052 regular files) differs in exactly those four `web/` files plus the build identity |
-| Publication source snapshot | **every runtime directory the container copies (`core/ sdk/ server/ web/ contracts/`) is byte-identical between `b33bf4e` and this tree**; verified mechanically against the private source: 536 files byte-identical, 6 public-presentation-modified files documented below — none of them runtime — and 4 public-only release documents. (The 10 VM test-portability files that were presentation-modified in v1.0.0 are now byte-identical: the private source carries the same portability fix.) |
+| Live image | `policyvault-app:fullscale-rc6`, digest `sha256:dfb973d4e305d8c0cf700239e5dc5a187195f13d258e0b4620a9a6a9312ddaf7` |
+| Live buildId (served by `/api/v1/health`) | `5b90e74` |
+| Private source commit the image was built from | `5b90e74` (private repository; history not published — see below). `5b90e74` = the accepted `b33bf4e` production source (v1.1.1) + the UX-responsiveness/signed-out client-orchestration change ONLY (`web/app.js`, `web/app-v4.js`, three web test files — one new) — see CHANGELOG v1.2.0. The per-file SHA256 manifest of the v1.1.1 and v1.2.0 container filesystems (11,052 vs 11,053 regular files) differs in exactly those five `web/` files plus the build identity |
+| Publication source snapshot | **every runtime directory the container copies (`core/ sdk/ server/ web/ contracts/`) is byte-identical between `5b90e74` and this tree**; verified mechanically against the private source: 537 files byte-identical, 6 public-presentation-modified files documented below — none of them runtime — and 4 public-only release documents. (The 10 VM test-portability files that were presentation-modified in v1.0.0 are now byte-identical: the private source carries the same portability fix.) |
 | Therefore | the runtime source in this repository is byte-for-byte the source of the live production image; the container copies `core/ sdk/ server/ web/ contracts/` plus vendored toolchain binaries per `deploy/Dockerfile` |
 | Covenant identity | `contracts/PolicyVault.v0.4.1.sil` (and priors) — byte-identical to the v0.4.1 public release; regenerate + verify with `tools/gen_v4_1.js` |
 
@@ -23,7 +23,7 @@ operational evidence, private directives). This tree starts a fresh
 public history that ADVANCES the existing public repository (v0.4.1)
 by a normal successor commit; no prior public history is rewritten.
 
-## Included (546 files)
+## Included (547 files)
 
 | Path | Files | Reason | Category |
 |---|---|---|---|
@@ -33,7 +33,7 @@ by a normal successor commit; no prior public history is rewritten.
 | `core/**` | 99 | portable deterministic core: model, intent manifests + verification, explanations, governance, risk, signer protocol, cross-runtime equivalence — with its test suites | runtime + verification-test |
 | `sdk/**` | 166 | Node SDK (builders, freeze/sign/finalize, VM preflight, submission/chain-proof, reconciliation, JSON+PG stores, config gates) + the full SDK test suites incl. the rc-lc1/rc-ux1/rc-gv1 regression+sabotage suites, PG-parity suites, and the external-approver discovery regression suites (`test/external-approver-discovery*.test.js`). PUBLIC-PRESENTATION-MODIFIED (2 test files, portability-only): `test/covenant-generator-v3.test.js` and `test/encoder-boundvaultid.test.js` resolve the repo root checkout-relatively instead of assuming `~/policyvault`, so the suite passes from any clone location; assertions unchanged | runtime + verification-test |
 | `server/**` | 39 | hosted runtime: API, auth/tenancy/request protection, governance + risk enforcement, intent records, audit chain, webhooks, notifications, idempotency, machine identity, simulate, metrics; `migrations/001…009` | runtime |
-| `web/**` | 31 | browser client, **browser-local independent verification** (`verify-intent.js`, `core-bundle.js` + anti-drift tool), USI KasWare adapter, browser test suites incl. the external-approver inbox and network-identity-banner suites | runtime + verification-test |
+| `web/**` | 32 | browser client, **browser-local independent verification** (`verify-intent.js`, `core-bundle.js` + anti-drift tool), USI KasWare adapter, browser test suites incl. the external-approver inbox, network-identity-banner, and UX-responsiveness suites | runtime + verification-test |
 | `mcp/**` | 13 | MCP server + protocol/hostile suites | runtime + verification-test |
 | `integrations/**` | 34 | x402 + AP2 adapters, normalization, SD-JWT, server-integration suites | runtime + verification-test |
 | `conformance/**` | 12 | five-path conformance matrix (JS/Python/MCP/x402/AP2; cross-path byte equivalence) | verification-test |

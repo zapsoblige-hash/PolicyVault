@@ -61,9 +61,9 @@ const OWNED_FILES = ["app.js", "app-v4.js", "wallet.js", "signer-kasware-adapter
  * from the server-derived network label. */
 const EXEMPT = {
   "app.js": [
-    151, // comment: "Gate R: testnet-10 or mainnet" — already dual-network
-    154, // `ui.serverNetwork !== "testnet-10" && ui.serverNetwork !== "mainnet"` — fail-closed validity gate against the two canonical values; untouched per the mission ("do not change gating logic")
-    1201 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10 (shifted from 1123 by the network-identity-banner fail-closed rework: applyNetworkBanner/refreshNetworkStatus)
+    174, // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted from 151 by the UX-responsiveness pass: GET dedupe + snapshot auth field)
+    177, // `ui.serverNetwork !== "testnet-10" && ui.serverNetwork !== "mainnet"` — fail-closed validity gate against the two canonical values; untouched per the mission ("do not change gating logic")
+    1296 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10 (shifted by the banner rework + UX-responsiveness pass)
   ],
   // index.html: ZERO hardcoded network names. The banner div ships neutral
   // "VERIFYING NETWORK…" markup (the stale-TESTNET-banner-on-mainnet
@@ -74,8 +74,8 @@ const EXEMPT = {
   "index.html": [],
   "app-v4.js": [
     12, // comment restating the two canonical values (dual-network)
-    44, // comment quoting the literal for documentation purposes (shifted from 30 by the TRACK B phase 7 in-app docs-help additions — docsLink/docsHintIcon helpers)
-    1805 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted from 1780 by the same phase 7 additions)
+    60, // comment quoting the literal for documentation purposes (shifted by the UX-responsiveness pass: retained-state/epoch helpers)
+    1930 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted by the same pass)
   ],
   "wallet.js": [
     80, // normalizeNetwork(): canonical output-value production from an arbitrary provider string

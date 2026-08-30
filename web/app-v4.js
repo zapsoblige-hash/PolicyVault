@@ -35,7 +35,23 @@
   // No independent wallet state: the v0.4.1 app consumes the ONE canonical
   // browser wallet session (window.PolicyVaultWalletSession, owned by the global
   // Wallet panel). It never opens a second provider connection.
-  const state = { address: null, xonly: null, network: null, serverNetwork: null, ready: false, provider: null, view: "vaults", statusFilter: "Active", org: "all", renderedOnce: false, orgData: null, openReqs: [], vaultsById: {} };
+  const state = { address: null, xonly: null, network: null, serverNetwork: null, ready: false, provider: null, auth: null, view: "vaults", statusFilter: "Active", org: "all", renderedOnce: false, orgData: null, openReqs: [], vaultsById: {}, cache: {} };
+  /* ---- retained-state identity binding (UX responsiveness pass) ----
+   * Views retain their last-good fetched data so returning to a tab paints
+   * IMMEDIATELY while an authoritative background refresh runs. Every
+   * retained entry is bound to this identity epoch — wallet address,
+   * wallet network, and hosted-session status — and a change of ANY of
+   * them (wallet switch, account switch, network switch, sign-in,
+   * sign-out/expiry) discards every entry and every shared in-flight GET:
+   * an older identity's data can never be painted for, or overwritten
+   * onto, a newer one. */
+  const dataEpoch = () => [state.address || "", state.network || "", state.auth || ""].join("|");
+  const signedOutHosted = () => state.auth && state.auth !== "AUTHENTICATED" && state.auth !== "DISABLED";
+  const isAuthRefusal = (e) => e && (e.code === "SESSION_INVALID" || e.code === "AUTH_REQUIRED" || e.code === "SESSION_EXPIRED");
+  function dropRetainedState() {
+    state.cache = {};
+    inflightGets.clear();
+  }
   const session = () => (window.PolicyVaultWalletSession ? window.PolicyVaultWalletSession.active() : { connected: false, ready: false });
   // Server-derived network display label (never a hardcoded network name):
   // state.serverNetwork is set from GET /health at DOMContentLoaded (below)
@@ -85,11 +101,25 @@
       payload: j
     });
   }
+  /* In-flight GET de-duplication (mirrors app.js): concurrent identical
+   * GETs share ONE request; entries clear on settlement, so nothing is
+   * ever served from a response cache. Mutations (postJSON) are NEVER
+   * deduplicated. The map is flushed on every identity-epoch change. */
+  const inflightGets = new Map();
   async function getJSON(p) {
-    const r = await fetch(API + p);
-    const j = await r.json();
-    if (!r.ok) throw apiError(j, r);
-    return j;
+    if (inflightGets.has(p)) return inflightGets.get(p);
+    const req = (async () => {
+      const r = await fetch(API + p);
+      const j = await r.json();
+      if (!r.ok) throw apiError(j, r);
+      return j;
+    })();
+    inflightGets.set(p, req);
+    try {
+      return await req;
+    } finally {
+      inflightGets.delete(p);
+    }
   }
   async function postJSON(p, body) {
     const r = await fetch(API + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -131,6 +161,10 @@
    * silently retrying with a missing/stale UTXO reference. */
   const withFuel = async (params, minSompi = "200000000") => {
     try {
+      // Immediate truthful feedback: the fuel read + build round-trips are
+      // REQUIRED transaction inputs (never skipped), but the user should
+      // see work started the instant they acted.
+      note("Preparing transaction…", "warn");
       const { utxos } = await getJSON(`/wallet/fuel/${encodeURIComponent(state.address)}`);
       const u = (utxos || []).find((x) => BigInt(x.amount) > BigInt(minSompi));
       if (!u) { note(`No ordinary UTXO > ${(Number(minSompi) / 1e8)} KAS at ${short(state.address)} — fund the owner address first.`, "bad"); return null; }
@@ -144,12 +178,20 @@
    * actions when the wallet is not on the server's configured network). */
   async function updateWallet(snap) {
     const changed = snap.address !== state.address || snap.network !== state.network || snap.ready !== state.ready;
+    // Hosted-session transitions (sign-in, sign-out, expiry, wallet/network
+    // rebind) are identity events exactly like a wallet switch: retained
+    // view data and shared in-flight reads are discarded, and the view
+    // re-renders (which, signed in, starts fresh authoritative fetches —
+    // the "prefetch after authentication" moment).
+    const authChanged = (snap.auth ?? null) !== state.auth;
     const hadXOnly = !!state.xonly;
     state.address = snap.ready ? snap.address : (snap.address || null);
     state.network = snap.network;
     state.ready = snap.ready;
     state.provider = snap.provider;
+    state.auth = snap.auth ?? null;
     state.xonly = snap.xonly || null;
+    if (changed || authChanged) dropRetainedState();
     // If the session hasn't resolved x-only yet but is ready, resolve it once.
     if (snap.ready && snap.address && !state.xonly) {
       try { state.xonly = await resolveXOnly(snap.address); } catch { state.xonly = null; }
@@ -170,7 +212,7 @@
     // form input and — before the one-time delegated wiring below — accumulated
     // duplicate listeners (the H2 approver-row multiplication bug).
     const xonlyChanged = !!state.xonly !== hadXOnly;
-    if (changed || xonlyChanged || !state.renderedOnce) render();
+    if (changed || authChanged || xonlyChanged || !state.renderedOnce) render();
   }
 
   /* Every signing request must carry the CANONICAL FROZEN metadata committed
@@ -334,7 +376,12 @@
    * server independently re-refuses finalize otherwise). */
   async function completeRequestFlow(request, action, verification) {
     try {
+      // Truthful progress states (PENDING IS NOT SUCCESS): every state
+      // below is intermediate; only the server's CHAIN_VERIFIED outcome —
+      // the existing authoritative chain-proof path — renders as success.
+      note("Waiting for KasWare — review and approve in the wallet popup…", "warn");
       const signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address, verification);
+      note(`${action}: signed — submitting for preflight…`, "warn");
       const done = await postJSON(`/wallet/v4/requests/${request.requestId}/signature`, { signedSafeJson: signed });
       if (done.request.state !== "PREFLIGHT_VERIFIED") {
         note(`${action}: ${done.request.state}${done.request.error ? " — " + done.request.error : ""}`, "warn");
@@ -365,7 +412,9 @@
    * calling this function again — and a RELEASED risk hold needs no id at all: re-running the identical action plain lets the server match and consume the released review of this exact intent (RC-UX-1 continuation — see openRiskHold below). */
   async function runFlow(vaultId, action, params, confirmLabel, extra) {
     try {
+      note("Preparing transaction…", "warn");
       const { request } = await postJSON("/wallet/v4/requests", { vaultId, action, params, signerAddress: state.address, ...(extra || {}) });
+      note("");
       // BROWSER-LOCAL VERIFICATION of the freshly built request against the
       // CLIENT'S OWN action context (the params this browser just built from
       // the user's inputs — never the server's echo). `fuel` is the UTXO the
@@ -605,7 +654,9 @@
       if (entries.length !== 1) {
         throw Object.assign(new Error("request carries no canonical covenant-input signing entry — refusing to invoke the wallet"), { code: "SIGN_INPUTS_INVALID" });
       }
+      note("Waiting for KasWare — review and approve in the wallet popup…", "warn");
       const signed = await walletSign(t.unsignedSafeJson, entries, state.address, verification);
+      note("Approval signed — recording…", "warn");
       stage = "L:post-approvals-started";
       const r = await postJSON(`/wallet/v4/requests/${req.requestId}/approvals`, { approverAddress: state.address, signedSafeJson: signed });
       stage = "M:server-response-received";
@@ -963,6 +1014,7 @@
         const verification = verifyForSigning({ request, createContext: context, role: "owner" });
         reviewModal(request.review, async () => {
           try {
+            note("Waiting for KasWare — review and approve in the wallet popup…", "warn");
             const signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address, verification);
             note(`Creating vault — broadcasting genesis to ${networkLabel()}…`, "warn");
             const done = await postJSON(`/wallet/v4/requests/${request.requestId}/genesis-submit`, { signedSafeJson: signed });
@@ -1221,49 +1273,93 @@
       root.innerHTML = `<div class="panel"><h3 style="margin-top:0">Advanced</h3><div class="kv-line">Connected: <span class="mono">${esc(state.address)}</span> (x-only <span class="mono">${esc(short(state.xonly))}</span>) · network ${esc(state.network)}</div><div class="hint" style="margin-top:0.6rem">Legacy vault compatibility: existing v0.2 / v0.3 vaults remain supported for management, verification, history, and recovery in the collapsed section at the bottom of the page. New vaults always use the current protocol.</div></div>`;
       return;
     }
-    // vaults view
-    let vaults;
+    await renderVaultsView(root, stale);
+  }
+
+  /* ---- retained-state view rendering (UX responsiveness pass) ----
+   * Paint the last-good data for THIS identity epoch immediately (marked
+   * "Refreshing…"), then fetch fresh authoritative data and repaint.
+   * Guards, in order: the render-sequence guard (a newer render owns the
+   * DOM) and the identity-epoch guard (data started under an older
+   * wallet/network/session identity is DISCARDED — never painted, never
+   * cached). A failed refresh never leaves retained content standing
+   * silently: it drops the retained entry and renders the failure — or
+   * the QUIET signed-out state when a hosted server refused an
+   * unauthenticated read (an expected state, not an error). Display
+   * orchestration only: no signing, verification, or authorization step
+   * ever reads from this cache path. */
+  const refreshingChip = `<div class="hint" data-v4-refreshing="1" style="margin-bottom:0.4rem">Refreshing…</div>`;
+  async function renderRetained(root, stale, { view, what, signInWhat, fetchData, paint }) {
+    const epoch = dataEpoch();
+    const cached = state.cache[view];
+    if (cached && cached.epoch === epoch) paint(root, cached.data, true);
+    else root.innerHTML = `<div class="empty">Loading ${esc(what)}…</div>`;
+    let data;
     try {
-      ({ vaults } = await getJSON("/vaults"));
+      data = await fetchData();
     } catch (e) {
-      if (!stale()) root.innerHTML = `<div class="empty">Could not load vaults: ${esc(e.message)}</div>`;
+      if (stale() || dataEpoch() !== epoch) return;
+      delete state.cache[view];
+      root.innerHTML = isAuthRefusal(e) && signedOutHosted()
+        ? `<div class="empty">${esc(signInWhat)}</div>`
+        : `<div class="empty">Could not load ${esc(what)}: ${esc(e.message)}</div>`;
       return;
     }
-    let orgData = { organizations: [], assignments: {}, assignmentsVersion: null };
-    try { orgData = await getJSON("/organizations"); } catch { /* metadata failure never blocks vaults */ }
-    // Durable pending-approval requests (server state — survives reloads).
-    let openReqs = [];
-    try { ({ requests: openReqs = [] } = await getJSON("/wallet/v4/requests?open=1")); } catch { openReqs = []; }
-    // Open governance proposals awaiting ceremony (item 1 persistent
-    // surface). Best-effort: a page served without the governance-ui
-    // module, or a server that refuses the list route, simply shows no
-    // proposal cards — it never blocks the vaults view.
-    let govProposals = [];
-    const gov0 = govUI();
-    if (gov0) { try { govProposals = await gov0.fetchOpenProposals(); } catch { govProposals = []; } }
-    // Hosted-layer agent-suspension state per live v4 vault (surface 21
-    // web composition; GET /vaults/:id/agent-suspensions — COORDINATION
-    // CONTROL ONLY, never a covenant control; the server's verbatim
-    // notice is rendered with the state). FAIL-CLOSED RENDERING: a vault
-    // whose suspension state cannot be loaded records the error and the
-    // card treats the state as UNKNOWN — it never renders "not suspended"
-    // and never offers the flip controls on unknown state.
-    const suspByVault = {};
-    await Promise.all(
-      (vaults || [])
-        .filter((v) => v && v.vaultId && new Set(["policyvault-0.4", "policyvault-0.4.1"]).has(v.contractVersion) && !isTerminalVault(v))
-        .map(async (v) => {
-          try {
-            const { suspensions } = await getJSON(`/vaults/${v.vaultId}/agent-suspensions`);
-            suspByVault[v.vaultId] = suspensions && suspensions.schema && typeof suspensions.allAgents === "boolean" && Array.isArray(suspensions.agents)
-              ? suspensions
-              : { error: "unrecognized suspension record shape" };
-          } catch (e) {
-            suspByVault[v.vaultId] = { error: `${e.code ? `${e.code} ` : ""}${e.message}` };
-          }
-        })
-    );
-    if (stale()) return;
+    if (stale() || dataEpoch() !== epoch) return;
+    state.cache[view] = { epoch, data };
+    paint(root, data, false);
+  }
+
+  async function renderVaultsView(root, stale) {
+    await renderRetained(root, stale, {
+      view: "vaults",
+      what: "vaults",
+      signInWhat: "Sign in to view your vaults.",
+      fetchData: async () => {
+        // INDEPENDENT reads run CONCURRENTLY (previously four serial
+        // round-trips). Only the primary /vaults read is load-bearing —
+        // the metadata/workflow reads keep their original best-effort
+        // fallbacks and never block the vaults view. The per-vault
+        // suspension reads follow as a second stage (they need the vault
+        // list) exactly as before.
+        const gov0 = govUI();
+        const [vaultsRes, orgData, openReqsRes, govProposals] = await Promise.all([
+          getJSON("/vaults"),
+          getJSON("/organizations").catch(() => ({ organizations: [], assignments: {}, assignmentsVersion: null })),
+          getJSON("/wallet/v4/requests?open=1").catch(() => ({ requests: [] })),
+          gov0 ? gov0.fetchOpenProposals().catch(() => []) : Promise.resolve([])
+        ]);
+        const vaults = vaultsRes.vaults;
+        // Hosted-layer agent-suspension state per live v4 vault (surface 21
+        // web composition; GET /vaults/:id/agent-suspensions — COORDINATION
+        // CONTROL ONLY, never a covenant control; the server's verbatim
+        // notice is rendered with the state). FAIL-CLOSED RENDERING: a vault
+        // whose suspension state cannot be loaded records the error and the
+        // card treats the state as UNKNOWN — it never renders "not suspended"
+        // and never offers the flip controls on unknown state.
+        const suspByVault = {};
+        await Promise.all(
+          (vaults || [])
+            .filter((v) => v && v.vaultId && new Set(["policyvault-0.4", "policyvault-0.4.1"]).has(v.contractVersion) && !isTerminalVault(v))
+            .map(async (v) => {
+              try {
+                const { suspensions } = await getJSON(`/vaults/${v.vaultId}/agent-suspensions`);
+                suspByVault[v.vaultId] = suspensions && suspensions.schema && typeof suspensions.allAgents === "boolean" && Array.isArray(suspensions.agents)
+                  ? suspensions
+                  : { error: "unrecognized suspension record shape" };
+              } catch (e) {
+                suspByVault[v.vaultId] = { error: `${e.code ? `${e.code} ` : ""}${e.message}` };
+              }
+            })
+        );
+        return { vaults, orgData, openReqs: openReqsRes.requests || [], govProposals, suspByVault };
+      },
+      paint: paintVaultsView
+    });
+  }
+
+  function paintVaultsView(root, data, refreshing) {
+    const { vaults, orgData, openReqs, govProposals, suspByVault } = data;
     state.suspByVault = suspByVault;
     state.orgData = orgData;
     // Client-side vault knowledge snapshot for browser-local pre-sign
@@ -1294,7 +1390,7 @@
     const body = shown.length
       ? shown.map((v) => vaultCard(v, reqsByVault[v.vaultId] || [], govByVault[v.vaultId] || [])).join("")
       : `<div class="empty">No ${state.statusFilter.toLowerCase()} vaults.<div style="margin-top:0.8rem"><button class="primary" id="v4-empty-create">Create Vault</button></div></div>`;
-    root.innerHTML = bar + body;
+    root.innerHTML = (refreshing ? refreshingChip : "") + bar + body;
     // wire filter bar
     root.querySelectorAll("[data-status]").forEach((b) => (b.onclick = () => { state.statusFilter = b.dataset.status; render(); }));
     const orgSel = $("v4-org");
@@ -1310,11 +1406,40 @@
    * metadata: they never change covenant authority, vault state, manifests,
    * or anything on-chain. Delete is blocked while vaults are assigned. */
   async function renderOrgsView(root, stale = () => false) {
-    let data;
-    try { data = await getJSON("/organizations"); } catch (e) { if (!stale()) root.innerHTML = `<div class="empty">Could not load organizations: ${esc(e.message)}</div>`; return; }
-    let vaults = [];
-    try { ({ vaults = [] } = await getJSON("/vaults")); } catch { vaults = []; }
-    if (stale()) return;
+    await renderRetained(root, stale, {
+      view: "orgs",
+      what: "organizations",
+      signInWhat: "Sign in to use Organizations.",
+      fetchData: async () => {
+        // /organizations is load-bearing; /vaults (labels/assignment UI)
+        // keeps its best-effort fallback. The two are independent reads
+        // and run CONCURRENTLY (previously serial).
+        const [data, vaultsRes] = await Promise.all([
+          getJSON("/organizations"),
+          getJSON("/vaults").catch(() => ({ vaults: [] }))
+        ]);
+        const vaults = vaultsRes.vaults || [];
+        // Governance/risk controls per ACTIVE organization (item 3).
+        // Best-effort and read-only display when the module or a fetch
+        // fails — this view must never block on it (mirrors the
+        // corrupt/error handling already used for organization records).
+        const controlsUI = orgControlsUI();
+        const controlsByOrg = new Map();
+        if (controlsUI) {
+          const act0 = (data.organizations || []).filter((o) => !o.error && o.status !== "ARCHIVED");
+          await Promise.all(act0.map(async (o) => {
+            try { controlsByOrg.set(o.orgId, await controlsUI.fetchControls(o.orgId)); }
+            catch { controlsByOrg.set(o.orgId, null); }
+          }));
+        }
+        return { data, vaults, controlsByOrg };
+      },
+      paint: paintOrgsView
+    });
+  }
+
+  function paintOrgsView(root, fetched, refreshing) {
+    const { data, vaults, controlsByOrg } = fetched;
     state.orgData = data;
     const labelOf = new Map((vaults || []).filter(Boolean).map((v) => [v.vaultId, v.label || short(v.vaultId)]));
     const assignments = data.assignments || {};
@@ -1325,19 +1450,7 @@
     const act = orgs.filter((o) => o.status !== "ARCHIVED");
     const arch = orgs.filter((o) => o.status === "ARCHIVED");
     const unassigned = (vaults || []).filter((v) => v && v.vaultId && !assignments[v.vaultId]).map((v) => v.vaultId);
-    // Governance/risk controls per ACTIVE organization (item 3). Best-effort
-    // and read-only display when the module or a fetch fails — this view
-    // must never block on it (mirrors the corrupt/error handling already
-    // used for organization records above).
     const controlsUI = orgControlsUI();
-    const controlsByOrg = new Map();
-    if (controlsUI) {
-      await Promise.all(act.map(async (o) => {
-        try { controlsByOrg.set(o.orgId, await controlsUI.fetchControls(o.orgId)); }
-        catch { controlsByOrg.set(o.orgId, null); }
-      }));
-    }
-    if (stale()) return;
     const moveSelect = (vid, currentOrgId) =>
       `<select data-orgassign="${esc(vid)}"><option value="">Unassigned</option>` +
       act.map((o) => `<option value="${esc(o.orgId)}"${o.orgId === currentOrgId ? " selected" : ""}>${esc(o.name)}</option>`).join("") +
@@ -1405,6 +1518,7 @@
       );
     };
     root.innerHTML =
+      (refreshing ? refreshingChip : "") +
       `<div class="panel"><h3 style="margin-top:0">Organizations</h3>` +
       `<div class="hint">Organizations are off-chain application metadata: they group vaults for display and grant NO Kaspa covenant authority. Archive hides an organization from normal selectors (recoverable); Delete is permanent and only possible once no vaults are assigned.</div>` +
       `<div class="org-assign" style="margin-top:0.7rem"><input id="v4-org-new-name" placeholder="New organization name" style="max-width:280px" /> <button id="v4-org-create-btn" class="primary">Create organization</button></div></div>` +
@@ -1563,9 +1677,19 @@
    * verified against Kaspa) and METADATA events (off-chain application data
    * — organizations/assignments — which are NEVER chain-enforced). */
   async function renderActivityView(root, stale = () => false) {
-    let events = [];
-    try { ({ events = [] } = await getJSON("/audit?limit=300")); } catch (e) { if (!stale()) root.innerHTML = `<div class="empty">Could not load activity: ${esc(e.message)}</div>`; return; }
-    if (stale()) return;
+    await renderRetained(root, stale, {
+      view: "activity",
+      what: "activity",
+      signInWhat: "Sign in to view activity.",
+      fetchData: async () => {
+        const { events = [] } = await getJSON("/audit?limit=300");
+        return { events };
+      },
+      paint: paintActivityView
+    });
+  }
+
+  function paintActivityView(root, { events }, refreshing) {
     // Event-type label mirrors the server's own per-org audit mapping
     // (server/src/api.js eventTypeOf): governance/risk/intent are hosted-
     // coordination records, NOT verified chain transactions, and must
@@ -1587,6 +1711,7 @@
       );
     };
     root.innerHTML =
+      (refreshing ? refreshingChip : "") +
       `<div class="panel"><h3 style="margin-top:0">Activity</h3>` +
       `<div class="hint">CHAIN events are transactions verified against Kaspa consensus. GOVERNANCE, RISK, and INTENT events are hosted-workflow coordination and evidence — like METADATA (organizations, assignments), they are never chain-enforced and grant no covenant authority on their own.</div></div>` +
       `<div class="panel">${events.length ? events.map(row).join("") : `<div class="empty">No activity yet.</div>`}</div>`;
@@ -1804,8 +1929,10 @@
     document.querySelectorAll(".v4-tab").forEach((b) => (b.onclick = () => { state.view = b.dataset.view; render(); }));
     // Server-authoritative network label (Gate R: testnet-10 or mainnet) —
     // presentation only (address-example placeholders); every real network
-    // check is enforced by the session gate and the server.
-    getJSON("/health").then((h) => { state.serverNetwork = h.networkId || null; }).catch(() => { state.serverNetwork = null; });
+    // check is enforced by the session gate and the server. Shares boot()'s
+    // single /health read when app.js exposed it (UX responsiveness pass —
+    // startup previously issued three duplicate /health requests).
+    (window.PolicyVaultHealthPromise || getJSON("/health")).then((h) => { state.serverNetwork = (h && h.networkId) || null; }).catch(() => { state.serverNetwork = null; });
     // ONE-TIME delegated wiring for create-form row controls, attached to the
     // persistent #v4-root exactly once (never per render): re-renders can no
     // longer stack duplicate listeners, so one click adds exactly one row.
