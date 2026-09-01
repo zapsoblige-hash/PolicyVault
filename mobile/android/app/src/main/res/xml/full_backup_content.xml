@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Treasury client constraint: this WebView's storage (localStorage,
+  IndexedDB, cookies, cache, any session/vault state it holds) must never
+  leave the device via backup. Applies to Auto Backup / adb backup on
+  API 23-30 (android:allowBackup="false" on the <application> element
+  already disables backup entirely on this app; these excludes are
+  defense-in-depth so this file stays correct on its own if that flag is
+  ever revisited).
+-->
+<full-backup-content>
+    <exclude domain="root" />
+    <exclude domain="file" />
+    <exclude domain="database" />
+    <exclude domain="sharedpref" />
+    <exclude domain="external" />
+</full-backup-content>

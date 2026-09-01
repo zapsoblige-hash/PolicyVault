@@ -90,6 +90,20 @@ function loadConfig(overrides = {}) {
   const cookieInsecureOverride =
     overrides.authCookieInsecure === true || process.env.POLICYVAULT_AUTH_COOKIE_INSECURE === "1";
   const authCookieSecure = !cookieInsecureOverride;
+  /*
+   * Mobile session-bootstrap DESIGN FREEZE §2 (docs pointer:
+   * mobile/docs/session-bootstrap-DESIGN.md): a config-gated SIBLING of
+   * cookie sessions — same challenge/verify ceremony, same session store,
+   * same TTL/revocation — presented via `Authorization: Bearer` instead of
+   * a `Set-Cookie`, for native clients that cannot carry a SameSite=Strict
+   * cookie cross-origin. Default OFF; fail closed on anything but the
+   * exact env value "1" (identical discipline to every other boolean flag
+   * in this block — e.g. POLICYVAULT_AUTH_COOKIE_INSECURE above).
+   * Production enablement is a separate, later release decision — this
+   * flag existing and defaulting off is not that decision.
+   */
+  const authBearerSessionsEnabled =
+    overrides.authBearerSessionsEnabled === true || process.env.POLICYVAULT_AUTH_BEARER_SESSIONS === "1";
   const parsePositiveMs = (name, raw, fallback, min, max) => {
     if (raw === undefined) return fallback;
     const n = Number(raw);
@@ -438,6 +452,7 @@ function loadConfig(overrides = {}) {
     authChallengeTtlMs,
     authSessionInactivityMs,
     authSessionAbsoluteMs,
+    authBearerSessionsEnabled,
 
     // Request protection (Phase D; see server/src/limits.js).
     requestProtection,

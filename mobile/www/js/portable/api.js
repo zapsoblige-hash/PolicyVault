@@ -34,33 +34,111 @@
   /*
    * Session state, honestly modelled. Hosted sessions are wallet-bound (a
    * Schnorr signature over PersonalMessageSigningHash), so even READ-ONLY
-   * use requires one signature per session (§5.1). How that signature is
-   * obtained on mobile is OPEN QUESTION 3 in the architecture decision —
-   * QR login (5.1a, recommended) vs a reviewed desktop->mobile session
-   * hand-off (5.1b, which is a credential transfer and needs its own
-   * hostile review). Neither is implemented here, and this scaffold does
-   * not pick one: `sessionBootstrap` reports UNDECIDED so the UI can say
-   * so instead of pretending a sign-in flow exists.
+   * use requires one signature per session. The mobile bootstrap method
+   * was OPEN QUESTION 3 in the architecture decision; it is now FROZEN
+   * (mobile/docs/session-bootstrap-DESIGN.md §3, commit 917c2a5): QR login
+   * with the offline CLI signer is bootstrap v1, implemented below
+   * (fetchAuthChallenge / completeAuthVerifyBearer) — manual-paste
+   * transport only, since this build has no camera/QR-scan capture.
+   * Desktop-to-mobile session hand-off remains DEFERRED (§5): it is a
+   * CREDENTIAL TRANSFER and needs its own dedicated hostile review before
+   * it ships, not a v1 shortcut.
    */
   var SESSION_BOOTSTRAP = Object.freeze({
-    status: "UNDECIDED",
+    status: "QR_LOGIN_V1",
     reason:
-      "Hosted sessions are wallet-bound, so even read-only use needs one signature per session. The mobile bootstrap method (QR login vs a reviewed desktop-to-mobile session hand-off) is an open architecture decision and is NOT implemented in this scaffold.",
+      "Bootstrap v1 (mobile/docs/session-bootstrap-DESIGN.md §3): fetch a sign-in challenge, sign it with the offline CLI signer over the existing air-gap document/QR framing, and complete verify requesting bearer transport (Authorization header — this app cannot use a Set-Cookie session, see mobile/docs/session-bootstrap-options.md §1). Camera-based QR scanning is not implemented in this build; the signed response is brought back by manual paste, exactly like transaction signing today. Bearer sessions additionally require the server's POLICYVAULT_AUTH_BEARER_SESSIONS flag to be on — if it is not, sign-in is reported as unavailable, never fabricated as a success.",
     candidates: Object.freeze([
       Object.freeze({
         id: "qr-login",
         label: "QR login with the offline CLI signer",
         recommended: true,
-        note: "Uses the same adapter and lifecycle as transaction signing; adds no new credential type. Costs friction at every session start."
+        implemented: true,
+        note: "Implemented (manual-paste transport; camera/QR-scan capture is not built). Uses the same adapter and lifecycle as transaction signing, adds no new credential type. Costs friction at every session start."
       }),
       Object.freeze({
         id: "desktop-handoff",
         label: "Desktop-to-mobile session hand-off",
         recommended: false,
-        note: "Better UX, but it is a CREDENTIAL TRANSFER: it needs its own threat model (QR photography, replay, device binding, revocation, what a stolen phone inherits) and its own hostile review. Not a v1 shortcut."
+        implemented: false,
+        note: "DEFERRED (mobile/docs/session-bootstrap-DESIGN.md §5). Better UX, but it is a CREDENTIAL TRANSFER: it needs its own threat model (QR photography, replay, device binding, revocation, what a stolen phone inherits) and its own dedicated hostile review. Not built."
       })
     ])
   });
+
+  /**
+   * fetchAuthChallenge({ client, walletAddress })
+   *
+   * POST /auth/challenge — public, unauthenticated (server/src/api.js).
+   * Step (a) of QR-login bootstrap v1. Returns the server-issued challenge
+   * UNMODIFIED; this module invents no default wallet address and no
+   * fallback challenge.
+   *
+   * ok:   { ok: true, challenge: { nonce, message, walletAddress, networkId, expiresAt } }
+   * fail: { ok: false, reason }
+   */
+  function fetchAuthChallenge(args) {
+    var a = isPlainObject(args) ? args : {};
+    if (!isPlainObject(a.client) || typeof a.client.request !== "function") {
+      return Promise.resolve({ ok: false, reason: "no API client is configured — open Settings" });
+    }
+    if (typeof a.walletAddress !== "string" || !a.walletAddress.trim()) {
+      return Promise.resolve({ ok: false, reason: "a wallet address is required to request a sign-in challenge" });
+    }
+    return a.client
+      .request("POST", "/auth/challenge", { body: { walletAddress: a.walletAddress }, idempotencyKey: null })
+      .then(function (data) {
+        if (!isPlainObject(data) || !isPlainObject(data.challenge)) {
+          return { ok: false, reason: "the server returned no readable challenge" };
+        }
+        return { ok: true, challenge: data.challenge };
+      })
+      .catch(function (e) {
+        return { ok: false, reason: (e && e.message) || String(e), error: e };
+      });
+  }
+
+  /**
+   * completeAuthVerifyBearer({ client, nonce, signature, publicKey, walletAddress })
+   *
+   * POST /auth/verify with `transport: "bearer"` explicitly requested —
+   * step (d) of QR-login bootstrap v1. The server honors bearer transport
+   * ONLY when its own POLICYVAULT_AUTH_BEARER_SESSIONS flag is on
+   * (server/src/api.js); otherwise it silently answers with the existing
+   * cookie-only shape (no `token` field), which this app cannot use (a
+   * SameSite=Strict cookie cannot ride this app's cross-origin requests —
+   * mobile/docs/session-bootstrap-options.md §1). That case is reported
+   * here as an honest refusal, never a fabricated success.
+   *
+   * ok:   { ok: true, token, session }
+   * fail: { ok: false, reason }
+   */
+  function completeAuthVerifyBearer(args) {
+    var a = isPlainObject(args) ? args : {};
+    if (!isPlainObject(a.client) || typeof a.client.request !== "function") {
+      return Promise.resolve({ ok: false, reason: "no API client is configured — open Settings" });
+    }
+    var required = ["nonce", "signature", "publicKey", "walletAddress"];
+    for (var i = 0; i < required.length; i++) {
+      if (typeof a[required[i]] !== "string" || !a[required[i]]) {
+        return Promise.resolve({ ok: false, reason: "missing " + required[i] + " — the signed response must be fully parsed first" });
+      }
+    }
+    return a.client
+      .request("POST", "/auth/verify", {
+        body: { nonce: a.nonce, signature: a.signature, publicKey: a.publicKey, walletAddress: a.walletAddress, transport: "bearer" },
+        idempotencyKey: null
+      })
+      .then(function (data) {
+        if (!isPlainObject(data) || typeof data.token !== "string" || !/^[0-9a-f]{64}$/.test(data.token)) {
+          return { ok: false, reason: "the server did not return a bearer session token — bearer sessions may not be enabled on this deployment" };
+        }
+        return { ok: true, token: data.token, session: data.session };
+      })
+      .catch(function (e) {
+        return { ok: false, reason: (e && e.message) || String(e), error: e };
+      });
+  }
 
   /**
    * createMobileApi({ httpClient, baseUrl, token, fetchImpl, headers })
@@ -152,7 +230,9 @@
 
   var api = {
     SESSION_BOOTSTRAP: SESSION_BOOTSTRAP,
-    createMobileApi: createMobileApi
+    createMobileApi: createMobileApi,
+    fetchAuthChallenge: fetchAuthChallenge,
+    completeAuthVerifyBearer: completeAuthVerifyBearer
   };
 
   if (typeof window !== "undefined") window.PolicyVaultMobileApi = api;

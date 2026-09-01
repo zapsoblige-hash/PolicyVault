@@ -37,7 +37,12 @@ const { compileExactStateV4 } = require("../src/contract-compiler-v4");
 const { MANIFEST_SCHEMA_V4, persistManifestV4 } = require("../src/manifest-v4");
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pv-originpolicy-"));
-const config = loadConfig({ dataRoot, authMode: "enabled", authCookieInsecure: true });
+// authBearerSessionsEnabled is ON for this whole file so the new bearer
+// wallet-session exemption test below can mint one; every EXISTING test
+// in this file must still pass unchanged with the flag on, since minting
+// a bearer session is opt-in per request (transport:"bearer") — the flag
+// alone changes nothing about cookie or machine-credential behavior.
+const config = loadConfig({ dataRoot, authMode: "enabled", authCookieInsecure: true, authBearerSessionsEnabled: true });
 const kaspa = require(config.rustyKaspaModule);
 const KEY = (v) => new kaspa.PrivateKey(v.toString(16).padStart(2, "0").repeat(32));
 const XO = (p) => p.toPublicKey().toXOnlyPublicKey().toString().toLowerCase();
@@ -187,4 +192,62 @@ test("a same-origin machine Bearer request works normally too (the exemption is 
     authorization: `Bearer ${state.token}`
   });
   assert.equal(r.status, 200);
+});
+
+/*
+ * BEARER WALLET SESSION — the mobile session-bootstrap DESIGN FREEZE §2
+ * exemption. Proves the SAME programmatic-client exemption already
+ * covering machine credentials above (limits.js MACHINE_BEARER_SHAPE is a
+ * SHAPE check, not a machine-credential-specific one) already, correctly,
+ * covers the new bearer wallet-session token — with ZERO changes to
+ * limits.js, since a `Bearer <64-hex>` header with no Cookie header
+ * matches that shape check exactly like a `Bearer pvmk_<64-hex>` one does.
+ */
+test("setup: A signs in via bearer transport (no cookie) for the wallet-session exemption test", async () => {
+  const ch = await req("POST", "/api/v1/auth/challenge", { body: { walletAddress: ADDR(A) } });
+  const signature = kaspa.signMessage({ message: ch.json.challenge.message, privateKey: A.toString() });
+  const v = await req("POST", "/api/v1/auth/verify", {
+    body: { nonce: ch.json.challenge.nonce, signature, publicKey: A.toPublicKey().toString().toLowerCase(), transport: "bearer" }
+  });
+  assert.equal(v.status, 200);
+  assert.match(v.json.token, /^[0-9a-f]{64}$/);
+  assert.equal(v.headers["set-cookie"], undefined);
+  state.bearerSessionToken = v.json.token;
+});
+
+test("PROGRAMMATIC-CLIENT EXEMPTION (bearer WALLET session): a bearer wallet-session token with NO cookie is never blocked by the origin wall on a hostile/absent Origin — same exemption as a machine credential, same reasoning (never ambient)", async () => {
+  // Asserting only the ORIGIN-WALL property (never a 403 ORIGIN_FORBIDDEN/
+  // ORIGIN_REQUIRED) rather than full downstream success: this environment
+  // has no compiled tests/vm/target/debug/pv_call_encoder, which the sibling
+  // machine-credential test above ("PROGRAMMATIC-CLIENT EXEMPTION: a machine
+  // Bearer credential...") ALSO already fails on for that unrelated reason
+  // (simulation.ok: false, HTTP 200) — that gap has nothing to do with the
+  // origin wall this test exists to prove, so this test does not depend on
+  // it either way.
+  const hostileOrigin = await req("POST", "/api/v1/wallet/v4/simulate", {
+    body: { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (1n * KAS).toString(), agentPk: XO(AGENT), recipient: XO(RECIP) }, signerAddress: ADDR(AGENT) },
+    authorization: `Bearer ${state.bearerSessionToken}`,
+    origin: "https://evil.example"
+  });
+  assert.notEqual(hostileOrigin.status, 403, JSON.stringify(hostileOrigin.json));
+  assert.notEqual(hostileOrigin.json?.error?.code, "ORIGIN_FORBIDDEN");
+
+  const noOriginAtAll = await req("POST", "/api/v1/wallet/v4/simulate", {
+    body: { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (1n * KAS).toString(), agentPk: XO(AGENT), recipient: XO(RECIP) }, signerAddress: ADDR(AGENT) },
+    authorization: `Bearer ${state.bearerSessionToken}`,
+    omitOrigin: true
+  });
+  assert.notEqual(noOriginAtAll.status, 403, JSON.stringify(noOriginAtAll.json));
+  assert.notEqual(noOriginAtAll.json?.error?.code, "ORIGIN_REQUIRED");
+});
+
+test("a bearer WALLET session accompanied by a cookie gets the FULL, UNCHANGED origin wall — the exemption never applies once any Cookie header is present, exactly like the machine-credential case above", async () => {
+  const r = await req("POST", "/api/v1/organizations", {
+    body: { name: "mixed-bearer-wallet-csrf-attempt" },
+    cookie: state.cookieA,
+    origin: "https://evil.example",
+    authorization: `Bearer ${state.bearerSessionToken}`
+  });
+  assert.equal(r.status, 403);
+  assert.equal(r.json.error.code, "ORIGIN_FORBIDDEN", "a cookie must NEVER be rescued into passing by an accompanying bearer wallet-session header either");
 });

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Treasury client constraint: this WebView's storage (localStorage,
+  IndexedDB, cookies, cache, any session/vault state it holds) must never
+  leave the device via cloud backup or device-to-device transfer. Applies
+  on API 31+ (android:allowBackup="false" on the <application> element
+  already disables both cloud backup and D2D transfer entirely on this
+  app; these excludes are defense-in-depth so this file stays correct on
+  its own if that flag is ever revisited).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

@@ -52,6 +52,8 @@
     api: null,
     roster: null,
     pins: null,
+    /* Agents screen: which vault's registry is currently shown. */
+    selectedAgentVaultId: null,
     /* the last verification outcome and the payload it is bound to */
     lastVerify: null,
     lastVerifyPayload: null,
@@ -59,7 +61,16 @@
     airgapDoc: null,
     airgapFrames: null,
     airgapFrameIndex: 0,
-    airgapTimer: null
+    airgapTimer: null,
+    /* QR-login bootstrap v1 (mobile/docs/session-bootstrap-DESIGN.md §3).
+     * walletSessionToken is DELIBERATELY separate from `settings` and is
+     * NEVER read from or written to localStorage (§6: memory-only on-phone
+     * token handling — it exists only for this run of the app). The other
+     * fields here are just this run's in-progress sign-in UI state. */
+    walletSessionToken: null,
+    authWalletAddressInput: "",
+    authChallenge: null,
+    authMessageSha256: null
   };
 
   function loadSettings() {
@@ -97,7 +108,14 @@
     state.api = APIMOD.createMobileApi({
       httpClient: window.PolicyVaultHttpClient,
       baseUrl: state.settings.baseUrl,
-      token: state.settings.token || undefined,
+      /* A real wallet session (QR login) takes priority over the
+       * Settings-page machine credential when both exist — it is the
+       * higher-privilege, user-intended credential once established.
+       * Either way this is one bearer token per client instance (the
+       * vendored client's credential is immutable after construction),
+       * so establishing/clearing a wallet session always goes through
+       * rebuildServices() again. */
+      token: state.walletSessionToken || state.settings.token || undefined,
       fetchImpl: PLATFORM.fetchImpl()
     });
     state.roster = CAPS.buildSignerRoster({ platform: state.platform });
@@ -210,19 +228,132 @@
     );
   }
 
+  /* --- Agents: vault selection + read-only agent-registry listing ---
+   *
+   * Agent policy is nested inside a vault's detail document (§ same
+   * remote-data discipline as Vaults/Approvals/Activity): read-only,
+   * server-refusal vs transport-failure never conflated, no fake
+   * affordances. There is NO mutation here — no suspend, rotate, or
+   * policy-change control — this screen only lists what the server
+   * already reports for a vault the caller can already read.
+   *
+   * A v0.4 vault's presented document carries `agents: [...]` (the
+   * durable, root-verified registry: server/src/api.js presentVaultV4).
+   * A v0.2/v0.3 vault carries a single `delegate` instead — multiple
+   * independent agents are a v0.4 covenant feature, so an older vault is
+   * reported as such rather than shown as "no agents" (which would look
+   * like an empty, and wrong, registry).
+   */
   function screenAgents() {
     var host = el("div");
+    var pre = apiPreflight();
+    if (pre) {
+      host.appendChild(panel("Agents", [
+        note("Per-agent policy, per-spend caps, period budgets and recipient allowlists are read from each vault's detail document."),
+        pre
+      ]));
+      return host;
+    }
+
+    var selectBody = el("div", { class: "card" }, [note("Loading vaults…")]);
+    var detailBody = el("div");
+
     host.appendChild(panel("Agents", [
-      note("Per-agent policy, per-spend caps, period budgets and recipient allowlists are read from each vault's detail document."),
-      unavailable(
-        "agent detail",
-        "Agent policy is nested inside a vault document, so this screen needs a selected vault. Vault selection is not wired in this scaffold — open Vaults to confirm server reachability first."
-      ),
-      note(
-        "When it is wired, the FULL leaf data must be present: a vault view that cannot be re-hashed to the covenant-committed agent-registry root shows a verification-unavailable state, never a silent pass.",
-        "hard"
-      )
+      note("Per-agent policy, per-spend caps, period budgets and recipient allowlists are read from each vault's detail document. Select a vault to load its agent registry. Read-only — no suspend, rotate, or policy-change action is offered from this screen."),
+      sessionCard(),
+      selectBody,
+      detailBody
     ]));
+
+    Promise.resolve()
+      .then(function () { return state.api.client.listVaults(); })
+      .then(function (data) {
+        var list = Array.isArray(data) ? data : (data && Array.isArray(data.vaults) ? data.vaults : []);
+        selectBody.textContent = "";
+        if (!list.length) {
+          selectBody.appendChild(note("The server returned no vaults for this account."));
+          return;
+        }
+        list.forEach(function (v) {
+          var vaultId = v.vaultId;
+          var selected = state.selectedAgentVaultId === vaultId;
+          selectBody.appendChild(el("div", { class: "row" }, [
+            kv("Vault", vaultId || "(unnamed)"),
+            kv("Contract version", v.contractVersion || "unknown — shown as unknown, never defaulted"),
+            el("button", {
+              class: "btn" + (selected ? " primary" : ""),
+              text: selected ? "Selected" : "Select",
+              onclick: function () { state.selectedAgentVaultId = vaultId; go("agents"); }
+            })
+          ]));
+        });
+      })
+      .catch(function (e) {
+        var d = state.api.describeError(e);
+        selectBody.textContent = "";
+        selectBody.appendChild(el("div", { class: "servererr" }, [
+          el("div", { class: "servererr-head", text: d.kind + " — " + d.code }),
+          full(d.text, "servererr-body")
+        ]));
+        if (d.kind === "TRANSPORT_FAILURE") selectBody.appendChild(note(d.retryNote, "hard"));
+      });
+
+    if (!state.selectedAgentVaultId) {
+      detailBody.appendChild(note("Select a vault above to load its agent registry."));
+      return host;
+    }
+
+    detailBody.appendChild(note("Loading agents for " + state.selectedAgentVaultId + "…"));
+
+    Promise.resolve()
+      .then(function () { return state.api.client.getVault(state.selectedAgentVaultId); })
+      .then(function (v) {
+        detailBody.textContent = "";
+        if (!v || typeof v.contractVersion !== "string") {
+          detailBody.appendChild(note("The server returned no readable vault document for this id.", "hard"));
+          return;
+        }
+        detailBody.appendChild(kv("Selected vault", state.selectedAgentVaultId));
+        detailBody.appendChild(kv("Contract version", v.contractVersion));
+
+        if (!Array.isArray(v.agents)) {
+          detailBody.appendChild(note(
+            "This vault's covenant version (" + v.contractVersion + ") does not carry a multi-agent registry — it has a single delegate" +
+              (v.delegate ? " (" + v.delegate + ")" : "") +
+              ". Multiple independent agents are a v0.4 covenant feature.",
+            ""
+          ));
+          return;
+        }
+        if (!v.agents.length) {
+          detailBody.appendChild(note("This vault's agent registry is empty."));
+          return;
+        }
+        v.agents.forEach(function (a) {
+          detailBody.appendChild(el("div", { class: "row" }, [
+            kv("Agent", a.agentAddress || a.agentPk || "(unknown)"),
+            kv("Max per spend (KAS)", a.maxPerSpendKas !== undefined ? String(a.maxPerSpendKas) : "unknown"),
+            kv("Period budget (KAS)", a.periodBudgetKas !== undefined ? String(a.periodBudgetKas) : "unknown"),
+            kv("Period spent (KAS)", a.periodSpentKas !== undefined ? String(a.periodSpentKas) : "unknown"),
+            kv("Remaining this period (KAS)", a.remainingBudgetKas !== undefined ? String(a.remainingBudgetKas) : "unknown"),
+            kv("Approval threshold (KAS)", a.approvalThresholdKas !== undefined ? String(a.approvalThresholdKas) : "unknown"),
+            kv(
+              "Recipient allowlist",
+              Array.isArray(a.recipientAddresses) && a.recipientAddresses.length ? a.recipientAddresses.join(", ") : "(none)"
+            )
+          ]));
+        });
+      })
+      .catch(function (e) {
+        var d = state.api.describeError(e);
+        detailBody.textContent = "";
+        detailBody.appendChild(el("div", { class: "servererr" }, [
+          el("div", { class: "servererr-head", text: d.kind + " — " + d.code }),
+          full(d.text, "servererr-body")
+        ]));
+        if (d.kind === "TRANSPORT_FAILURE") detailBody.appendChild(note(d.retryNote, "hard"));
+      });
+
     return host;
   }
 
@@ -565,6 +696,187 @@
     return host;
   }
 
+  /* --- Wallet sign-in: QR-login bootstrap v1 ------------------------- *
+   * (mobile/docs/session-bootstrap-DESIGN.md §3). Steps: (a) fetch a
+   * challenge, (b) render it as the existing air-gap QR framing, (c)
+   * accept the signature via the existing manual-paste transport, (d)
+   * complete verify requesting bearer transport, (e) hold the token
+   * memory-only (state.walletSessionToken — never state.settings, never
+   * localStorage) and use it via the existing Authorization-header
+   * client path (rebuildServices() above). Called from inside
+   * screenSettings(), as one card within its host. */
+  function screenWalletSignIn() {
+    var pre = apiPreflight();
+    if (pre) {
+      return panel("Wallet sign-in (QR / air-gap)", [pre]);
+    }
+
+    if (state.walletSessionToken) {
+      var out = el("div", { class: "card" }, [
+        el("div", { class: "card-head", text: "Signed in" }),
+        note("A wallet-bound bearer session is active for this run of the app. It is held in memory only and is lost when the app restarts.", "hard")
+      ]);
+      out.appendChild(el("button", {
+        class: "btn",
+        text: "Sign out",
+        onclick: function () {
+          var client = state.api.client;
+          Promise.resolve()
+            .then(function () { return client && client.request ? client.request("POST", "/auth/logout", { idempotencyKey: null }) : null; })
+            .catch(function () { /* best-effort: still clear the local, memory-only token below */ })
+            .then(function () {
+              state.walletSessionToken = null;
+              rebuildServices();
+              go("settings");
+            });
+        }
+      }));
+      return panel("Wallet sign-in (QR / air-gap)", [out]);
+    }
+
+    var body = [
+      note("Bootstrap v1: fetch a sign-in challenge, sign it with the offline CLI signer over the same air-gap QR framing used for transaction signing, then complete sign-in. No key ever exists in this app; the session token this creates is held in memory only for this run of the app and grants tenancy/read access only — never signing authority.")
+    ];
+
+    if (!state.authChallenge) {
+      var addrInput = el("input", { class: "field", type: "text", value: state.authWalletAddressInput, placeholder: "kaspa:... or kaspatest:..." });
+      body.push(el("label", { text: "Wallet address" }), addrInput);
+      var getErr = el("div");
+      body.push(el("button", {
+        class: "btn primary",
+        text: "Get sign-in challenge",
+        onclick: function () {
+          state.authWalletAddressInput = addrInput.value.trim();
+          getErr.textContent = "";
+          APIMOD.fetchAuthChallenge({ client: state.api.client, walletAddress: state.authWalletAddressInput }).then(function (r) {
+            if (!r.ok) {
+              getErr.textContent = "";
+              getErr.appendChild(refusalBox("AUTH_CHALLENGE_UNAVAILABLE", r.reason));
+              return;
+            }
+            state.authChallenge = r.challenge;
+            state.authMessageSha256 = sha256Hex(r.challenge.message);
+            go("settings");
+          });
+        }
+      }));
+      body.push(getErr);
+      return panel("Wallet sign-in (QR / air-gap)", body);
+    }
+
+    /* A challenge is pending: render it for the offline signer, then
+     * accept the signed response back. Mirrors screenSign()'s exact QR-
+     * cycling + paste-back pattern. */
+    var challenge = state.authChallenge;
+    var outBlock = el("div", { class: "card" });
+    outBlock.appendChild(el("div", { class: "card-head", text: "Step 1 — hand this challenge to your signer" }));
+    outBlock.appendChild(kv("Wallet", challenge.walletAddress));
+    outBlock.appendChild(kv("Network", challenge.networkId));
+
+    var framed = QR.encodeFrames(challenge.message, { sha256Hex: sha256Hex });
+    if (framed.ok) {
+      outBlock.appendChild(kv("QR frames", String(framed.count) + " frame(s), document sha256 " + framed.docSha256));
+      outBlock.appendChild(unavailable(
+        "QR image rendering",
+        "this build ships no QR encoder, so the frames below are shown as text rather than as scannable images — the framing itself is real and is what a QR encoder would carry"
+      ));
+      var frameView = full(framed.frames[0], "frame");
+      outBlock.appendChild(frameView);
+      var counter = note("Frame 1 of " + framed.count);
+      outBlock.appendChild(counter);
+      if (framed.count > 1) {
+        state.airgapFrameIndex = 0;
+        state.airgapTimer = window.setInterval(function () {
+          state.airgapFrameIndex = (state.airgapFrameIndex + 1) % framed.count;
+          frameView.textContent = framed.frames[state.airgapFrameIndex];
+          counter.textContent = "Frame " + (state.airgapFrameIndex + 1) + " of " + framed.count;
+        }, 900);
+      }
+    } else {
+      outBlock.appendChild(unavailable("QR framing", framed.code + ": " + framed.detail));
+    }
+
+    outBlock.appendChild(el("button", {
+      class: "btn",
+      text: "Copy the challenge message",
+      onclick: function () {
+        PLATFORM.writeClipboard(challenge.message).then(function () {
+          outBlock.appendChild(note("Copied. Save it as a file and run: node core/signer/adapters/cli/cli.js sign-message --key <keyfile> --message-file <file>"));
+        }).catch(function (e) {
+          outBlock.appendChild(note("Clipboard unavailable (" + ((e && e.message) || e) + ") — select the message below and copy it manually.", "hard"));
+          outBlock.appendChild(full(challenge.message, "doc-dump"));
+        });
+      }
+    }));
+    outBlock.appendChild(el("button", {
+      class: "btn",
+      text: "Cancel this challenge",
+      onclick: function () {
+        state.authChallenge = null;
+        state.authMessageSha256 = null;
+        go("settings");
+      }
+    }));
+
+    var inBlock = el("div", { class: "card" });
+    inBlock.appendChild(el("div", { class: "card-head", text: "Step 2 — bring the signed response back" }));
+    inBlock.appendChild(unavailable("camera scanning", state.platform.camera.reason));
+
+    var respInput = el("textarea", {
+      class: "doc",
+      rows: "6",
+      spellcheck: "false",
+      placeholder: "Paste the signer's " + AIRGAP.AUTH_SIGNATURE_FORMAT + " document, or its PVQR1| frames one per line"
+    });
+    var respOut = el("div");
+    inBlock.appendChild(respInput);
+    inBlock.appendChild(el("button", {
+      class: "btn primary",
+      text: "Complete sign-in",
+      onclick: function () {
+        respOut.textContent = "";
+        var text = respInput.value.trim();
+
+        if (text.indexOf(QR.FRAME_VERSION + "|") === 0) {
+          var re = QR.createReassembler({ sha256Hex: sha256Hex });
+          var frames = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
+          for (var i = 0; i < frames.length; i++) {
+            var acc = re.accept(frames[i].trim());
+            if (!acc.ok) { respOut.appendChild(refusalBox(acc.code, acc.detail)); return; }
+          }
+          var fin = re.finish();
+          if (!fin.ok) { respOut.appendChild(refusalBox(fin.code, fin.detail)); return; }
+          text = fin.text;
+        }
+
+        var parsed = AIRGAP.parseAuthChallengeSignatureDocument(text, {
+          expectedNetwork: state.settings.network,
+          expectedMessageSha256: state.authMessageSha256,
+          expectedWalletAddress: challenge.walletAddress
+        });
+        if (!parsed.ok) { respOut.appendChild(refusalBox(parsed.code, parsed.detail)); return; }
+
+        APIMOD.completeAuthVerifyBearer({
+          client: state.api.client,
+          nonce: challenge.nonce,
+          signature: parsed.signature,
+          publicKey: parsed.publicKey,
+          walletAddress: parsed.walletAddress
+        }).then(function (r) {
+          if (!r.ok) { respOut.appendChild(refusalBox("AUTH_VERIFY_FAILED", r.reason)); return; }
+          state.walletSessionToken = r.token;
+          state.authChallenge = null;
+          state.authMessageSha256 = null;
+          rebuildServices();
+          go("settings");
+        });
+      }
+    }));
+    inBlock.appendChild(respOut);
+
+    return panel("Wallet sign-in (QR / air-gap)", body.concat([outBlock, inBlock]));
+  }
+
   /* --- Settings + build integrity ----------------------------------- */
 
   function screenSettings() {
@@ -599,6 +911,8 @@
         }
       })
     ]));
+
+    host.appendChild(screenWalletSignIn());
 
     /* Build integrity — a REAL re-hash of the packaged artifacts. */
     var integrity = el("div", { class: "card" }, [note("Re-hashing the packaged artifacts…")]);

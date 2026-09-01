@@ -58,9 +58,28 @@
   /* Transport: fetch + reading our own packaged files                */
   /* --------------------------------------------------------------- */
 
-  /* A LOCAL binding, never a method call: a browser's global fetch throws
+  /* The transport the vendored http-client will use.
+   *
+   * On a NATIVE Capacitor platform (Android/iOS) with the CapacitorHttp
+   * plugin present, we return an explicit native-HTTP adapter
+   * (native-http.js): the app's WebView origin is https://localhost and the
+   * hosted API sends no CORS headers, so an ordinary WebView fetch to the
+   * API is a blocked cross-origin read. The native transport is not subject
+   * to the browser same-origin policy. We do NOT patch global fetch/XHR —
+   * only this seam changes, and only on native.
+   *
+   * On the web/browser (or if the plugin is somehow absent), we fall back
+   * to ordinary fetch exactly as before — the web client is same-origin
+   * with its API and needs nothing else.
+   *
+   * A LOCAL binding, never a method call: a browser's global fetch throws
    * "Illegal invocation" when its receiver is anything but the global. */
   function fetchImpl() {
+    var NH = globalScope.PolicyVaultMobileNativeHttp;
+    if (NH && typeof NH.nativeHttp === "function") {
+      var native = NH.nativeHttp(globalScope);
+      if (native) return NH.createNativeFetch({ capacitorHttp: native });
+    }
     if (typeof fetch !== "function") return null;
     return function (url, init) { return fetch(url, init); };
   }

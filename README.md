@@ -18,14 +18,15 @@ The authority model, stated once and everywhere enforced:
 | Surface | Status |
 |---|---|
 | **Web / Agent platform** | **PRODUCTION — LIVE** at https://app.policy-vault.org (hosted deployment of this source; you can also fully self-host) |
-| Current production source | **PUBLIC — this repository** (buildId `5b90e74`; exact identity chain in `PUBLIC_RELEASE_MANIFEST.md`) |
+| Current production source | **PUBLIC — this repository** (buildId `6c3177f`; exact identity chain in `PUBLIC_RELEASE_MANIFEST.md`) |
+| Bearer wallet-sessions + native mobile transport (v1.3.0) | **LIVE**: opt-in bearer wallet-session authentication for non-browser clients (authentication only — never signing authority or custody; cookie web auth unchanged), plus the native Android transport (explicit CapacitorHttp at the platform seam; no CORS widening, web client stays strict same-origin). The full bearer lifecycle was proven from the real packaged Android runtime against live production; see CHANGELOG |
 | Responsive client + quiet signed-out UX (v1.2.0) | Faster signed-in navigation (retained state, parallel reads, truthful progress states — pending is never success) and no spurious signed-out error toasts; see CHANGELOG |
 | Network-identity banner fix (v1.1.1) | The web client's network banner now derives from the server's node-verified `/network/status` and FAILS CLOSED to an explicit UNKNOWN state — never a stale or assumed network; see CHANGELOG |
 | In-app documentation discovery (v1.1.0) | Docs link + contextual help in the web client, deep-linking to https://docs.policy-vault.org — presentation-only successor; see CHANGELOG |
 | External-approver discovery fix (2026-08-27) | **DEPLOYED + AUTOMATED-ACCEPTED** (fail-closed availability defect, no funds/authority/privacy exposure; see CHANGELOG "Fixed". Acceptance was automated; no human acceptance test is claimed) |
 | Covenant protocol v0.4.1 | Mainnet-operational (real mainnet lifecycle evidence; see SECURITY.md for exactly what is proven and how) |
 | Python client, MCP server, x402/AP2 adapters, platform agent API | Shipped; covered by the automated conformance/integration suites in this repository |
-| **Native mobile (iOS/Android)** | **DEVELOPMENT — NOT YET PRODUCTION-CAPABLE.** The source and architecture are published (`mobile/`, `docs/postlaunch/mobile-*`), honestly labeled; do not build custody workflows on it yet |
+| **Native mobile (iOS/Android)** | **DEVELOPMENT — NOT YET PRODUCTION-CAPABLE.** The Android app (full Capacitor project in `mobile/`, incl. the native production transport and bearer sign-in) has been validated on a real emulator against live production — reads, full bearer auth lifecycle, fail-closed negatives — but production signing, store packaging, and camera/QR capture remain pending; do not build custody workflows on it yet |
 | External professional security audit | **Has NOT occurred.** Planned. Nothing in this repository claims otherwise |
 
 ## What the covenant enforces (consensus, not software)
@@ -80,7 +81,7 @@ consensus checks the covenant regardless of what any server says.
 | `mcp/`, `python/`, `integrations/` | MCP server, Python client, x402 + AP2 adapters |
 | `conformance/` | One matrix driving JS + Python + MCP + x402 + AP2 through identical scenarios (cross-path byte equivalence) |
 | `security/` | Internal adversarial (hostile-AI) test suites over the agent-facing boundaries |
-| `mobile/` | Native mobile scaffold — DEVELOPMENT status (see above) |
+| `mobile/` | Native mobile app (Capacitor Android project + portable web payload, native production transport, bearer sign-in) — DEVELOPMENT status (see above) |
 | `tests/vm/` | Real Kaspa VM covenant verification workspace (Rust; TxScriptEngine) |
 | `deploy/` | Container build + staging/production compose examples + env templates |
 | `docs/` | Protocol specs, architecture, threat model, invariants, hosted design, per-surface specs |

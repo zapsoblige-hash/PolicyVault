@@ -81,3 +81,32 @@ test("§C getStore for a postgres config that was never opened fails closed (no 
   const c = loadConfig({ persistenceBackend: "postgres", pgUser: "u", pgDatabase: "d", pgNoTls: true, authMode: "enabled", authCookieInsecure: true, dataRoot: DATA() });
   assert.throws(() => getStore(c), /was not opened at startup|no silent JSON fallback/);
 });
+
+/* ---------- BEARER WALLET SESSIONS (mobile session-bootstrap DESIGN §2) ---------- */
+
+test("§C authBearerSessionsEnabled: OFF by default, OFF for any env value but the exact string \"1\", ON only via that exact env value or an explicit true override", () => {
+  // Default: neither override nor env set.
+  assert.equal(loadConfig({ dataRoot: DATA() }).authBearerSessionsEnabled, false);
+  assert.equal(loadConfig({ authMode: "enabled", authCookieInsecure: true, dataRoot: DATA() }).authBearerSessionsEnabled, false);
+
+  // Fail-closed on every near-miss env value — only the exact string "1" enables it.
+  const prev = process.env.POLICYVAULT_AUTH_BEARER_SESSIONS;
+  try {
+    for (const v of ["true", "TRUE", "yes", "on", "0", "01", " 1", "1 ", ""]) {
+      process.env.POLICYVAULT_AUTH_BEARER_SESSIONS = v;
+      assert.equal(
+        loadConfig({ authMode: "enabled", authCookieInsecure: true, dataRoot: DATA() }).authBearerSessionsEnabled,
+        false,
+        `env value ${JSON.stringify(v)} must NOT enable bearer sessions`
+      );
+    }
+    process.env.POLICYVAULT_AUTH_BEARER_SESSIONS = "1";
+    assert.equal(loadConfig({ authMode: "enabled", authCookieInsecure: true, dataRoot: DATA() }).authBearerSessionsEnabled, true);
+  } finally {
+    if (prev === undefined) delete process.env.POLICYVAULT_AUTH_BEARER_SESSIONS;
+    else process.env.POLICYVAULT_AUTH_BEARER_SESSIONS = prev;
+  }
+
+  // Explicit override, independent of env.
+  assert.equal(loadConfig({ authMode: "enabled", authCookieInsecure: true, authBearerSessionsEnabled: true, dataRoot: DATA() }).authBearerSessionsEnabled, true);
+});

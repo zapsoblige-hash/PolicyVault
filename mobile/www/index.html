@@ -41,7 +41,10 @@
       </p>
       <p class="scaffold">
         SCAFFOLD BUILD. Read/coordinate screens and on-device verification only.
-        No iOS or Android build of this tree has been produced or tested.
+        A real Android debug and release build of this tree has been produced
+        and statically verified (manifest, permissions, backup policy); it has
+        not yet been executed on a device or emulator. No iOS build has been
+        produced.
       </p>
     </footer>
 
@@ -56,6 +59,7 @@
     <script src="js/portable/signer-capabilities.js"></script>
     <script src="js/portable/build-integrity.js"></script>
 
+    <script src="js/platform/native-http.js"></script>
     <script src="js/platform/env.js"></script>
     <script src="js/platform/ui.js"></script>
 

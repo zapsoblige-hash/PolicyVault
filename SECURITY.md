@@ -62,6 +62,18 @@ per-row verification status is `docs/threat-model.md` and
 - **Hosted request protection** — Origin/CSRF gate, Schnorr session auth,
   tenancy isolation, rate limits, body caps, trusted-proxy spoof resistance
   (`sdk/test/`, `tools/staging-acceptance.js` — 39 externally-driven checks).
+- **Bearer wallet-sessions (v1.3.0, config-gated)** — an opt-in sibling of
+  the cookie session for non-browser clients (`transport: "bearer"` on
+  `/auth/verify`, honored only when `POLICYVAULT_AUTH_BEARER_SESSIONS` is
+  enabled; with the flag off, behavior is byte-identical to cookie-only).
+  Authentication only: a bearer session grants tenancy/read/coordination
+  access, never signing authority or custody. Tokens are held memory-only
+  in the mobile client (never persisted, never in URLs), revoked by
+  logout, and fail closed: an explicitly presented invalid bearer refuses
+  as an invalid session (no anonymous downgrade), a machine-credential-
+  shaped value stays on the machine-credential path, and wrong-network
+  wallets are refused (`sdk/test/hosted-auth-bearer-sessions.test.js`,
+  `mobile/test/native-http.test.js`).
 - **Fail-closed lifecycle** — unknown versions/states/fields refuse; manifest
   records are content-addressed with build-time integrity re-hashing and a
   content-bound finalize gate; governance proposal consumption is terminal;

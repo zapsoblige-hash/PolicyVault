@@ -1,21 +1,38 @@
 # Dependencies (package-lock.json IS committed — it is the supply-chain record).
 node_modules/
 
-# GENERATED NATIVE PROJECTS — deliberately not committed.
+# ANDROID NATIVE PROJECT — committed (standard Capacitor convention: the
+# native shell is checked in; only its build outputs and the payload
+# Capacitor copies in at sync time are ignored — see android/.gitignore,
+# which `cap add android` generates and which already excludes build/,
+# .gradle/, local.properties, *.apk/*.aab, capacitor-cordova-android-plugins
+# (regenerated from node_modules), app/src/main/assets/public (copied from
+# www/), and the generated capacitor.config.json/capacitor.plugins.json.
 #
-# `npx cap add android` / `npx cap add ios` scaffold large Gradle and Xcode
-# trees from the Capacitor templates and then COPY the www/ payload into
-# them. Both were verified to run in this environment (see
-# docs/postlaunch/mobile-v1-scaffold.md), and the copied payload was proven
+# TRACK B phase 1 (2026-08-28) built this tree for real: a headless
+# Temurin JDK 17 (Gradle launcher) + JDK 21 (required by
+# @capacitor/android's Java 21 source/target compatibility) + Android
+# commandline-tools (platform-tools, platforms;android-35,
+# build-tools;35.0.0/34.0.0) were installed outside the repo under
+# ~/android-sdk and ~/jdks, and `./gradlew assembleDebug` produced a real
+# APK (see docs — the APK itself is never committed, only regenerable
+# build output). No device testing, signing, or release build has
+# happened yet; see the mobile-production branch notes for exact status.
+# Regenerate from scratch with `npm run add:android`, which runs the
+# portable-artifact gate before and the packaged-payload gate after.
+# (Its own android/.gitignore, not this file, does the actual excluding.)
+
+# iOS NATIVE PROJECT — still deliberately NOT committed.
+#
+# `npx cap add ios` scaffolds a large Xcode tree from the Capacitor
+# template and then copies the www/ payload into it. It was verified to
+# run in this environment previously (see
+# docs/postlaunch/mobile-v1-scaffold.md) and the copied payload was proven
 # byte-identical to the repository sources by
-# `node tools/sync-portable.js --check-packaged`.
-#
-# They are not committed because they are (a) deterministically
-# regenerable with the npm scripts above, (b) a large native surface that
-# has never been BUILT or reviewed here — no Xcode, no Android SDK, no
+# `node tools/sync-portable.js --check-packaged`, but unlike android/ as of
+# TRACK B phase 1 it has never been BUILT or reviewed here — no Xcode, no
 # CocoaPods in this environment — and committing an unbuilt, unreviewed
 # native tree would imply a level of verification that does not exist.
-# Regenerate with `npm run add:android` / `npm run add:ios`; both run the
-# portable-artifact gate before and the packaged-payload gate after.
-android/
+# Regenerate with `npm run add:ios`; it runs the portable-artifact gate
+# before and the packaged-payload gate after.
 ios/

@@ -1,5 +1,67 @@
 # Changelog
 
+## v1.3.0 — Bearer wallet-sessions + native mobile production transport
+
+The native-mobile/bearer successor to v1.2.0 (production buildId
+`6c3177f`, built on the v1.2.0 production source `5b90e74`). The server
+delta is bearer-session code only (additive, config-gated); the client
+delta is the mobile app: the full validated Capacitor Android project
+with an explicit native HTTP transport. Web client, covenant, schema
+(009), webhooks, and all consensus-visible bytes are unchanged —
+the covenant/VM toolchain binaries in the production image are
+byte-identical to v1.2.0's.
+
+### Added — bearer wallet-sessions (server, config-gated, default OFF)
+- `POST /auth/verify` accepts an explicit `transport: "bearer"` and,
+  ONLY when `POLICYVAULT_AUTH_BEARER_SESSIONS` is enabled, returns the
+  wallet-session token in the response body instead of setting a
+  cookie. Without that flag — or without the explicit request — the
+  route is byte-identical to the cookie-only behavior. Live production
+  has the flag enabled as of this release.
+- Authentication only, never authority: a bearer session grants the
+  same tenancy/read/coordination access as the cookie session and, like
+  it, is never consulted for signing authority. Custody stays with
+  wallet signers; the server still holds no keys.
+- Fail-closed resolution order, proven by suite + live acceptance: an
+  explicitly presented invalid bearer refuses as an invalid session
+  (never an anonymous downgrade); machine-credential-shaped
+  `Authorization` values stay on the machine-credential path (strict
+  separation); wrong-network wallets are refused at challenge;
+  challenge nonces are single-use (replay refused); `POST /auth/logout`
+  revokes a presented bearer server-side
+  (`sdk/test/hosted-auth-bearer-sessions.test.js`).
+
+### Added — native mobile production transport (Android)
+- The mobile app now ships the full Capacitor Android project
+  (`mobile/android/`) with an explicit native HTTP transport
+  (`mobile/www/js/platform/native-http.js`, CapacitorHttp at the
+  platform seam — no global fetch/XHR patching). The hosted API keeps
+  its strict same-origin/no-CORS posture: no CORS grant exists or is
+  required; the web client's browser security model is unchanged.
+- The native adapter declares its request origin explicitly
+  (documented programmatic-client contract with the hosted origin
+  wall); the packaged WebView itself cannot reach the API cross-origin.
+- Wallet sign-in on mobile uses the existing air-gap QR framing +
+  manual-paste signature transport with the offline CLI signer
+  (camera capture is not built; paste-only v1). The bearer token is
+  held memory-only — never persisted, never logged by the app, never
+  in a URL — and an app restart is signed out by design.
+- Validated on a real Android emulator against live production:
+  reads, the complete UI-driven bearer lifecycle (challenge → offline
+  CLI signature → verify → authenticated read → sign out → server-side
+  revocation), and the adversarial matrix (malformed/revoked bearer,
+  wrong network, wrong signer, nonce replay). Android release signing,
+  store packaging, and camera capture remain pending — native mobile
+  stays DEVELOPMENT, not production-capable.
+
+### Notes
+- No migration: schema stays 009. No webhook, rate-limit, or
+  cookie-auth change. `mobile/test/native-http.test.js` and
+  `sdk/test/hosted-auth-bearer-sessions.test.js` are the new suites;
+  all existing suites carry unchanged.
+- No external security audit has occurred; nothing here claims one.
+
+
 ## v1.2.0 — Responsive client orchestration + quiet signed-out state
 
 A client-orchestration/presentation successor to v1.1.1. No server,

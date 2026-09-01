@@ -602,10 +602,15 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
    * wallet-bound tenancy session and nothing else. No covenant route
    * consults the session for signing authority — owner/agent/approver
    * signature validation over frozen bytes is unchanged. The raw session
-   * token travels ONLY in the HttpOnly cookie (never in JSON bodies).
+   * token travels ONLY in the HttpOnly cookie (never in JSON bodies) —
+   * EXCEPT the mobile bearer-session sibling below (DESIGN FREEZE §2:
+   * mobile/docs/session-bootstrap-DESIGN.md), which is config-gated
+   * (default OFF) and requires the client to EXPLICITLY ask for it; with
+   * the flag off, or without that explicit request, this block is
+   * byte-identical to the cookie-only behavior above.
    */
   if (segments[0] === "auth") {
-    const { buildSessionCookie, buildClearCookie, sessionTokenFromCookieHeader } = require("./auth");
+    const { buildSessionCookie, buildClearCookie, sessionTokenFromCookieHeader, sessionTokenFromAuthorizationHeader } = require("./auth");
     const auth = authServiceFor(config);
     const cookieToken = sessionTokenFromCookieHeader(config, ctx.headers ? ctx.headers.cookie : undefined);
 
@@ -615,9 +620,12 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       return { status: 200, body: { challenge } };
     }
 
-    // POST /auth/verify  { nonce, signature, publicKey, walletAddress? }
+    // POST /auth/verify  { nonce, signature, publicKey, walletAddress?, transport? }
     // The signature is verified against the SERVER-reconstructed canonical
     // message; any client-submitted message text is ignored entirely.
+    // `transport: "bearer"` is honored ONLY when config.authBearerSessionsEnabled
+    // is true; anything else about `transport` is ignored, and its absence
+    // (or the flag being off) is the existing cookie-only path, unchanged.
     if (method === "POST" && segments.length === 2 && segments[1] === "verify") {
       const { token, session } = await auth.verify(
         {
@@ -628,6 +636,10 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         },
         cookieToken
       );
+      const wantsBearer = config.authBearerSessionsEnabled === true && body && body.transport === "bearer";
+      if (wantsBearer) {
+        return { status: 200, body: { session, token } };
+      }
       return { status: 200, body: { session }, headers: { "Set-Cookie": buildSessionCookie(config, token) } };
     }
 
@@ -644,8 +656,17 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     }
 
     // POST /auth/logout — revoke server-side + clear the cookie. Idempotent.
+    // Also revokes a bearer wallet-session token presented via
+    // Authorization (DESIGN FREEZE §2: "logout must revoke it"). The two
+    // checks are independent and both harmless no-ops when their token is
+    // absent/foreign/wrong-shaped — sessionTokenFromAuthorizationHeader
+    // already returns null for a machine-credential-shaped header (or any
+    // header at all, when the flag is off), so this never touches or even
+    // looks at a machine credential.
     if (method === "POST" && segments.length === 2 && segments[1] === "logout") {
       if (cookieToken) await auth.revokeByToken(cookieToken);
+      const bearerToken = sessionTokenFromAuthorizationHeader(config, ctx.headers ? ctx.headers.authorization : undefined);
+      if (bearerToken) await auth.revokeByToken(bearerToken);
       return { status: 200, body: { ok: true }, headers: { "Set-Cookie": buildClearCookie(config) } };
     }
 
@@ -2436,16 +2457,37 @@ async function scopeRequestsForPrincipal(config, ctx, requests) {
 
 /*
  * THE single principal-resolution path (Phase C directive, extended by
- * the platform-agent-api addendum, surface 6): every tenancy/covenant-
- * adjacent route call reaches identity through here — never a raw wallet
- * field from a body/query/header. Now resolves TWO distinct credential
- * kinds:
+ * the platform-agent-api addendum, surface 6, and by the mobile session-
+ * bootstrap DESIGN FREEZE §2, mobile/docs/session-bootstrap-DESIGN.md):
+ * every tenancy/covenant-adjacent route call reaches identity through
+ * here — never a raw wallet field from a body/query/header. Now resolves
+ * THREE distinct credential kinds, all from the SAME Authorization
+ * header, distinguished by shape alone (never ambiguous — see
+ * server/src/auth.js sessionTokenFromAuthorizationHeader and
+ * server/src/machine-identity.js TOKEN_PREFIX):
+ *   - a bearer WALLET-SESSION token (server/src/auth.js) — checked
+ *     first. This is config-gated: sessionTokenFromAuthorizationHeader
+ *     itself returns null unless config.authBearerSessionsEnabled is
+ *     true, so with the flag off this branch never triggers and
+ *     resolution falls through to the machine-credential branch exactly
+ *     as it did before this feature existed. Resolves through the SAME
+ *     authServiceFor(config).resolveSession(...) the cookie path uses
+ *     below, so the returned principal has the IDENTICAL shape (no
+ *     `isMachine` field — never scope-gated, never refused on a wallet-
+ *     session-only route, same as a cookie session) — an EXPLICITLY
+ *     presented invalid bearer session must resolve or this throws
+ *     (401 SESSION_INVALID/SESSION_EXPIRED/SESSION_REVOKED from
+ *     resolveSession itself), REGARDLESS of `required`, mirroring the
+ *     machine-credential discipline below rather than the cookie path's
+ *     leniency: an explicit credential is never silently downgraded to
+ *     "no one".
  *   - a machine (AI/agent) Bearer token (server/src/machine-identity.js)
- *     — checked FIRST when an Authorization header is present. An
- *     EXPLICITLY presented machine credential must resolve or this always
- *     throws (401 MACHINE_TOKEN_INVALID), REGARDLESS of `required` — an
- *     invalid credential is never silently downgraded to "no one" the way
- *     an absent cookie is. The returned principal's xOnlyPubkey is the
+ *     — checked next, when an Authorization header is present but did
+ *     not resolve as a wallet-session bearer token. An EXPLICITLY
+ *     presented machine credential must resolve or this always throws
+ *     (401 MACHINE_TOKEN_INVALID), REGARDLESS of `required` — an invalid
+ *     credential is never silently downgraded to "no one" the way an
+ *     absent cookie is. The returned principal's xOnlyPubkey is the
  *     CREATING wallet's own key (machine-identity.js), so every existing
  *     tenancy/covenant check below applies completely unmodified; scope
  *     enforcement (server/src/scopes.js) is a separate, additional gate
@@ -2461,6 +2503,13 @@ async function requestAuthPrincipal(config, ctx, { required = false } = {}) {
   }
   const authHeader = ctx && ctx.headers ? ctx.headers.authorization : undefined;
   if (typeof authHeader === "string" && authHeader.trim()) {
+    const { sessionTokenFromAuthorizationHeader } = require("./auth");
+    const bearerSessionToken = sessionTokenFromAuthorizationHeader(config, authHeader);
+    if (bearerSessionToken) {
+      // Propagates resolveSession's own authError untouched — same
+      // never-swallowed discipline as the machine-credential branch below.
+      return await authServiceFor(config).resolveSession(bearerSessionToken);
+    }
     const { resolveBearerToken } = require("./machine-identity");
     const { identity, credential } = await resolveBearerToken(config, authHeader); // throws 401 MACHINE_TOKEN_INVALID — never swallowed
     return Object.freeze({

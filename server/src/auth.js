@@ -567,6 +567,35 @@ function sessionTokenFromCookieHeader(config, cookieHeader) {
   return null;
 }
 
+/*
+ * Mobile session-bootstrap DESIGN FREEZE §2 — the bearer-transport
+ * SIBLING of sessionTokenFromCookieHeader above. A session minted by
+ * verify() is the SAME bare 256-bit hex token either way (_createSession
+ * does not know or care which transport will carry it); this function
+ * only extracts that token from an `Authorization: Bearer <token>`
+ * header, exactly as sessionTokenFromCookieHeader extracts it from a
+ * Cookie header. It is the ONLY place a bearer wallet-session token is
+ * ever read from — never a query string, never a body field.
+ *
+ * Fail-closed at the config level: returns null unconditionally when
+ * authBearerSessionsEnabled is not true, so a caller that forgets to gate
+ * on the flag separately still cannot resolve a wallet session from a
+ * bearer header while the feature is off.
+ *
+ * The lowercase-64-hex shape is disjoint by construction from a machine
+ * credential's `pvmk_`-prefixed shape (server/src/machine-identity.js
+ * TOKEN_PREFIX) — the two credential kinds are distinguished by shape
+ * alone, with no ambiguity, exactly like the cookie parser distinguishes
+ * a session token from anything else under the same cookie name.
+ */
+function sessionTokenFromAuthorizationHeader(config, authorizationHeader) {
+  if (!config.authBearerSessionsEnabled) return null;
+  if (typeof authorizationHeader !== "string") return null;
+  const m = /^Bearer\s+(\S+)$/i.exec(authorizationHeader.trim());
+  const token = m ? m[1] : null;
+  return token && TOKEN_HEX.test(token) ? token : null;
+}
+
 module.exports = {
   HostedAuthService,
   MemoryAuthStore,
@@ -575,5 +604,6 @@ module.exports = {
   sessionCookieName,
   buildSessionCookie,
   buildClearCookie,
-  sessionTokenFromCookieHeader
+  sessionTokenFromCookieHeader,
+  sessionTokenFromAuthorizationHeader
 };

@@ -66,6 +66,12 @@
   var SIGNING_REQUEST_FORMAT = "policyvault-cli-signing-request/1";
   var SIGNING_REQUEST_FORMAT_V2 = "policyvault-cli-signing-request/2";
   var SIGNED_TX_FORMAT = "policyvault-cli-signer-signed-transaction/1";
+  /* The CLI signer's OWN existing `sign-message` response document
+   * (core/signer/adapters/cli/cli.js `sign-message` command) — reused
+   * verbatim, not invented, exactly like SIGNED_TX_FORMAT above. Its
+   * closed schema, in order. */
+  var AUTH_SIGNATURE_FORMAT = "policyvault-cli-signer-signature/1";
+  var AUTH_SIGNATURE_KEYS = ["format", "requestId", "kind", "network", "address", "publicKey", "scheme", "messageSha256", "signature"];
   /* The CLI's schema is CLOSED — these six keys, in this order, and no
    * others. Order is fixed so the emitted document is deterministic.
    * /2 additionally carries the intent `manifest` so the offline signer can
@@ -305,6 +311,117 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Validate: scanned CLI sign-message response -> a bearer-verify input */
+  /* (mobile session-bootstrap DESIGN §3, QR login bootstrap v1)          */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * parseAuthChallengeSignatureDocument(text, { expectedNetwork, expectedMessageSha256, expectedWalletAddress })
+   *
+   * The CLI signer's `sign-message` command takes the raw auth-challenge
+   * MESSAGE TEXT as input (no JSON envelope on the way OUT to the signer —
+   * unlike sign-tx's request document; the caller QR-frames the challenge
+   * message directly) and emits this `policyvault-cli-signer-signature/1`
+   * document on the way back.
+   *
+   * `expectedMessageSha256` is the ONE binding this device can prove for a
+   * message response: there is no txId to bind to the way a transaction
+   * has one, so the caller MUST supply the sha256 of the EXACT challenge
+   * message text it fetched, and this function refuses on any mismatch —
+   * the same role transaction-id equality plays in
+   * parseSignedResponseDocument above.
+   *
+   * HONEST LIMIT, same as parseSignedResponseDocument: this does NOT
+   * verify the Schnorr signature bytes. It confirms provenance (closed
+   * schema, no unknown key) and message binding. The authoritative check
+   * is the server's own POST /auth/verify, which re-derives the canonical
+   * challenge message itself and calls the pinned kaspa-wasm
+   * verifyMessage — the covenant-adjacent session-authentication
+   * equivalent of the server's finalizer VM preflight.
+   *
+   * ok:   { ok: true, signature, publicKey, walletAddress, requestId }
+   * fail: { ok: false, code, detail }
+   */
+  function parseAuthChallengeSignatureDocument(text, expectations) {
+    var exp = isPlainObject(expectations) ? expectations : {};
+    if (typeof text !== "string" || text.length === 0) {
+      return fail("AIRGAP_RESPONSE_INVALID", "the scanned response is empty");
+    }
+
+    var parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      return fail("AIRGAP_RESPONSE_INVALID", "the scanned response is not valid JSON");
+    }
+    if (!isPlainObject(parsed)) return fail("AIRGAP_RESPONSE_INVALID", "the scanned response is not a JSON object");
+
+    if (parsed.format !== AUTH_SIGNATURE_FORMAT) {
+      return fail(
+        "AIRGAP_RESPONSE_FORMAT_UNSUPPORTED",
+        "response format " + shortStr(parsed.format, 64) + " is not " + JSON.stringify(AUTH_SIGNATURE_FORMAT) + " — unknown versions fail closed"
+      );
+    }
+    if (parsed.kind !== "sign-message") {
+      return fail("AIRGAP_RESPONSE_KIND_MISMATCH", "response kind " + shortStr(parsed.kind, 32) + " is not \"sign-message\"");
+    }
+    /* Closed schema in both directions: no missing key, no unknown key. */
+    for (var i = 0; i < AUTH_SIGNATURE_KEYS.length; i++) {
+      if (!(AUTH_SIGNATURE_KEYS[i] in parsed)) return fail("AIRGAP_RESPONSE_INVALID", "response is missing required key " + JSON.stringify(AUTH_SIGNATURE_KEYS[i]));
+    }
+    var keys = Object.keys(parsed);
+    for (var k = 0; k < keys.length; k++) {
+      if (AUTH_SIGNATURE_KEYS.indexOf(keys[k]) < 0) {
+        return fail("AIRGAP_RESPONSE_INVALID", "response carries unknown key " + JSON.stringify(keys[k]) + " — the schema is closed; failing closed");
+      }
+    }
+    if (parsed.scheme !== "schnorr") {
+      return fail(
+        "AIRGAP_RESPONSE_SCHEME_UNSUPPORTED",
+        "response scheme " + shortStr(parsed.scheme, 32) + " is not \"schnorr\" — PolicyVault hosted auth requires a Schnorr personal-message signature"
+      );
+    }
+    if (typeof parsed.signature !== "string" || parsed.signature.length === 0) {
+      return fail("AIRGAP_RESPONSE_INVALID", "response carries no signature");
+    }
+    if (typeof parsed.publicKey !== "string" || parsed.publicKey.length === 0) {
+      return fail("AIRGAP_RESPONSE_INVALID", "response carries no publicKey");
+    }
+    if (typeof parsed.messageSha256 !== "string" || !/^[0-9a-f]{64}$/.test(parsed.messageSha256)) {
+      return fail("AIRGAP_RESPONSE_INVALID", "response carries no readable messageSha256");
+    }
+
+    if (exp.expectedNetwork !== undefined && parsed.network !== exp.expectedNetwork) {
+      return fail(
+        "AIRGAP_NETWORK_MISMATCH",
+        "the signature was produced for network " + shortStr(parsed.network, 32) + " but this request is for " + JSON.stringify(String(exp.expectedNetwork)) + " — refusing"
+      );
+    }
+
+    /* THE binding check: the signed message must be exactly the challenge
+     * this device fetched — never a different, possibly attacker-supplied,
+     * message the CLI signer was independently pointed at. */
+    if (typeof exp.expectedMessageSha256 !== "string" || !/^[0-9a-f]{64}$/.test(exp.expectedMessageSha256)) {
+      return fail("AIRGAP_INPUT_INVALID", "parseAuthChallengeSignatureDocument requires the exact expectedMessageSha256 of the fetched challenge");
+    }
+    if (parsed.messageSha256 !== exp.expectedMessageSha256) {
+      return fail("AIRGAP_AUTH_CHALLENGE_MISMATCH", "the signed message does not match the challenge this device fetched — refusing");
+    }
+
+    if (exp.expectedWalletAddress !== undefined && parsed.address !== exp.expectedWalletAddress) {
+      return fail("AIRGAP_SIGNER_MISMATCH", "the signature was produced by a different address than the challenge names — refusing");
+    }
+
+    return {
+      ok: true,
+      signature: parsed.signature,
+      publicKey: parsed.publicKey,
+      walletAddress: parsed.address,
+      requestId: parsed.requestId
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
   /* helpers                                                             */
   /* ------------------------------------------------------------------ */
 
@@ -347,12 +464,15 @@
     SIGNING_REQUEST_FORMAT: SIGNING_REQUEST_FORMAT,
     SIGNING_REQUEST_FORMAT_V2: SIGNING_REQUEST_FORMAT_V2,
     SIGNED_TX_FORMAT: SIGNED_TX_FORMAT,
+    AUTH_SIGNATURE_FORMAT: AUTH_SIGNATURE_FORMAT,
     SIGNING_REQUEST_KEYS: SIGNING_REQUEST_KEYS,
     SIGNING_REQUEST_KEYS_V2: SIGNING_REQUEST_KEYS_V2,
     SIGNED_TX_KEYS: SIGNED_TX_KEYS,
+    AUTH_SIGNATURE_KEYS: AUTH_SIGNATURE_KEYS,
     MAX_SAFE_JSON_CHARS: MAX_SAFE_JSON_CHARS,
     buildSigningRequestDocument: buildSigningRequestDocument,
     parseSignedResponseDocument: parseSignedResponseDocument,
+    parseAuthChallengeSignatureDocument: parseAuthChallengeSignatureDocument,
     authorizeSigning: authorizeSigning
   };
 

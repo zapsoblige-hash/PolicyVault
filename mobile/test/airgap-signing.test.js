@@ -355,3 +355,120 @@ test("AIRGAP: the full document survives the QR round trip unchanged", () => {
   const reparsed = JSON.parse(done.text);
   assert.deepEqual(Object.keys(reparsed), ["format", "kind", "network", "expectedSignerAddress", "unsignedSafeJson", "signInputs"]);
 });
+
+/* ==================================================================== */
+/* AUTH CHALLENGE SIGNATURE (mobile session-bootstrap DESIGN §3 QR login) */
+/* ==================================================================== */
+/*
+ * The CLI signer's OWN existing `sign-message` command (core/signer/
+ * adapters/cli/cli.js) takes the raw challenge MESSAGE TEXT (no JSON
+ * envelope — unlike sign-tx) and emits a
+ * `policyvault-cli-signer-signature/1` document. This device never
+ * verifies the Schnorr signature bytes (same honest limit as
+ * parseSignedResponseDocument for transactions — the server's /auth/verify
+ * does that, re-deriving the canonical message itself); what THIS device
+ * proves before ever sending the signature to the server is that the
+ * signed message is byte-identical to the challenge it fetched, via
+ * messageSha256 equality — the one binding that exists for a message
+ * (there is no txId to bind to, unlike a transaction).
+ */
+
+const AUTH_SIGNATURE_FORMAT = "policyvault-cli-signer-signature/1";
+
+function authSignatureResponse(overrides) {
+  const base = {
+    format: AUTH_SIGNATURE_FORMAT,
+    requestId: "req-1",
+    kind: "sign-message",
+    network: "testnet-10",
+    address: H.AGENT_ADDR,
+    publicKey: "02" + "11".repeat(32),
+    scheme: "schnorr",
+    messageSha256: "aa".repeat(32),
+    signature: "bb".repeat(64)
+  };
+  return JSON.stringify(Object.assign({}, base, overrides));
+}
+
+test("AUTH SIGNATURE: a well-formed response bound to the exact challenge message is accepted", () => {
+  const env = loaded();
+  const messageSha256 = env.sha256Hex("PolicyVault authentication\n...challenge text...");
+  const text = authSignatureResponse({ messageSha256 });
+  const r = env.AIRGAP.parseAuthChallengeSignatureDocument(text, {
+    expectedNetwork: "testnet-10",
+    expectedMessageSha256: messageSha256,
+    expectedWalletAddress: H.AGENT_ADDR
+  });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.signature, "bb".repeat(64));
+  assert.equal(r.publicKey, "02" + "11".repeat(32));
+  assert.equal(r.walletAddress, H.AGENT_ADDR);
+});
+
+test("AUTH SIGNATURE: a message-hash mismatch is refused — the ONE binding this device can prove for a message", () => {
+  const env = loaded();
+  const real = env.sha256Hex("the real challenge");
+  const different = env.sha256Hex("a different message the signer was pointed at instead");
+  const text = authSignatureResponse({ messageSha256: different });
+  const r = env.AIRGAP.parseAuthChallengeSignatureDocument(text, { expectedMessageSha256: real });
+  assert.equal(r.ok, false);
+  assert.equal(r.code, "AIRGAP_AUTH_CHALLENGE_MISMATCH");
+});
+
+test("AUTH SIGNATURE: unknown format/kind/scheme fail closed; missing or extra keys fail closed", () => {
+  const env = loaded();
+  const h = env.sha256Hex("x");
+  const exp = { expectedMessageSha256: h };
+
+  assert.equal(env.AIRGAP.parseAuthChallengeSignatureDocument(authSignatureResponse({ format: "policyvault-cli-signer-signature/99", messageSha256: h }), exp).code, "AIRGAP_RESPONSE_FORMAT_UNSUPPORTED");
+  assert.equal(env.AIRGAP.parseAuthChallengeSignatureDocument(authSignatureResponse({ kind: "sign-transaction", messageSha256: h }), exp).code, "AIRGAP_RESPONSE_KIND_MISMATCH");
+  assert.equal(env.AIRGAP.parseAuthChallengeSignatureDocument(authSignatureResponse({ scheme: "ecdsa", messageSha256: h }), exp).code, "AIRGAP_RESPONSE_SCHEME_UNSUPPORTED");
+
+  const missingKey = JSON.parse(authSignatureResponse({ messageSha256: h }));
+  delete missingKey.publicKey;
+  assert.equal(env.AIRGAP.parseAuthChallengeSignatureDocument(JSON.stringify(missingKey), exp).code, "AIRGAP_RESPONSE_INVALID");
+
+  const extraKey = JSON.parse(authSignatureResponse({ messageSha256: h }));
+  extraKey.bypassPolicy = true;
+  assert.equal(env.AIRGAP.parseAuthChallengeSignatureDocument(JSON.stringify(extraKey), exp).code, "AIRGAP_RESPONSE_INVALID");
+
+  assert.equal(env.AIRGAP.parseAuthChallengeSignatureDocument("not json", exp).code, "AIRGAP_RESPONSE_INVALID");
+  assert.equal(env.AIRGAP.parseAuthChallengeSignatureDocument("", exp).code, "AIRGAP_RESPONSE_INVALID");
+});
+
+test("AUTH SIGNATURE: network and wallet-address mismatches are refused", () => {
+  const env = loaded();
+  const h = env.sha256Hex("y");
+  const netMismatch = env.AIRGAP.parseAuthChallengeSignatureDocument(
+    authSignatureResponse({ messageSha256: h, network: "mainnet" }),
+    { expectedNetwork: "testnet-10", expectedMessageSha256: h }
+  );
+  assert.equal(netMismatch.code, "AIRGAP_NETWORK_MISMATCH");
+
+  const addrMismatch = env.AIRGAP.parseAuthChallengeSignatureDocument(
+    authSignatureResponse({ messageSha256: h, address: "kaspatest:someotheraddress" }),
+    { expectedMessageSha256: h, expectedWalletAddress: H.AGENT_ADDR }
+  );
+  assert.equal(addrMismatch.code, "AIRGAP_SIGNER_MISMATCH");
+});
+
+test("AUTH SIGNATURE: the request/response round-trips through the SAME QR framing used for transactions", () => {
+  const env = loaded();
+  const message = "PolicyVault authentication\norigin: https://example.test\nnetwork: testnet-10\naddress: " + H.AGENT_ADDR + "\nnonce: " + "cd".repeat(32) + "\nissued: 2026-01-01T00:00:00.000Z\nThis signature only signs you in. It cannot move funds.";
+  const framed = env.QR.encodeFrames(message, { sha256Hex: env.sha256Hex });
+  assert.equal(framed.ok, true, framed.detail);
+  const re = env.QR.createReassembler({ sha256Hex: env.sha256Hex });
+  for (const f of framed.frames) assert.equal(re.accept(f).ok, true);
+  const done = re.finish();
+  assert.equal(done.ok, true);
+  assert.equal(done.text, message, "the challenge message must arrive at the signer byte-identical");
+
+  const h = env.sha256Hex(message);
+  const responseText = authSignatureResponse({ messageSha256: h, network: "testnet-10", address: H.AGENT_ADDR });
+  const r = env.AIRGAP.parseAuthChallengeSignatureDocument(responseText, {
+    expectedNetwork: "testnet-10",
+    expectedMessageSha256: h,
+    expectedWalletAddress: H.AGENT_ADDR
+  });
+  assert.equal(r.ok, true, JSON.stringify(r));
+});

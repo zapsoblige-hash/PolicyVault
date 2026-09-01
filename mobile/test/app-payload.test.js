@@ -49,7 +49,7 @@ function indexScriptSrcs() {
 
 test("PAYLOAD: index.html loads exactly the harness's script list, in order, then the platform layer and the app", () => {
   const srcs = indexScriptSrcs();
-  const expected = S.SCRIPT_ORDER.concat(["js/platform/env.js", "js/platform/ui.js", "js/app.js"]);
+  const expected = S.SCRIPT_ORDER.concat(["js/platform/native-http.js", "js/platform/env.js", "js/platform/ui.js", "js/app.js"]);
   assert.deepEqual(srcs, expected, "index.html and mobile/test/sandbox.js disagree about what the app loads");
 });
 
@@ -91,6 +91,52 @@ test("PAYLOAD: the app shell mentions no signing path that bypasses verification
   assert.match(appSource, /AIRGAP\.buildSigningRequestDocument\(/, "the sign screen must build the document through the portable module");
   /* And the verify screen must only ever offer to continue on a pass. */
   assert.match(appSource, /if \(outcome\.ok === true\) \{[\s\S]{0,240}Continue to signing/, "the continue-to-signing control must exist only inside the pass branch");
+});
+
+/*
+ * Extract one top-level `function NAME(...) { ... }` from a source file by
+ * brace-counting from its opening `{`, rather than a length-capped regex
+ * window — precise regardless of how long the function grows, and it is
+ * what lets the next test assert an ABSENCE (no mutation call anywhere in
+ * screenAgents) without also matching text outside that function.
+ */
+function extractFunctionSource(source, functionName) {
+  const marker = `function ${functionName}(`;
+  const start = source.indexOf(marker);
+  assert.ok(start >= 0, `${functionName} not found in js/app.js`);
+  const braceStart = source.indexOf("{", start);
+  assert.ok(braceStart >= 0, `${functionName}: no function body found`);
+  let depth = 0;
+  for (let i = braceStart; i < source.length; i++) {
+    if (source[i] === "{") depth++;
+    else if (source[i] === "}") {
+      depth--;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  throw new Error(`${functionName}: unbalanced braces — could not find the matching close`);
+}
+
+test("PAYLOAD: the Agents screen reads through the real client and stays read-only", () => {
+  const appSource = fs.readFileSync(path.join(S.WWW, "js", "app.js"), "utf8");
+  const fnSource = extractFunctionSource(appSource, "screenAgents");
+
+  /* Real reads through the same vendored API client every other remote
+   * screen uses — no second, hand-rolled fetch, no fabricated agent data. */
+  assert.match(fnSource, /state\.api\.client\.listVaults\(\)/, "screenAgents must list vaults through the real client");
+  assert.match(fnSource, /state\.api\.client\.getVault\(/, "screenAgents must read agent data through the real client's getVault");
+
+  /* Server refusal vs transport failure discipline — same as remoteScreen,
+   * never a hand-rolled error path that could blur the two. */
+  assert.match(fnSource, /state\.api\.describeError\(/, "screenAgents must use the shared describeError discipline");
+
+  /* NO MUTATION in this phase: read-only listing + status only. A future
+   * edit that adds a suspend/rotate/pause/revoke control must fail here
+   * until that is a deliberate, separately-reviewed change. */
+  const forbiddenMutations = [/suspendAgent/, /rotateAgent/, /pauseVault/, /revokeAgent/, /\.suspend\s*\(/, /\.rotate\s*\(/, /\.pause\s*\(/, /\.revoke\s*\(/];
+  for (const re of forbiddenMutations) {
+    assert.doesNotMatch(fnSource, re, `screenAgents must stay read-only in this phase — found a match for ${re}`);
+  }
 });
 
 /* ==================================================================== */
@@ -187,16 +233,26 @@ test("HONEST UX: injected-provider negotiation fails closed on a partial surface
   }
 });
 
-test("HONEST UX: the session bootstrap is reported UNDECIDED rather than as a working sign-in", () => {
+test("HONEST UX: the session bootstrap reports the FROZEN design's real status — QR login v1 implemented, desktop hand-off deferred — never a fabricated working sign-in", () => {
+  // Session-bootstrap DESIGN FREEZE (mobile/docs/session-bootstrap-
+  // DESIGN.md, commit 917c2a5) §3 picked QR login as bootstrap v1; §5
+  // defers desktop-handoff. This test asserts that frozen decision is
+  // reflected honestly, not that "some bootstrap exists" in the abstract.
   const g = S.loadAppPayload();
   const boot = S.outOfSandbox(g.PolicyVaultMobileApi.SESSION_BOOTSTRAP);
-  assert.equal(boot.status, "UNDECIDED");
-  assert.match(boot.reason, /NOT implemented/);
+  assert.notEqual(boot.status, "UNDECIDED", "the design is frozen — status must no longer claim an open decision");
   assert.equal(boot.candidates.length, 2);
   assert.equal(boot.candidates.filter((c) => c.recommended).length, 1);
-  /* The credential-transfer candidate must carry its warning. */
+
+  const qr = boot.candidates.find((c) => c.id === "qr-login");
+  assert.equal(qr.recommended, true);
+  assert.equal(qr.implemented, true, "QR login is DESIGN §3 bootstrap v1 — it must be reported as implemented");
+
+  // The credential-transfer candidate must still carry its warning and
+  // must NOT be reported as implemented — DESIGN §5 defers it.
   const handoff = boot.candidates.find((c) => c.id === "desktop-handoff");
-  assert.match(handoff.note, /CREDENTIAL TRANSFER/);
+  assert.equal(handoff.implemented, false);
+  assert.match(handoff.note, /CREDENTIAL TRANSFER|DEFERRED/);
 });
 
 test("HONEST UX: the API layer refuses to invent a server, and never silently defaults one", () => {
@@ -260,6 +316,99 @@ test("HONEST UX: a transport failure is never reported as a refusal", () => {
   assert.equal(d2.code, "FORBIDDEN");
   assert.equal(d2.text, "nope", "the server's own message must be carried verbatim");
   assert.equal(d2.retrySafe, false);
+});
+
+/* ==================================================================== */
+/* 2b. QR-login bootstrap v1 (mobile session-bootstrap DESIGN §3)        */
+/* ==================================================================== */
+
+test("QR LOGIN: fetchAuthChallenge never invents a client or a wallet address", async () => {
+  const g = S.loadAppPayload();
+  const APIMOD = g.PolicyVaultMobileApi;
+
+  const noClient = await APIMOD.fetchAuthChallenge({ walletAddress: "kaspatest:x" });
+  assert.equal(noClient.ok, false);
+  assert.match(noClient.reason, /no API client/);
+
+  const noAddr = await APIMOD.fetchAuthChallenge({ client: { request: function () { throw new Error("must not be called"); } } });
+  assert.equal(noAddr.ok, false);
+  assert.match(noAddr.reason, /wallet address/);
+});
+
+test("QR LOGIN: fetchAuthChallenge calls POST /auth/challenge with exactly {walletAddress} and returns the server's challenge unmodified", async () => {
+  const g = S.loadAppPayload();
+  const APIMOD = g.PolicyVaultMobileApi;
+  let seen = null;
+  const client = {
+    request: function (method, path, opts) {
+      seen = { method: method, path: path, opts: opts };
+      return Promise.resolve({ challenge: { nonce: "ab".repeat(32), message: "the challenge text", walletAddress: "kaspatest:x", networkId: "testnet-10" } });
+    }
+  };
+  const r = await APIMOD.fetchAuthChallenge({ client: client, walletAddress: "kaspatest:x" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(seen.method, "POST");
+  assert.equal(seen.path, "/auth/challenge");
+  assert.deepEqual(S.outOfSandbox(seen.opts.body), { walletAddress: "kaspatest:x" });
+  assert.equal(r.challenge.nonce, "ab".repeat(32));
+  assert.equal(r.challenge.message, "the challenge text");
+});
+
+test("QR LOGIN: fetchAuthChallenge reports a malformed response, or a thrown transport/server error, as a refusal — never throws, never fabricates a challenge", async () => {
+  const g = S.loadAppPayload();
+  const APIMOD = g.PolicyVaultMobileApi;
+
+  const malformed = await APIMOD.fetchAuthChallenge({
+    client: { request: function () { return Promise.resolve({ notAChallenge: true }); } },
+    walletAddress: "kaspatest:x"
+  });
+  assert.equal(malformed.ok, false);
+  assert.match(malformed.reason, /no readable challenge/);
+
+  const thrown = await APIMOD.fetchAuthChallenge({
+    client: { request: function () { return Promise.reject(new Error("connect ECONNREFUSED")); } },
+    walletAddress: "kaspatest:x"
+  });
+  assert.equal(thrown.ok, false);
+  assert.match(thrown.reason, /ECONNREFUSED/);
+});
+
+test("QR LOGIN: completeAuthVerifyBearer requires nonce/signature/publicKey/walletAddress and requests bearer transport explicitly", async () => {
+  const g = S.loadAppPayload();
+  const APIMOD = g.PolicyVaultMobileApi;
+
+  const missing = await APIMOD.completeAuthVerifyBearer({ client: { request: function () { throw new Error("must not be called"); } } });
+  assert.equal(missing.ok, false);
+
+  let seen = null;
+  const client = {
+    request: function (method, path, opts) {
+      seen = { method: method, path: path, opts: opts };
+      return Promise.resolve({ session: { authenticated: true, walletAddress: "kaspatest:x", networkId: "testnet-10" }, token: "cd".repeat(32) });
+    }
+  };
+  const r = await APIMOD.completeAuthVerifyBearer({
+    client: client, nonce: "ab".repeat(32), signature: "ef".repeat(64), publicKey: "02" + "11".repeat(32), walletAddress: "kaspatest:x"
+  });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(seen.path, "/auth/verify");
+  assert.equal(seen.opts.body.transport, "bearer");
+  assert.equal(seen.opts.body.nonce, "ab".repeat(32));
+  assert.equal(r.token, "cd".repeat(32));
+  assert.equal(r.session.walletAddress, "kaspatest:x");
+});
+
+test("QR LOGIN: completeAuthVerifyBearer reports 'no bearer token' as a refusal, never a fabricated success, when the server answers with the cookie-only shape (bearer sessions not enabled there)", async () => {
+  const g = S.loadAppPayload();
+  const APIMOD = g.PolicyVaultMobileApi;
+  const client = {
+    request: function () { return Promise.resolve({ session: { authenticated: true, walletAddress: "kaspatest:x" } }); } // no `token` field
+  };
+  const r = await APIMOD.completeAuthVerifyBearer({
+    client: client, nonce: "ab".repeat(32), signature: "ef".repeat(64), publicKey: "02" + "11".repeat(32), walletAddress: "kaspatest:x"
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /bearer session token|not be enabled/);
 });
 
 /* ==================================================================== */
