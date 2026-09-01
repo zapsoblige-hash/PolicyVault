@@ -18,6 +18,8 @@ tests/vm/target/
 tests/vm/Cargo.lock
 deploy/vendor/
 deploy/*.env
+deploy/selfhost-backup-*.dump
+deploy/.selfhost-state
 __pycache__/
 *.pyc
 .DS_Store

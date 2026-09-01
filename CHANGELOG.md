@@ -1,5 +1,57 @@
 # Changelog
 
+## v1.4.0 — Distribution: MCP registry packaging, agent examples, one-command self-hosting
+
+A source/distribution release: **no runtime change and no production
+deployment** — every directory the production container copies
+(`core/ sdk/ server/ web/ contracts/`) is byte-identical to v1.3.0
+(live buildId `6c3177f` unchanged). The adoption-first program's first
+three deliverables ship here.
+
+### Added — MCP distribution (official registry + npm)
+- `mcp/package.json` is npm-publishable (`policyvault-mcp`; zero runtime
+  dependencies) with the official MCP registry ownership binding
+  (`mcpName: io.github.zapsoblige-hash/policyvault`), and
+  `mcp/server.json` carries the registry metadata (stdio transport,
+  environment variables with secret marking, authority statement).
+- `docs/postlaunch/mcp-distribution.md`: install, transport,
+  configuration, auth setup, read-only vs mutation semantics, network
+  guidance, example prompts, version compatibility, and fail-closed
+  behavior. The MCP layer remains a thin distribution surface over
+  existing capability — it implements no financial semantics, holds no
+  keys, and gains no authority from being packaged.
+
+### Added — agent-framework examples
+- `examples/agents/`: thin wiring for the OpenAI Agents SDK, LangChain,
+  and CrewAI that attaches an existing agent to PolicyVault through the
+  MCP server only. No adapter contains financial logic; the README
+  carries the authority statement, minimal-scope credential guidance,
+  simulate-before-create discipline, and untrusted-data rules.
+
+### Added — one-command self-hosting
+- `deploy/selfhost.sh` (init / up / check / acceptance / upgrade /
+  rollback / backup / restore / down / destroy) with
+  `deploy/docker-compose.selfhost.yml` and `docs/selfhost-quickstart.md`.
+  Equal-security by construction: testnet-10 default; mainnet requires
+  the same dual unlock as hosted production, an https origin, and a
+  TLS-capable PostgreSQL (the app refuses no-TLS postgres on mainnet);
+  generated config is mode-600 with a random database secret; dev/test
+  flags are never written; the self-check verifies release identity,
+  network equality, node sync + utxoindex, posture, and the structural
+  absence of wallet secrets.
+
+### Added — research transparency
+- `docs/postlaunch/v0.5-token-d1-spike.md`: the v0.5 token-support D1
+  research spike (KCC-0001/0002/0020 and current node-source findings),
+  with every claim labeled SOURCE-VERIFIED / SPEC-VERIFIED / DESIGN
+  TARGET / OPEN — nothing frozen, nothing VM-proven yet, and the
+  required dual binding (controller authorization + hash-verified
+  template pinning) recorded as a non-negotiable design constraint.
+
+### Notes
+- No schema, webhook, auth, or consensus change of any kind. No
+  external security audit has occurred; nothing here claims one.
+
 ## v1.3.0 — Bearer wallet-sessions + native mobile production transport
 
 The native-mobile/bearer successor to v1.2.0 (production buildId

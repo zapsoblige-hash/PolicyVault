@@ -1,0 +1,107 @@
+# PolicyVault SELF-HOSTED stack — equal-security, operator-owned.
+#
+#   bash deploy/selfhost.sh init     # safe config generation (writes deploy/selfhost.env)
+#   bash deploy/selfhost.sh up       # build + migrate + start
+#   bash deploy/selfhost.sh check    # health / network / posture self-check
+#
+# Topology (production shape, operator-owned ingress):
+#   [your reverse proxy / tunnel — optional] -> 127.0.0.1:${PV_SELFHOST_HTTP_PORT}
+#   app -> postgres:5432       (compose-private network only; never published)
+#   app -> your kaspad wRPC    (via the host-side private forwarder,
+#                               tools/staging-kaspad-proxy.js, bound to the
+#                               Docker bridge interface only — RPC is NEVER
+#                               internet-reachable)
+#
+# The app listener is published on 127.0.0.1 ONLY. Exposing it further is
+# an explicit operator decision (TLS reverse proxy or tunnel of your own).
+# PostgreSQL lives only on the compose network. The app container is
+# non-root with a read-only rootfs, bounded memory/pids/logs, tmpfs
+# scratch. Secrets come exclusively from deploy/selfhost.env (gitignored).
+#
+# Startup order: postgres (healthy) -> migrate (one-shot, advisory-locked)
+# -> app (fails closed if the schema is missing — it never auto-migrates).
+#
+# Self-hosting is a first-class, EQUAL-SECURITY path: same image, same
+# fail-closed config matrix, same server keylessness (no wallet secret of
+# any role exists as a hosted secret, by design).
+
+name: policyvault-selfhost
+
+services:
+  postgres:
+    image: ${PV_SELFHOST_POSTGRES_IMAGE:?run deploy/selfhost.sh init first}
+    environment:
+      POSTGRES_USER: ${PV_SELFHOST_PG_USER:?}
+      POSTGRES_PASSWORD: ${PV_SELFHOST_PG_PASSWORD:?}
+      POSTGRES_DB: ${PV_SELFHOST_PG_DATABASE:?}
+    volumes:
+      - pv-selfhost-pgdata:/var/lib/postgresql/data
+    networks: [pvnet]
+    # NO ports: — never published to the host or the internet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PV_SELFHOST_PG_USER} -d ${PV_SELFHOST_PG_DATABASE}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    mem_limit: 512m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # One-shot schema migration (explicit deployment step, never automatic):
+  # selfhost.sh runs it for you on `up` and `upgrade`.
+  migrate:
+    image: policyvault-app:${PV_SELFHOST_APP_TAG:?}
+    profiles: [ops]
+    # MUST override the image ENTRYPOINT (server.js), not `command:` —
+    # compose `command` is APPENDED to the entrypoint.
+    entrypoint: ["node", "/app/server/src/migrate.js"]
+    env_file: [selfhost.env]
+    networks: [pvnet]
+    depends_on:
+      postgres: { condition: service_healthy }
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+  app:
+    image: policyvault-app:${PV_SELFHOST_APP_TAG:?}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        POLICYVAULT_BUILD_ID: ${POLICYVAULT_BUILD_ID:-}
+    env_file: [selfhost.env]
+    environment:
+      POLICYVAULT_BIND_ADDRESS: "0.0.0.0"
+    networks: [pvnet]
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports:
+      # Loopback ONLY. Fronting this with TLS/ingress is your explicit,
+      # separate decision (see docs/selfhost-quickstart.md).
+      - "127.0.0.1:${PV_SELFHOST_HTTP_PORT:-3080}:3080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      - /app/data:size=256m,uid=10001,gid=10001,mode=0700
+    extra_hosts:
+      # The host-side kaspad forwarder listens on the Docker bridge
+      # gateway address only (tools/staging-kaspad-proxy.js).
+      - "host-kaspad:host-gateway"
+    restart: unless-stopped
+    mem_limit: 1g
+    pids_limit: 256
+    cpus: 2
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  pvnet:
+    driver: bridge
+
+volumes:
+  pv-selfhost-pgdata: {}
