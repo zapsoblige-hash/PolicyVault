@@ -58,6 +58,16 @@ const WalletState = {
  * 04-prefixed keys. Error messages carry only the value's shape, never the
  * raw malformed string.
  */
+/* Opt-in wallet diagnostics (never secrets): localStorage "pv.debug" = "1".
+ * Every access is guarded — storage may be unavailable or throw. */
+function walletDebugEnabled() {
+  try {
+    return typeof localStorage !== "undefined" && localStorage !== null && localStorage.getItem("pv.debug") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
 function normalizePublicKeyToXOnly(value, source) {
   const label = source || "wallet provider";
   if (typeof value !== "string" || !value.trim()) {
@@ -195,7 +205,10 @@ class KasWareAdapter {
       throw walletError(WalletError.PROVIDER_ERROR, e.message || "getPublicKey failed", e);
     }
     const xonly = normalizePublicKeyToXOnly(raw, "KasWare");
-    if (typeof console !== "undefined") {
+    // Wallet-identity diagnostic (PUBLIC key material only) is OPT-IN:
+    // production consoles stay quiet; set localStorage "pv.debug" = "1"
+    // to see the raw -> x-only normalization while debugging.
+    if (typeof console !== "undefined" && walletDebugEnabled()) {
       console.info(`[PolicyVault] KasWare public key ${raw} (${raw.trim().length} hex chars) -> x-only ${xonly}`);
     }
     return xonly;

@@ -56,6 +56,8 @@ const FLAT_EXPORTS = [
   // version identity
   "CONTRACT_VERSION", "CONTRACT_VERSION_V3", "CONTRACT_VERSION_V4", "CONTRACT_VERSION_V4_1",
   "SUPPORTED_COVENANT_VERSIONS", "V4_ABIS", "resolveV4Abi",
+  // v0.5 token-controller lineage (IMPLEMENTATION IN PROGRESS; additive)
+  "CONTRACT_VERSION_V5", "V5_ABIS", "resolveV5Abi",
   // client
   "PolicyVaultClient", "PolicyVaultApiError", "PolicyVaultNetworkError", "createClient",
   "randomIdempotencyKey", "API_PREFIX", "V4_WALLET_REQUEST_SCHEMA_VERSION"
@@ -68,7 +70,10 @@ const NAMESPACE_EXPORTS = [
   "approvalPackageV3", "approvalPackageV4", "frozenTxV3",
   "computeBudgetV3", "computeBudgetV4",
   "uxNormalizeV4", "addressIdentity", "operationalStatus", "donationAddress",
-  "intent", "signer", "explain", "governance"
+  "intent", "signer", "explain", "governance",
+  // v0.5 token-controller lineage + shared asset layer
+  "vaultStateV5", "vaultTransitionsV5", "agentMerkleV5", "computeBudgetV5",
+  "assets", "tokenManifestV5", "tokenExplain"
 ];
 
 test("every documented flat export resolves to a defined value", () => {

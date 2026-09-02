@@ -56,6 +56,7 @@ let py; // PyDriver
 let x402; // X402Session (surface 27 protocol adapter — REAL service)
 let ap2; // Ap2Session (surface 28 protocol adapter — REAL service)
 const mcp = {}; // label -> McpSession
+let bogusStart = null; // see before(): a bogus credential is refused at MCP discovery
 const report = new ConformanceReport({ suite: "agent-integration-conformance", paths: allPaths() });
 const bag = {}; // label -> body (amount-hygiene corpus)
 const builtRequestIds = []; // durable requests created during the run
@@ -90,8 +91,18 @@ before(async () => {
   js = new JsDriver({ baseUrl: harness.baseUrl, tokens });
   py = new PyDriver({ baseUrl: harness.baseUrl, tokens });
 
-  for (const label of ["six", "readonly", "reader", "tenant2", "janitor", "bogus"]) {
+  for (const label of ["six", "readonly", "reader", "tenant2", "janitor"]) {
     mcp[label] = await startMcpSession({ baseUrl: harness.baseUrl, token: tokens[label], label });
+  }
+  // A bogus credential can no longer yield an MCP session at all: since the
+  // least-privilege discovery corrective (2026-09-02) the adapter PRESENTS
+  // its credential at discovery and fails closed on the server's refusal.
+  // The startup refusal itself (server code + status) is the C09 evidence.
+  try {
+    mcp.bogus = await startMcpSession({ baseUrl: harness.baseUrl, token: tokens.bogus, label: "bogus" });
+    bogusStart = { started: true, message: "" };
+  } catch (e) {
+    bogusStart = { started: false, message: String(e && e.message) };
   }
 
   // The two REAL protocol-adapter services (surfaces 27/28), each on its
@@ -161,8 +172,23 @@ test("C01: capability discovery is identical across paths; every path pins the s
   });
 
   await report.cell(S, "cross", async () => {
-    assertAllEqual(byPath, "capabilities document");
-  }, "identical discovery document via all paths");
+    // Principal-scoped discovery (2026-09-02): a credentialed read of the
+    // PUBLIC document additionally carries the caller's OWN principal
+    // (its granted scopes); the MCP policyvault_capabilities tool reads
+    // anonymously, so it carries none. Everything else is identical.
+    const stripped = {};
+    for (const [path, doc] of Object.entries(byPath)) {
+      const { principal, ...rest } = doc;
+      stripped[path] = rest;
+      if (principal !== undefined) {
+        assert.equal(principal.kind, "machine", `${path}: a credentialed discovery read names a machine principal`);
+        assert.deepEqual([...principal.scopes].sort(), [...harness.scopesOf("six")].sort(), `${path}: the principal's scopes are exactly the credential's own`);
+      }
+    }
+    assert.equal(byPath.mcp.principal, undefined, "the MCP capabilities TOOL reads the public document anonymously");
+    assert.equal(byPath.js.features.principalScopedDiscovery, true, "hosted mode declares principal-scoped discovery");
+    assertAllEqual(stripped, "capabilities document");
+  }, "identical discovery document via all paths (each credentialed path additionally names only its own principal)");
   report.setServer({ networkId: byPath.js.networkId, apiVersion: byPath.js.apiVersion, ...(byPath.js.buildId ? { buildId: byPath.js.buildId } : {}) });
   bag["capabilities"] = byPath.js;
 });
@@ -459,7 +485,10 @@ test("C09: the refusal envelope is the same object on every path — unknown vau
     const props = await mcp.reader.callTool("c09-g", "policyvault_governance_proposals", { vaultId: VAULT_A });
     assert.ok(props.ok);
     proposalLists.mcp = props.body.proposals.map((x) => x.proposalId);
-    assertSameRefusal({ mcp: await mcp.bogus.callTool("c09-b", "policyvault_list_vaults", {}) }, { code: "MACHINE_TOKEN_INVALID", status: 401 }, "bogus credential");
+    // bogus credential: refused at DISCOVERY (startup) with the server's own
+    // code and status — the same refusal every other path reports per call.
+    assert.equal(bogusStart.started, false, "a bogus credential never yields an MCP session (fail-closed discovery)");
+    assert.match(bogusStart.message, /refused at discovery \(http 401 MACHINE_TOKEN_INVALID\)/, `same refusal code+status as every other path, surfaced at startup: ${bogusStart.message}`);
     // Anonymous MCP is impossible by construction (config refuses to start
     // without a credential) — the origin-wall probe has no MCP cell.
   }, "anonymous probe N/A: the adapter cannot start without a credential (CONFIG_TOKEN_MISSING)");
@@ -1030,7 +1059,30 @@ test("C16: the MCP catalog and the Python package match their declared capabilit
   const S = "C16-surface-locks";
 
   await report.cell(S, "mcp", async () => {
-    const tools = await mcp.six.toolsList();
+    // Least-privilege discovery (2026-09-02): each credential is advertised
+    // ONLY the tools its own scopes cover. The six-scope profile therefore
+    // sees exactly nine tools; the catalog LOCK below is asserted over the
+    // union of complementary credentials (six + reader + janitor), which
+    // together cover every scope the v1 catalog uses.
+    const six = await mcp.six.toolsList();
+    assert.deepEqual(
+      six.map((t) => t.name).sort(),
+      [
+        "policyvault_capabilities",
+        "policyvault_create_request",
+        "policyvault_list_requests",
+        "policyvault_list_vaults",
+        "policyvault_network_status",
+        "policyvault_request_status",
+        "policyvault_simulate_request",
+        "policyvault_vault",
+        "policyvault_vault_audit"
+      ],
+      "six-scope credential: exactly the tools its scopes cover — nothing hidden is advertised"
+    );
+    const union = new Map();
+    for (const t of [...six, ...(await mcp.reader.toolsList()), ...(await mcp.janitor.toolsList())]) union.set(t.name, t);
+    const tools = [...union.values()];
     const names = tools.map((t) => t.name).sort();
     assert.deepEqual(
       names,
@@ -1064,7 +1116,7 @@ test("C16: the MCP catalog and the Python package match their declared capabilit
     assert.ok(!("idempotencyKey" in create.inputSchema.properties), "create_request must not accept a caller key");
     const r = await mcp.six.callToolRaw("c16", "policyvault_create_request", { ...mcpArgs(spendSpec(VAULT_A, "100000000")), idempotencyKey: "attacker-chosen" });
     assert.equal(r.envelope.status, "SCHEMA_REFUSED");
-  }, "catalog lock: 14 tools; mutations = {create_request, reject_request}", "LIMITATION_ASSERTED");
+  }, "catalog lock: 14 tools (union over six+reader+janitor; each credential is advertised only its own scope subset); mutations = {create_request, reject_request}", "LIMITATION_ASSERTED");
 
   await report.cell(S, "python", async () => {
     const o = await py.introspect();

@@ -152,6 +152,21 @@ test("live: tool catalog derives from the REAL discovery document (action enum =
   const names = res.result.tools.map((t) => t.name);
   assert.ok(names.includes("policyvault_simulate_request"), "the real server advertises dryRunSimulation");
   assert.ok(names.includes("policyvault_create_request"));
+  // LEAST-PRIVILEGE DISCOVERY against the REAL server: the credential holds
+  // read:vaults + request:build + read:requests, so exactly the tools those
+  // scopes cover are advertised — the rest are hidden (yet still server-
+  // refused when called by name; see the SCOPE_FORBIDDEN tests below).
+  assert.deepEqual(names, [
+    "policyvault_capabilities",
+    "policyvault_list_vaults",
+    "policyvault_vault",
+    "policyvault_vault_audit",
+    "policyvault_simulate_request",
+    "policyvault_create_request",
+    "policyvault_request_status",
+    "policyvault_list_requests"
+  ]);
+  assert.match(driver.stderrRaw, /8 of 14 tool\(s\) advertised \(discovery: credential-scoped\)/);
   const create = res.result.tools.find((t) => t.name === "policyvault_create_request");
   assert.deepEqual(create.inputSchema.properties.action.enum.sort(), Object.keys(ROLE_BY_ACTION).sort(), "the action enum must equal the SDK export, via the wire, not via retyping");
 });
@@ -287,7 +302,7 @@ test("live: real subprocess over actual stdio — handshake, tools/list, tools/c
   const init = msgs.find((m) => m.id === 1);
   assert.equal(init.result.protocolVersion, "2025-06-18");
   const list = msgs.find((m) => m.id === 2);
-  assert.ok(list.result.tools.length >= 10);
+  assert.equal(list.result.tools.length, 8, "credential-scoped discovery over real stdio (3 scopes → 8 advertised tools)");
   const call = msgs.find((m) => m.id === 3);
   assert.equal(call.result.structuredContent.status, "OK");
   assert.equal(call.result.structuredContent.data.vaults[0].vaultId, VAULT_ID);

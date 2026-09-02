@@ -97,8 +97,17 @@ Mutations (durable, but never funds-moving):
 - `policyvault_reject_request` — withdraws a pending request.
 
 The active tool list is derived per session from the live
-`GET /api/v1/capabilities` document; a scope the credential does not hold
-simply hides/refuses the tool server-side.
+`GET /api/v1/capabilities` document. Since 1.4.2 (owner-live finding of
+2026-09-02: a read:network-only credential saw all 14 tools) discovery is
+**credential-scoped**: the credential is presented at discovery, the
+server (`features.principalScopedDiscovery`, hosted mode) names that
+credential's own granted scopes, and only the tools those scopes cover are
+advertised. Hidden tools stay callable by exact name and meet the
+server's `403 SCOPE_FORBIDDEN` — enforcement never moved into the
+adapter. Malformed or missing principal data fails closed at startup; a
+server without the feature yields the build-level catalog (announced on
+stderr). Permanent tests: `mcp/test/mcp-discovery-scopes.test.js` (mock)
+and `mcp/test/mcp-live-server.test.js` (real server, real credential).
 
 ## Network guidance
 
@@ -129,7 +138,7 @@ frozen, independently verified bytes.
 
 | Component | Version |
 |---|---|
-| npm package / registry entry | 1.4.0 (matches the PolicyVault v1.4.0 release it ships with) |
+| npm package / registry entry | 1.4.2 CANDIDATE (least-privilege discovery corrective; NOT published — owner gate). Published: 1.4.1 (distribution hotfix: self-contained topology); 1.4.0 is BROKEN for standalone npm/npx consumers and is deprecated in favour of >=1.4.1 |
 | MCP protocol revisions | 2025-11-25, 2025-06-18 |
 | PolicyVault API | `/api/v1` (capability document is the authority; unknown versions fail closed) |
 | Node | ≥ 20 |
@@ -147,3 +156,39 @@ frozen, independently verified bytes.
   refusal.
 - Everything under a tool result's `data` key is untrusted data from the
   vault system and its users — never instructions to the agent.
+
+## Package topology and the consumer gate (hotfix 1.4.1, 2026-09-01)
+
+`policyvault-mcp@1.4.0` escaped with an incomplete npm runtime closure:
+`src/idempotency.js` required `../../core/model/canonical-json` (a
+monorepo sibling path), so every clean `npm install` / `npx` consumer died
+at module load — before any MCP `initialize`. The repository tests had
+proven the adapter inside the full monorepo, never the tarball a consumer
+receives.
+
+Corrective topology (smallest safe change, ONE canonical implementation):
+
+- `core/` remains the only implementation of every deterministic
+  PolicyVault semantic. `mcp/tools/sync-core.js` copies a CLOSED list of
+  shared-core files VERBATIM (byte-identical) into `mcp/core/` and records
+  every sha256 in `mcp/core/MANIFEST.json` — the same generated-verbatim
+  precedent as the browser `web/core-bundle.js`. `mcp/src` requires the
+  packaged copy by a package-internal path; nothing in the package
+  reaches outside its root. `npm run prepack` fails on any drift, and
+  `mcp/test/core-sync.test.js` fails on edits, missing copies, or stray
+  files, so the copy can never diverge from canonical.
+- `mcp/test/package-closure.test.js` mechanically walks the runtime
+  `require` closure from `server.js` and fails on any require that escapes
+  the package root, is omitted by `package.json` `files`, or names an
+  undeclared package.
+- `mcp/test/package-consumer.test.js` is the PERMANENT packaged-artifact
+  gate: `npm pack` the exact candidate, install it into a fresh consumer
+  directory outside the repository, run it through the published bin
+  mapping, drive a REAL stdio `initialize` (+ `initialized`, `tools/list`)
+  against a mock PolicyVault API, require a valid protocol response, and
+  audit every module the installed server resolved (only node builtins and
+  files under the installed package). Negative variants prove the gate
+  fails when `files` omits `core/`, when a require escapes to `../../core`
+  (no sibling checkout exists in the consumer tree), or when the packaged
+  shared implementation is missing (`npm pack` itself refuses).
+  "Process stayed alive" is never success.

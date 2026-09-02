@@ -453,3 +453,78 @@ test("wallet rejection: no success state, no signed submission", async () => {
   assert.ok(!notice.className.includes("good"), "no success state after rejection");
   assert.match(notice.textContent, /failed|rejected|USER_REJECTED/i);
 });
+
+/* ---------------- PRODUCTION CONSOLE CORRECTIVES (owner-live findings, 2026-09-02) ---------------- */
+
+test("dev signer: the console NEVER probes /wallet/dev-accounts; the mock connect button appears ONLY when /health advertises devSigner:true", async () => {
+  // production-shaped server (mainnet, no dev signer advertised)
+  const prod = makeSandbox(hostedSignedOutRoute);
+  vm.runInContext(APP_JS, prod.sandbox, { filename: "app.js" });
+  await settle();
+  assert.ok(!prod.calls.some((c) => c.includes("/wallet/dev-accounts")), "zero /wallet/dev-accounts requests against a production server");
+  assert.equal(prod.element("btn-connect-mock").style.display, undefined, "mock connect never shown");
+  assert.ok(!APP_JS.includes('"/wallet/dev-accounts"'), "the console carries no dev-accounts probe at all");
+  // an explicitly configured development server (testnet + POLICYVAULT_DEV_SIGNER=1) advertises it on /health
+  const dev = makeSandbox((p) => (p.endsWith("/health") ? jsonResponse({ ok: true, networkId: "testnet-10", authMode: "disabled", devSigner: true }) : hostedSignedOutRoute(p)));
+  vm.runInContext(APP_JS, dev.sandbox, { filename: "app.js" });
+  await settle();
+  assert.equal(dev.element("btn-connect-mock").style.display, "", "mock connect offered when — and only when — the server advertises its dev signer");
+  assert.ok(!dev.calls.some((c) => c.includes("/wallet/dev-accounts")), "still no probe: the advertisement is the only trigger");
+});
+
+test("WALLET CONNECTED ≠ SESSION AUTHENTICATED: a connected, ready wallet with a SIGNED_OUT hosted session issues ZERO privileged reads and paints the quiet sign-in state — on every view and on repeated wallet events", async () => {
+  const { env, V4, root, setSnap } = makeV4(hostedSignedOutRoute);
+  const privileged = () => env.calls.filter((c) => c.endsWith("/vaults") || c.endsWith("/organizations") || c.includes("/wallet/v4/requests") || c.includes("/governance/proposals") || c.includes("/audit"));
+  await setSnap({ ...READY_SNAP, auth: "SIGNED_OUT" });
+  await settle();
+  assert.match(root.innerHTML, /Sign in to view your vaults\./, "quiet sign-in state, not a 401 dump");
+  assert.deepEqual(privileged(), [], "no privileged read while signed out");
+  for (const [view, hint] of [["orgs", /Sign in to use Organizations\./], ["activity", /Sign in to view activity\./], ["vaults", /Sign in to view your vaults\./]]) {
+    V4._state.view = view;
+    await V4.render();
+    await settle();
+    assert.match(root.innerHTML, hint, `quiet state on the ${view} view`);
+  }
+  // repeated wallet events while signed out (reconnects, account/network echoes): still nothing
+  for (let i = 0; i < 5; i++) { await setSnap({ ...READY_SNAP, auth: "SIGNED_OUT", xonly: null }); await setSnap({ ...READY_SNAP, auth: "SIGNED_OUT" }); }
+  await settle();
+  assert.deepEqual(privileged(), [], "wallet churn while signed out never turns into a 401 loop");
+});
+
+test("session lifecycle: sign-in triggers the reads once; SESSION_INVALID clears retained state and stops all privileged reads; a 401 on a read IS still honoured as a refusal", async () => {
+  let signedOut = true;
+  const route = (p) => {
+    if (signedOut && (p.endsWith("/vaults") || p.endsWith("/organizations") || p.includes("/wallet/") || p.includes("/audit"))) return AUTH_REFUSAL;
+    return signedInRoute()(p);
+  };
+  const { env, V4, root, setSnap } = makeV4(route);
+  const privileged = () => env.calls.filter((c) => c.endsWith("/vaults") || c.endsWith("/organizations") || c.includes("/wallet/v4/requests") || c.includes("/audit"));
+  V4._state.view = "vaults";
+  await setSnap({ ...READY_SNAP, auth: "SIGNED_OUT" }); await settle();
+  assert.deepEqual(privileged(), []);
+  // login
+  signedOut = false;
+  await setSnap(READY_SNAP); await settle();
+  assert.match(root.innerHTML, /Ops Treasury/, "authenticated data loads after sign-in");
+  const afterLogin = privileged().length;
+  assert.ok(afterLogin >= 3, "the required loads occurred exactly once per view render");
+  // server invalidates the session out of band: the next read is refused, honoured as a refusal (no retry loop)
+  signedOut = true;
+  await V4.render(); await settle();
+  assert.equal(privileged().length, afterLogin + 3, "exactly one batch of attempts, no retry");
+  assert.match(root.innerHTML, /Sign in to view your vaults\./, "a 401 remains a genuine refusal, rendered quietly");
+  assert.ok(!/Ops Treasury/.test(root.innerHTML), "stale privileged data never stands after a refusal");
+  // the canonical session reports SIGNED_OUT: no further attempts on any later event
+  await setSnap({ ...READY_SNAP, auth: "SIGNED_OUT" }); await settle();
+  const settled = privileged().length;
+  for (let i = 0; i < 4; i++) { await V4.render(); await setSnap({ ...READY_SNAP, auth: "SIGNED_OUT", xonly: i % 2 ? null : READY_SNAP.xonly }); }
+  await settle();
+  assert.equal(privileged().length, settled, "signed out: zero authenticated polling");
+});
+
+test("self-hosted (auth DISABLED) app-v4 reads are unchanged by the signed-out gate", async () => {
+  const { env, root, setSnap } = makeV4(signedInRoute());
+  await setSnap({ ...READY_SNAP, auth: "DISABLED" }); await settle();
+  assert.match(root.innerHTML, /Ops Treasury/);
+  assert.ok(env.calls.includes("/vaults"));
+});

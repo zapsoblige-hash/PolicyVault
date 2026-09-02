@@ -461,3 +461,105 @@ export declare const explain: {
 export declare const governance: {
   readonly [name: string]: unknown;
 };
+
+/* ===== v0.5 TOKEN CONTROLLER lineage (IMPLEMENTATION IN PROGRESS; additive beside v0.4/v0.4.1) ===== */
+
+/** Frozen v0.5 version tag. */
+export declare const CONTRACT_VERSION_V5: string;
+/** v0.5 version-ABI table. */
+export declare const V5_ABIS: Readonly<Record<string, unknown>>;
+/** Resolve a v0.5 ABI; unknown versions throw (fail closed). */
+export declare function resolveV5Abi(contractVersion: string): unknown;
+
+/** v0.5 token-controller state (core/model/vault-state-v5.js): immutable pins (owner, vaultId, descriptorHash, tokenCovenantId, templateVmHash, geometry) + 5 mutable fields; unknown versions fail closed. */
+export declare const vaultStateV5: {
+  CONTRACT_VERSION_V5: unknown;
+  V5_ABIS: unknown;
+  OWNER_OP_SELECTOR_V5: unknown;
+  resolveV5Abi(...args: unknown[]): unknown;
+  normalizeTemplateV5(...args: unknown[]): unknown;
+  normalizeStateV5(...args: unknown[]): unknown;
+  normalizeStateV5ForRecovery(...args: unknown[]): unknown;
+  computeStateIdV5(...args: unknown[]): unknown;
+  stateToJsonV5(...args: unknown[]): unknown;
+  templateToJsonV5(...args: unknown[]): unknown;
+};
+
+/** v0.5 successor derivation mirroring PolicyVault.v0.5.sil: tokenAgentSpend (token conservation + token-denominated policy + KAS domain), owner ops, recover plan. */
+export declare const vaultTransitionsV5: {
+  MAX_PERIODS_ELAPSED: unknown;
+  tokenAgentSpendSuccessorV5(...args: unknown[]): unknown;
+  tokenContinuationStatesV5(...args: unknown[]): unknown;
+  setAgentRootSuccessorV5(...args: unknown[]): unknown;
+  topUpReserveSuccessorV5(...args: unknown[]): unknown;
+  pauseSuccessorV5(...args: unknown[]): unknown;
+  recoverPlanV5(...args: unknown[]): unknown;
+};
+
+/** v0.5 token-agent policy Merkle tree (125-byte leaf; token units and sompi in separate fields). */
+export declare const agentMerkleV5: {
+  TOKEN_AGENT_LEAF_DOMAIN: unknown;
+  TOKEN_AGENT_PADDING_DOMAIN: unknown;
+  TOKEN_AGENT_POLICY_FIELDS: unknown;
+  RECIPIENT_SCHEME_P2PK: unknown;
+  PADDING_LEAF_HEX: unknown;
+  MAX_AGENT_DEPTH: unknown;
+  MAX_AGENTS: unknown;
+  LEAF_PREIMAGE_LEN: unknown;
+  normalizeTokenAgentPolicyV5(...args: unknown[]): unknown;
+  tokenAgentLeafPreimage(...args: unknown[]): unknown;
+  tokenAgentLeafHash(...args: unknown[]): unknown;
+  buildTokenAgentTreeV5(...args: unknown[]): unknown;
+  generateTokenAgentProofV5(...args: unknown[]): unknown;
+  verifyTokenAgentProofV5(...args: unknown[]): unknown;
+  foldLeafV5(...args: unknown[]): unknown;
+  foldTokenAgentPolicyV5(...args: unknown[]): unknown;
+  addTokenAgentV5(...args: unknown[]): unknown;
+  removeTokenAgentV5(...args: unknown[]): unknown;
+  updateTokenAgentPolicyV5(...args: unknown[]): unknown;
+  rotateTokenAgentV5(...args: unknown[]): unknown;
+  applyTokenAgentSpendV5(...args: unknown[]): unknown;
+  tokenAgentPolicyToJsonV5(...args: unknown[]): unknown;
+};
+
+/** v0.5 measured, template-scaled compute-budget model. */
+export declare const computeBudgetV5: {
+  V5_BUDGET: unknown;
+  UNITS_PER_BUDGET: unknown;
+  SIGOP_UNITS: unknown;
+  selectComputeBudgetV5(...args: unknown[]): unknown;
+  assertBudgetSufficientV5(...args: unknown[]): unknown;
+};
+
+/** Shared asset layer (core/assets): policyvault-asset-descriptor/1 validation + hash, canonical KCC20 codec, template corroboration (geometry, in-VM blake2b, standardness envelope), token-input verification, portable blake2b. */
+export declare const assets: {
+  SCHEMA_V1: unknown;
+  DESCRIPTOR_HASH_DOMAIN: unknown;
+  DescriptorError(...args: unknown[]): unknown;
+  Kcc20Error(...args: unknown[]): unknown;
+  validateAssetDescriptor(...args: unknown[]): unknown;
+  parseAtomicAmount(...args: unknown[]): unknown;
+  computeDescriptorHash(...args: unknown[]): unknown;
+  corroborateTemplate(...args: unknown[]): unknown;
+  verifyTokenInputRedeem(...args: unknown[]): unknown;
+  redeemFromSignatureScript(...args: unknown[]): unknown;
+  kcc20: unknown;
+  blake2b: unknown;
+};
+
+/** policyvault-token-intent-manifest/1: build from a v0.5 build, deterministic local verification against the frozen transaction. */
+export declare const tokenManifestV5: {
+  TOKEN_MANIFEST_VERSION_1: unknown;
+  ACTIONS: unknown;
+  VERIFIED_STATEMENT: unknown;
+  buildTokenIntentManifest(...args: unknown[]): unknown;
+  verifyTokenIntentManifest(...args: unknown[]): unknown;
+  canonicalJsonStringify(...args: unknown[]): unknown;
+};
+
+/** Deterministic explanation of a token intent manifest with separate TOKEN / KAS / ISSUER / VERIFICATION sections. */
+export declare const tokenExplain: {
+  explainTokenIntent(...args: unknown[]): unknown;
+  scaled(...args: unknown[]): unknown;
+};
+

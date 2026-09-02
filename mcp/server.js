@@ -133,7 +133,10 @@ function createMcpSession({ input, output, errput, env }) {
       replyError(id, E.INVALID_PARAMS, "unknown pagination cursor (this server returns the complete tool list in one page and never issues cursors)");
       return;
     }
-    replyResult(id, { tools: [...catalog.values()].map((t) => t.definition) });
+    // Least-privilege discovery: only tools the presented credential can
+    // use are advertised; hidden tools remain callable by exact name and
+    // are answered by the server's own scope refusal (never by this layer).
+    replyResult(id, { tools: [...catalog.values()].filter((t) => t.advertised).map((t) => t.definition) });
   }
 
   async function onToolsCall(id, params) {
@@ -353,10 +356,15 @@ function createMcpSession({ input, output, errput, env }) {
       // line (Hostile-AI review H-3; caps here is the raw document, not the
       // tools.js-parsed one).
       const safeDiag = (v) => (typeof v === "string" && /^[a-z0-9._-]{1,32}$/i.test(v) ? v : "unknown");
+      const advertisedCount = [...catalog.values()].filter((t) => t.advertised).length;
       diag(
         `connected to ${cfg.targetLabel} (network ${safeDiag(caps.networkId)}, api ${safeDiag(caps.apiVersion)}); ` +
-          `${catalog.size} tool(s) active; protocol revisions ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}`
+          `${advertisedCount} of ${catalog.size} tool(s) advertised (discovery: ${caps.discovery === "principal" ? "credential-scoped" : "build-level"}); ` +
+          `protocol revisions ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}`
       );
+      if (caps.discovery !== "principal") {
+        diag("this server does not declare principal-scoped discovery; the build-level catalog is advertised — scope enforcement remains server-side per call");
+      }
       input.setEncoding("utf8");
       input.on("data", onData);
       input.on("end", onEnd);
@@ -371,7 +379,8 @@ function createMcpSession({ input, output, errput, env }) {
     },
     /* test hooks (read-only) */
     _lifecycle: () => lifecycle,
-    _toolCount: () => (catalog ? catalog.size : 0)
+    _toolCount: () => (catalog ? catalog.size : 0),
+    _advertisedCount: () => (catalog ? [...catalog.values()].filter((t) => t.advertised).length : 0)
   };
 }
 

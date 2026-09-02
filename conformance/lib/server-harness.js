@@ -93,6 +93,7 @@ class ConformanceHarness {
     this.port = 0;
     this.baseUrl = null;
     this.tokens = {}; // name -> raw pvmk_ credential (test-only; scanned-for, never printed)
+    this.scopes = {}; // name -> the exact scope list minted for that credential
     this.encoderAvailable = fs.existsSync(ENCODER_PATH);
   }
 
@@ -176,7 +177,15 @@ class ConformanceHarness {
       throw new Error(`harness mint '${name}' failed: http ${created.status} ${created.json && created.json.error ? created.json.error.code : ""}`);
     }
     this.tokens[name] = created.json.credential.token;
+    this.scopes[name] = [...scopes];
     return created.json;
+  }
+
+  /* The exact scope list minted for a named credential (principal-scoped
+   * discovery parity checks compare against this, never against prose). */
+  scopesOf(name) {
+    if (!this.scopes[name]) throw new Error(`harness: no minted credential named '${name}'`);
+    return [...this.scopes[name]];
   }
 
   /* Expected mint-time refusal (over-scoped / unknown scope — fail closed). */

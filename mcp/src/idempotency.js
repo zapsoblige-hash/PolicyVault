@@ -40,7 +40,9 @@
  */
 
 const crypto = require("node:crypto");
-const { canonicalJsonStringify } = require("../../core/model/canonical-json");
+/* Shared-core module, packaged VERBATIM by mcp/tools/sync-core.js (canonical
+ * source: core/model/canonical-json.js — never duplicated or edited here). */
+const { canonicalJsonStringify } = require("../core/model/canonical-json");
 
 function deriveIdempotencyKey({ tool, mcpRequestId, args }) {
   if (typeof tool !== "string" || tool === "") throw new Error("deriveIdempotencyKey: tool name required");

@@ -16,6 +16,17 @@
  *   - a tool activates only if every scope it requires exists in the
  *     document's scope enum (a build that drops a scope silently drops the
  *     tool) and its feature flag (if any) is true;
+ *   - LEAST-PRIVILEGE DISCOVERY (2026-09-02 corrective): the credential is
+ *     PRESENTED at discovery; a server declaring
+ *     `features.principalScopedDiscovery` names this credential's own
+ *     granted scopes (`principal.scopes`), and a tool is ADVERTISED on
+ *     tools/list only if every scope it requires is granted (scope absent
+ *     → capability absent → tool absent from discovery). Scope removal can
+ *     only shrink discovery, never widen it. Hidden tools stay CALLABLE by
+ *     exact name so a manual invocation still meets the server's own
+ *     403 SCOPE_FORBIDDEN — the server remains the final boundary; this
+ *     adapter never decides authority. A server that does not declare the
+ *     feature yields the build-level catalog (announced on stderr);
  *   - the v0.4 `action` enum in tool input schemas is copied from
  *     `capabilities.actions.v4` (the server's own ROLE_BY_ACTION export) —
  *     never retyped here;
@@ -348,14 +359,40 @@ function normalizeCapabilities(doc) {
   // shape so a malformed value cannot forge or truncate a log line.
   // (Hostile-AI review H-3.)
   const apiVersion = typeof doc.apiVersion === "string" && /^[a-z0-9._-]{1,32}$/i.test(doc.apiVersion) ? doc.apiVersion : "unknown";
-  return { scopes: new Set(scopes), actions, walletV4SchemaVersion, features, networkId, apiVersion };
+  /* Principal-scoped discovery: the server declares the feature and, since
+   * this adapter presented its credential, names the caller's own machine
+   * principal with its granted scopes. Shape-validated like everything
+   * else; a server that declares the feature but names no machine
+   * principal is off-contract and FAILS CLOSED (the credential was sent —
+   * "nobody" is never an acceptable answer). Granted scopes must be a
+   * subset of the enum (an unknown grant fails closed). Without the
+   * feature (older build, or self-hosted mode without machine
+   * identities) discovery stays build-level. */
+  const scopedDiscovery = features.principalScopedDiscovery === true;
+  let grantedScopes = null;
+  if (scopedDiscovery) {
+    const p = doc.principal;
+    if (!p || typeof p !== "object" || Array.isArray(p)) throw new DiscoveryError("the server declares principal-scoped discovery but named no principal for the presented credential — failing closed");
+    if (p.kind !== "machine") throw new DiscoveryError("the presented credential did not resolve to a machine principal — failing closed");
+    if (!Array.isArray(p.scopes)) throw new DiscoveryError("principal.scopes is missing/off-shape — failing closed");
+    grantedScopes = new Set();
+    for (const s of p.scopes) {
+      if (typeof s !== "string" || !SCOPE_RE.test(s)) throw new DiscoveryError("a granted scope name in the discovery document is off-shape — failing closed");
+      if (!scopes.includes(s)) throw new DiscoveryError(`granted scope ${JSON.stringify(s)} is not in the server's scope enum — failing closed`);
+      grantedScopes.add(s);
+    }
+  }
+  return { scopes: new Set(scopes), actions, walletV4SchemaVersion, features, networkId, apiVersion, grantedScopes, discovery: scopedDiscovery ? "principal" : "build" };
 }
 
 /*
- * buildToolCatalog(caps, cfg) -> { tools: Map(name -> tool), listPayload }
- * where each tool = { definition, requiredScopes, mutating, request }.
- * Activation is DERIVED (see header); cfg.advertisedScopes (env, optional)
- * can only NARROW what is advertised — enforcement always remains
+ * buildToolCatalog(caps, cfg) -> Map(name -> tool)
+ * where each tool = { definition, requiredScopes, mutating, request, advertised }.
+ * Activation is DERIVED (see header). `advertised` is false for a tool the
+ * presented credential cannot use (principal-scoped discovery): it is
+ * omitted from tools/list but stays callable by exact name so the server's
+ * 403 SCOPE_FORBIDDEN — not this adapter — answers. cfg.advertisedScopes
+ * (env, optional) can only NARROW further — enforcement always remains
  * server-side per call.
  */
 function buildToolCatalog(caps, cfg) {
@@ -364,6 +401,7 @@ function buildToolCatalog(caps, cfg) {
     if (!bp.requiredScopes.every((s) => caps.scopes.has(s))) continue; // build no longer offers it
     if (bp.featureFlag && caps.features[bp.featureFlag] !== true) continue; // feature disabled
     if (cfg.advertisedScopes && !bp.requiredScopes.every((s) => cfg.advertisedScopes.includes(s))) continue; // operator narrowing
+    const advertised = !caps.grantedScopes || bp.requiredScopes.every((s) => caps.grantedScopes.has(s));
     tools.set(bp.name, {
       definition: {
         name: bp.name,
@@ -380,14 +418,25 @@ function buildToolCatalog(caps, cfg) {
       },
       requiredScopes: bp.requiredScopes,
       mutating: bp.mutating === true,
-      request: bp.request
+      request: bp.request,
+      advertised
     });
   }
   return tools;
 }
 
 async function fetchCapabilities(cfg) {
-  const { httpStatus, body } = await callApi(cfg, { method: "GET", pathSegments: ["capabilities"], anonymous: true });
+  // The credential IS presented at discovery so the server can name this
+  // caller's own granted scopes (principal-scoped discovery). A refused
+  // credential fails closed here, before any tool exists.
+  const { httpStatus, body } = await callApi(cfg, { method: "GET", pathSegments: ["capabilities"] });
+  if (httpStatus === 401 || httpStatus === 403) {
+    // Surface the server's own refusal code (shape-validated: it is echoed
+    // into an operator-facing line) so every client path refuses a bad
+    // credential with the SAME code and status.
+    const code = body && body.error && typeof body.error.code === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(body.error.code) ? body.error.code : "REFUSED";
+    throw new DiscoveryError(`the credential was refused at discovery (http ${httpStatus} ${code}) — failing closed`);
+  }
   if (httpStatus !== 200) throw new DiscoveryError(`GET /api/v1/capabilities answered http ${httpStatus} — failing closed`);
   return normalizeCapabilities(body);
 }

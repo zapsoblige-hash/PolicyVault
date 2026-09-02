@@ -325,3 +325,40 @@ test("account/network events propagate through the legacy event names", async ()
   assert.deepEqual(seen.network, ["mainnet"], "provider labels normalized exactly like the legacy adapter");
   assert.equal(sess.getActiveAddress(), ADDRESS_B, "tracked identity mirror follows events");
 });
+
+test("wallet-identity diagnostics are OPT-IN: no console output by default (both adapters); emitted only with localStorage pv.debug=1; never a secret", async () => {
+  const seen = [];
+  const origInfo = console.info;
+  console.info = (...a) => { seen.push(a.join(" ")); };
+  const withStorage = async (value, fn) => {
+    const prev = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: value === undefined ? undefined : { getItem: (k) => (k === "pv.debug" ? value : null) } });
+    try { return await fn(); } finally { if (prev) Object.defineProperty(globalThis, "localStorage", prev); else delete globalThis.localStorage; }
+  };
+  try {
+    // default (no storage / storage without the flag): silent
+    await withStorage(undefined, async () => {
+      assert.equal(await kasMod.createKasWareSessionAdapter({ win: winFor(fakeKasware()) }).getPublicKeyXOnly(), "ab".repeat(32));
+      await withGlobalWindow(winFor(fakeKasware()), async () => { const { KasWareAdapter } = require("../wallet.js"); await new KasWareAdapter().getPublicKeyXOnly(); });
+    });
+    await withStorage("0", async () => { await kasMod.createKasWareSessionAdapter({ win: winFor(fakeKasware()) }).getPublicKeyXOnly(); });
+    assert.deepEqual(seen, [], "production consoles never dump wallet identity");
+    // opt-in
+    await withStorage("1", async () => {
+      await kasMod.createKasWareSessionAdapter({ win: winFor(fakeKasware()) }).getPublicKeyXOnly();
+      await withGlobalWindow(winFor(fakeKasware()), async () => { const { KasWareAdapter } = require("../wallet.js"); await new KasWareAdapter().getPublicKeyXOnly(); });
+    });
+    assert.equal(seen.length, 2, "one diagnostic per call when explicitly enabled");
+    for (const line of seen) {
+      assert.match(line, /KasWare public key 02(ab){32} \(66 hex chars\) -> x-only (ab){32}$/);
+      assert.ok(!/seed|mnemonic|private|secret|pvmk_|Bearer/i.test(line), "public material only");
+    }
+    // a throwing storage is treated as "not enabled"
+    const prev = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, get() { throw new Error("SecurityError"); } });
+    try { await kasMod.createKasWareSessionAdapter({ win: winFor(fakeKasware()) }).getPublicKeyXOnly(); } finally { if (prev) Object.defineProperty(globalThis, "localStorage", prev); else delete globalThis.localStorage; }
+    assert.equal(seen.length, 2);
+  } finally {
+    console.info = origInfo;
+  }
+});

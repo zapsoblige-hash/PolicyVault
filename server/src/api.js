@@ -19,6 +19,15 @@ const { sompiToKas } = require("../../sdk/src/amounts");
 const { readAudit, appendAudit } = require("./audit");
 const { API_VERSION, V4_WALLET_REQUEST_SCHEMA_VERSION } = require("./api-version");
 
+/* TEST-ONLY dev signer availability: env-gated AND never on mainnet. The
+ * single predicate behind the /wallet/dev-* routes and the /health
+ * advertisement — the web console offers the mock signer (and touches the
+ * dev route at all) ONLY when the server says so here, so a production
+ * server sees zero /wallet/dev-accounts requests. */
+function devSignerEnabled(config) {
+  return process.env.POLICYVAULT_DEV_SIGNER === "1" && config.networkId !== "mainnet";
+}
+
 function apiError(status, code, message, extra) {
   const error = new Error(message);
   error.status = status;
@@ -461,7 +470,17 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
   // requires a principal or scope — see scopes.js isPublicRoute.
   if (method === "GET" && segments.length === 1 && segments[0] === "capabilities") {
     const { buildCapabilities } = require("./capabilities");
-    return { status: 200, body: buildCapabilities(config) };
+    // Principal-scoped discovery (2026-09-02): the route stays public and
+    // unchanged for anonymous callers and for browsers (cookies are NOT
+    // consulted here). When a credential is PRESENTED in the Authorization
+    // header it is resolved exactly as on every other route — an invalid
+    // presented credential is refused (401), never downgraded to "no one"
+    // — and the document additionally names that caller's own principal
+    // (a machine credential's granted scopes). Enforcement is unchanged.
+    const authHeader = ctx && ctx.headers ? ctx.headers.authorization : undefined;
+    const presented = typeof authHeader === "string" && authHeader.trim() !== "";
+    const principal = presented ? await requestAuthPrincipal(config, { headers: { authorization: authHeader } }, { required: false }) : null;
+    return { status: 200, body: buildCapabilities(config, principal) };
   }
 
   // GET /health — LIVENESS: the process is up and serving. Deliberately
@@ -479,7 +498,10 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         networkId: config.networkId,
         authMode: config.authMode,
         ...(config.buildId ? { buildId: config.buildId } : {}),
-        ...(config.stagingBanner ? { staging: true } : {})
+        ...(config.stagingBanner ? { staging: true } : {}),
+        // Advertised ONLY when the test-only dev signer is actually
+        // enabled (testnet + POLICYVAULT_DEV_SIGNER=1); absent otherwise.
+        ...(devSignerEnabled(config) ? { devSigner: true } : {})
       }
     };
   }
@@ -1840,11 +1862,10 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
   }
 
   // ---- TEST-ONLY dev signer endpoints (mock adapter / architecture test) ----
-  // Gated by POLICYVAULT_DEV_SIGNER=1 and testnet only. Never on mainnet.
-  const devSignerEnabled = process.env.POLICYVAULT_DEV_SIGNER === "1" && config.networkId !== "mainnet";
-
+  // Gated by POLICYVAULT_DEV_SIGNER=1 and testnet only. Never on mainnet
+  // (devSignerEnabled — the same predicate /health advertises).
   if (segments[0] === "wallet" && (segments[1] === "dev-accounts" || segments[1] === "dev-sign")) {
-    if (!devSignerEnabled) {
+    if (!devSignerEnabled(config)) {
       throw apiError(404, "DEV_SIGNER_DISABLED", "dev signer is disabled (set POLICYVAULT_DEV_SIGNER=1 on testnet)");
     }
     const { loadOrCreateTestKeys } = require("../../sdk/src/keys");

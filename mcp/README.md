@@ -74,7 +74,16 @@ list.
 
 The active tool list is derived per session from the server's live
 `GET /api/v1/capabilities` document (scope enum, v0.4 action enum, schema
-versions, feature flags). See the spec doc for the full catalog. Baseline:
+versions, feature flags). **Least-privilege discovery (1.4.2):** the
+credential is presented at discovery; a server that declares
+`features.principalScopedDiscovery` names the credential's own granted
+scopes, and `tools/list` advertises ONLY the tools those scopes cover
+(scope absent → tool absent). Hidden tools remain callable by exact name
+and are answered by the server's own `403 SCOPE_FORBIDDEN` — the server,
+never this adapter, is the authority. A server without the feature (older
+build, or self-hosted mode without machine identities) yields the
+build-level catalog and says so on stderr. See the spec doc for the full
+catalog. Baseline (full scopes):
 
 - `policyvault_capabilities`, `policyvault_list_vaults`,
   `policyvault_vault`, `policyvault_vault_audit`,

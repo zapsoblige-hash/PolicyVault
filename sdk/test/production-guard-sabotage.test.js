@@ -112,16 +112,27 @@ test("S2 dev-signer production disable is load-bearing", async () => {
       return e.code;
     }
   };
+  // The SAME predicate (devSignerEnabled(config)) governs the /health
+  // advertisement the web console keys the mock signer on: without the
+  // env it must be ABSENT, and only the sabotaged guard advertises it.
+  const advertised = async () => {
+    const api = require("../../server/src/api");
+    const r = await api.handle(config, "GET", ["health"], {}, null);
+    return r.body.devSigner === true;
+  };
   assert.equal(await probe(), "DEV_SIGNER_DISABLED", "REAL guard hides the dev signer without the env");
+  assert.equal(await advertised(), false, "REAL guard: /health never advertises the dev signer without the env");
   await withSabotage(
     path.join(SERVER_SRC, "api.js"),
-    'const devSignerEnabled = process.env.POLICYVAULT_DEV_SIGNER === "1" && config.networkId !== "mainnet";',
-    "const devSignerEnabled = true;",
+    'return process.env.POLICYVAULT_DEV_SIGNER === "1" && config.networkId !== "mainnet";',
+    "return true;",
     async () => {
       assert.notEqual(await probe(), "DEV_SIGNER_DISABLED", "SABOTAGED guard exposes the dev signer -> RED");
+      assert.equal(await advertised(), true, "SABOTAGED guard also advertises it on /health (one predicate, one blind spot closed)");
     }
   );
   assert.equal(await probe(), "DEV_SIGNER_DISABLED");
+  assert.equal(await advertised(), false);
 });
 
 test("S3 donation-address network validation is load-bearing", async () => {

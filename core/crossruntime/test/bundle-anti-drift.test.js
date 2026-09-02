@@ -36,8 +36,11 @@ test("BROWSER-GLOBAL: loading the bundle in an isolated vm context with no requi
 
   assert.deepEqual(Object.keys(PolicyVaultCore).sort(), [
     "agentMerkle",
+    "agentMerkleV5",
+    "assets",
     "computeBudgetV3",
     "computeBudgetV4",
+    "computeBudgetV5",
     "explainKas",
     "feeMass",
     "frozenTx",
@@ -50,8 +53,12 @@ test("BROWSER-GLOBAL: loading the bundle in an isolated vm context with no requi
     "riskExplain",
     "signerErrors",
     "signerInterface",
+    "tokenExplain",
+    "tokenManifestV5",
     "vaultStateV4",
-    "vaultTransitionsV4"
+    "vaultStateV5",
+    "vaultTransitionsV4",
+    "vaultTransitionsV5"
   ]);
   assert.equal(PolicyVaultCore.intent.MANIFEST_VERSION_1, "policyvault-intent-manifest/1");
   assert.equal(PolicyVaultCore.signerInterface.SIGNER_INTERFACE_VERSION, "policyvault-signer/1");

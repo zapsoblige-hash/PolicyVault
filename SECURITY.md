@@ -74,6 +74,39 @@ per-row verification status is `docs/threat-model.md` and
   shaped value stays on the machine-credential path, and wrong-network
   wallets are refused (`sdk/test/hosted-auth-bearer-sessions.test.js`,
   `mobile/test/native-http.test.js`).
+- **v0.5 TOKEN CONTROLLER covenant (COVENANT-BYTE-FROZEN, not production)** —
+  `contracts/PolicyVault.v0.5.sil` (sha256 `c693aeff…`, regenerated
+  byte-identically by `tools/gen_v5.js`; pinned by
+  `sdk/test/covenant-freeze-v5.test.js`). CLAIM: a delegated agent
+  holding the legitimate agent key cannot exceed the owner's TOKEN
+  per-spend cap / period budget / recipient allowlist, cannot drain the
+  covenant's KAS fee reserve, cannot substitute another token family or
+  template, and the owner can pause / unpause / recover. ENFORCEMENT:
+  Kaspa consensus (covenant-ID + hash-verified template dual binding;
+  two-domain accounting). TEST: real TxScriptEngine execution with
+  production encoder bytes — `tests/vm/tests/v5_production.rs` (37-case
+  hostile spend matrix, owner matrix, load-bearing guard proofs) and
+  `v5_sdk_integration.rs` (SDK-built vectors: accept / consensus-reject /
+  SDK-refuse). EVIDENCE: **PROVEN on the VM**; **PROVEN on testnet-10 for
+  ONE live lifecycle** (issuance → deposit → agent spend → two
+  consensus-rejected negative-validation transactions constructed
+  independently of the application → pause → unpause → recover; txids in
+  `docs/postlaunch/v0.5-covenant-byte-freeze.md`). Rollover, deep
+  registries and the full hostile matrix are VM-proven, not
+  live-repeated (**PARTIALLY PROVEN** at the live layer). Limitations:
+  reference KCC20 program family only (others refuse), p2pk recipients,
+  no approval tier. No v0.5 production surface exists.
+- **Least-privilege capability discovery (v1.5.0)** — CLAIM: a machine
+  credential learns and is advertised ONLY the capabilities its own
+  scopes grant; an invalid presented credential is refused, never
+  downgraded to anonymous. ENFORCEMENT: server-side scope checks on
+  every call (unchanged) + principal-scoped `/capabilities` +
+  credential-presenting MCP discovery (`policyvault-mcp@1.4.2`). TEST:
+  `mcp/test/mcp-discovery-scopes.test.js`, conformance C01/C09/C16,
+  `security/hostile-ai/mcp-agent-boundary.test.js`,
+  `mcp/tools/candidate-proof.js` (exact tarball, real server: hidden
+  exact-name call → 403 `SCOPE_FORBIDDEN`). EVIDENCE: **PROVEN** (the
+  pre-1.4.2 behaviour was a discovery gap, never an authorization bypass).
 - **Fail-closed lifecycle** — unknown versions/states/fields refuse; manifest
   records are content-addressed with build-time integrity re-hashing and a
   content-bound finalize gate; governance proposal consumption is terminal;

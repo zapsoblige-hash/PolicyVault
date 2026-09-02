@@ -29,22 +29,27 @@ function modelFiles() {
 test("purity: core/model contains the extracted module set", () => {
   assert.deepStrictEqual(modelFiles(), [
     "agent-merkle-v4.js",
+    "agent-merkle-v5.js",
     "amounts.js",
     "approval-package-v3.js",
     "approval-package-v4.js",
     "canonical-json.js",
     "compute-budget-v3.js",
     "compute-budget-v4.js",
+    "compute-budget-v5.js",
     "contract-version.js",
     "fee-mass.js",
     "frozen-tx-v3.js",
     "recipient-merkle-v3.js",
+    "token-amounts.js",
     "vault-state-v2.js",
     "vault-state-v3.js",
     "vault-state-v4.js",
+    "vault-state-v5.js",
     "vault-state.js",
     "vault-transitions-v3.js",
-    "vault-transitions-v4.js"
+    "vault-transitions-v4.js",
+    "vault-transitions-v5.js"
   ]);
 });
 

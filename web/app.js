@@ -161,7 +161,21 @@
     active: walletSnapshot,
     subscribe(cb) { walletListeners.push(cb); try { cb(walletSnapshot()); } catch { /* isolate */ } return () => { const i = walletListeners.indexOf(cb); if (i >= 0) walletListeners.splice(i, 1); }; },
     connect(kind) { return connectWith(kind === "mock" ? new MockAdapter(API) : makeKasWareAdapter()); },
-    disconnect() { return disconnect(); }
+    disconnect() { return disconnect(); },
+    /* A privileged read was refused with an auth code while this client
+     * believed its session AUTHENTICATED (server-side invalidation,
+     * expiry): re-read the SERVER'S truth once (GET /auth/session — the
+     * same restore path as reload) so the canonical state flips to
+     * EXPIRED/SIGNED_OUT and every consumer stops issuing authenticated
+     * reads. Coalesced: concurrent refusals share one revalidation; a
+     * session the server still confirms changes nothing (no loop). */
+    revalidateAuth() {
+      if (!hostedAuth.enabled || hostedAuth.state !== "AUTHENTICATED") return Promise.resolve();
+      if (!hostedAuth.revalidating) {
+        hostedAuth.revalidating = refreshAuthSession().catch(() => {}).finally(() => { hostedAuth.revalidating = null; });
+      }
+      return hostedAuth.revalidating;
+    }
   };
 
   async function verifyNetwork() {
@@ -778,9 +792,13 @@
       ui.orgs = [];
       // An auth refusal while signed out is the EXPECTED signed-out state
       // (e.g. a session expired between the gate check and the response) —
-      // never an error toast. Authenticated failures still surface, and
-      // every non-auth error still surfaces regardless of session state.
-      if (!(isAuthRefusal(e) && needsSignIn())) {
+      // never an error toast. An auth refusal while believed AUTHENTICATED
+      // means the server invalidated the session: re-read the server's
+      // truth once (revalidateAuth) instead of retrying the read. Every
+      // non-auth error still surfaces regardless of session state.
+      if (isAuthRefusal(e) && hostedAuth.enabled) {
+        if (!needsSignIn()) window.PolicyVaultWalletSession.revalidateAuth();
+      } else {
         note(`Organizations unavailable: ${e.message}`, "warn");
       }
     }
@@ -1318,15 +1336,20 @@
       await Promise.all([loadOrgs(), loadVaults()]);
     })();
 
-    // Provider roster: KasWare always listed; Mock only if the dev endpoint responds.
-    // KasWare goes through the Universal-Signer-Interface session adapter
-    // (see makeKasWareAdapter above); the connect/reconnect/event surface is
-    // unchanged for every consumer.
+    // Provider roster: KasWare always listed; the Mock (test-only dev
+    // signer) ONLY when the server explicitly advertises it on /health
+    // (`devSigner:true` — testnet + POLICYVAULT_DEV_SIGNER=1, never on
+    // mainnet). The console never probes /wallet/dev-accounts itself: a
+    // production server advertises nothing, so it sees zero such requests,
+    // and the mock adapter is unreachable outside an explicitly configured
+    // development server. KasWare goes through the Universal-Signer-
+    // Interface session adapter (see makeKasWareAdapter above); the
+    // connect/reconnect/event surface is unchanged for every consumer.
     const kasware = makeKasWareAdapter();
     $("btn-connect-kasware").onclick = () => connectWith(kasware);
     $("btn-connect-kasware").disabled = false;
-    fetch(API + "/wallet/dev-accounts").then((r) => {
-      if (r.ok) {
+    healthP.then((h) => {
+      if (h && h.devSigner === true) {
         $("btn-connect-mock").style.display = "";
         $("btn-connect-mock").onclick = () => connectWith(new MockAdapter({ apiBase: API }));
       }
@@ -1383,5 +1406,9 @@
   });
 
   $("refresh")?.addEventListener?.("click", () => Promise.all([loadOrgs(), loadVaults()]));
-  boot();
+  // Adoption UX: the first-run walkthrough (web/onboarding.js) mounts ONLY
+  // after boot() has settled — never awaited by boot, never on any request /
+  // verify / sign / network path. Absent module (or any error) = no-op;
+  // boot()'s own outcome is passed through unchanged.
+  boot().finally(() => { try { window.PolicyVaultOnboarding?.mountAfterBoot?.(); } catch (_) { /* presentation only */ } });
 })();

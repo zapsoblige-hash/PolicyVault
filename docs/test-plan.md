@@ -189,3 +189,22 @@ the production covenant with no broadcast. A 9-guard app-layer sabotage harness
 showed 9/9 sensitive, 0 blind spots. SDK 264→296; VM 246 unchanged (additive
 binary). Production covenant bytes UNCHANGED. OFFLINE, VM-PREFLIGHT-PROVEN —
 NOT live-testnet-verified.
+
+## Core suite runner bookkeeping (v0.5, MANDATORY before any successor release gate)
+
+The shared deterministic core is run as `node --test core/*/test/` (the glob
+enumerates every `core/<module>/test/` directory). As of the v0.5
+implementation phase this MUST include `core/assets/test/` (descriptor
+validator, portable blake2b, canonical KCC20 adapter, asset-layer public
+interface — production-byte pinned to `core/assets/test/fixtures/`), and the
+`core/model/test/` purity gate pins the extended module set
+(`agent-merkle-v5`, `compute-budget-v5`, `token-amounts`, `vault-state-v5`,
+`vault-transitions-v5`). Any runner that enumerates core directories
+explicitly (release reproduction scripts, CI, publication repro) MUST list
+`core/assets/test/` — a core run that omits it is NOT a passing core gate.
+Regression layers added by v0.5: VM `tests/vm/tests/v5_production.rs`
+(production covenant + production encoder bytes), `v5_sdk_integration.rs`
+(SDK-built vectors on the real engine), `v5_fixture_capture.rs`
+(write-or-assert fixtures); SDK `sdk/test/manifest-v5.test.js`,
+`sdk/test/token-manifest-v5.test.js` (REQUIREMENT_NOT_AVAILABLE-gated on
+silverc/encoder/tx-probe).

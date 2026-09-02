@@ -71,6 +71,13 @@ const intent = require("../../core/intent");
 const signer = require("../../core/signer");
 const explain = require("../../core/explain");
 const governance = require("../../core/governance");
+const vaultStateV5 = require("./vault-state-v5");
+const vaultTransitionsV5 = require("./vault-transitions-v5");
+const agentMerkleV5 = require("./agent-merkle-v5");
+const computeBudgetV5 = require("../../core/model/compute-budget-v5");
+const assets = require("../../core/assets");
+const tokenManifestV5 = require("../../core/intent/token-manifest-v5");
+const tokenExplain = require("../../core/explain/token-explain");
 
 /* ---- network client ---------------------------------------------------- */
 const httpClient = require("./http-client");
@@ -208,5 +215,25 @@ module.exports = Object.freeze({
 
   /* Governance canonicalization + authority-delta classification: does this
    * operation change financial authority, and how. */
-  governance
+  governance,
+
+  /* ===================================================================
+   * v0.5 TOKEN CONTROLLER lineage (docs/postlaunch/v0.5-design-freeze.md).
+   * IMPLEMENTATION IN PROGRESS — additive beside the frozen v0.4/v0.4.1
+   * KAS vault; unknown versions still fail closed everywhere.
+   * =================================================================== */
+  CONTRACT_VERSION_V5: vaultStateV5.CONTRACT_VERSION_V5,
+  V5_ABIS: vaultStateV5.V5_ABIS,
+  resolveV5Abi: vaultStateV5.resolveV5Abi,
+  vaultStateV5,
+  vaultTransitionsV5,
+  agentMerkleV5,
+  computeBudgetV5,
+  /* Shared asset layer: descriptor validation/hash, KCC20 codec, template
+   * corroboration, token-input verification, portable blake2b. */
+  assets,
+  /* v0.5 token intent manifest + deterministic local verification, and its
+   * deterministic explanation (separate token / KAS sections). */
+  tokenManifestV5,
+  tokenExplain
 });

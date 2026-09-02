@@ -91,12 +91,67 @@ fn main() {
      *   v0.1: (owner, delegate, vaultId, ...)  -> index 2
      *   v0.2: (owner, vaultId, initDelegate, ...) -> index 1
      */
+    // The kcc20/1 asset adapter encodes the TOKEN family's own leader call
+    // (upstream KCC20 reference program, vendored at contracts/vendor/
+    // kcc20-reference.sil): transfer(State[] newStates, sig[] sigs, byte[]
+    // witnesses) with the family-LEADER entrypoint. The constructor args are
+    // the token input's revealed state (genesisPk, genesisAmount,
+    // genesisIdentifierType, genesisIsMinter, maxCovIns, maxCovOuts).
+    if contract_version == "kcc20/1" {
+        if function != "transfer" {
+            die(&format!("unknown kcc20/1 function {function:?} — failing closed"));
+        }
+        let states = call["newStates"].as_array().unwrap_or_else(|| die("newStates array is required"));
+        if states.is_empty() {
+            die("newStates must be non-empty");
+        }
+        let mut state_exprs: Vec<Expr<'static>> = Vec::new();
+        for (i, st) in states.iter().enumerate() {
+            let label = format!("newStates[{i}]");
+            let ty = json_i64(&st["identifierType"], &format!("{label}.identifierType"));
+            if !(0..=2).contains(&ty) {
+                die(&format!("{label}.identifierType must be 0, 1 or 2 — failing closed"));
+            }
+            let amount = json_i64(&st["amount"], &format!("{label}.amount"));
+            if amount < 0 {
+                die(&format!("{label}.amount must be non-negative — failing closed"));
+            }
+            let minter = st["isMinter"].as_bool().unwrap_or_else(|| die(&format!("{label}.isMinter must be an explicit boolean")));
+            state_exprs.push(struct_object(vec![
+                (
+                    "ownerIdentifier",
+                    Expr::bytes(hex_bytes(
+                        st["ownerIdentifier"].as_str().unwrap_or_else(|| die(&format!("{label}.ownerIdentifier is required"))),
+                        32,
+                        &format!("{label}.ownerIdentifier"),
+                    )),
+                ),
+                ("identifierType", Expr::byte(ty as u8)),
+                ("amount", Expr::int(amount)),
+                ("isMinter", Expr::bool(minter)),
+            ]));
+        }
+        let sigs: Vec<Expr<'static>> = call["sigs"]
+            .as_array()
+            .map(|v| v.iter().enumerate().map(|(i, s)| Expr::bytes(hex_bytes(s.as_str().unwrap_or_else(|| die("sigs entries must be hex")), 65, &format!("sigs[{i}]")))).collect())
+            .unwrap_or_default();
+        let witnesses = Expr::bytes(hex_var(call["witnesses"].as_str().unwrap_or_else(|| die("witnesses hex is required")), "witnesses"));
+        let contract = compile_contract(Box::leak(source.into_boxed_str()), &constructor_args, CompileOptions::default())
+            .unwrap_or_else(|e| die(&format!("compile failed: {e}")));
+        let encoded = contract
+            .build_sig_script_for_covenant_decl("transfer", vec![state_exprs.into(), sigs.into(), witnesses], CovenantDeclCallOptions { is_leader: true })
+            .unwrap_or_else(|e| die(&format!("call encoding failed: {e}")));
+        println!("{}", encoded.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        return;
+    }
+
     let vault_id_index = match contract_version {
         "policyvault-0.1-beta" => 2,
         "policyvault-0.2" => 1,
         "policyvault-0.3" => 1, // (owner, vaultId, initDelegate, ...)
         "policyvault-0.4" => 1, // (owner, vaultId, initAgentRoot, ...)
         "policyvault-0.4.1" => 1, // identical constructor order to v0.4
+        "policyvault-0.5" => 1, // (owner, vaultId, descriptorHash, tokenCovenantId, ...)
         other => die(&format!("unknown contractVersion {other:?} — failing closed")),
     };
     let bound_vault_id =
@@ -402,6 +457,106 @@ fn main() {
                 "unknown v0.4.1 function {other:?} — failing closed (owner ops use ownerControl + opSelector)"
             )),
         },
+        // v0.5 TOKEN CONTROLLER (contracts/PolicyVault.v0.5.sil): 5-field state
+        // (boundVaultId, feeReserve, paused, agentRoot, policyNonce); KCC20State
+        // struct args carry the token continuation states; owner ops behind
+        // ownerControl + opSelector 0..3; ownerRecover carries the owner-owned
+        // token continuation. Unknown function names fail closed.
+        "policyvault-0.5" => {
+            let successor_state_v05 = |call: &serde_json::Value| -> Expr<'static> {
+                let successor = &call["successor"];
+                if successor.is_null() {
+                    die("successor is required for this function");
+                }
+                struct_object(vec![
+                    ("boundVaultId", bound_vault_id.clone()),
+                    ("feeReserve", Expr::int(json_i64(&successor["feeReserve"], "successor.feeReserve"))),
+                    ("paused", Expr::int(json_i64(&successor["paused"], "successor.paused"))),
+                    (
+                        "agentRoot",
+                        Expr::bytes(hex_bytes(
+                            successor["agentRoot"].as_str().unwrap_or_else(|| die("successor.agentRoot is required")),
+                            32,
+                            "successor.agentRoot",
+                        )),
+                    ),
+                    ("policyNonce", Expr::int(json_i64(&successor["policyNonce"], "successor.policyNonce"))),
+                ])
+            };
+            let kcc20_state = |v: &serde_json::Value, label: &str| -> Expr<'static> {
+                if v.is_null() {
+                    die(&format!("{label} is required"));
+                }
+                let ty = json_i64(&v["identifierType"], &format!("{label}.identifierType"));
+                if !(0..=2).contains(&ty) {
+                    die(&format!("{label}.identifierType must be 0, 1 or 2 — failing closed"));
+                }
+                let amount = json_i64(&v["amount"], &format!("{label}.amount"));
+                if amount < 0 {
+                    die(&format!("{label}.amount must be non-negative — failing closed"));
+                }
+                let minter = v["isMinter"].as_bool().unwrap_or_else(|| die(&format!("{label}.isMinter must be an explicit boolean")));
+                struct_object(vec![
+                    (
+                        "ownerIdentifier",
+                        Expr::bytes(hex_bytes(
+                            v["ownerIdentifier"].as_str().unwrap_or_else(|| die(&format!("{label}.ownerIdentifier is required"))),
+                            32,
+                            &format!("{label}.ownerIdentifier"),
+                        )),
+                    ),
+                    ("identifierType", Expr::byte(ty as u8)),
+                    ("amount", Expr::int(amount)),
+                    ("isMinter", Expr::bool(minter)),
+                ])
+            };
+            let pk = |field: &str| -> Expr<'static> {
+                Expr::bytes(hex_bytes(call[field].as_str().unwrap_or_else(|| die(&format!("{field} is required"))), 32, field))
+            };
+            let var = |field: &str| -> Expr<'static> {
+                Expr::bytes(hex_var(call[field].as_str().unwrap_or_else(|| die(&format!("{field} is required"))), field))
+            };
+            match function {
+                "tokenAgentSpend" => vec![
+                    successor_state_v05(&call),
+                    kcc20_state(&call["selfNew"], "selfNew"),
+                    kcc20_state(&call["recipientNew"], "recipientNew"),
+                    pk("agentPk"),
+                    Expr::int(json_i64(&call["tokenMaxPerSpend"], "tokenMaxPerSpend")),
+                    Expr::int(json_i64(&call["tokenPeriodBudget"], "tokenPeriodBudget")),
+                    Expr::int(json_i64(&call["periodLengthDaa"], "periodLengthDaa")),
+                    Expr::int(json_i64(&call["periodStartDaa"], "periodStartDaa")),
+                    Expr::int(json_i64(&call["tokenPeriodSpent"], "tokenPeriodSpent")),
+                    Expr::int(json_i64(&call["agentMaxFeePerTx"], "agentMaxFeePerTx")),
+                    Expr::int(json_i64(&call["agentMaxCarryKas"], "agentMaxCarryKas")),
+                    pk("agentRecipientRoot"),
+                    var("policySiblings"),
+                    Expr::int(json_i64(&call["policyPathBits"], "policyPathBits")),
+                    Expr::int(json_i64(&call["periodsElapsed"], "periodsElapsed")),
+                    pk("recipientPk"),
+                    var("recipientSiblings"),
+                    Expr::int(json_i64(&call["recipientPathBits"], "recipientPathBits")),
+                    Expr::bytes(signature),
+                ],
+                "ownerControl" => {
+                    if call["opSelector"].is_null() {
+                        die("opSelector is required for ownerControl (v0.5) — failing closed");
+                    }
+                    let op = json_i64(&call["opSelector"], "opSelector");
+                    if !(0..=3).contains(&op) {
+                        die(&format!("opSelector {op} out of range [0,3] for ownerControl (v0.5) — failing closed"));
+                    }
+                    vec![successor_state_v05(&call), Expr::int(op), Expr::bytes(signature)]
+                }
+                "ownerRecover" => {
+                    if !call["opSelector"].is_null() {
+                        die("ownerRecover must NOT carry opSelector (v0.5) — failing closed");
+                    }
+                    vec![Vec::<Expr<'static>>::new().into(), Expr::bytes(signature), kcc20_state(&call["recipientNew"], "recipientNew")]
+                }
+                other => die(&format!("unknown v0.5 function {other:?} — failing closed")),
+            }
+        }
         other => die(&format!("unknown contractVersion {other:?} — failing closed")),
     };
 

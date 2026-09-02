@@ -64,12 +64,31 @@ function scopesDocument() {
   return SCOPES.map((scope) => ({ scope, description: SCOPE_DESCRIPTIONS[scope] ?? "" }));
 }
 
-function buildCapabilities(config) {
+/* Principal-scoped discovery (2026-09-02, MCP least-privilege corrective):
+ * the document stays PUBLIC and byte-for-byte unchanged for anonymous
+ * callers. When it is requested WITH a presented credential, the response
+ * additionally names the caller's OWN principal — for a machine
+ * credential, exactly the scopes it holds — so a thin client (the MCP
+ * adapter) can advertise only what the credential can actually use.
+ * Information about the caller, to the caller only: never another
+ * identity's scopes, never a token. Enforcement does NOT live here —
+ * scopes are still checked per call in server/src/api.js handle(). */
+function presentPrincipal(principal) {
+  if (!principal) return null;
+  if (principal.isMachine) {
+    return { kind: "machine", identityId: principal.identityId, scopes: Array.isArray(principal.scopes) ? [...principal.scopes] : [] };
+  }
+  return { kind: "session" };
+}
+
+function buildCapabilities(config, principal = null) {
+  const presented = presentPrincipal(principal);
   return {
     schemaVersion: CAPABILITIES_SCHEMA,
     apiVersion: API_VERSION,
     networkId: config.networkId,
     ...(config.buildId ? { buildId: config.buildId } : {}),
+    ...(presented ? { principal: presented } : {}),
     contract: {
       supportedCovenantVersions: SUPPORTED_COVENANT_VERSIONS,
       currentV4Versions: [CONTRACT_VERSION_V4, CONTRACT_VERSION_V4_1]
@@ -148,6 +167,11 @@ function buildCapabilities(config) {
       asyncEvents: true,
       webhooks: true,
       machineIdentities: config.authMode === "enabled",
+      /* Principal-scoped discovery (see presentPrincipal): a presented
+       * machine credential gets its own granted scopes back on this
+       * document, so discovery can be narrowed to what it may use. Only
+       * meaningful where machine identities exist (hosted auth). */
+      principalScopedDiscovery: config.authMode === "enabled",
       originPolicySplitForMachineCredentials: true,
       persistenceBackend: config.persistenceBackend,
       /* Hosted-layer agent suspend (surface 21 residual): a COORDINATION
@@ -171,4 +195,4 @@ function buildCapabilities(config) {
   };
 }
 
-module.exports = { CAPABILITIES_SCHEMA, V4_WALLET_REQUEST_SCHEMA_VERSION, buildCapabilities };
+module.exports = { CAPABILITIES_SCHEMA, V4_WALLET_REQUEST_SCHEMA_VERSION, buildCapabilities, presentPrincipal };

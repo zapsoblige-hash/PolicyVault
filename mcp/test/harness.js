@@ -79,13 +79,24 @@ function defaultCapabilities(overrides = {}) {
   return { ...base, ...overrides };
 }
 
+const MOCK_IDENTITY_ID = "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f";
+
 /*
- * startMockApi({ capabilities, route }) -> { port, baseUrl, requests, close }
+ * startMockApi({ capabilities, route, scoped }) -> { port, baseUrl, requests, close }
  * `route(req)` (req = { method, path, query, headers, body }) returns
  * { status, body } | null (null -> 404). Every request (INCLUDING the
  * capabilities fetch) is appended to `requests`.
+ *
+ * `scoped` (optional) makes the mock behave like a server with
+ * PRINCIPAL-SCOPED DISCOVERY (server/src/capabilities.js, 2026-09-02):
+ * the document declares features.principalScopedDiscovery and, for a
+ * presented Authorization header, either names the machine principal
+ * (`scopes` — or a verbatim `principal` object for hostile shapes; `scopes:
+ * null` = feature declared but NO principal, the off-contract case) or
+ * refuses an unknown bearer with 401 MACHINE_TOKEN_INVALID. Anonymous
+ * requests get the public document without a principal.
  */
-async function startMockApi({ capabilities = defaultCapabilities(), route = () => null } = {}) {
+async function startMockApi({ capabilities = defaultCapabilities(), route = () => null, scoped } = {}) {
   const requests = [];
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -109,7 +120,18 @@ async function startMockApi({ capabilities = defaultCapabilities(), route = () =
       requests.push(record);
       let out;
       if (record.method === "GET" && record.path === "/api/v1/capabilities") {
-        out = { status: 200, body: capabilities };
+        if (!scoped) {
+          out = { status: 200, body: capabilities };
+        } else {
+          const doc = { ...capabilities, features: { ...(capabilities.features || {}), principalScopedDiscovery: true } };
+          const auth = record.headers.authorization;
+          const validToken = scoped.validToken || TEST_TOKEN;
+          if (auth === undefined) out = { status: 200, body: doc };
+          else if (auth !== `Bearer ${validToken}`) out = { status: 401, body: { error: { code: "MACHINE_TOKEN_INVALID", message: "mock: unknown machine credential" } } };
+          else if (scoped.principal !== undefined) out = { status: 200, body: { ...doc, principal: scoped.principal } };
+          else if (scoped.scopes === null) out = { status: 200, body: doc };
+          else out = { status: 200, body: { ...doc, principal: { kind: "machine", identityId: MOCK_IDENTITY_ID, scopes: scoped.scopes } } };
+        }
       } else {
         out = route(record) ?? { status: 404, body: { error: { code: "NOT_FOUND", message: "mock: no route" } } };
       }
@@ -140,6 +162,26 @@ async function startMockApi({ capabilities = defaultCapabilities(), route = () =
 }
 
 const TEST_TOKEN = "pvmk_MOCKSECRET_abcdefghijklmnopqrstuvwxyz0123456789";
+
+/* Route-level scope enforcement for the mock (mirrors the shape of
+ * server/src/scopes.js for the handful of routes the discovery tests
+ * exercise): a missing scope is a 403 SCOPE_FORBIDDEN, exactly like the
+ * real server, so tests can prove "hidden but still server-refused". */
+const MOCK_ROUTE_SCOPES = [
+  [/^GET \/api\/v1\/vaults(\/|$)/, "read:vaults"],
+  [/^GET \/api\/v1\/network\/status$/, "read:network"],
+  [/^GET \/api\/v1\/audit$/, "read:audit"],
+  [/^GET \/api\/v1\/governance\/proposals/, "read:governance"]
+];
+function scopeEnforcingRoute(grantedScopes, inner) {
+  return (record) => {
+    const hit = MOCK_ROUTE_SCOPES.find(([re]) => re.test(`${record.method} ${record.path}`));
+    if (hit && !grantedScopes.includes(hit[1])) {
+      return { status: 403, body: { error: { code: "SCOPE_FORBIDDEN", message: `this operation requires scope(s) ${hit[1]}, which this credential does not hold` } } };
+    }
+    return inner(record);
+  };
+}
 
 /*
  * McpDriver — in-process MCP session over PassThrough streams.
@@ -271,4 +313,4 @@ async function startDriver({ mock, env = {}, start = true } = {}) {
   return driver;
 }
 
-module.exports = { startMockApi, defaultCapabilities, McpDriver, startDriver, TEST_TOKEN };
+module.exports = { startMockApi, defaultCapabilities, McpDriver, startDriver, TEST_TOKEN, MOCK_IDENTITY_ID, scopeEnforcingRoute };

@@ -36,9 +36,11 @@ class TransportError extends Error {
   }
 }
 
-/* `anonymous: true` omits the Authorization header — used ONLY for the
- * public capability-discovery route, so the credential is never
- * transmitted where no route needs it. */
+/* `anonymous: true` omits the Authorization header — used ONLY by the
+ * policyvault_capabilities TOOL (the public document as an LLM-readable
+ * result). Startup discovery PRESENTS the credential on purpose, so the
+ * server can name this caller's own granted scopes (least-privilege
+ * discovery); the value is still never logged or echoed. */
 function callApi(cfg, { method, pathSegments, query, body, idempotencyKey, signal, anonymous }) {
   return new Promise((resolve, reject) => {
     const base = new URL(cfg.baseUrl);

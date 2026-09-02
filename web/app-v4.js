@@ -1290,6 +1290,21 @@
    * ever reads from this cache path. */
   const refreshingChip = `<div class="hint" data-v4-refreshing="1" style="margin-bottom:0.4rem">Refreshing…</div>`;
   async function renderRetained(root, stale, { view, what, signInWhat, fetchData, paint }) {
+    // WALLET CONNECTED is not POLICYVAULT SESSION AUTHENTICATED. On a hosted
+    // server with no authenticated session every privileged read is refused
+    // (401), so the console does not issue them at all: it paints the quiet
+    // sign-in state and waits for the auth transition (setAuthState →
+    // canonical session snapshot → render). No retry, no polling loop;
+    // wallet events while signed out re-render this quiet state without a
+    // single request. Authentication semantics are untouched — a 401 stays
+    // a genuine refusal whenever a read IS made (e.g. a session that expired
+    // between the snapshot and the response), handled below exactly as
+    // before. Self-hosted servers (auth DISABLED) keep their open reads.
+    if (signedOutHosted()) {
+      delete state.cache[view];
+      root.innerHTML = `<div class="empty">${esc(signInWhat)}</div>`;
+      return;
+    }
     const epoch = dataEpoch();
     const cached = state.cache[view];
     if (cached && cached.epoch === epoch) paint(root, cached.data, true);
@@ -1300,9 +1315,20 @@
     } catch (e) {
       if (stale() || dataEpoch() !== epoch) return;
       delete state.cache[view];
-      root.innerHTML = isAuthRefusal(e) && signedOutHosted()
-        ? `<div class="empty">${esc(signInWhat)}</div>`
-        : `<div class="empty">Could not load ${esc(what)}: ${esc(e.message)}</div>`;
+      const hosted = state.auth && state.auth !== "DISABLED";
+      if (isAuthRefusal(e) && hosted) {
+        // The server refused the read as unauthenticated. If this client
+        // still believed its session AUTHENTICATED, the server invalidated
+        // it out of band: ask the canonical session to re-read the server's
+        // truth ONCE (it flips to EXPIRED/SIGNED_OUT and every consumer goes
+        // quiet). Never retried here; the 401 stands as the refusal it is.
+        if (!signedOutHosted()) {
+          try { const s = window.PolicyVaultWalletSession; if (s && typeof s.revalidateAuth === "function") s.revalidateAuth(); } catch { /* best-effort */ }
+        }
+        root.innerHTML = `<div class="empty">${esc(signInWhat)}</div>`;
+        return;
+      }
+      root.innerHTML = `<div class="empty">Could not load ${esc(what)}: ${esc(e.message)}</div>`;
       return;
     }
     if (stale() || dataEpoch() !== epoch) return;

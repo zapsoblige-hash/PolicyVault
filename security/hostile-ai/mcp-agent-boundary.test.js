@@ -96,7 +96,7 @@ test("M1a H-3 FIXED: a control-character capabilities.apiVersion is rejected (�
       // The genuine diagnostic line is a SINGLE intact line (no newline
       // injection) carrying the sanitized fallback mid-line.
       assert.ok(lines[0].includes("api unknown)"), "the authentic diagnostic line is intact with the sanitized value");
-      assert.ok(lines[0].includes("tool(s) active"), "the diagnostic line was not truncated by an injected newline");
+      assert.ok(lines[0].includes("tool(s) advertised"), "the diagnostic line was not truncated by an injected newline");
 
       // Bounds still hold: no tool behaviour changes; no overflow.
       assert.equal(driver.session._toolCount(), 14);
@@ -137,21 +137,31 @@ test("M1b HOLDS: every OTHER discovery field is shape-validated and fails the ad
   }
 });
 
-test("M1c HOLDS: the anonymous discovery fetch never transmits the machine credential", async () => {
-  const mock = await startMockApi();
+test("M1c UPDATED (least-privilege discovery, 2026-09-02): the startup discovery fetch PRESENTS the credential — to the configured origin only, in the Authorization header, never echoed to stderr/stdout; the capabilities TOOL still reads anonymously", async () => {
+  // Contract change: discovery is credential-scoped (the server names the
+  // credential's own granted scopes), so the adapter must present the
+  // credential at discovery. The security property is now: the credential
+  // travels ONLY to the configured server origin, only as the Authorization
+  // header, and never into any output channel.
+  const mock = await startMockApi({ scoped: { scopes: ["read:vaults"] } });
   const driver = await startDriver({ mock });
   try {
     await driver.initialize();
     const discovery = mock.requests.filter((r) => r.path === "/api/v1/capabilities");
-    assert.ok(discovery.length >= 1);
-    for (const r of discovery) {
-      assert.equal(r.headers.authorization, undefined, "the public discovery route must be called anonymously");
-    }
-    // ...but authenticated routes DO carry it (so the omission is
-    // deliberate scoping, not a broken client).
+    assert.equal(discovery.length, 1);
+    assert.equal(discovery[0].headers.authorization, `Bearer ${TEST_TOKEN}`, "discovery presents the credential so the server can scope it");
+    assert.ok(!driver.stderrRaw.includes(TEST_TOKEN) && !driver.stdoutRaw.includes(TEST_TOKEN), "the credential never reaches an output channel");
+    // Authenticated routes carry it identically.
     await driver.callTool("v", "policyvault_list_vaults", {});
     const authed = mock.requests.find((r) => r.path === "/api/v1/vaults");
     assert.equal(authed.headers.authorization, `Bearer ${TEST_TOKEN}`);
+    // The policyvault_capabilities TOOL (the public document as an LLM-
+    // readable result) is still an anonymous read — the credential is not
+    // spent where no route needs it.
+    await driver.callTool("c", "policyvault_capabilities", {});
+    const toolRead = mock.requests.filter((r) => r.path === "/api/v1/capabilities")[1];
+    assert.equal(toolRead.headers.authorization, undefined, "the capabilities tool reads the public document anonymously");
+    assert.ok(!driver.stderrRaw.includes(TEST_TOKEN) && !driver.stdoutRaw.includes(TEST_TOKEN));
   } finally {
     driver.close();
     await mock.close();

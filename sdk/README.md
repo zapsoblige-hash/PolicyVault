@@ -369,6 +369,21 @@ pin *that* at runtime — it is the guarantee that actually holds.
 
 ---
 
+### v0.5 token controller (IMPLEMENTATION IN PROGRESS — not production)
+
+Additive exports for the v0.5 TOKEN CONTROLLER lineage
+(`docs/postlaunch/v0.5-design-freeze.md`, `docs/covenant-spec-v0.5.md`):
+`CONTRACT_VERSION_V5`, `V5_ABIS`, `resolveV5Abi`, and the namespaces
+`vaultStateV5`, `vaultTransitionsV5`, `agentMerkleV5`, `computeBudgetV5`,
+`assets` (the shared asset layer: `policyvault-asset-descriptor/1`
+validation and hash, the canonical KCC20 codec, template corroboration,
+token-input verification, portable blake2b), `tokenManifestV5` (the
+`policyvault-token-intent-manifest/1` builder + deterministic local
+verifier) and `tokenExplain`. Token amounts are atomic-unit strings and are
+never KAS; the KAS fee reserve is a separate accounting domain end to end.
+The v0.5 covenant is VM-verified but not byte-frozen, not testnet-verified,
+and not deployed; unknown versions still fail closed everywhere.
+
 ## Not exported (and why)
 
 The public entry point exports the deterministic, portable, offline-runnable

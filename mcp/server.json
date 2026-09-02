@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.zapsoblige-hash/policyvault",
-  "description": "Non-custodial Kaspa treasury policy/authorization for AI agents: read vaults and audit, dry-run and create spending requests under covenant-enforced limits. Holds no keys; signers retain custody.",
+  "description": "Non-custodial Kaspa policy enforcement for AI agents; signers retain custody.",
   "repository": {
     "url": "https://github.com/zapsoblige-hash/PolicyVault",
     "source": "github"
   },
-  "version": "1.4.0",
+  "version": "1.4.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "policyvault-mcp",
-      "version": "1.4.0",
+      "version": "1.4.2",
       "transport": {
         "type": "stdio"
       },
@@ -44,7 +44,10 @@
     "io.modelcontextprotocol.registry/publisher-provided": {
       "authorityStatement": "AI MAY REQUEST. POLICYVAULT DETERMINISTICALLY DECIDES. THE COVENANT ENFORCES. SIGNERS RETAIN CUSTODY.",
       "custody": "This server holds no keys, signs nothing, broadcasts nothing. Every tool call is an ordinary authenticated HTTP request subject to server-side tenancy, scope, governance, risk, and covenant decisions.",
-      "protocolRevisions": ["2025-11-25", "2025-06-18"]
+      "protocolRevisions": [
+        "2025-11-25",
+        "2025-06-18"
+      ]
     }
   }
 }

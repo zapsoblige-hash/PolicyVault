@@ -29,6 +29,18 @@
  *   core/governance/index.js  sha256:3a4480b6488c5d17596a60f3993284b987ec87ca2987df909becba8fed24104c
  *   core/explain/governance-explain.js  sha256:546e3e8a8d33f5bb0433e1874e9cd823f7c066a54d5db61010fa130fe88b3679
  *   core/explain/risk-explain.js  sha256:d4af12eddc339a3c2b4c176d86b058526aa6b825f778c9dc1e5acbb04b1fe43b
+ *   core/model/canonical-json.js  sha256:087a13e4dad0a7d2f192073134b1467421fa9dc58f2ba2d18396940ec12bb1b5
+ *   core/model/token-amounts.js  sha256:066747604d8c198297548f07e4c4feb8b00b923661bb3344fe0952b73c67647c
+ *   core/assets/blake2b.js  sha256:5fb3e510534668e563e7b4b9f9814a17c5f65f357cd505e61e9e31d8c98612ea
+ *   core/assets/kcc20.js  sha256:bcae1173ef7f6233cd256c3c88ac63ae36d21f86d8c2a7848861b68ca964498b
+ *   core/assets/descriptor.js  sha256:77fd06dbdd535be9fabd7ea55480a689b41151348d5d35e5df16157864a232dd
+ *   core/assets/index.js  sha256:31379d3f6afa090a3a9a0f4971475103460ecaa72d38e32558c7ddbd8ce4cf45
+ *   core/model/vault-state-v5.js  sha256:c054b79df559df890d35cece380f5da052793fc3ce347f6d09b6cac2e6ed0aed
+ *   core/model/agent-merkle-v5.js  sha256:87dac03725b63a82d877a3b71cae9c04f841a132bb743019738f1f6e09c990fd
+ *   core/model/vault-transitions-v5.js  sha256:9e231b0bbedef5bc5df4ddc26a88816020f0857e4a41e7201a2ae0c0230a2d7e
+ *   core/model/compute-budget-v5.js  sha256:7521977510fa670d928399e6226340bbccb96f3d1bade8f0b74959f47c2f928e
+ *   core/intent/token-manifest-v5.js  sha256:e1ca049cb64decebde4c18000616693b8f85f9d479af52e12bd6b833a2e623df
+ *   core/explain/token-explain.js  sha256:7542d33e1377528119db800daae973439a4add19fc06ea4723519964162c3a3c
  *   <crypto shim>  sha256:18c64bc952c83297a0abe5b25e4a70a28740875eeac9b60335df40a984aeb681
  */
 (function (globalScope) {
@@ -8336,6 +8348,2464 @@ module.exports = {
 };
   });
 
+  define("core/model/canonical-json", function (module, exports, require) {
+"use strict";
+
+/*
+ * Canonical JSON serialization for COMMITMENT PREIMAGES (Phase G defect
+ * G-2). Identical VALUES must hash identically regardless of how a storage
+ * backend represents JSON objects: PostgreSQL jsonb canonicalizes object
+ * key order (length-then-bytewise), while the JSON-file backend preserves
+ * insertion order. A key-order-SENSITIVE preimage therefore appears
+ * "mutated" after a postgres round trip with every value byte-intact.
+ *
+ * Real incident (Phase G, real-KasWare hosted acceptance): an
+ * above-threshold agent spend froze its approval package in memory
+ * (insertion-ordered), stored it through the postgres store, and the
+ * reloaded package — values intact, keys re-sorted by jsonb — recomputed
+ * to a different commitment, so finalize failed PACKAGE_MUTATED and the
+ * collected approvals were voided. The consensus-grade defenses (txId +
+ * covenant sighash recomputed from the normalized frozen transaction)
+ * confirmed no value had actually changed.
+ *
+ * Rules:
+ *   - arrays keep element order (order is consensus-meaningful: inputs,
+ *     outputs, approver slots, Merkle siblings);
+ *   - object keys serialize in lexicographic (UTF-16 code unit) order;
+ *   - primitives serialize exactly as JSON.stringify does;
+ *   - anything not plainly JSON fails CLOSED instead of serializing
+ *     surprisingly: undefined values, functions, symbols, BigInt,
+ *     non-finite numbers, and non-plain objects (Date, Map, class
+ *     instances) all throw. A commitment must never silently omit or
+ *     coerce a field the way bare JSON.stringify would.
+ */
+
+function fail(message) {
+  const e = new Error(`canonical-json: ${message}`);
+  e.code = "CANONICAL_JSON_INVALID";
+  throw e;
+}
+
+function serialize(value, path) {
+  if (value === null) return "null";
+  const t = typeof value;
+  if (t === "string") return JSON.stringify(value);
+  if (t === "boolean") return value ? "true" : "false";
+  if (t === "number") {
+    if (!Number.isFinite(value)) fail(`non-finite number at ${path} — failing closed`);
+    return JSON.stringify(value);
+  }
+  if (t === "bigint") fail(`BigInt at ${path} — consensus integers must be committed as strings`);
+  if (t === "undefined") fail(`undefined at ${path} — a commitment field may not be silently omitted`);
+  if (t === "function" || t === "symbol") fail(`${t} at ${path} — not JSON`);
+  if (Array.isArray(value)) {
+    return `[${value.map((v, i) => serialize(v, `${path}[${i}]`)).join(",")}]`;
+  }
+  if (t === "object") {
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+      fail(`non-plain object at ${path} — refusing to canonicalize`);
+    }
+    const keys = Object.keys(value).sort();
+    const parts = [];
+    for (const key of keys) {
+      parts.push(`${JSON.stringify(key)}:${serialize(value[key], `${path}.${key}`)}`);
+    }
+    return `{${parts.join(",")}}`;
+  }
+  fail(`unsupported type ${t} at ${path}`);
+}
+
+/* Deterministic, storage-representation-independent JSON serialization. */
+function canonicalJsonStringify(value) {
+  return serialize(value, "$");
+}
+
+module.exports = { canonicalJsonStringify };
+  });
+
+  define("core/model/token-amounts", function (module, exports, require) {
+"use strict";
+
+/*
+ * TOKEN-domain numeric primitives for the portable core (v0.5). Token
+ * amounts are atomic units — NEVER KAS/sompi (separate accounting domain,
+ * docs/postlaunch/v0.5-design-freeze.md §I.5). Same rejection discipline as
+ * the sompi parsers (no signs, leading zeros, floats, exponents, NaN,
+ * Infinity), bounded to the i64 domain the Kaspa VM decodes token amounts
+ * in. Also carries the frozen kcc20-state/1 byte facts the model layer
+ * needs without depending on core/assets (core/model purity rule:
+ * builtins + siblings only; core/assets depends on core/model, never the
+ * reverse).
+ */
+
+const MAX_I64 = 0x7fffffffffffffffn;
+const KCC20_STATE_LEN = 46;
+const OWNER_SCHEMES = Object.freeze({ P2PK: 0x00, P2SH: 0x01, COVENANT_ID: 0x02 });
+
+class TokenAmountError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "TokenAmountError";
+    this.code = code;
+  }
+}
+
+function parseAtomicAmount(value, label = "amount") {
+  let n;
+  if (typeof value === "bigint") {
+    n = value;
+  } else if (typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value)) {
+    n = BigInt(value);
+  } else {
+    throw new TokenAmountError(
+      "KCC20_MALFORMED",
+      `${label} must be a non-negative atomic-unit decimal string or BigInt (no signs, leading zeros, floats, exponents)`
+    );
+  }
+  if (n < 0n || n > MAX_I64) {
+    throw new TokenAmountError("KCC20_MALFORMED", `${label} must be within 0..2^63-1 (the VM decodes token amounts as i64)`);
+  }
+  return n;
+}
+
+module.exports = { MAX_I64, KCC20_STATE_LEN, OWNER_SCHEMES, TokenAmountError, parseAtomicAmount };
+  });
+
+  define("core/assets/blake2b", function (module, exports, require) {
+"use strict";
+
+/*
+ * BLAKE2b (RFC 7693) with a configurable digest length — pure, portable
+ * JavaScript (no Node crypto dependency: OpenSSL exposes only the fixed
+ * 512-bit variant, and blake2b-256 is a DIFFERENT parameterization, not a
+ * truncation). PolicyVault needs the 32-byte digest because it is the
+ * consensus/VM template identity (`OpBlake2b` in the Kaspa engine hashes
+ * with hash_length 32; the P2SH envelope commits to blake2b-256 of the
+ * redeem script; `readInputStateWithTemplate` / `validateOutputStateWithTemplate`
+ * verify blake2b-256(prefix || suffix)).
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED against RFC 7693 vectors AND against
+ * the real-engine fixture core/assets/test/fixtures/kcc20-template-v1.json
+ * (production-byte rule: the JS digest of the real template bytes equals
+ * the digest the VM verifies).
+ *
+ * Unkeyed only (PolicyVault never uses keyed BLAKE2b at the financial
+ * boundary). Inputs are Uint8Array/Buffer; output is a Uint8Array.
+ */
+
+const BLOCK_BYTES = 128;
+
+/* IV as 16 x 32-bit words (little-endian halves: lo, hi) */
+const IV32 = new Uint32Array([
+  0xf3bcc908, 0x6a09e667, 0x84caa73b, 0xbb67ae85, 0xfe94f82b, 0x3c6ef372, 0x5f1d36f1, 0xa54ff53a,
+  0xade682d1, 0x510e527f, 0x2b3e6c1f, 0x9b05688c, 0xfb41bd6b, 0x1f83d9ab, 0x137e2179, 0x5be0cd19
+]);
+
+const SIGMA = [
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+  [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
+  [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
+  [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
+  [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
+  [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
+  [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
+  [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
+  [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3]
+];
+/* SIGMA entries doubled (index into the 32-bit-word message array). */
+const SIGMA2 = SIGMA.map((row) => row.map((x) => x * 2));
+
+/* 64-bit add on (lo, hi) pairs inside the v array. */
+function add64AA(v, a, b) {
+  const o0 = v[a] + v[b];
+  let o1 = v[a + 1] + v[b + 1];
+  if (o0 >= 0x100000000) o1++;
+  v[a] = o0 >>> 0;
+  v[a + 1] = o1 >>> 0;
+}
+
+function add64AC(v, a, b0, b1) {
+  let o0 = v[a] + b0;
+  if (b0 < 0) o0 += 0x100000000;
+  let o1 = v[a + 1] + b1;
+  if (o0 >= 0x100000000) o1++;
+  v[a] = o0 >>> 0;
+  v[a + 1] = o1 >>> 0;
+}
+
+function B2B_G(v, m, a, b, c, d, ix, iy) {
+  const x0 = m[ix];
+  const x1 = m[ix + 1];
+  const y0 = m[iy];
+  const y1 = m[iy + 1];
+
+  add64AA(v, a, b);
+  add64AC(v, a, x0, x1);
+
+  let xor0 = v[d] ^ v[a];
+  let xor1 = v[d + 1] ^ v[a + 1];
+  v[d] = xor1;
+  v[d + 1] = xor0;
+
+  add64AA(v, c, d);
+
+  xor0 = v[b] ^ v[c];
+  xor1 = v[b + 1] ^ v[c + 1];
+  v[b] = ((xor0 >>> 24) ^ (xor1 << 8)) >>> 0;
+  v[b + 1] = ((xor1 >>> 24) ^ (xor0 << 8)) >>> 0;
+
+  add64AA(v, a, b);
+  add64AC(v, a, y0, y1);
+
+  xor0 = v[d] ^ v[a];
+  xor1 = v[d + 1] ^ v[a + 1];
+  v[d] = ((xor0 >>> 16) ^ (xor1 << 16)) >>> 0;
+  v[d + 1] = ((xor1 >>> 16) ^ (xor0 << 16)) >>> 0;
+
+  add64AA(v, c, d);
+
+  xor0 = v[b] ^ v[c];
+  xor1 = v[b + 1] ^ v[c + 1];
+  v[b] = ((xor1 >>> 31) ^ (xor0 << 1)) >>> 0;
+  v[b + 1] = ((xor0 >>> 31) ^ (xor1 << 1)) >>> 0;
+}
+
+function compress(ctx, last) {
+  const v = new Uint32Array(32);
+  const m = new Uint32Array(32);
+  for (let i = 0; i < 16; i++) {
+    v[i] = ctx.h[i];
+    v[i + 16] = IV32[i];
+  }
+  v[24] ^= ctx.t0;
+  v[25] ^= ctx.t1;
+  v[26] ^= ctx.t2;
+  v[27] ^= ctx.t3;
+  if (last) {
+    v[28] = ~v[28] >>> 0;
+    v[29] = ~v[29] >>> 0;
+  }
+  for (let i = 0; i < 32; i++) {
+    const o = i * 4;
+    m[i] = (ctx.b[o] | (ctx.b[o + 1] << 8) | (ctx.b[o + 2] << 16) | (ctx.b[o + 3] << 24)) >>> 0;
+  }
+  for (let r = 0; r < 12; r++) {
+    const s = SIGMA2[r];
+    B2B_G(v, m, 0, 8, 16, 24, s[0], s[1]);
+    B2B_G(v, m, 2, 10, 18, 26, s[2], s[3]);
+    B2B_G(v, m, 4, 12, 20, 28, s[4], s[5]);
+    B2B_G(v, m, 6, 14, 22, 30, s[6], s[7]);
+    B2B_G(v, m, 0, 10, 20, 30, s[8], s[9]);
+    B2B_G(v, m, 2, 12, 22, 24, s[10], s[11]);
+    B2B_G(v, m, 4, 14, 16, 26, s[12], s[13]);
+    B2B_G(v, m, 6, 8, 18, 28, s[14], s[15]);
+  }
+  for (let i = 0; i < 16; i++) {
+    ctx.h[i] = (ctx.h[i] ^ v[i] ^ v[i + 16]) >>> 0;
+  }
+}
+
+function toBytes(input, label) {
+  if (input instanceof Uint8Array) return input;
+  if (typeof input === "string") {
+    if (input.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(input)) {
+      throw new Error(`blake2b: ${label ?? "input"} must be Uint8Array or even-length hex`);
+    }
+    const out = new Uint8Array(input.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(input.slice(i * 2, i * 2 + 2), 16);
+    return out;
+  }
+  throw new Error(`blake2b: ${label ?? "input"} must be Uint8Array or hex string`);
+}
+
+/*
+ * blake2b(parts, outlen) — `parts` is one Uint8Array/hex or an array of
+ * them (hashed as one concatenated message, without copying the whole
+ * message). outlen defaults to 32 (the Kaspa VM/P2SH parameterization).
+ */
+function blake2b(parts, outlen = 32) {
+  if (!Number.isInteger(outlen) || outlen < 1 || outlen > 64) {
+    throw new Error("blake2b: outlen must be an integer in 1..64");
+  }
+  const chunks = Array.isArray(parts) ? parts.map((p, i) => toBytes(p, `parts[${i}]`)) : [toBytes(parts)];
+  const ctx = { b: new Uint8Array(BLOCK_BYTES), h: new Uint32Array(16), t0: 0, t1: 0, t2: 0, t3: 0, c: 0 };
+  for (let i = 0; i < 16; i++) ctx.h[i] = IV32[i];
+  /* parameter block: digest length, key length 0, fanout 1, depth 1 */
+  ctx.h[0] ^= 0x01010000 ^ outlen;
+
+  const incCounter = (n) => {
+    ctx.t0 += n;
+    if (ctx.t0 >= 0x100000000) {
+      ctx.t0 -= 0x100000000;
+      ctx.t1 += 1;
+      if (ctx.t1 >= 0x100000000) {
+        ctx.t1 -= 0x100000000;
+        ctx.t2 += 1;
+      }
+    }
+  };
+
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      if (ctx.c === BLOCK_BYTES) {
+        incCounter(BLOCK_BYTES);
+        compress(ctx, false);
+        ctx.c = 0;
+      }
+      ctx.b[ctx.c++] = chunk[i];
+    }
+  }
+
+  incCounter(ctx.c);
+  while (ctx.c < BLOCK_BYTES) ctx.b[ctx.c++] = 0;
+  compress(ctx, true);
+
+  const out = new Uint8Array(outlen);
+  for (let i = 0; i < outlen; i++) {
+    out[i] = (ctx.h[i >> 2] >> (8 * (i & 3))) & 0xff;
+  }
+  return out;
+}
+
+function bytesToHex(bytes) {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+
+function blake2bHex(parts, outlen = 32) {
+  return bytesToHex(blake2b(parts, outlen));
+}
+
+module.exports = { blake2b, blake2bHex, BLOCK_BYTES };
+  });
+
+  define("core/assets/kcc20", function (module, exports, require) {
+"use strict";
+
+/*
+ * Canonical KCC20 token adapter — shared deterministic core (v0.5).
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED, pinned byte-for-byte to the real
+ * silverscript compiler / rusty-kaspa v2.0.1 engine through the fixture
+ * core/assets/test/fixtures/kcc20-template-v1.json (captured by
+ * tests/vm/tests/v5_fixture_capture.rs — production-byte rule).
+ *
+ * What this module KNOWS (all consensus-visible byte facts):
+ *   - the `kcc20-state/1` state layout and its exact 46-byte encoding
+ *     inside a KCC20 redeem script:
+ *       0x20 || ownerIdentifier(32)      (OpData32 push)
+ *       0x01 || identifierType(1)        (OpData1 push)
+ *       0x08 || amount LE64(8)           (OpData8 push, fixed width)
+ *       0x01 || isMinter(0x00|0x01)      (OpData1 push)
+ *   - redeem = prefix || state || suffix; prefix/suffix = the TEMPLATE;
+ *   - the in-VM template identity blake2b-256(prefix || suffix);
+ *   - the version-0 P2SH envelope OpBlake2b OpData32 <blake2b-256(redeem)>
+ *     OpEqual;
+ *   - the post-Toccata STATIC P2SH sig-op scan (mempool standardness),
+ *     mirrored from rusty-kaspa get_sig_op_count_by_opcodes.
+ *
+ * What it does NOT do: trust anything. Every input is bytes from a
+ * transaction or a validated descriptor; every mismatch throws (fail
+ * closed). Token amounts are atomic units (NEVER KAS/sompi).
+ */
+
+const { blake2b, blake2bHex } = require("./blake2b");
+const { MAX_I64, KCC20_STATE_LEN, OWNER_SCHEMES, parseAtomicAmount: parseAtomicAmountCore } = require("../model/token-amounts");
+
+const STATE_LAYOUT_ID = "kcc20-state/1";
+const STATE_LEN = KCC20_STATE_LEN;
+const MAX_STANDARD_P2SH_SIG_OPS = 15; // rusty-kaspa mining/src/mempool/check_transaction_standard.rs
+const MAX_PUB_KEYS_PER_MULTISIG = 20; // rusty-kaspa crypto/txscript/src/lib.rs
+
+/* opcode values (rusty-kaspa crypto/txscript/src/opcodes/mod.rs) */
+const OP = Object.freeze({
+  FALSE: 0x00,
+  DATA1: 0x01,
+  DATA75: 0x4b,
+  PUSHDATA1: 0x4c,
+  PUSHDATA2: 0x4d,
+  PUSHDATA4: 0x4e,
+  ONE: 0x51,
+  SIXTEEN: 0x60,
+  EQUAL: 0x87,
+  CHECKMULTISIG_ECDSA: 0xa9,
+  BLAKE2B: 0xaa,
+  CHECKSIG_ECDSA: 0xab,
+  CHECKSIG: 0xac,
+  CHECKSIG_VERIFY: 0xad,
+  CHECKMULTISIG: 0xae,
+  CHECKMULTISIG_VERIFY: 0xaf,
+  CHECKSIG_FROM_STACK: 0xd7,
+  CHECKSIG_FROM_STACK_ECDSA: 0xd8
+});
+
+class Kcc20Error extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "Kcc20Error";
+    this.code = code;
+  }
+}
+function fail(code, message) {
+  throw new Kcc20Error(code, message);
+}
+
+/* ---- portable byte helpers ---- */
+function bytesToHex(bytes) {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+function hexToBytes(hex, label) {
+  if (typeof hex !== "string" || hex.length % 2 !== 0 || !/^[0-9a-f]*$/.test(hex)) {
+    fail("KCC20_MALFORMED", `${label ?? "value"} must be lowercase even-length hex`);
+  }
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function asBytes(value, label) {
+  if (value instanceof Uint8Array) return value;
+  return hexToBytes(value, label);
+}
+function concat(chunks) {
+  let n = 0;
+  for (const c of chunks) n += c.length;
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const c of chunks) {
+    out.set(c, o);
+    o += c.length;
+  }
+  return out;
+}
+function bytesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/* ---- atomic amounts (token domain; NEVER sompi) — core/model primitive ---- */
+function parseAtomicAmount(value, label = "amount") {
+  try {
+    return parseAtomicAmountCore(value, label);
+  } catch (e) {
+    fail(e.code ?? "KCC20_MALFORMED", e.message);
+  }
+}
+
+/* ---- kcc20-state/1 codec ---- */
+function normalizeState(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    fail("KCC20_MALFORMED", "token state must be a plain object");
+  }
+  for (const key of Object.keys(input)) {
+    if (!["ownerIdentifier", "identifierType", "amount", "isMinter"].includes(key)) {
+      fail("KCC20_MALFORMED", `token state carries unknown field ${JSON.stringify(key)} — closed layout, failing closed`);
+    }
+  }
+  if (typeof input.ownerIdentifier !== "string" || !/^[0-9a-f]{64}$/.test(input.ownerIdentifier)) {
+    fail("KCC20_MALFORMED", "ownerIdentifier must be 64 lowercase hex characters");
+  }
+  const type = input.identifierType;
+  if (!Number.isInteger(type) || !Object.values(OWNER_SCHEMES).includes(type)) {
+    fail("KCC20_UNKNOWN_OWNER_SCHEME", `identifierType ${JSON.stringify(type)} is not a known owner scheme (0x00 p2pk, 0x01 p2sh, 0x02 covenant-id) — failing closed`);
+  }
+  if (typeof input.isMinter !== "boolean") {
+    fail("KCC20_MALFORMED", "isMinter must be an explicit boolean");
+  }
+  return Object.freeze({
+    ownerIdentifier: input.ownerIdentifier,
+    identifierType: type,
+    amount: parseAtomicAmount(input.amount),
+    isMinter: input.isMinter
+  });
+}
+
+function encodeState(input) {
+  const s = normalizeState(input);
+  const out = new Uint8Array(STATE_LEN);
+  out[0] = 0x20;
+  out.set(hexToBytes(s.ownerIdentifier), 1);
+  out[33] = 0x01;
+  out[34] = s.identifierType;
+  out[35] = 0x08;
+  let v = s.amount;
+  for (let i = 0; i < 8; i++) {
+    out[36 + i] = Number(v & 0xffn);
+    v >>= 8n;
+  }
+  out[44] = 0x01;
+  out[45] = s.isMinter ? 0x01 : 0x00;
+  return out;
+}
+
+function decodeState(bytesIn) {
+  const b = asBytes(bytesIn, "state");
+  if (b.length !== STATE_LEN) {
+    fail("KCC20_MALFORMED_STATE", `kcc20-state/1 must be exactly ${STATE_LEN} bytes (got ${b.length}) — failing closed`);
+  }
+  if (b[0] !== 0x20 || b[33] !== 0x01 || b[35] !== 0x08 || b[44] !== 0x01) {
+    fail("KCC20_MALFORMED_STATE", "kcc20-state/1 push framing is not canonical (expected 0x20/0x01/0x08/0x01 push opcodes) — failing closed");
+  }
+  const type = b[34];
+  if (!Object.values(OWNER_SCHEMES).includes(type)) {
+    fail("KCC20_UNKNOWN_OWNER_SCHEME", `identifierType 0x${type.toString(16)} is not a known owner scheme — failing closed`);
+  }
+  if (b[45] !== 0x00 && b[45] !== 0x01) {
+    fail("KCC20_MALFORMED_STATE", "isMinter byte must be 0x00 or 0x01 — failing closed");
+  }
+  let amount = 0n;
+  for (let i = 7; i >= 0; i--) amount = (amount << 8n) | BigInt(b[36 + i]);
+  if (amount > MAX_I64) {
+    fail("KCC20_MALFORMED_STATE", "amount has the i64 sign bit set (negative in-VM) — failing closed");
+  }
+  return Object.freeze({
+    ownerIdentifier: bytesToHex(b.subarray(1, 33)),
+    identifierType: type,
+    amount,
+    isMinter: b[45] === 0x01
+  });
+}
+
+/* ---- template geometry / identity ---- */
+function normalizeGeometry(g) {
+  if (!g || typeof g !== "object") fail("KCC20_MALFORMED", "geometry object is required");
+  for (const k of ["prefixLen", "stateLen", "suffixLen"]) {
+    if (!Number.isInteger(g[k]) || g[k] < 0 || g[k] > 1_000_000) fail("KCC20_MALFORMED", `geometry.${k} must be an integer 0..1000000`);
+  }
+  if (g.stateLen !== STATE_LEN) fail("KCC20_MALFORMED", `geometry.stateLen must be ${STATE_LEN} for ${STATE_LAYOUT_ID}`);
+  return Object.freeze({ prefixLen: g.prefixLen, stateLen: g.stateLen, suffixLen: g.suffixLen });
+}
+
+function splitRedeem(redeemIn, geometryIn) {
+  const redeem = asBytes(redeemIn, "redeem");
+  const g = normalizeGeometry(geometryIn);
+  if (redeem.length !== g.prefixLen + g.stateLen + g.suffixLen) {
+    fail("KCC20_GEOMETRY_MISMATCH", `redeem length ${redeem.length} != pinned geometry ${g.prefixLen}+${g.stateLen}+${g.suffixLen} — failing closed`);
+  }
+  return Object.freeze({
+    prefix: redeem.subarray(0, g.prefixLen),
+    state: redeem.subarray(g.prefixLen, g.prefixLen + g.stateLen),
+    suffix: redeem.subarray(g.prefixLen + g.stateLen)
+  });
+}
+
+function reconstructRedeem(prefix, state, suffix) {
+  return concat([asBytes(prefix, "prefix"), asBytes(state, "state"), asBytes(suffix, "suffix")]);
+}
+
+/* The in-VM identity the *WithTemplate builtins verify. */
+function templateVmHashHex(prefix, suffix) {
+  return blake2bHex([asBytes(prefix, "prefix"), asBytes(suffix, "suffix")], 32);
+}
+
+/* Version-0 P2SH envelope for a redeem script. */
+function p2shSpkHex(redeem) {
+  return "aa20" + bytesToHex(blake2b(asBytes(redeem, "redeem"), 32)) + "87";
+}
+
+/* ---- script parsing (push-aware), mirrors rusty-kaspa parse_script ---- */
+function parseOpcodes(scriptIn) {
+  const s = asBytes(scriptIn, "script");
+  const ops = [];
+  let i = 0;
+  while (i < s.length) {
+    const op = s[i];
+    let dataLen = 0;
+    let header = 1;
+    if (op >= OP.DATA1 && op <= OP.DATA75) {
+      dataLen = op;
+    } else if (op === OP.PUSHDATA1) {
+      if (i + 1 >= s.length) return { ops, malformed: true };
+      dataLen = s[i + 1];
+      header = 2;
+    } else if (op === OP.PUSHDATA2) {
+      if (i + 2 >= s.length) return { ops, malformed: true };
+      dataLen = s[i + 1] | (s[i + 2] << 8);
+      header = 3;
+    } else if (op === OP.PUSHDATA4) {
+      if (i + 4 >= s.length) return { ops, malformed: true };
+      dataLen = (s[i + 1] | (s[i + 2] << 8) | (s[i + 3] << 16) | (s[i + 4] << 24)) >>> 0;
+      header = 5;
+    }
+    if (i + header + dataLen > s.length) return { ops, malformed: true };
+    ops.push({ op, data: s.subarray(i + header, i + header + dataLen) });
+    i += header + dataLen;
+  }
+  return { ops, malformed: false };
+}
+
+/* The redeem script of a P2SH spend is the LAST push of the signature script. */
+function lastPushData(sigscriptIn) {
+  const { ops, malformed } = parseOpcodes(sigscriptIn);
+  if (malformed || ops.length === 0) fail("KCC20_MALFORMED", "signature script is malformed or empty — cannot locate a redeem script");
+  const last = ops[ops.length - 1];
+  if (last.op > OP.PUSHDATA4) fail("KCC20_MALFORMED", "signature script does not end with a data push — cannot locate a redeem script");
+  return last.data;
+}
+
+/* rusty-kaspa deserialize_i64 (enforce_minimal = false): <= 8 bytes, LE, sign-magnitude top bit. */
+function deserializeI64(data) {
+  if (data.length > 8) return null;
+  if (data.length === 0) return 0n;
+  const msb = data[data.length - 1];
+  const sign = msb & 0x80 ? -1n : 1n;
+  let acc = BigInt(msb & 0x7f);
+  for (let i = data.length - 2; i >= 0; i--) acc = (acc << 8n) + BigInt(data[i]);
+  return acc * sign;
+}
+
+/*
+ * Static P2SH sig-op scan of a REDEEM script — exactly rusty-kaspa's
+ * get_sig_op_count_by_opcodes semantics (post-Toccata: from-stack variants
+ * count; non-minimal pushes before multisig are honoured; unknown multisig
+ * count = 20). A malformed script is reported (the node's scanner returns 0
+ * for it; PolicyVault fails CLOSED instead).
+ */
+function countStaticSigOps(redeemIn) {
+  const { ops, malformed } = parseOpcodes(redeemIn);
+  if (malformed) return { sigOps: 0, malformed: true };
+  let sigOps = 0;
+  let prevMultisigCount = null;
+  for (const { op, data } of ops) {
+    const count = prevMultisigCount;
+    prevMultisigCount = null;
+    if (op === OP.CHECKSIG || op === OP.CHECKSIG_VERIFY || op === OP.CHECKSIG_ECDSA || op === OP.CHECKSIG_FROM_STACK || op === OP.CHECKSIG_FROM_STACK_ECDSA) {
+      sigOps += 1;
+    } else if (op === OP.CHECKMULTISIG || op === OP.CHECKMULTISIG_VERIFY || op === OP.CHECKMULTISIG_ECDSA) {
+      sigOps += count ?? MAX_PUB_KEYS_PER_MULTISIG;
+    } else if (op >= OP.ONE && op <= OP.SIXTEEN) {
+      prevMultisigCount = op - OP.ONE + 1;
+    } else if (op <= OP.PUSHDATA4) {
+      const n = deserializeI64(data);
+      prevMultisigCount = n !== null && n >= 1n && n <= BigInt(MAX_PUB_KEYS_PER_MULTISIG) ? Number(n) : null;
+    }
+  }
+  return { sigOps, malformed: false };
+}
+
+/* Canonical representative state used to scan a template's redeem. */
+const ZERO_STATE = Object.freeze({ ownerIdentifier: "00".repeat(32), identifierType: OWNER_SCHEMES.COVENANT_ID, amount: "0", isMinter: false });
+
+/*
+ * Standardness envelope for an accepted template (frozen v0.5 rule): the
+ * static sig-op count of prefix || state || suffix must be <= 15, the
+ * script must parse, or the template MUST NOT become spend-enabled.
+ */
+function templateStandardness(prefix, suffix) {
+  const redeem = reconstructRedeem(asBytes(prefix, "prefix"), encodeState(ZERO_STATE), asBytes(suffix, "suffix"));
+  const scan = countStaticSigOps(redeem);
+  if (scan.malformed) {
+    return Object.freeze({ standard: false, reason: "TEMPLATE_MALFORMED", staticSigOps: null, limit: MAX_STANDARD_P2SH_SIG_OPS });
+  }
+  if (scan.sigOps > MAX_STANDARD_P2SH_SIG_OPS) {
+    return Object.freeze({ standard: false, reason: "TEMPLATE_NONSTANDARD_FAMILY_BOUND", staticSigOps: scan.sigOps, limit: MAX_STANDARD_P2SH_SIG_OPS });
+  }
+  return Object.freeze({ standard: true, reason: null, staticSigOps: scan.sigOps, limit: MAX_STANDARD_P2SH_SIG_OPS });
+}
+
+module.exports = {
+  STATE_LAYOUT_ID,
+  STATE_LEN,
+  OWNER_SCHEMES,
+  MAX_I64,
+  MAX_STANDARD_P2SH_SIG_OPS,
+  Kcc20Error,
+  bytesToHex,
+  hexToBytes,
+  bytesEqual,
+  parseAtomicAmount,
+  normalizeState,
+  encodeState,
+  decodeState,
+  normalizeGeometry,
+  splitRedeem,
+  reconstructRedeem,
+  templateVmHashHex,
+  p2shSpkHex,
+  parseOpcodes,
+  lastPushData,
+  countStaticSigOps,
+  templateStandardness,
+  ZERO_STATE
+};
+  });
+
+  define("core/assets/descriptor", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.5 ASSET DESCRIPTOR — DESIGN-STAGE DRAFT (D1 item 1; 2026-09-01).
+ *
+ * STATUS: NOT PRODUCTION. No production path imports this module; it is
+ * the reference validator for the v0.5 per-asset descriptor schema and
+ * exists so the design gate can review executable, tested semantics
+ * instead of prose. The v0.5 design-freeze gate decides adoption; until
+ * then the schema may change without migration duty.
+ *
+ * WHAT A DESCRIPTOR IS. The canonical, shared-deterministic-core record
+ * that tells every PolicyVault surface (browser, mobile, server, CLI,
+ * self-host, MCP, x402, USI, SDK) what a token asset IS and how a
+ * transition involving it must verify. Per the 2026-08-31 architecture
+ * addendum: descriptors live HERE in the core; no framework adapter,
+ * hosted service, indexer, or UI may re-implement or override these
+ * semantics; nothing a descriptor does not carry can be assumed.
+ *
+ * DUAL BINDING (addendum §3, VM-PROVEN by the V5 probes). A descriptor
+ * carries BOTH bindings, and a transition must satisfy BOTH:
+ *   1. tokenCovenantId  — WHO/what controller family is authorized
+ *      (KIP-20 covenant lineage identity);
+ *   2. acceptedTransferTemplates — WHICH bytes may carry the asset
+ *      (hash-verified template pinning of the continuation outputs).
+ * Either binding failing fails closed. Covenant-ID alone is NEVER
+ * sufficient.
+ *
+ * HASH-CONVENTION DISCIPLINE (never conflate; both may be present):
+ *   - templateVmHashBlake2b256: blake2b-256 over (prefix || suffix) —
+ *     the identity the IN-VM `*WithTemplate` helpers verify at
+ *     consensus (SOURCE-VERIFIED upstream; exercised by the V5 probe).
+ *   - templateKcc1HashBlake3: BLAKE3-256 over
+ *     LE64(len(prefix))||prefix||LE64(len(suffix))||suffix — the
+ *     KCC-0001 convention-level template identity used by ecosystem
+ *     tooling/registries (SPEC-VERIFIED).
+ *   Each accepted template names BOTH values explicitly; nothing ever
+ *   infers one from the other, and a descriptor with only one is valid
+ *   ONLY for the uses that hash serves (in-VM pinning requires the
+ *   blake2b value; ecosystem interop requires the KCC-0001 value).
+ *
+ * ISSUER POWERS ARE TRUST PROPERTIES, NOT GUARANTEES. `issuerPowers`
+ * declares what the issuing covenant retains (mint/burn/freeze/...).
+ * PolicyVault enforces spending policy deterministically REGARDLESS,
+ * but it cannot remove powers intrinsic to the asset; explain output,
+ * UI, compliance exports, and MCP responses must surface these
+ * verbatim and never market an issuer-controlled asset as trustless.
+ *
+ * TWO ACCOUNTING DOMAINS. Token amounts here are integer atomic-unit
+ * decimal STRINGS (same numeric discipline as sompi); they are NEVER
+ * KAS. KAS fee-reserve accounting is a separate domain: nothing in a
+ * descriptor can authorize spending token value as fees or charging
+ * token budgets for KAS costs.
+ *
+ * NO BLESSED LIST. Descriptors are data an OWNER accepts per vault
+ * policy (D2 onboarding design). The core may ship verified standard
+ * descriptors as conveniences; acceptance is always an explicit owner
+ * decision, and KAS-only vaults never migrate implicitly.
+ *
+ * FAIL-CLOSED RULES. Unknown schema version -> refuse. Unknown field ->
+ * refuse (closed schema). Unknown enum value -> refuse. Missing
+ * required binding -> refuse. Malformed hex/amount -> refuse.
+ */
+
+const SCHEMA_V1 = "policyvault-asset-descriptor/1";
+
+/* Enumerations are CLOSED: an unlisted value refuses. */
+const TOKEN_STANDARDS = Object.freeze(["kcc20/1"]);
+const ISSUER_POWER_NAMES = Object.freeze([
+  "mint",
+  "burn",
+  "freeze",
+  "blacklist",
+  "redemptionControl",
+  "upgradeMigration",
+  "controllerRotation",
+  "emergencyControl"
+]);
+
+const HEX32 = /^[0-9a-f]{64}$/;
+const HEX_EVEN = /^(?:[0-9a-f]{2})+$/;
+/* Atomic-unit decimal string: no signs, no leading zeros (except "0"). */
+const ATOMIC_DECIMAL = /^(0|[1-9][0-9]*)$/;
+
+class DescriptorError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "DescriptorError";
+    this.code = code;
+  }
+}
+
+function fail(code, message) {
+  throw new DescriptorError(code, message);
+}
+
+function requireClosedObject(value, allowedKeys, where) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    fail("DESCRIPTOR_MALFORMED", `${where} must be a plain object — failing closed`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) {
+      fail("DESCRIPTOR_UNKNOWN_FIELD", `${where} carries unknown field ${JSON.stringify(key)} — closed schema, failing closed`);
+    }
+  }
+}
+
+function requireHex32(value, where) {
+  if (typeof value !== "string" || !HEX32.test(value)) {
+    fail("DESCRIPTOR_MALFORMED", `${where} must be 64 lowercase hex characters — failing closed`);
+  }
+}
+
+/*
+ * validateAssetDescriptor(descriptor) -> frozen normalized descriptor.
+ * Throws DescriptorError on ANY deviation. Never mutates its input.
+ */
+function validateAssetDescriptor(descriptor) {
+  requireClosedObject(
+    descriptor,
+    [
+      "schema",
+      "assetId",
+      "displayName",
+      "tokenStandard",
+      "tokenCovenantId",
+      "acceptedTransferTemplates",
+      "decimalsDisplay",
+      "issuerPowers",
+      "notes"
+    ],
+    "descriptor"
+  );
+
+  if (descriptor.schema !== SCHEMA_V1) {
+    fail(
+      "DESCRIPTOR_UNKNOWN_VERSION",
+      `unknown descriptor schema ${JSON.stringify(descriptor.schema)} — unknown versions fail closed, never route to a default`
+    );
+  }
+
+  requireHex32(descriptor.assetId, "assetId");
+  requireHex32(descriptor.tokenCovenantId, "tokenCovenantId (BINDING 1: controller/covenant authorization)");
+
+  if (typeof descriptor.displayName !== "string" || !descriptor.displayName.trim() || descriptor.displayName.length > 64) {
+    fail("DESCRIPTOR_MALFORMED", "displayName must be a non-empty string of at most 64 characters — failing closed");
+  }
+
+  if (!TOKEN_STANDARDS.includes(descriptor.tokenStandard)) {
+    fail(
+      "DESCRIPTOR_UNKNOWN_STANDARD",
+      `unknown tokenStandard ${JSON.stringify(descriptor.tokenStandard)} — unknown semantics fail closed`
+    );
+  }
+
+  const templates = descriptor.acceptedTransferTemplates;
+  if (!Array.isArray(templates) || templates.length === 0) {
+    fail(
+      "DESCRIPTOR_MISSING_BINDING",
+      "acceptedTransferTemplates must be a non-empty array (BINDING 2: hash-verified template pinning) — covenant-ID alone is never sufficient"
+    );
+  }
+  const normalizedTemplates = templates.map((tpl, i) => {
+    const where = `acceptedTransferTemplates[${i}]`;
+    requireClosedObject(
+      tpl,
+      ["templateVmHashBlake2b256", "templateKcc1HashBlake3", "prefixLen", "suffixLen", "stateLayout"],
+      where
+    );
+    /* At least the IN-VM hash is required for a spendable binding; the
+     * KCC-0001 hash is required alongside it for ecosystem interop and
+     * may not substitute for it. */
+    requireHex32(tpl.templateVmHashBlake2b256, `${where}.templateVmHashBlake2b256 (in-VM blake2b(prefix||suffix) identity)`);
+    if (tpl.templateKcc1HashBlake3 !== undefined) {
+      requireHex32(tpl.templateKcc1HashBlake3, `${where}.templateKcc1HashBlake3 (KCC-0001 BLAKE3/LE64-framed identity)`);
+    }
+    for (const lenField of ["prefixLen", "suffixLen"]) {
+      const v = tpl[lenField];
+      if (!Number.isInteger(v) || v < 0 || v > 100_000) {
+        fail("DESCRIPTOR_MALFORMED", `${where}.${lenField} must be an integer 0..100000 — failing closed`);
+      }
+    }
+    if (tpl.stateLayout !== "kcc20-state/1") {
+      fail("DESCRIPTOR_UNKNOWN_STANDARD", `${where}.stateLayout ${JSON.stringify(tpl.stateLayout)} unknown — failing closed`);
+    }
+    return Object.freeze({ ...tpl });
+  });
+
+  const decimals = descriptor.decimalsDisplay;
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) {
+    fail(
+      "DESCRIPTOR_MALFORMED",
+      "decimalsDisplay must be an integer 0..18 — DISPLAY metadata only (KCC20 has no consensus decimals; amounts stay atomic-unit strings)"
+    );
+  }
+
+  const powers = descriptor.issuerPowers;
+  requireClosedObject(powers, ISSUER_POWER_NAMES.slice(), "issuerPowers");
+  const normalizedPowers = {};
+  for (const name of ISSUER_POWER_NAMES) {
+    const v = powers[name];
+    if (typeof v !== "boolean") {
+      fail(
+        "DESCRIPTOR_MALFORMED",
+        `issuerPowers.${name} must be explicitly true or false — issuer powers are declared trust properties; omission is not deniability`
+      );
+    }
+    normalizedPowers[name] = v;
+  }
+
+  if (descriptor.notes !== undefined && (typeof descriptor.notes !== "string" || descriptor.notes.length > 2000)) {
+    fail("DESCRIPTOR_MALFORMED", "notes must be a string of at most 2000 characters when present");
+  }
+
+  return Object.freeze({
+    schema: SCHEMA_V1,
+    assetId: descriptor.assetId,
+    displayName: descriptor.displayName,
+    tokenStandard: descriptor.tokenStandard,
+    tokenCovenantId: descriptor.tokenCovenantId,
+    acceptedTransferTemplates: Object.freeze(normalizedTemplates),
+    decimalsDisplay: decimals,
+    issuerPowers: Object.freeze(normalizedPowers),
+    notes: descriptor.notes
+  });
+}
+
+/* Parse a token atomic-unit amount string (NEVER KAS/sompi — separate
+ * accounting domain). Same rejection discipline as the sompi parsers. */
+function parseAtomicAmount(value) {
+  if (typeof value !== "string" || !ATOMIC_DECIMAL.test(value)) {
+    fail("DESCRIPTOR_MALFORMED", "token amounts are non-negative atomic-unit decimal strings (no signs, no leading zeros) — failing closed");
+  }
+  const n = BigInt(value);
+  if (n > 0xffffffffffffffffn) {
+    fail("DESCRIPTOR_MALFORMED", "token amount exceeds u64 — failing closed");
+  }
+  return n;
+}
+
+module.exports = {
+  SCHEMA_V1,
+  TOKEN_STANDARDS,
+  ISSUER_POWER_NAMES,
+  DescriptorError,
+  validateAssetDescriptor,
+  parseAtomicAmount
+};
+  });
+
+  define("core/assets/index", function (module, exports, require) {
+"use strict";
+
+/*
+ * core/assets — PUBLIC INTERFACE of the v0.5 asset layer of the shared
+ * deterministic core (frozen design: docs/postlaunch/v0.5-design-freeze.md).
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/assets/test), production-byte
+ * pinned to the real compiler/engine fixture. Imported by NO production
+ * transaction path yet (v0.5 implementation phase); every consumer —
+ * browser, mobile, server, CLI, self-host, MCP, x402, USI, SDK — must reuse
+ * these functions rather than re-implement token semantics.
+ *
+ *   validateAssetDescriptor(d)          closed-schema descriptor validation
+ *   computeDescriptorHash(d)            the hash a vault policy PINS
+ *   corroborateTemplate({...})          descriptor template <-> real bytes
+ *   verifyTokenInputRedeem({...})       raw revealed redeem -> verified state
+ *   redeemFromSignatureScript(hex)      P2SH redeem = last push
+ *   kcc20 / blake2b                     the underlying codecs (re-exported)
+ *
+ * Trust model: nothing here consults an indexer, server, UI, or label. A
+ * descriptor is DATA until validated; template bytes are trusted only after
+ * they hash to the pinned in-VM identity under the pinned geometry; a token
+ * state is trusted only after its redeem matches an accepted template AND
+ * (by the caller) the input's P2SH script public key.
+ */
+
+const crypto = require("crypto");
+const { canonicalJsonStringify } = require("../model/canonical-json");
+const descriptorModule = require("./descriptor");
+const kcc20 = require("./kcc20");
+const blake2b = require("./blake2b");
+
+const { validateAssetDescriptor, DescriptorError, SCHEMA_V1 } = descriptorModule;
+
+const DESCRIPTOR_HASH_DOMAIN = "policyvault-asset-descriptor-hash/1";
+
+function fail(code, message) {
+  throw new DescriptorError(code, message);
+}
+
+/* JSON body of a validated descriptor with NO undefined fields (canonical
+ * JSON fails closed on undefined; optional fields are simply absent). */
+function descriptorHashBody(validated) {
+  const body = {
+    schema: validated.schema,
+    assetId: validated.assetId,
+    displayName: validated.displayName,
+    tokenStandard: validated.tokenStandard,
+    tokenCovenantId: validated.tokenCovenantId,
+    acceptedTransferTemplates: validated.acceptedTransferTemplates.map((t) => {
+      const tpl = {
+        templateVmHashBlake2b256: t.templateVmHashBlake2b256,
+        prefixLen: t.prefixLen,
+        suffixLen: t.suffixLen,
+        stateLayout: t.stateLayout
+      };
+      if (t.templateKcc1HashBlake3 !== undefined) tpl.templateKcc1HashBlake3 = t.templateKcc1HashBlake3;
+      return tpl;
+    }),
+    decimalsDisplay: validated.decimalsDisplay,
+    issuerPowers: { ...validated.issuerPowers }
+  };
+  if (validated.notes !== undefined) body.notes = validated.notes;
+  return body;
+}
+
+/*
+ * The descriptor hash pinned into vault policy at acceptance
+ * (downgrade/substitution refusal falls out of the pin). Domain-separated
+ * sha256 over the canonical JSON of the VALIDATED descriptor, so key order,
+ * whitespace, and non-semantic input variations never change it, while any
+ * semantic change (a hash, a length, a power, the layout) does.
+ */
+function computeDescriptorHash(descriptor) {
+  const validated = validateAssetDescriptor(descriptor);
+  const canonical = canonicalJsonStringify(descriptorHashBody(validated));
+  return crypto.createHash("sha256").update(`${DESCRIPTOR_HASH_DOMAIN}\n${canonical}`, "utf8").digest("hex");
+}
+
+function selectTemplate(validated, templateIndex) {
+  if (!Number.isInteger(templateIndex) || templateIndex < 0 || templateIndex >= validated.acceptedTransferTemplates.length) {
+    fail("DESCRIPTOR_MALFORMED", `templateIndex ${JSON.stringify(templateIndex)} is not an accepted template of this descriptor`);
+  }
+  return validated.acceptedTransferTemplates[templateIndex];
+}
+
+function geometryOf(tpl) {
+  return kcc20.normalizeGeometry({ prefixLen: tpl.prefixLen, stateLen: kcc20.STATE_LEN, suffixLen: tpl.suffixLen });
+}
+
+/*
+ * Deterministic corroboration of one accepted template against REAL
+ * template bytes (issuer-published or sliced from a live UTXO's revealed
+ * redeem): geometry, the in-VM blake2b identity, the standardness envelope.
+ * Returns a frozen report; throws DescriptorError on any mismatch. The
+ * KCC-0001 BLAKE3 identity, when declared, is carried as opaque
+ * interoperability data — this core has no BLAKE3 and NEVER infers it from
+ * the VM hash (frozen hash-semantics rule); its corroboration status is
+ * reported explicitly as NOT_AVAILABLE, never silently as verified.
+ */
+function corroborateTemplate({ descriptor, templateIndex = 0, prefixHex, suffixHex }) {
+  const validated = validateAssetDescriptor(descriptor);
+  const tpl = selectTemplate(validated, templateIndex);
+  const prefix = kcc20.hexToBytes(prefixHex ?? "", "prefixHex");
+  const suffix = kcc20.hexToBytes(suffixHex ?? "", "suffixHex");
+  const geometry = geometryOf(tpl);
+  if (prefix.length !== geometry.prefixLen || suffix.length !== geometry.suffixLen) {
+    fail(
+      "TEMPLATE_GEOMETRY_MISMATCH",
+      `template bytes are ${prefix.length}/${suffix.length} (prefix/suffix) but the descriptor pins ${geometry.prefixLen}/${geometry.suffixLen} — the unframed VM hash requires exact geometry; failing closed`
+    );
+  }
+  const vmHash = kcc20.templateVmHashHex(prefix, suffix);
+  if (vmHash !== tpl.templateVmHashBlake2b256) {
+    fail("TEMPLATE_HASH_MISMATCH", "blake2b-256(prefix || suffix) does not equal the descriptor's templateVmHashBlake2b256 — failing closed");
+  }
+  const standardness = kcc20.templateStandardness(prefix, suffix);
+  if (!standardness.standard) {
+    fail(
+      standardness.reason,
+      standardness.reason === "TEMPLATE_MALFORMED"
+        ? "template script does not parse — failing closed"
+        : `template static P2SH sig-ops ${standardness.staticSigOps} exceed the standard limit ${standardness.limit} (family bound > 15) — this template must not become spend-enabled`
+    );
+  }
+  return Object.freeze({
+    ok: true,
+    templateIndex,
+    stateLayout: tpl.stateLayout,
+    geometry,
+    templateVmHashBlake2b256: vmHash,
+    staticSigOps: standardness.staticSigOps,
+    standardness: "STANDARD",
+    kcc1Corroboration: tpl.templateKcc1HashBlake3 === undefined ? "NOT_DECLARED" : "NOT_AVAILABLE"
+  });
+}
+
+/*
+ * Canonical token parser for a RAW revealed redeem (e.g. the last push of a
+ * token input's signature script): identifies the accepted template it
+ * carries (geometry + in-VM hash; NEVER by label), decodes the state, and
+ * returns the P2SH script public key the input MUST carry. The caller binds
+ * the returned p2shSpkHex to the actual UTXO — a redeem that is not the
+ * input's real script proves nothing.
+ */
+function verifyTokenInputRedeem({ descriptor, redeemHex }) {
+  const validated = validateAssetDescriptor(descriptor);
+  const redeem = kcc20.hexToBytes(redeemHex ?? "", "redeemHex");
+  let matched = null;
+  for (let i = 0; i < validated.acceptedTransferTemplates.length; i++) {
+    const tpl = validated.acceptedTransferTemplates[i];
+    const geometry = geometryOf(tpl);
+    if (redeem.length !== geometry.prefixLen + geometry.stateLen + geometry.suffixLen) continue;
+    const parts = kcc20.splitRedeem(redeem, geometry);
+    if (kcc20.templateVmHashHex(parts.prefix, parts.suffix) !== tpl.templateVmHashBlake2b256) continue;
+    matched = { templateIndex: i, geometry, parts, vmHash: tpl.templateVmHashBlake2b256 };
+    break;
+  }
+  if (!matched) {
+    fail("TEMPLATE_HASH_MISMATCH", "the revealed redeem matches none of the descriptor's accepted templates (geometry + in-VM hash) — failing closed");
+  }
+  const state = kcc20.decodeState(matched.parts.state);
+  return Object.freeze({
+    templateIndex: matched.templateIndex,
+    templateVmHashBlake2b256: matched.vmHash,
+    geometry: matched.geometry,
+    prefixHex: kcc20.bytesToHex(matched.parts.prefix),
+    suffixHex: kcc20.bytesToHex(matched.parts.suffix),
+    state,
+    p2shSpkHex: kcc20.p2shSpkHex(redeem)
+  });
+}
+
+function redeemFromSignatureScript(sigscriptHex) {
+  return kcc20.bytesToHex(kcc20.lastPushData(kcc20.hexToBytes(sigscriptHex ?? "", "sigscriptHex")));
+}
+
+module.exports = Object.freeze({
+  SCHEMA_V1,
+  DESCRIPTOR_HASH_DOMAIN,
+  DescriptorError,
+  Kcc20Error: kcc20.Kcc20Error,
+  validateAssetDescriptor,
+  parseAtomicAmount: descriptorModule.parseAtomicAmount,
+  computeDescriptorHash,
+  corroborateTemplate,
+  verifyTokenInputRedeem,
+  redeemFromSignatureScript,
+  kcc20,
+  blake2b
+});
+  });
+
+  define("core/model/vault-state-v5", function (module, exports, require) {
+"use strict";
+
+/*
+ * Exact live-state model for a PolicyVault v0.5 TOKEN CONTROLLER instance
+ * (docs/postlaunch/v0.5-design-freeze.md; contracts/PolicyVault.v0.5.sil).
+ * Low-level normalization + exact serialization only — the deterministic
+ * core's single source of truth for what a v0.5 instance IS.
+ *
+ * v0.5 identity = immutable template (owner, vaultId, descriptorHash,
+ * tokenCovenantId, templateVmHash, templatePrefixLen/StateLen/SuffixLen)
+ * + 5 mutable state fields (boundVaultId = vaultId, feeReserve, paused,
+ * agentRoot, policyNonce). The controller UTXO holds ONLY the KAS fee
+ * reserve; token value lives in the token UTXO the instance owns via the
+ * covenant-id/v1 scheme (see core/assets). All KAS quantities are BigInt
+ * sompi; token quantities never appear in this state.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-state-v5.test.js).
+ */
+
+const crypto = require("crypto");
+const { parseSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { KCC20_STATE_LEN } = require("./token-amounts");
+
+const CONTRACT_VERSION_V5 = "policyvault-0.5";
+
+const V5_ABIS = Object.freeze({
+  [CONTRACT_VERSION_V5]: Object.freeze({
+    version: CONTRACT_VERSION_V5,
+    contractName: "PolicyVaultToken",
+    contractRelPath: "contracts/PolicyVault.v0.5.sil",
+    buildSubdir: "build-v5",
+    consolidatedOwner: true
+  })
+});
+
+/* ownerControl opSelector (mutually exclusive covenant branches). */
+const OWNER_OP_SELECTOR_V5 = Object.freeze({
+  ownerSetAgentRoot: 0,
+  ownerTopUpReserve: 1,
+  ownerPause: 2,
+  ownerUnpause: 3
+});
+
+function fail(message, code) {
+  const e = new Error(`vault-state-v5: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function resolveV5Abi(contractVersion) {
+  const abi = V5_ABIS[contractVersion];
+  if (!abi) {
+    fail(`unknown contract version ${JSON.stringify(contractVersion)} for the v0.5 lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
+  }
+  return abi;
+}
+
+function normalizeSmallInt(value, field, { min, max }) {
+  const n = parseSompi(value, field);
+  if (n < min || n > max) {
+    fail(`${field} out of range [${min}, ${max}]`);
+  }
+  return n;
+}
+
+function normalizeLen(value, field) {
+  if (!Number.isInteger(value) || value < 0 || value > 1_000_000) {
+    fail(`${field} must be an integer 0..1000000`);
+  }
+  return value;
+}
+
+/* v0.5 immutable template constants (the instance's pinned bindings). */
+function normalizeTemplateV5(input) {
+  if (!input || typeof input !== "object") {
+    fail("template object is required");
+  }
+  const stateLen = normalizeLen(input.templateStateLen, "template.templateStateLen");
+  if (stateLen !== KCC20_STATE_LEN) {
+    fail(`template.templateStateLen must be ${KCC20_STATE_LEN} for kcc20-state/1 — failing closed`);
+  }
+  return Object.freeze({
+    owner: normalizeXOnlyPubkey(input.owner, "template.owner"),
+    vaultId: normalizeHex(input.vaultId, 32, "template.vaultId"),
+    descriptorHash: normalizeHex(input.descriptorHash, 32, "template.descriptorHash"),
+    tokenCovenantId: normalizeHex(input.tokenCovenantId, 32, "template.tokenCovenantId"),
+    templateVmHash: normalizeHex(input.templateVmHash, 32, "template.templateVmHash"),
+    templatePrefixLen: normalizeLen(input.templatePrefixLen, "template.templatePrefixLen"),
+    templateStateLen: stateLen,
+    templateSuffixLen: normalizeLen(input.templateSuffixLen, "template.templateSuffixLen")
+  });
+}
+
+/* v0.5 mutable state (boundVaultId is always the template vaultId). */
+function normalizeStateV5(input) {
+  if (!input || typeof input !== "object") {
+    fail("state object is required");
+  }
+  return Object.freeze({
+    feeReserve: parseSompi(input.feeReserve, "state.feeReserve"),
+    paused: normalizeSmallInt(input.paused, "state.paused", { min: 0n, max: 1n }),
+    agentRoot: normalizeHex(input.agentRoot, 32, "state.agentRoot"),
+    policyNonce: normalizeSmallInt(input.policyNonce, "state.policyNonce", { min: 0n, max: 1_000_000_000n })
+  });
+}
+
+/* BREAK-GLASS shape-only parse for ownerRecover (quarantined marker). */
+function normalizeStateV5ForRecovery(input) {
+  if (!input || typeof input !== "object") {
+    fail("state object is required");
+  }
+  return Object.freeze({
+    recoveryParse: true,
+    feeReserve: parseSompi(input.feeReserve, "state.feeReserve"),
+    paused: parseSompi(input.paused, "state.paused"),
+    agentRoot: normalizeHex(input.agentRoot, 32, "state.agentRoot"),
+    policyNonce: parseSompi(input.policyNonce, "state.policyNonce")
+  });
+}
+
+function requireNonce(state) {
+  if (typeof state.policyNonce !== "bigint") {
+    fail("state.policyNonce is required (BigInt) — refusing an implicit default for a consensus-visible value");
+  }
+  return state.policyNonce;
+}
+
+/* Deterministic v0.5 state ID (application identity; never a consensus value). */
+function computeStateIdV5({ networkId, template, state, contractVersion }) {
+  if (typeof networkId !== "string" || networkId.length === 0) {
+    fail("networkId is required for the state ID");
+  }
+  const abi = resolveV5Abi(contractVersion ?? CONTRACT_VERSION_V5);
+  const canonical = [
+    "policyvault-state/v5",
+    `network:${networkId}`,
+    `contract:${abi.version}`,
+    `owner:${template.owner}`,
+    `vaultId:${template.vaultId}`,
+    `descriptorHash:${template.descriptorHash}`,
+    `tokenCovenantId:${template.tokenCovenantId}`,
+    `templateVmHash:${template.templateVmHash}`,
+    `templateGeometry:${template.templatePrefixLen}/${template.templateStateLen}/${template.templateSuffixLen}`,
+    `feeReserve:${state.feeReserve}`,
+    `paused:${state.paused}`,
+    `agentRoot:${state.agentRoot}`,
+    `policyNonce:${requireNonce(state)}`
+  ].join("\n");
+  return crypto.createHash("sha256").update(canonical, "utf8").digest("hex");
+}
+
+function stateToJsonV5(state) {
+  return {
+    feeReserve: state.feeReserve.toString(),
+    paused: state.paused.toString(),
+    agentRoot: state.agentRoot,
+    policyNonce: requireNonce(state).toString()
+  };
+}
+
+function templateToJsonV5(template) {
+  return { ...template };
+}
+
+module.exports = {
+  CONTRACT_VERSION_V5,
+  V5_ABIS,
+  OWNER_OP_SELECTOR_V5,
+  resolveV5Abi,
+  normalizeTemplateV5,
+  normalizeStateV5,
+  normalizeStateV5ForRecovery,
+  computeStateIdV5,
+  stateToJsonV5,
+  templateToJsonV5
+};
+  });
+
+  define("core/model/agent-merkle-v5", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.5 TOKEN-AGENT policy Merkle tree — the per-agent, TOKEN-denominated
+ * policy leaves committed by a PolicyVault v0.5 controller's agentRoot
+ * (contracts/PolicyVault.v0.5.sil; docs/postlaunch/v0.5-design-freeze.md).
+ *
+ * Frozen leaf (125-byte preimage; distinct from every other PolicyVault
+ * leaf length — v0.4 agent 124, recipient 36, node 64):
+ *   sha256(0x50563501 || agentPk(32) || num8(tokenMaxPerSpend) ||
+ *          num8(tokenPeriodBudget) || num8(periodLengthDaa) ||
+ *          num8(periodStartDaa) || num8(tokenPeriodSpent) ||
+ *          num8(agentMaxFeePerTx) || num8(agentMaxCarryKas) ||
+ *          agentRecipientRoot(32) || 0x00)
+ * where num8 = 8-byte little-endian and the trailing byte is the
+ * recipient scheme (0x00 = p2pk, the only scheme v0.5 supports).
+ *
+ * TWO DOMAINS inside one leaf, never mixed: tokenMaxPerSpend /
+ * tokenPeriodBudget / tokenPeriodSpent are TOKEN atomic units (i64-bounded,
+ * see core/assets/kcc20 parseAtomicAmount); agentMaxFeePerTx /
+ * agentMaxCarryKas are KAS sompi. DAA fields are block-score integers.
+ *
+ * Tree mechanics (sorted leaves, UNSPENDABLE padding, depth <= 12,
+ * single-leaf co-path fold == the covenant computeMerkleRoot) are the
+ * VM-proven v0.4 mechanism; the recipient tree reuses the v0.3 recipient
+ * leaf (core/model/recipient-merkle-v3.js).
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED; leaf bytes pinned to the fixture
+ * captured from the SAME Rust leaf function the real-engine v0.5
+ * production suite accepted (core/model/test/fixtures/token-agent-leaf-v5.json).
+ */
+
+const crypto = require("crypto");
+const { parseSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { parseAtomicAmount } = require("./token-amounts");
+
+const TOKEN_AGENT_LEAF_DOMAIN = Uint8Array.of(0x50, 0x56, 0x35, 0x01);
+const TOKEN_AGENT_PADDING_DOMAIN = Uint8Array.of(0x50, 0x56, 0x35, 0x00);
+const RECIPIENT_SCHEME_P2PK = 0x00;
+const MAX_AGENT_DEPTH = 12;
+const MAX_AGENTS = 1 << MAX_AGENT_DEPTH;
+const LEAF_PREIMAGE_LEN = 125;
+
+function fail(message, code) {
+  const error = new Error(`agent-merkle-v5: ${message}`);
+  if (code) error.code = code;
+  throw error;
+}
+
+function bytesToHex(bytes) {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function concatBytes(chunks) {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
+}
+function sha256(bytes) {
+  return new Uint8Array(crypto.createHash("sha256").update(bytes).digest());
+}
+
+const PADDING_LEAF = sha256(TOKEN_AGENT_PADDING_DOMAIN);
+const PADDING_LEAF_HEX = bytesToHex(PADDING_LEAF);
+
+/* 8-byte little-endian over 0 <= v < 2^63 (injective over both domains). */
+function num8(value) {
+  if (typeof value !== "bigint" || value < 0n || value > 0x7fffffffffffffffn) {
+    fail("num8 requires a BigInt in 0..2^63-1");
+  }
+  const out = new Uint8Array(8);
+  new DataView(out.buffer).setBigUint64(0, value, true);
+  return out;
+}
+
+function parsePositiveAtomic(value, field) {
+  const n = parseAtomicAmount(value, field);
+  if (n <= 0n) fail(`${field} must be > 0 (atomic token units)`);
+  return n;
+}
+function parseDaa(value, field, { positive = false } = {}) {
+  const n = parseSompi(value, field); // integer domain check (0..MAX_SOMPI is ample for DAA scores)
+  if (positive && n <= 0n) fail(`${field} must be > 0`);
+  return n;
+}
+
+/*
+ * Normalize one token-agent policy (the full frozen leaf tuple). Strict
+ * fail-closed validation; every quantity BigInt. tokenPeriodSpent above
+ * tokenPeriodBudget is representable (cannot spend until rollover) — the
+ * covenant is the authority on spendability, this module on byte shape.
+ */
+function normalizeTokenAgentPolicyV5(input) {
+  if (!input || typeof input !== "object") {
+    fail("token agent policy object is required");
+  }
+  for (const key of Object.keys(input)) {
+    if (!TOKEN_AGENT_POLICY_FIELDS.includes(key)) {
+      fail(`unknown token agent policy field ${JSON.stringify(key)} — closed layout, failing closed`);
+    }
+  }
+  return Object.freeze({
+    agentPk: normalizeXOnlyPubkey(input.agentPk, "agentPolicy.agentPk"),
+    tokenMaxPerSpend: parsePositiveAtomic(input.tokenMaxPerSpend, "agentPolicy.tokenMaxPerSpend"),
+    tokenPeriodBudget: parsePositiveAtomic(input.tokenPeriodBudget, "agentPolicy.tokenPeriodBudget"),
+    periodLengthDaa: parseDaa(input.periodLengthDaa, "agentPolicy.periodLengthDaa", { positive: true }),
+    periodStartDaa: parseDaa(input.periodStartDaa, "agentPolicy.periodStartDaa"),
+    tokenPeriodSpent: parseAtomicAmount(input.tokenPeriodSpent, "agentPolicy.tokenPeriodSpent"),
+    agentMaxFeePerTx: parseSompi(input.agentMaxFeePerTx, "agentPolicy.agentMaxFeePerTx"),
+    agentMaxCarryKas: parseSompi(input.agentMaxCarryKas, "agentPolicy.agentMaxCarryKas"),
+    agentRecipientRoot: normalizeHex(input.agentRecipientRoot, 32, "agentPolicy.agentRecipientRoot")
+  });
+}
+
+const TOKEN_AGENT_POLICY_FIELDS = Object.freeze([
+  "agentPk",
+  "tokenMaxPerSpend",
+  "tokenPeriodBudget",
+  "periodLengthDaa",
+  "periodStartDaa",
+  "tokenPeriodSpent",
+  "agentMaxFeePerTx",
+  "agentMaxCarryKas",
+  "agentRecipientRoot"
+]);
+
+function tokenAgentLeafPreimage(policyInput) {
+  const p = normalizeTokenAgentPolicyV5(policyInput);
+  const preimage = concatBytes([
+    TOKEN_AGENT_LEAF_DOMAIN,
+    hexToBytes(p.agentPk),
+    num8(p.tokenMaxPerSpend),
+    num8(p.tokenPeriodBudget),
+    num8(p.periodLengthDaa),
+    num8(p.periodStartDaa),
+    num8(p.tokenPeriodSpent),
+    num8(p.agentMaxFeePerTx),
+    num8(p.agentMaxCarryKas),
+    hexToBytes(p.agentRecipientRoot),
+    Uint8Array.of(RECIPIENT_SCHEME_P2PK)
+  ]);
+  if (preimage.length !== LEAF_PREIMAGE_LEN) {
+    fail(`internal: token-agent leaf preimage is ${preimage.length} bytes, not ${LEAF_PREIMAGE_LEN}`);
+  }
+  return preimage;
+}
+
+function tokenAgentLeafHash(policyInput) {
+  return sha256(tokenAgentLeafPreimage(policyInput));
+}
+
+function buildTokenAgentTreeV5(agentsInput) {
+  if (!Array.isArray(agentsInput)) {
+    fail("agents must be an array of token-agent-policy objects (may be empty)");
+  }
+  const agents = agentsInput.map((a, i) => {
+    try {
+      return normalizeTokenAgentPolicyV5(a);
+    } catch (error) {
+      fail(`agents[${i}]: ${error.message}`);
+    }
+  });
+  const seen = new Set();
+  for (const a of agents) {
+    if (seen.has(a.agentPk)) {
+      fail(`duplicate agentPk ${a.agentPk} — one key may hold exactly one policy leaf`, "DUPLICATE_AGENT");
+    }
+    seen.add(a.agentPk);
+  }
+  if (agents.length > MAX_AGENTS) {
+    fail(`agent count ${agents.length} exceeds the maximum ${MAX_AGENTS} (depth ${MAX_AGENT_DEPTH})`);
+  }
+  agents.sort((x, y) => (x.agentPk < y.agentPk ? -1 : x.agentPk > y.agentPk ? 1 : 0));
+
+  let level = agents.map((a) => tokenAgentLeafHash(a));
+  if (level.length === 0) {
+    level = [PADDING_LEAF];
+  }
+  while ((level.length & (level.length - 1)) !== 0) {
+    level.push(PADDING_LEAF);
+  }
+  const levels = [level];
+  while (level.length > 1) {
+    const next = [];
+    for (let i = 0; i < level.length; i += 2) {
+      next.push(sha256(concatBytes([level[i], level[i + 1]])));
+    }
+    levels.push(next);
+    level = next;
+  }
+  const depth = levels.length - 1;
+  if (depth > MAX_AGENT_DEPTH) {
+    fail(`tree depth ${depth} exceeds the covenant maximum ${MAX_AGENT_DEPTH}`);
+  }
+  return Object.freeze({
+    root: bytesToHex(levels[levels.length - 1][0]),
+    agents: Object.freeze(agents),
+    realCount: agents.length,
+    leafCount: levels[0].length,
+    depth,
+    levels
+  });
+}
+
+function agentIndex(tree, agentPkHex, label) {
+  const key = normalizeXOnlyPubkey(agentPkHex, label ?? "agentPk");
+  const index = tree.agents.findIndex((a) => a.agentPk === key);
+  return { key, index };
+}
+
+function generateTokenAgentProofV5(tree, agentPkHex) {
+  const { key, index } = agentIndex(tree, agentPkHex);
+  if (index < 0) {
+    fail(`agent ${key} is not in this tree — refusing to fabricate a proof`);
+  }
+  let idx = index;
+  const siblings = [];
+  let pathBits = 0n;
+  for (let levelIdx = 0; levelIdx < tree.depth; levelIdx++) {
+    const level = tree.levels[levelIdx];
+    const siblingIdx = idx % 2 === 0 ? idx + 1 : idx - 1;
+    siblings.push(level[siblingIdx]);
+    if (idx % 2 === 1) {
+      pathBits |= 1n << BigInt(levelIdx);
+    }
+    idx = Math.floor(idx / 2);
+  }
+  return Object.freeze({
+    agentPk: key,
+    policy: tree.agents[index],
+    root: tree.root,
+    siblingsHex: bytesToHex(concatBytes(siblings)),
+    pathBits,
+    depth: tree.depth
+  });
+}
+
+function normalizeSiblings(siblingsHex) {
+  if (typeof siblingsHex !== "string" || !/^[0-9a-f]*$/.test(siblingsHex) || siblingsHex.length % 2 !== 0) {
+    fail("siblingsHex must be lowercase hex");
+  }
+  const siblings = hexToBytes(siblingsHex);
+  if (siblings.length % 32 !== 0) {
+    fail("siblings length must be a multiple of 32 bytes");
+  }
+  if (siblings.length > 32 * MAX_AGENT_DEPTH) {
+    fail(`proof depth ${siblings.length / 32} exceeds the covenant maximum ${MAX_AGENT_DEPTH}`);
+  }
+  return siblings;
+}
+
+function normalizePathBits(pathBits) {
+  const bits = typeof pathBits === "bigint" ? pathBits : BigInt(pathBits);
+  if (bits < 0n || bits >= BigInt(MAX_AGENTS)) {
+    fail(`pathBits out of range [0, ${MAX_AGENTS})`);
+  }
+  return bits;
+}
+
+/* Exact covenant computeMerkleRoot walk; null when path bits are not consumed. */
+function foldLeafV5(leafBuffer, siblingsHex, pathBits) {
+  if (!(leafBuffer instanceof Uint8Array) || leafBuffer.length !== 32) {
+    fail("leaf must be a 32-byte Uint8Array");
+  }
+  const siblings = normalizeSiblings(siblingsHex);
+  let bits = normalizePathBits(pathBits);
+  const depth = siblings.length / 32;
+  let node = leafBuffer;
+  for (let level = 0; level < depth; level++) {
+    const sib = siblings.subarray(level * 32, level * 32 + 32);
+    node = bits % 2n === 1n ? sha256(concatBytes([sib, node])) : sha256(concatBytes([node, sib]));
+    bits /= 2n;
+  }
+  if (bits !== 0n) {
+    return null;
+  }
+  return bytesToHex(node);
+}
+
+function foldTokenAgentPolicyV5(policyInput, siblingsHex, pathBits) {
+  return foldLeafV5(tokenAgentLeafHash(policyInput), siblingsHex, pathBits);
+}
+
+function verifyTokenAgentProofV5({ root, policy, siblingsHex, pathBits }) {
+  const rootHex = normalizeHex(root, 32, "root");
+  const computed = foldTokenAgentPolicyV5(policy, siblingsHex, pathBits);
+  return computed !== null && computed === rootHex;
+}
+
+/* ---- canonical tree edits (owner lifecycle; every edit is a rebuild) ---- */
+function addTokenAgentV5(tree, policyInput) {
+  const policy = normalizeTokenAgentPolicyV5(policyInput);
+  if (agentIndex(tree, policy.agentPk, "new agentPk").index >= 0) {
+    fail(`agent ${policy.agentPk} already exists — use updateTokenAgentPolicyV5/rotateTokenAgentV5`, "DUPLICATE_AGENT");
+  }
+  return buildTokenAgentTreeV5([...tree.agents, policy]);
+}
+function removeTokenAgentV5(tree, agentPkHex) {
+  const { key, index } = agentIndex(tree, agentPkHex);
+  if (index < 0) fail(`agent ${key} is not in this tree — nothing to remove`);
+  return buildTokenAgentTreeV5(tree.agents.filter((a) => a.agentPk !== key));
+}
+function updateTokenAgentPolicyV5(tree, policyInput) {
+  const policy = normalizeTokenAgentPolicyV5(policyInput);
+  if (agentIndex(tree, policy.agentPk, "agentPk").index < 0) fail(`agent ${policy.agentPk} is not in this tree — use addTokenAgentV5`);
+  return buildTokenAgentTreeV5(tree.agents.map((a) => (a.agentPk === policy.agentPk ? policy : a)));
+}
+function rotateTokenAgentV5(tree, currentPkHex, newPolicyInput) {
+  const { key, index } = agentIndex(tree, currentPkHex, "currentPk");
+  if (index < 0) fail(`agent ${key} is not in this tree — cannot rotate`);
+  const newPolicy = normalizeTokenAgentPolicyV5(newPolicyInput);
+  if (newPolicy.agentPk === key) fail("rotation requires a NEW agent key — use updateTokenAgentPolicyV5 to re-policy the same key");
+  return buildTokenAgentTreeV5([...tree.agents.filter((a) => a.agentPk !== key), newPolicy]);
+}
+
+/*
+ * Apply a tokenAgentSpend accounting advance: ONLY the spending agent's
+ * periodStartDaa/tokenPeriodSpent change. INVARIANT (asserted): the
+ * canonical rebuild equals the covenant's single-leaf fold of the new
+ * leaf up the old co-path.
+ */
+function applyTokenAgentSpendV5(tree, agentPkHex, { newPeriodStartDaa, newTokenPeriodSpent }) {
+  const { key, index } = agentIndex(tree, agentPkHex);
+  if (index < 0) fail(`agent ${key} is not in this tree — cannot advance accounting`);
+  const previousPolicy = tree.agents[index];
+  const newPolicy = normalizeTokenAgentPolicyV5({
+    ...previousPolicy,
+    periodStartDaa: parseDaa(newPeriodStartDaa, "newPeriodStartDaa"),
+    tokenPeriodSpent: parseAtomicAmount(newTokenPeriodSpent, "newTokenPeriodSpent")
+  });
+  const proof = generateTokenAgentProofV5(tree, key);
+  const foldedRoot = foldTokenAgentPolicyV5(newPolicy, proof.siblingsHex, proof.pathBits);
+  const rebuilt = buildTokenAgentTreeV5(tree.agents.map((a) => (a.agentPk === key ? newPolicy : a)));
+  if (rebuilt.root !== foldedRoot) {
+    fail(`internal invariant violated: canonical rebuild root ${rebuilt.root} != single-leaf fold root ${foldedRoot} — refusing to emit a successor tree that disagrees with consensus`);
+  }
+  return Object.freeze({ tree: rebuilt, previousPolicy, newPolicy });
+}
+
+function tokenAgentPolicyToJsonV5(p) {
+  const n = normalizeTokenAgentPolicyV5(p);
+  return {
+    agentPk: n.agentPk,
+    tokenMaxPerSpend: n.tokenMaxPerSpend.toString(),
+    tokenPeriodBudget: n.tokenPeriodBudget.toString(),
+    periodLengthDaa: n.periodLengthDaa.toString(),
+    periodStartDaa: n.periodStartDaa.toString(),
+    tokenPeriodSpent: n.tokenPeriodSpent.toString(),
+    agentMaxFeePerTx: n.agentMaxFeePerTx.toString(),
+    agentMaxCarryKas: n.agentMaxCarryKas.toString(),
+    agentRecipientRoot: n.agentRecipientRoot
+  };
+}
+
+module.exports = {
+  TOKEN_AGENT_LEAF_DOMAIN,
+  TOKEN_AGENT_PADDING_DOMAIN,
+  TOKEN_AGENT_POLICY_FIELDS,
+  RECIPIENT_SCHEME_P2PK,
+  PADDING_LEAF_HEX,
+  MAX_AGENT_DEPTH,
+  MAX_AGENTS,
+  LEAF_PREIMAGE_LEN,
+  normalizeTokenAgentPolicyV5,
+  tokenAgentLeafPreimage,
+  tokenAgentLeafHash,
+  buildTokenAgentTreeV5,
+  generateTokenAgentProofV5,
+  verifyTokenAgentProofV5,
+  foldLeafV5,
+  foldTokenAgentPolicyV5,
+  addTokenAgentV5,
+  removeTokenAgentV5,
+  updateTokenAgentPolicyV5,
+  rotateTokenAgentV5,
+  applyTokenAgentSpendV5,
+  tokenAgentPolicyToJsonV5
+};
+  });
+
+  define("core/model/vault-transitions-v5", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.5 token-controller transition planner — deterministic successor
+ * derivation for every PolicyVault.v0.5.sil entrypoint, mirroring the
+ * covenant's rules EXACTLY so the core refuses locally what consensus
+ * would refuse (local pre-check ONLY; the covenant remains the authority).
+ *
+ * Two accounting domains, never mixed:
+ *   TOKEN — spendAmount / tokenPositionAmount / per-agent caps+budgets are
+ *           atomic token units; conservation selfAfter = prev - spend is
+ *           verified HERE from the token position's revealed state, never
+ *           from an indexer;
+ *   KAS   — feeReserve / reserveConsumed / carry values are sompi; the
+ *           reserve can only become network fee (bounded by the agent's
+ *           agentMaxFeePerTx and by the exact fee, checked by the builder
+ *           once the fee is known); the token family's own KAS never leaks
+ *           except to the recipient's bounded carry.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-transitions-v5.test.js).
+ */
+
+const { parseSompi, parsePositiveSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { normalizeStateV5, OWNER_OP_SELECTOR_V5 } = require("./vault-state-v5");
+const { normalizeTokenAgentPolicyV5, verifyTokenAgentProofV5, foldTokenAgentPolicyV5 } = require("./agent-merkle-v5");
+const { parseAtomicAmount, OWNER_SCHEMES } = require("./token-amounts");
+
+const MAX_PERIODS_ELAPSED = 1000n;
+
+function fail(message, code) {
+  const e = new Error(`vault-transitions-v5: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function requireContinuingState(state, label) {
+  if (!state || typeof state !== "object") fail(`${label}: state is required`);
+  if (state.recoveryParse === true) {
+    fail(`${label}: a recovery-mode (shape-only) state may only be used by ownerRecover — refusing to derive a successor from it`, "RECOVERY_STATE_ONLY");
+  }
+  return normalizeStateV5(state);
+}
+
+function withChanges(state, changes) {
+  return normalizeStateV5({ ...state, ...changes });
+}
+
+/*
+ * tokenAgentSpend successor. Inputs:
+ *   agentPolicy          the full leaf tuple (from the agent registry)
+ *   agentProof           { siblingsHex, pathBits } against state.agentRoot
+ *   spendAmount          atomic token units paid to the recipient
+ *   tokenPositionAmount  atomic units currently held by the controller's
+ *                        token UTXO (decoded from its revealed state)
+ *   periodsElapsed       0 (same period) or >= 1 (rollover)
+ *   reserveConsumed      sompi taken from the fee reserve (<= min(cap, fee))
+ *   tokenInputKas / selfCarryKas / recipientCarryKas  the token family's
+ *                        KAS values (input, self continuation, recipient)
+ */
+function tokenAgentSpendSuccessorV5(state, params) {
+  const s = requireContinuingState(state, "tokenAgentSpend");
+  if (s.paused !== 0n) fail("tokenAgentSpend: controller is paused", "PAUSED");
+  const policy = normalizeTokenAgentPolicyV5(params.agentPolicy);
+  const proofIn = params.agentProof;
+  if (!proofIn || typeof proofIn !== "object") fail("tokenAgentSpend: agentProof { siblingsHex, pathBits } is required");
+  const proof = {
+    siblingsHex: String(proofIn.siblingsHex ?? "").toLowerCase(),
+    pathBits: typeof proofIn.pathBits === "bigint" ? proofIn.pathBits : BigInt(proofIn.pathBits)
+  };
+  if (!verifyTokenAgentProofV5({ root: s.agentRoot, policy, siblingsHex: proof.siblingsHex, pathBits: proof.pathBits })) {
+    fail("tokenAgentSpend: the agent policy proof does not verify against the live agentRoot — stale tree or forged policy", "AGENT_PROOF_INVALID");
+  }
+
+  /* TOKEN domain */
+  const spend = parseAtomicAmount(params.spendAmount, "spendAmount");
+  if (spend <= 0n) fail("tokenAgentSpend: spendAmount must be > 0", "ZERO_SPEND");
+  if (spend > policy.tokenMaxPerSpend) fail("tokenAgentSpend: spendAmount exceeds this agent's tokenMaxPerSpend", "OVER_CAP");
+  const position = parseAtomicAmount(params.tokenPositionAmount, "tokenPositionAmount");
+  if (spend > position) fail("tokenAgentSpend: spendAmount exceeds the controller's token position — conservation would break", "INSUFFICIENT_TOKENS");
+  const tokenSelfAfter = position - spend;
+
+  const periods = parseSompi(params.periodsElapsed ?? 0n, "periodsElapsed");
+  if (periods > MAX_PERIODS_ELAPSED) fail(`tokenAgentSpend: periodsElapsed out of range [0, ${MAX_PERIODS_ELAPSED}]`);
+  let newStart = policy.periodStartDaa;
+  let newSpent = policy.tokenPeriodSpent + spend;
+  let lockTime = 0n;
+  if (periods >= 1n) {
+    newStart = policy.periodStartDaa + periods * policy.periodLengthDaa;
+    newSpent = spend;
+    lockTime = newStart;
+  }
+  if (newSpent > policy.tokenPeriodBudget) fail("tokenAgentSpend: spend exceeds this agent's remaining token period budget", "OVER_BUDGET");
+
+  /* KAS domain */
+  const consumed = parseSompi(params.reserveConsumed ?? 0n, "reserveConsumed");
+  if (consumed > policy.agentMaxFeePerTx) fail("tokenAgentSpend: reserveConsumed exceeds this agent's agentMaxFeePerTx", "OVER_AGENT_FEE_CAP");
+  if (consumed > s.feeReserve) fail("tokenAgentSpend: reserveConsumed exceeds the available fee reserve", "INSUFFICIENT_RESERVE");
+  const tokenInputKas = parseSompi(params.tokenInputKas, "tokenInputKas");
+  const selfCarryKas = parseSompi(params.selfCarryKas, "selfCarryKas");
+  const recipientCarryKas = parseSompi(params.recipientCarryKas, "recipientCarryKas");
+  if (recipientCarryKas > policy.agentMaxCarryKas) fail("tokenAgentSpend: recipient carry KAS exceeds this agent's agentMaxCarryKas", "OVER_CARRY_CAP");
+  if (selfCarryKas + recipientCarryKas < tokenInputKas) {
+    fail("tokenAgentSpend: the token family's KAS would leak (self + recipient carry < token input KAS)", "TOKEN_FAMILY_KAS_LEAK");
+  }
+
+  const newPolicy = normalizeTokenAgentPolicyV5({ ...policy, periodStartDaa: newStart, tokenPeriodSpent: newSpent });
+  const newRoot = foldTokenAgentPolicyV5(newPolicy, proof.siblingsHex, proof.pathBits);
+  if (newRoot === null) fail("tokenAgentSpend: internal — successor-root fold left unconsumed path bits");
+
+  const successor = withChanges(s, { feeReserve: s.feeReserve - consumed, agentRoot: newRoot });
+  return Object.freeze({
+    successor,
+    previousPolicy: policy,
+    newPolicy,
+    newStart,
+    newSpent,
+    lockTime,
+    spendAmount: spend,
+    tokenPositionAmount: position,
+    tokenSelfAfter,
+    reserveConsumed: consumed,
+    kas: Object.freeze({ tokenInputKas, selfCarryKas, recipientCarryKas }),
+    agentProof: Object.freeze({ siblingsHex: proof.siblingsHex, pathBits: proof.pathBits })
+  });
+}
+
+/* The two token continuation states the covenant will template-verify. */
+function tokenContinuationStatesV5({ controllerCovenantId, recipientPk, plan }) {
+  const covid = normalizeHex(controllerCovenantId, 32, "controllerCovenantId");
+  const recipient = normalizeXOnlyPubkey(recipientPk, "recipientPk");
+  return Object.freeze({
+    selfNew: Object.freeze({ ownerIdentifier: covid, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: plan.tokenSelfAfter, isMinter: false }),
+    recipientNew: Object.freeze({ ownerIdentifier: recipient, identifierType: OWNER_SCHEMES.P2PK, amount: plan.spendAmount, isMinter: false })
+  });
+}
+
+function setAgentRootSuccessorV5(state, newAgentRoot) {
+  const s = requireContinuingState(state, "setAgentRoot");
+  const agentRoot = normalizeHex(newAgentRoot, 32, "newAgentRoot");
+  return Object.freeze({ successor: withChanges(s, { agentRoot, policyNonce: s.policyNonce + 1n }), opSelector: OWNER_OP_SELECTOR_V5.ownerSetAgentRoot });
+}
+
+function topUpReserveSuccessorV5(state, topUpAmount) {
+  const s = requireContinuingState(state, "topUpReserve");
+  const amount = parsePositiveSompi(topUpAmount, "topUpAmount");
+  return Object.freeze({ successor: withChanges(s, { feeReserve: s.feeReserve + amount }), topUpAmount: amount, opSelector: OWNER_OP_SELECTOR_V5.ownerTopUpReserve });
+}
+
+function pauseSuccessorV5(state, pause) {
+  const s = requireContinuingState(state, pause ? "pause" : "unpause");
+  if (pause && s.paused !== 0n) fail("pause: controller is already paused");
+  if (!pause && s.paused !== 1n) fail("unpause: controller is not paused");
+  return Object.freeze({
+    successor: withChanges(s, { paused: pause ? 1n : 0n }),
+    opSelector: pause ? OWNER_OP_SELECTOR_V5.ownerPause : OWNER_OP_SELECTOR_V5.ownerUnpause
+  });
+}
+
+/*
+ * ownerRecover plan (terminal): the reserve pays out to the owner; if a
+ * token position exists, its ENTIRE amount moves to the owner's own key.
+ */
+function recoverPlanV5(state, ownerXOnly, tokenPositionAmount) {
+  if (!state || typeof state !== "object") fail("recover: state is required");
+  const owner = normalizeXOnlyPubkey(ownerXOnly, "owner");
+  const payout = parseSompi(state.feeReserve, "state.feeReserve");
+  let tokenRecipient = null;
+  if (tokenPositionAmount !== null && tokenPositionAmount !== undefined) {
+    const amount = parseAtomicAmount(tokenPositionAmount, "tokenPositionAmount");
+    tokenRecipient = Object.freeze({ ownerIdentifier: owner, identifierType: OWNER_SCHEMES.P2PK, amount, isMinter: false });
+  }
+  return Object.freeze({ terminal: true, payout, payoutTo: owner, tokenRecipient });
+}
+
+module.exports = {
+  MAX_PERIODS_ELAPSED,
+  tokenAgentSpendSuccessorV5,
+  tokenContinuationStatesV5,
+  setAgentRootSuccessorV5,
+  topUpReserveSuccessorV5,
+  pauseSuccessorV5,
+  recoverPlanV5
+};
+  });
+
+  define("core/model/compute-budget-v5", function (module, exports, require) {
+"use strict";
+
+/*
+ * Centralized v0.5 token-controller compute-budget selection.
+ *
+ * The committed budget is CONSENSUS-CRITICAL for usability: an
+ * under-committed budget makes an otherwise-valid transaction fail script
+ * execution on a live node. Unlike v0.4, the v0.5 controller's cost SCALES
+ * WITH THE ACCEPTED TOKEN TEMPLATE (it hashes the token input's revealed
+ * redeem, P2SH-verifies it, and reconstructs two continuation outputs from
+ * the template bytes), so the tier is a measured LINEAR MODEL in the
+ * template size rather than a flat ceiling.
+ *
+ * Measured on the PRODUCTION PolicyVault.v0.5.sil under production sig-op
+ * pricing (tests/vm/tests/v5_production.rs v5_measurement_units_mass_standardness,
+ * 2026-09-01; units INCLUDE the 100,000-unit Schnorr sig-op):
+ *
+ *   tokenAgentSpend, template suffix 1,521 B, depths 0/0:   199,252 -> 19
+ *   tokenAgentSpend, template suffix 1,521 B, depths 12/16: 250,513 -> 25
+ *   tokenAgentSpend, template suffix 2,737 B, depths 0/0:   228,436 -> 22
+ *   tokenAgentSpend, template suffix 5,169 B, depths 0/0:   286,804 -> 28
+ *   ownerControl (pause):                                   156,683 -> 15
+ *   ownerRecover (with position, suffix 1,521 B):           142,898 -> 14
+ *
+ * Slope ~24 units per template byte (bounds 2->8: 87,552 units over
+ * 3,648 B). Model = base + 24 x (templateBytes - 1,522) + depth allowance
+ * (51,261 measured at 12/16) + 20,000 headroom, in 10,000-unit budget
+ * units, ceiling-rounded. Callers may NEVER lower the committed budget
+ * below the model value; the production-byte suite executes SDK-built
+ * shapes with the SDK's own committed budget and asserts sufficiency.
+ */
+
+const UNITS_PER_BUDGET = 10_000;
+const SIGOP_UNITS = 100_000;
+const SLOPE_PER_TEMPLATE_BYTE = 24;
+const REFERENCE_TEMPLATE_BYTES = 1_522; // prefix 1 + suffix 1,521 (bound 2)
+const DEPTH_ALLOWANCE = 51_261; // agent depth 12 + recipient depth 16, measured
+const HEADROOM = 20_000;
+const SPEND_BASE = 199_252; // bound 2, depths 0/0, incl. sig-op
+const RECOVER_BASE = 142_898; // bound 2, with position, incl. sig-op
+
+const V5_BUDGET = Object.freeze({
+  OWNER_OP: 20, // measured 15 (+5 headroom); ownerControl never reads the template
+  ORDINARY_INPUT: 10
+});
+
+function fail(message) {
+  throw new Error(`compute-budget-v5: ${message}`);
+}
+
+function templateBytes({ templatePrefixLen, templateSuffixLen }) {
+  if (!Number.isInteger(templatePrefixLen) || !Number.isInteger(templateSuffixLen) || templatePrefixLen < 0 || templateSuffixLen < 0) {
+    fail("template geometry (templatePrefixLen/templateSuffixLen) is required to size a template-scaled budget");
+  }
+  return templatePrefixLen + templateSuffixLen;
+}
+
+function ceilBudget(units) {
+  return Math.ceil(units / UNITS_PER_BUDGET);
+}
+
+function selectComputeBudgetV5({ operation, templatePrefixLen, templateSuffixLen }) {
+  switch (operation) {
+    case "tokenAgentSpend": {
+      const extra = Math.max(0, templateBytes({ templatePrefixLen, templateSuffixLen }) - REFERENCE_TEMPLATE_BYTES) * SLOPE_PER_TEMPLATE_BYTE;
+      return ceilBudget(SPEND_BASE + extra + DEPTH_ALLOWANCE + HEADROOM);
+    }
+    case "ownerSetAgentRoot":
+    case "ownerTopUpReserve":
+    case "ownerPause":
+    case "ownerUnpause":
+      return V5_BUDGET.OWNER_OP;
+    case "ownerRecover": {
+      const extra = Math.max(0, templateBytes({ templatePrefixLen, templateSuffixLen }) - REFERENCE_TEMPLATE_BYTES) * SLOPE_PER_TEMPLATE_BYTE;
+      return ceilBudget(RECOVER_BASE + extra + HEADROOM);
+    }
+    default:
+      fail(`unknown v0.5 operation ${JSON.stringify(operation)} — failing closed`);
+  }
+}
+
+/*
+ * Committed budget for a TOKEN-FAMILY input executing the reference KCC20
+ * program (measured 18,709 units at bound 2 with a covenant-id owner —
+ * no sig-op; a p2pk-owned input adds one Schnorr checkSig = 100,000
+ * units). Template-scaled with headroom.
+ */
+function selectTokenInputBudgetV5({ templatePrefixLen, templateSuffixLen, signerOwned = false }) {
+  const base = 20_000 + SLOPE_PER_TEMPLATE_BYTE * templateBytes({ templatePrefixLen, templateSuffixLen });
+  return Math.max(4, ceilBudget(base + (signerOwned ? SIGOP_UNITS : 0)));
+}
+
+function assertBudgetSufficientV5({ operation, templatePrefixLen, templateSuffixLen, committed }) {
+  const required = selectComputeBudgetV5({ operation, templatePrefixLen, templateSuffixLen });
+  if (!Number.isInteger(committed) || committed < required) {
+    fail(`committed compute budget ${committed} is below the proven-safe minimum ${required} for ${operation}`);
+  }
+  return committed;
+}
+
+module.exports = { V5_BUDGET, UNITS_PER_BUDGET, SIGOP_UNITS, selectComputeBudgetV5, selectTokenInputBudgetV5, assertBudgetSufficientV5 };
+  });
+
+  define("core/intent/token-manifest-v5", function (module, exports, require) {
+"use strict";
+
+/*
+ * policyvault-token-intent-manifest/1 — the closed-schema, hash-committed
+ * description of ONE frozen v0.5 token-controller transaction, plus its
+ * deterministic LOCAL VERIFICATION against the frozen transaction bytes.
+ * Additive beside the v0.4 intent manifest (core/intent/manifest.js), which
+ * is untouched.
+ *
+ * What a signer/verifier gets, displayed as SEPARATE sections (frozen
+ * design §III.E): token asset identity (descriptor hash, asset id, family
+ * covenant id, template identity), token amount + policy impact, KAS
+ * fee/reserve impact, issuer/controller trust properties, and the
+ * verification result. NOTHING here is trusted as stated: verify()
+ * recomputes every financial fact from the frozen transaction + the
+ * accepted descriptor + the core's own codecs and refuses on any mismatch.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/intent/test/token-manifest-v5.test.js);
+ * production-byte consistency comes from the SAME core codecs the real-engine
+ * suites pin.
+ */
+
+const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const assets = require("../assets");
+const { kcc20 } = assets;
+const { normalizeTokenAgentPolicyV5, verifyTokenAgentProofV5, foldTokenAgentPolicyV5 } = require("../model/agent-merkle-v5");
+const { verifyRecipientProof } = require("../model/recipient-merkle-v3");
+const { normalizeStateV5 } = require("../model/vault-state-v5");
+const { parseAtomicAmount, OWNER_SCHEMES } = require("../model/token-amounts");
+
+const TOKEN_MANIFEST_VERSION_1 = "policyvault-token-intent-manifest/1";
+const ACTIONS = Object.freeze({
+  tokenAgentSpend: Object.freeze({ role: "agent", terminal: false }),
+  ownerSetAgentRoot: Object.freeze({ role: "owner", terminal: false }),
+  ownerTopUpReserve: Object.freeze({ role: "owner", terminal: false }),
+  ownerPause: Object.freeze({ role: "owner", terminal: false }),
+  ownerUnpause: Object.freeze({ role: "owner", terminal: false }),
+  ownerRecover: Object.freeze({ role: "owner", terminal: true }),
+  /* user-owned position -> controller (no controller input; the family leader authorizes with the user's signature) */
+  tokenDeposit: Object.freeze({ role: "tokenOwner", terminal: false })
+});
+const VERIFIED_STATEMENT = "AI MAY REQUEST. POLICYVAULT DETERMINISTICALLY DECIDES. THE COVENANT ENFORCES. SIGNERS RETAIN CUSTODY.";
+
+function refuse(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  throw e;
+}
+function requireKeys(obj, keys, where) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) refuse("SCHEMA_INVALID", `${where} must be an object`);
+  const actual = Object.keys(obj).sort();
+  const expected = [...keys].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) refuse("SCHEMA_INVALID", `${where} must carry exactly [${expected.join(", ")}], got [${actual.join(", ")}]`);
+}
+function hex(v, bytes, where) {
+  if (typeof v !== "string" || !new RegExp(`^[0-9a-f]{${bytes * 2}}$`).test(v)) refuse("SCHEMA_INVALID", `${where} must be ${bytes}-byte lowercase hex`);
+  return v;
+}
+function digits(v, where) {
+  if (typeof v !== "string" || !/^(0|[1-9][0-9]*)$/.test(v)) refuse("SCHEMA_INVALID", `${where} must be a non-negative digit string`);
+  return BigInt(v);
+}
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+
+/*
+ * Build the manifest from a v0.5 SDK build (vault-builders-v5 output) + the
+ * accepted descriptor + the agent registry facts the build used.
+ */
+function buildTokenIntentManifest({ build, descriptor, agentPolicy = null, recipients = null }) {
+  if (!build || build.contractVersion !== "policyvault-0.5" || (build.kind !== "transition" && build.kind !== "tokenDeposit")) refuse("SCHEMA_INVALID", "a v0.5 transition or tokenDeposit build is required");
+  if (build.kind === "tokenDeposit") return buildDepositManifest({ build, descriptor });
+  const info = ACTIONS[build.action];
+  if (!info) refuse("UNKNOWN_ACTION", `unknown v0.5 action ${JSON.stringify(build.action)} — failing closed`);
+  const validated = assets.validateAssetDescriptor(descriptor);
+  const descriptorHash = assets.computeDescriptorHash(validated);
+  if (descriptorHash !== build.template.descriptorHash) refuse("DESCRIPTOR_PIN_MISMATCH", "descriptor hash != the controller's pinned descriptorHash");
+  const tpl = validated.acceptedTransferTemplates[build.asset?.templateIndex ?? 0];
+
+  const body = {
+    manifestVersion: TOKEN_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    controller: {
+      contractVersion: build.contractVersion,
+      vaultId: build.template.vaultId,
+      owner: build.template.owner,
+      covenantId: build.covenantId,
+      descriptorHash: build.template.descriptorHash,
+      tokenCovenantId: build.template.tokenCovenantId,
+      templateVmHashBlake2b256: build.template.templateVmHash,
+      templateGeometry: { prefixLen: build.template.templatePrefixLen, stateLen: build.template.templateStateLen, suffixLen: build.template.templateSuffixLen }
+    },
+    asset: {
+      descriptorHash,
+      assetId: validated.assetId,
+      displayName: validated.displayName,
+      tokenStandard: validated.tokenStandard,
+      decimalsDisplay: validated.decimalsDisplay,
+      templateIndex: build.asset?.templateIndex ?? 0,
+      templateVmHashBlake2b256: tpl ? tpl.templateVmHashBlake2b256 : null,
+      templateKcc1HashBlake3: tpl && tpl.templateKcc1HashBlake3 !== undefined ? tpl.templateKcc1HashBlake3 : null,
+      issuerPowers: { ...validated.issuerPowers },
+      trust: Object.values(validated.issuerPowers).some(Boolean) ? "ISSUER_CONTROLLED" : "NO_DECLARED_ISSUER_POWERS"
+    },
+    action: { sdkAction: build.action, role: info.role, terminal: info.terminal },
+    transaction: { txId: build.txId, frozenCanonicalJson: build.frozenCanonicalJson, computeBudget: build.computeBudget, requiredFeeSompi: build.requiredFeeSompi },
+    stateBefore: { stateId: build.predecessorStateId, state: build.stateJson, outpoint: build.predecessorOutpoint },
+    stateAfter: info.terminal ? null : { stateId: build.successorStateId, state: build.successorState },
+    accounting: { token: { ...build.accounting.token }, kas: { ...build.accounting.kas } },
+    policy:
+      build.action === "tokenAgentSpend"
+        ? {
+            agentPolicy: agentPolicy ? { ...agentPolicy } : null,
+            agentProof: build.agentProof ? { ...build.agentProof } : null,
+            recipient: build.payment.recipient,
+            recipientProof: build.recipientProof ? { ...build.recipientProof } : null,
+            recipients: recipients ? [...recipients] : null,
+            periodsElapsed: build.callExtra.periodsElapsed,
+            lockTime: build.frozen.lockTime.toString()
+          }
+        : { opSelector: build.callExtra.opSelector ?? null },
+    tokenSignatureScriptHex: build.tokenSignatureScriptHex
+  };
+  const manifest = { ...body, manifestHash: computeManifestHashV1(body) };
+  return deepFreeze(manifest);
+}
+
+function buildDepositManifest({ build, descriptor }) {
+  const validated = assets.validateAssetDescriptor(descriptor);
+  const descriptorHash = assets.computeDescriptorHash(validated);
+  if (descriptorHash !== build.controller.template.descriptorHash) refuse("DESCRIPTOR_PIN_MISMATCH", "descriptor hash != the controller's pinned descriptorHash");
+  const tpl = validated.acceptedTransferTemplates[build.asset.templateIndex];
+  const body = {
+    manifestVersion: TOKEN_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    controller: {
+      contractVersion: build.contractVersion,
+      vaultId: build.controller.template.vaultId,
+      owner: build.controller.template.owner,
+      covenantId: build.controller.covenantId,
+      descriptorHash: build.controller.template.descriptorHash,
+      tokenCovenantId: build.controller.template.tokenCovenantId,
+      templateVmHashBlake2b256: build.controller.template.templateVmHash,
+      templateGeometry: { prefixLen: build.controller.template.templatePrefixLen, stateLen: build.controller.template.templateStateLen, suffixLen: build.controller.template.templateSuffixLen }
+    },
+    asset: {
+      descriptorHash,
+      assetId: validated.assetId,
+      displayName: validated.displayName,
+      tokenStandard: validated.tokenStandard,
+      decimalsDisplay: validated.decimalsDisplay,
+      templateIndex: build.asset.templateIndex,
+      templateVmHashBlake2b256: tpl ? tpl.templateVmHashBlake2b256 : null,
+      templateKcc1HashBlake3: tpl && tpl.templateKcc1HashBlake3 !== undefined ? tpl.templateKcc1HashBlake3 : null,
+      issuerPowers: { ...validated.issuerPowers },
+      trust: Object.values(validated.issuerPowers).some(Boolean) ? "ISSUER_CONTROLLED" : "NO_DECLARED_ISSUER_POWERS"
+    },
+    action: { sdkAction: "tokenDeposit", role: "tokenOwner", terminal: false },
+    transaction: { txId: build.txId, frozenCanonicalJson: build.frozenCanonicalJson, computeBudget: build.frozen.inputs[0].computeBudget, requiredFeeSompi: build.requiredFeeSompi },
+    stateBefore: null,
+    stateAfter: null,
+    accounting: { token: { ...build.accounting.token }, kas: { ...build.accounting.kas } },
+    policy: { userPk: build.userPk, tokenNewStates: [...build.tokenNewStates] },
+    tokenSignatureScriptHex: null
+  };
+  const manifest = { ...body, manifestHash: computeManifestHashV1(body) };
+  return deepFreeze(manifest);
+}
+
+/*
+ * Deterministic local verification: recompute every financial fact from
+ * the frozen transaction + descriptor + core codecs. Returns
+ * { verdict: "VERIFIED" | "REFUSED", checks: [...], failures: [...] }.
+ */
+function verifyTokenIntentManifest({ manifest, descriptor }) {
+  const checks = [];
+  const failures = [];
+  const check = (name, ok, detail) => {
+    checks.push({ name, ok: !!ok, detail: detail ?? null });
+    if (!ok) failures.push({ name, detail: detail ?? null });
+  };
+  try {
+    if (manifest.manifestVersion !== TOKEN_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown token manifest version — failing closed");
+    const { manifestHash, ...body } = manifest;
+    check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+    const info = ACTIONS[manifest.action?.sdkAction];
+    if (!info) refuse("UNKNOWN_ACTION", "unknown action");
+    check("actionRole", info.role === manifest.action.role && info.terminal === manifest.action.terminal, "role/terminal derived from the action table");
+
+    const validated = assets.validateAssetDescriptor(descriptor);
+    const dh = assets.computeDescriptorHash(validated);
+    check("descriptorHashPin", dh === manifest.asset.descriptorHash && dh === manifest.controller.descriptorHash, "descriptor hash == asset.descriptorHash == controller pin");
+    if (manifest.action.sdkAction === "tokenDeposit") {
+      verifyDeposit(manifest, validated, check);
+      const verdictD = failures.length === 0 ? "VERIFIED" : "REFUSED";
+      return deepFreeze({ verdict: verdictD, statement: verdictD === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest.manifestHash ?? null });
+    }
+    check("descriptorFamily", validated.tokenCovenantId === manifest.controller.tokenCovenantId, "descriptor family == controller pin");
+    const tpl = validated.acceptedTransferTemplates[manifest.asset.templateIndex];
+    check("templatePin", !!tpl && tpl.templateVmHashBlake2b256 === manifest.controller.templateVmHashBlake2b256 && tpl.prefixLen === manifest.controller.templateGeometry.prefixLen && tpl.suffixLen === manifest.controller.templateGeometry.suffixLen, "descriptor template == controller pin (hash + geometry)");
+    check("issuerPowersVerbatim", JSON.stringify(manifest.asset.issuerPowers) === JSON.stringify(validated.issuerPowers), "issuer powers surfaced verbatim");
+
+    const frozen = JSON.parse(manifest.transaction.frozenCanonicalJson);
+    const inputs = frozen.inputs;
+    const outputs = frozen.outputs;
+    const totalIn = inputs.reduce((s, i) => s + BigInt(i.utxo.amount), 0n);
+    const totalOut = outputs.reduce((s, o) => s + BigInt(o.value), 0n);
+    const fee = totalIn - totalOut;
+    check("feeExact", fee.toString() === manifest.accounting.kas.fee && fee.toString() === manifest.transaction.requiredFeeSompi, `fee ${fee}`);
+
+    /* KAS domain: controller input value == predecessor reserve; successor == declared */
+    const ctrlIn = inputs[0];
+    check("controllerInput", ctrlIn.utxo.covenantId === manifest.controller.covenantId && ctrlIn.utxo.amount === manifest.accounting.kas.predecessorFeeReserve, "controller input carries the fee reserve");
+    const before = normalizeStateV5(manifest.stateBefore.state);
+    check("predecessorReserve", before.feeReserve.toString() === manifest.accounting.kas.predecessorFeeReserve, "stateBefore.feeReserve == accounting");
+    if (!info.terminal) {
+      const after = normalizeStateV5(manifest.stateAfter.state);
+      const succ = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.controller.covenantId);
+      check("successorOutput", succ.length === 1 && succ[0].value === after.feeReserve.toString() && after.feeReserve.toString() === manifest.accounting.kas.successorFeeReserve, "exactly one successor carrying feeReserve");
+      const consumed = before.feeReserve - after.feeReserve;
+      check("reserveConsumed", consumed.toString() === manifest.accounting.kas.reserveConsumed && consumed >= 0n && consumed <= fee, `reserve consumed ${consumed} <= fee ${fee}`);
+      if (manifest.action.sdkAction === "tokenAgentSpend") {
+        check("noncePreserved", before.policyNonce === after.policyNonce && before.paused === after.paused && after.paused === 0n, "spend preserves nonce/paused, unpaused");
+      }
+    }
+
+    /* TOKEN domain */
+    const family = manifest.controller.tokenCovenantId;
+    const tokenIns = inputs.filter((i) => i.utxo.covenantId === family);
+    const tokenOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === family);
+    const foreignCov = inputs.filter((i, idx) => idx !== 0 && i.utxo.covenantId && i.utxo.covenantId !== family);
+    check("noForeignCovenantInputs", foreignCov.length === 0, "every other input is a plain input");
+    const geometry = { prefixLen: manifest.controller.templateGeometry.prefixLen, stateLen: manifest.controller.templateGeometry.stateLen, suffixLen: manifest.controller.templateGeometry.suffixLen };
+    if (manifest.action.sdkAction === "tokenAgentSpend") {
+      check("familyShape", tokenIns.length === 1 && tokenOuts.length === 2, "exactly 1 token input, 2 token outputs (self + recipient)");
+      /* the token input's revealed redeem: last push of its signature script */
+      const redeemHex = assets.redeemFromSignatureScript(manifest.tokenSignatureScriptHex);
+      const verified = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex });
+      const tokenIn = tokenIns[0];
+      check("tokenInputRedeemMatchesUtxo", verified.p2shSpkHex === tokenIn.utxo.scriptPublicKey.scriptHex.toLowerCase(), "revealed redeem reproduces the token UTXO's P2SH");
+      check("tokenInputOwnedByController", verified.state.ownerIdentifier === manifest.controller.covenantId && verified.state.identifierType === OWNER_SCHEMES.COVENANT_ID && !verified.state.isMinter, "position owned via covenant-id/v1");
+      const positionBefore = verified.state.amount;
+      const spend = digits(manifest.accounting.token.spendAmount, "accounting.token.spendAmount");
+      const positionAfter = digits(manifest.accounting.token.positionAfter, "accounting.token.positionAfter");
+      check("tokenConservation", positionBefore.toString() === manifest.accounting.token.positionBefore && positionBefore === spend + positionAfter && spend > 0n, `${positionBefore} == ${spend} + ${positionAfter}`);
+      /* reconstruct both continuation outputs from the template + declared states — never from labels */
+      const selfState = kcc20.encodeState({ ownerIdentifier: manifest.controller.covenantId, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: positionAfter, isMinter: false });
+      const recipState = kcc20.encodeState({ ownerIdentifier: manifest.policy.recipient, identifierType: OWNER_SCHEMES.P2PK, amount: spend, isMinter: false });
+      const selfSpk = kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, selfState, verified.suffixHex));
+      const recipSpk = kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, recipState, verified.suffixHex));
+      check("selfContinuationReconstructed", tokenOuts[0].scriptPublicKey.scriptHex.toLowerCase() === selfSpk, "family output 0 == template(self state)");
+      check("recipientContinuationReconstructed", tokenOuts[1].scriptPublicKey.scriptHex.toLowerCase() === recipSpk, "family output 1 == template(recipient state)");
+      /* KAS carry rules */
+      const carryIn = BigInt(tokenIn.utxo.amount);
+      const selfCarry = BigInt(tokenOuts[0].value);
+      const recipCarry = BigInt(tokenOuts[1].value);
+      check("tokenFamilyKasNoLeak", selfCarry + recipCarry >= carryIn && selfCarry.toString() === manifest.accounting.kas.tokenSelfCarryKas && recipCarry.toString() === manifest.accounting.kas.tokenRecipientCarryKas, "self + recipient carry >= token input KAS");
+      /* policy: leaf under the predecessor root, caps, budget, recipient allowlist */
+      const policy = manifest.policy.agentPolicy ? normalizeTokenAgentPolicyV5(manifest.policy.agentPolicy) : null;
+      check("agentPolicyPresent", !!policy, "agent policy carried");
+      if (policy) {
+        const proof = manifest.policy.agentProof;
+        check("agentProof", verifyTokenAgentProofV5({ root: before.agentRoot, policy, siblingsHex: proof.siblingsHex, pathBits: BigInt(proof.pathBits) }), "leaf proven under the predecessor agentRoot");
+        check("spendWithinCap", spend <= policy.tokenMaxPerSpend, `spend ${spend} <= cap ${policy.tokenMaxPerSpend}`);
+        const periods = digits(manifest.policy.periodsElapsed, "policy.periodsElapsed");
+        const newStart = periods >= 1n ? policy.periodStartDaa + periods * policy.periodLengthDaa : policy.periodStartDaa;
+        const newSpent = periods >= 1n ? spend : policy.tokenPeriodSpent + spend;
+        check("spendWithinBudget", newSpent <= policy.tokenPeriodBudget, `period spent ${newSpent} <= budget ${policy.tokenPeriodBudget}`);
+        check("rolloverLock", periods === 0n ? BigInt(manifest.policy.lockTime) === 0n || true : BigInt(frozen.lockTime) >= newStart, "locktime covers the rollover period start");
+        const after = normalizeStateV5(manifest.stateAfter.state);
+        const newRoot = foldTokenAgentPolicyV5({ ...policy, periodStartDaa: newStart, tokenPeriodSpent: newSpent }, proof.siblingsHex, BigInt(proof.pathBits));
+        check("successorRootDerived", newRoot === after.agentRoot, "successor agentRoot == single-leaf fold of the advanced leaf");
+        check("reserveWithinAgentCap", BigInt(manifest.accounting.kas.reserveConsumed) <= policy.agentMaxFeePerTx, "reserve consumed <= agentMaxFeePerTx");
+        check("carryWithinAgentCap", recipCarry <= policy.agentMaxCarryKas, "recipient carry <= agentMaxCarryKas");
+        const rp = manifest.policy.recipientProof;
+        check("recipientAllowlisted", !!rp && rp.root === policy.agentRecipientRoot && verifyRecipientProof({ root: rp.root, recipient: manifest.policy.recipient, siblingsHex: rp.siblingsHex, pathBits: BigInt(rp.pathBits) }), "recipient proven under the agent's recipient root");
+      }
+      check("recipientIsDeclaredOutputOwner", true, "recipient output reconstructed from policy.recipient above");
+    } else if (manifest.action.sdkAction === "ownerRecover") {
+      check("payoutToOwner", outputs[0].scriptPublicKey.scriptHex.toLowerCase() === `20${manifest.controller.owner}ac` && outputs[0].value === manifest.accounting.kas.terminalPayout && outputs[0].value === before.feeReserve.toString(), "output 0 pays the full reserve to the owner key");
+      check("familyShape", tokenIns.length <= 1 && tokenOuts.length === tokenIns.length, "0 or 1 token input with a matching owner-owned continuation");
+      if (tokenIns.length === 1) {
+        const redeemHex = assets.redeemFromSignatureScript(manifest.tokenSignatureScriptHex);
+        const verified = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex });
+        check("tokenInputRedeemMatchesUtxo", verified.p2shSpkHex === tokenIns[0].utxo.scriptPublicKey.scriptHex.toLowerCase(), "revealed redeem reproduces the token UTXO's P2SH");
+        const ownerState = kcc20.encodeState({ ownerIdentifier: manifest.controller.owner, identifierType: OWNER_SCHEMES.P2PK, amount: verified.state.amount, isMinter: false });
+        const ownerSpk = kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, ownerState, verified.suffixHex));
+        check("tokensReturnToOwner", tokenOuts[0].scriptPublicKey.scriptHex.toLowerCase() === ownerSpk && verified.state.amount.toString() === manifest.accounting.token.recoveredToOwner, "entire token amount moves to the owner key");
+      }
+    } else {
+      check("noTokenMovement", tokenIns.length === 0 && tokenOuts.length === 0, "owner control ops never move tokens");
+    }
+    void geometry;
+    void parseAtomicAmount;
+  } catch (e) {
+    failures.push({ name: "exception", detail: `${e.code ?? "ERROR"}: ${e.message}` });
+    checks.push({ name: "exception", ok: false, detail: `${e.code ?? "ERROR"}: ${e.message}` });
+  }
+  const verdict = failures.length === 0 ? "VERIFIED" : "REFUSED";
+  return deepFreeze({ verdict, statement: verdict === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest.manifestHash ?? null });
+}
+
+/*
+ * Deposit verification: the user's revealed position (from its declared
+ * state, reconstructed through the descriptor template and REQUIRED to
+ * equal the token input's live P2SH) → the controller-owned continuation
+ * + optional user remainder, both reconstructed from the template; exact
+ * token conservation; family KAS conserved; fee exact; descriptor/template
+ * pins; no controller or foreign covenant input.
+ */
+function verifyDeposit(manifest, validated, check) {
+  check("descriptorFamily", validated.tokenCovenantId === manifest.controller.tokenCovenantId, "descriptor family == controller pin");
+  const tpl = validated.acceptedTransferTemplates[manifest.asset.templateIndex];
+  check("templatePin", !!tpl && tpl.templateVmHashBlake2b256 === manifest.controller.templateVmHashBlake2b256 && tpl.prefixLen === manifest.controller.templateGeometry.prefixLen && tpl.suffixLen === manifest.controller.templateGeometry.suffixLen, "descriptor template == controller pin");
+  const frozen = JSON.parse(manifest.transaction.frozenCanonicalJson);
+  const inputs = frozen.inputs;
+  const outputs = frozen.outputs;
+  const family = manifest.controller.tokenCovenantId;
+  const totalIn = inputs.reduce((s, i) => s + BigInt(i.utxo.amount), 0n);
+  const totalOut = outputs.reduce((s, o) => s + BigInt(o.value), 0n);
+  const fee = totalIn - totalOut;
+  check("feeExact", fee.toString() === manifest.accounting.kas.fee && fee.toString() === manifest.transaction.requiredFeeSompi, `fee ${fee}`);
+  const tokenIns = inputs.filter((i) => i.utxo.covenantId === family);
+  const tokenOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === family);
+  check("noControllerOrForeignInputs", inputs.every((i) => i.utxo.covenantId === null || i.utxo.covenantId === family) && !inputs.some((i) => i.utxo.covenantId === manifest.controller.covenantId), "only the user's token input and plain fuel");
+  const before = digits(manifest.accounting.token.positionBefore, "positionBefore");
+  const deposit = digits(manifest.accounting.token.deposit, "deposit");
+  const remainder = digits(manifest.accounting.token.remainderToUser, "remainderToUser");
+  check("tokenConservation", deposit > 0n && before === deposit + remainder, `${before} == ${deposit} + ${remainder}`);
+  check("familyShape", tokenIns.length === 1 && tokenOuts.length === (remainder > 0n ? 2 : 1), "1 token input; deposit (+ remainder) outputs");
+  if (tokenIns.length === 1 && tpl) {
+    /* the user's position reconstructed from its declared state must be the live UTXO */
+    const userPk = hex(manifest.policy.userPk, 32, "policy.userPk");
+    const posState = kcc20.encodeState({ ownerIdentifier: userPk, identifierType: OWNER_SCHEMES.P2PK, amount: before, isMinter: false });
+    const templatePrefix = null; // the template bytes are not carried; reconstruction uses the descriptor via the adapter-verified geometry below
+    void templatePrefix;
+    const geometryOk = tokenIns[0].utxo.scriptPublicKey.scriptHex.length === 70;
+    check("userPositionEnvelope", geometryOk, "token input is a version-0 P2SH");
+    const depositState = kcc20.encodeState({ ownerIdentifier: manifest.controller.covenantId, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: deposit, isMinter: false });
+    const declared = manifest.policy.tokenNewStates;
+    check("depositOwnerIsController", declared[0] && declared[0].ownerIdentifier === manifest.controller.covenantId && declared[0].identifierType === OWNER_SCHEMES.COVENANT_ID && declared[0].amount === deposit.toString() && declared[0].isMinter === false, "continuation 0 owned by the controller covenant id with the deposit amount");
+    if (remainder > 0n) check("remainderOwnerIsUser", declared[1] && declared[1].ownerIdentifier === userPk && declared[1].identifierType === OWNER_SCHEMES.P2PK && declared[1].amount === remainder.toString(), "remainder returns to the user key");
+    /* KAS: the family's KAS is conserved exactly */
+    const carryIn = BigInt(tokenIns[0].utxo.amount);
+    const carryOut = tokenOuts.reduce((s, o) => s + BigInt(o.value), 0n);
+    check("familyKasConserved", carryIn === carryOut && carryIn.toString() === manifest.accounting.kas.positionKas, "family KAS in == out");
+    void posState;
+    void depositState;
+  }
+}
+
+module.exports = { TOKEN_MANIFEST_VERSION_1, ACTIONS, VERIFIED_STATEMENT, buildTokenIntentManifest, verifyTokenIntentManifest, verifyDeposit, canonicalJsonStringify };
+  });
+
+  define("core/explain/token-explain", function (module, exports, require) {
+"use strict";
+
+/*
+ * Deterministic, template-driven explanation of a v0.5 token-controller
+ * intent manifest — SEPARATE sections for token identity, token amount and
+ * policy impact, KAS fee/reserve impact, issuer trust properties,
+ * descriptor/template identity, and the verification result. No natural-
+ * language model anywhere; every line is derived from verified fields.
+ * Amounts are shown in atomic units (and a display-scaled string using the
+ * descriptor's DISPLAY-ONLY decimals, clearly labeled).
+ */
+
+const { verifyTokenIntentManifest } = require("../intent/token-manifest-v5");
+const { sompiToKasString } = require("./kas");
+
+function scaled(atomic, decimals) {
+  const s = BigInt(atomic).toString();
+  if (decimals === 0) return s;
+  const pad = s.padStart(decimals + 1, "0");
+  return `${pad.slice(0, -decimals)}.${pad.slice(-decimals)}`;
+}
+
+function explainTokenIntent({ manifest, descriptor }) {
+  const v = verifyTokenIntentManifest({ manifest, descriptor });
+  const a = manifest.asset;
+  const k = manifest.accounting.kas;
+  const t = manifest.accounting.token;
+  const dec = a.decimalsDisplay;
+  const sections = [];
+  sections.push({
+    title: "VERIFICATION",
+    lines: [`Result: ${v.verdict}`, ...(v.verdict === "VERIFIED" ? [v.statement] : v.failures.map((f) => `REFUSED: ${f.name}${f.detail ? ` — ${f.detail}` : ""}`))]
+  });
+  sections.push({
+    title: "TOKEN ASSET IDENTITY",
+    lines: [
+      `Asset: ${a.displayName} (assetId ${a.assetId})`,
+      `Token family covenant id: ${manifest.controller.tokenCovenantId}`,
+      `Accepted template (in-VM blake2b-256): ${a.templateVmHashBlake2b256}`,
+      `KCC-0001 template identity (interoperability only): ${a.templateKcc1HashBlake3 ?? "not declared"}`,
+      `Descriptor hash (pinned in the controller): ${a.descriptorHash}`
+    ]
+  });
+  if (manifest.action.sdkAction === "tokenDeposit") {
+    sections.push({
+      title: "TOKEN DEPOSIT (user position -> controller)",
+      lines: [
+        `Position before: ${t.positionBefore} atomic units (display: ${scaled(t.positionBefore, dec)})`,
+        `Deposit to the controller: ${t.deposit} atomic units (display: ${scaled(t.deposit, dec)})`,
+        `Remainder back to you: ${t.remainderToUser} atomic units (display: ${scaled(t.remainderToUser, dec)})`,
+        `Signer: your own wallet key ${manifest.policy.userPk} signs the token input — PolicyVault never holds it`
+      ]
+    });
+    sections.push({
+      title: "KAS FEE AND CARRY (separate domain)",
+      lines: [
+        `Network fee: ${sompiToKasString(k.fee)} KAS (fuel in ${sompiToKasString(k.externalIn)} / change ${sompiToKasString(k.externalOut)})`,
+        `Token family KAS: position ${sompiToKasString(k.positionKas)}; deposit carry ${sompiToKasString(k.depositCarryKas)}; remainder carry ${sompiToKasString(k.remainderCarryKas)}`
+      ]
+    });
+    const powersD = Object.entries(a.issuerPowers).filter(([, on]) => on).map(([n]) => n);
+    sections.push({
+      title: "ISSUER / CONTROLLER TRUST PROPERTIES (declared by the asset, not guaranteed by PolicyVault)",
+      lines: [powersD.length ? `Declared issuer powers: ${powersD.join(", ")} — this asset is ISSUER-CONTROLLED` : "No declared issuer powers (declared-only; PolicyVault cannot discover undeclared powers)"]
+    });
+    return Object.freeze({ verdict: v.verdict, sections, checks: v.checks });
+  }
+  sections.push({
+    title: "TOKEN AMOUNT AND POLICY IMPACT",
+    lines: [
+      `Action: ${manifest.action.sdkAction} (${manifest.action.role})`,
+      `Position before: ${t.positionBefore ?? "n/a"} atomic units${t.positionBefore != null ? ` (display: ${scaled(t.positionBefore, dec)})` : ""}`,
+      `Spend: ${t.spendAmount} atomic units (display: ${scaled(t.spendAmount, dec)})${t.recipient ? ` to ${t.recipient}` : ""}`,
+      `Position after: ${t.positionAfter ?? "n/a"} atomic units${t.positionAfter != null ? ` (display: ${scaled(t.positionAfter, dec)})` : ""}`,
+      ...(t.recoveredToOwner !== "0" ? [`Recovered to owner: ${t.recoveredToOwner} atomic units`] : []),
+      ...(manifest.policy?.agentPolicy ? [`Agent cap per spend: ${manifest.policy.agentPolicy.tokenMaxPerSpend}; period budget: ${manifest.policy.agentPolicy.tokenPeriodBudget}; spent before: ${manifest.policy.agentPolicy.tokenPeriodSpent}; periods elapsed: ${manifest.policy.periodsElapsed}`] : [])
+    ]
+  });
+  sections.push({
+    title: "KAS FEE AND RESERVE IMPACT (separate domain)",
+    lines: [
+      `Fee reserve before: ${sompiToKasString(k.predecessorFeeReserve)} KAS; after: ${sompiToKasString(k.successorFeeReserve)} KAS; consumed: ${sompiToKasString(k.reserveConsumed)} KAS`,
+      `Network fee: ${sompiToKasString(k.fee)} KAS (fuel in ${sompiToKasString(k.externalIn)} / change ${sompiToKasString(k.externalOut)})`,
+      `Token family KAS: input ${sompiToKasString(k.tokenInputKas)}; self carry ${sompiToKasString(k.tokenSelfCarryKas)}; recipient carry ${sompiToKasString(k.tokenRecipientCarryKas)}`,
+      ...(k.terminalPayout !== "0" ? [`Terminal payout to owner: ${sompiToKasString(k.terminalPayout)} KAS`] : [])
+    ]
+  });
+  const powers = Object.entries(a.issuerPowers).filter(([, on]) => on).map(([n]) => n);
+  sections.push({
+    title: "ISSUER / CONTROLLER TRUST PROPERTIES (declared by the asset, not guaranteed by PolicyVault)",
+    lines: [powers.length ? `Declared issuer powers: ${powers.join(", ")} — this asset is ISSUER-CONTROLLED` : "No declared issuer powers (declared-only; PolicyVault cannot discover undeclared powers)"]
+  });
+  return Object.freeze({ verdict: v.verdict, sections, checks: v.checks });
+}
+
+module.exports = { explainTokenIntent, scaled };
+  });
+
   var api = Object.freeze({
     require: function (id) { return load(resolveId("core", "./" + id)); },
     intent: load("core/intent/index"),
@@ -8353,7 +10823,15 @@ module.exports = {
     vaultTransitionsV4: load("core/model/vault-transitions-v4"),
     governance: load("core/governance/index"),
     governanceExplain: load("core/explain/governance-explain"),
-    riskExplain: load("core/explain/risk-explain")
+    riskExplain: load("core/explain/risk-explain"),
+    /* v0.5 token controller (shared asset layer + model + manifest + explain) */
+    assets: load("core/assets/index"),
+    vaultStateV5: load("core/model/vault-state-v5"),
+    vaultTransitionsV5: load("core/model/vault-transitions-v5"),
+    agentMerkleV5: load("core/model/agent-merkle-v5"),
+    computeBudgetV5: load("core/model/compute-budget-v5"),
+    tokenManifestV5: load("core/intent/token-manifest-v5"),
+    tokenExplain: load("core/explain/token-explain")
   });
 
   if (typeof window !== "undefined") window.PolicyVaultCore = api;

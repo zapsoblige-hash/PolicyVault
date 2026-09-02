@@ -172,7 +172,7 @@ test("FAIL CLOSED: an unsupported capabilities schemaVersion refuses startup (no
   }
 });
 
-test("tools/call happy path: structured envelope, text block is the exact JSON serialization, bearer auth on the API call, anonymous discovery fetch", async () => {
+test("tools/call happy path: structured envelope, text block is the exact JSON serialization, bearer auth on the API call AND on the discovery fetch (credential-scoped discovery)", async () => {
   const mock = await startMockApi({ route: okVaultsRoute });
   const driver = await startDriver({ mock });
   try {
@@ -190,7 +190,7 @@ test("tools/call happy path: structured envelope, text block is the exact JSON s
     assert.equal(res.result.content[0].text, JSON.stringify(sc), "text block must be EXACTLY the envelope serialization");
 
     const capsFetch = mock.requests.find((r) => r.path === "/api/v1/capabilities");
-    assert.equal(capsFetch.headers.authorization, undefined, "public discovery fetch must not carry the credential");
+    assert.match(capsFetch.headers.authorization, /^Bearer \S{20,300}$/, "discovery PRESENTS the credential so the server can name its granted scopes (least-privilege discovery, 2026-09-02)");
     const vaultsCall = mock.requests.find((r) => r.path === "/api/v1/vaults");
     assert.match(vaultsCall.headers.authorization, /^Bearer \S{20,300}$/);
     assert.equal(vaultsCall.headers.cookie, undefined, "the adapter must never send cookies");

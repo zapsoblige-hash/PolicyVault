@@ -284,7 +284,17 @@
     /* 2. The session adapter (legacy WalletAdapter surface over the USI)  */
     /* ------------------------------------------------------------------ */
 
-    function toLegacyError(e) {
+    /* Opt-in wallet diagnostics (never secrets): localStorage "pv.debug" = "1".
+   * Guarded — storage may be unavailable or throw (privacy modes). */
+  function walletDebugEnabled() {
+    try {
+      return typeof localStorage !== "undefined" && localStorage !== null && localStorage.getItem("pv.debug") === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function toLegacyError(e) {
       if (e && e.walletCategory) return e; // already legacy-shaped
       var code = e && e.signerCode ? e.signerCode : SignerErrorCodes.PROVIDER_ERROR;
       var out = new Error((e && e.message) || code);
@@ -377,8 +387,10 @@
             var raw = await usi._rawPublicKey();
             var xonly = iface.normalizePublicKeyToXOnly(raw, "KasWare");
             /* the legacy public-key normalization diagnostic (PUBLIC
-             * material only) stays at this layer by design. */
-            if (typeof console !== "undefined") {
+             * material only) stays at this layer by design — but it is
+             * OPT-IN (localStorage "pv.debug" = "1"): production consoles
+             * never repeat wallet-identity dumps on every reconnect. */
+            if (typeof console !== "undefined" && walletDebugEnabled()) {
               console.info("[PolicyVault] KasWare public key " + raw + " (" + raw.trim().length + " hex chars) -> x-only " + xonly);
             }
             return xonly;

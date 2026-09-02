@@ -220,6 +220,26 @@ test("capabilities: public, and reports scopes/actions/schemas from the SERVER's
   assert.equal(caps.actions.v4.find((a) => a.action === "ownerPause").role, "owner");
 });
 
+test("capabilities WITH a machine credential names the caller's OWN granted scopes (principal-scoped discovery); anonymous carries no principal; an invalid bearer is refused, never downgraded", async () => {
+  const anon = await state.anonClient.capabilities();
+  assert.equal(anon.principal, undefined, "the public document is unchanged for anonymous callers");
+  assert.equal(anon.features.principalScopedDiscovery, true, "hosted mode declares principal-scoped discovery");
+  assert.equal(anon.features.machineIdentities, true);
+
+  const ro = await state.readOnlyClient.capabilities();
+  assert.deepEqual(ro.principal, { kind: "machine", identityId: ro.principal.identityId, scopes: ["read:vaults"] });
+  assert.match(ro.principal.identityId, /^[0-9a-f-]{36}$/);
+  const { principal: _p, ...roRest } = ro;
+  assert.deepEqual(roRest, anon, "apart from the caller's own principal the document is byte-for-byte the public one");
+
+  const full = await state.client.capabilities();
+  assert.deepEqual([...full.principal.scopes].sort(), ["organizations:manage", "read:organizations", "read:requests", "read:vaults", "request:build"]);
+  assert.ok(!JSON.stringify(full).includes(state.token) && !JSON.stringify(full).includes(state.readOnlyToken), "never a token");
+
+  const bogus = createClient({ baseUrl, token: "pvmk_totally-invalid-credential-value-that-is-long-enough" });
+  await assert.rejects(() => bogus.capabilities(), (error) => { assert.equal(error.status, 401); assert.equal(error.code, "MACHINE_TOKEN_INVALID"); return true; });
+});
+
 /* ---------------------------------------------------------------------- */
 /* Reads + dry run                                                         */
 /* ---------------------------------------------------------------------- */

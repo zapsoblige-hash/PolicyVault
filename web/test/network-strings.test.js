@@ -61,9 +61,9 @@ const OWNED_FILES = ["app.js", "app-v4.js", "wallet.js", "signer-kasware-adapter
  * from the server-derived network label. */
 const EXEMPT = {
   "app.js": [
-    174, // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted from 151 by the UX-responsiveness pass: GET dedupe + snapshot auth field)
-    177, // `ui.serverNetwork !== "testnet-10" && ui.serverNetwork !== "mainnet"` — fail-closed validity gate against the two canonical values; untouched per the mission ("do not change gating logic")
-    1296 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10 (shifted by the banner rework + UX-responsiveness pass)
+    188, // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted from 151 by the UX-responsiveness pass, then by the 2026-09-02 console corrective: revalidateAuth() on the canonical session)
+    191, // `ui.serverNetwork !== "testnet-10" && ui.serverNetwork !== "mainnet"` — fail-closed validity gate against the two canonical values; untouched per the mission ("do not change gating logic")
+    1314 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10 (shifted by the banner rework + UX-responsiveness pass + the console corrective)
   ],
   // index.html: ZERO hardcoded network names. The banner div ships neutral
   // "VERIFYING NETWORK…" markup (the stale-TESTNET-banner-on-mainnet
@@ -75,18 +75,18 @@ const EXEMPT = {
   "app-v4.js": [
     12, // comment restating the two canonical values (dual-network)
     60, // comment quoting the literal for documentation purposes (shifted by the UX-responsiveness pass: retained-state/epoch helpers)
-    1930 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted by the same pass)
+    1956 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted by the UX-responsiveness pass, then by the 2026-09-02 console corrective: signed-out read gate + auth-refusal revalidation in renderRetained)
   ],
   "wallet.js": [
-    80, // normalizeNetwork(): canonical output-value production from an arbitrary provider string
-    81, // normalizeNetwork(): same
-    355 // MockAdapter (test/dev-only; the dev-sign endpoint it talks to is itself server-refused on mainnet) default network parameter
+    90, // normalizeNetwork(): canonical output-value production from an arbitrary provider string (shifted by the 2026-09-02 console corrective: opt-in walletDebugEnabled() helper)
+    91, // normalizeNetwork(): same
+    368 // MockAdapter (test/dev-only; the dev-sign endpoint it talks to is itself server-refused on mainnet) default network parameter (same shift)
   ],
   "signer-kasware-adapter.js": [
     73, // normalizeNetwork(): canonical output-value production (mirrors wallet.js)
     74, // normalizeNetwork(): same
     168, // descriptor networks: ["mainnet","testnet-10"] — lists BOTH supported networks
-    409 // network validity gate against the two canonical values (mirrors app.js:154)
+    421 // network validity gate against the two canonical values (mirrors app.js) — shifted by the 2026-09-02 console corrective (opt-in walletDebugEnabled() helper)
   ]
 };
 

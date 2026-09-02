@@ -99,7 +99,28 @@ const MODULES = [
    * decision/codes from the stored per-adapter results and refuses
    * self-inconsistent records (DECISION_MISMATCH etc.) instead of
    * narrating them. */
-  "core/explain/risk-explain.js"
+  "core/explain/risk-explain.js",
+  /* v0.5 TOKEN CONTROLLER wave (docs/postlaunch/v0.5-design-freeze.md): the
+   * shared ASSET layer (descriptor validation/hash, canonical KCC20 codec,
+   * template corroboration, token-input verification, portable pure-JS
+   * blake2b — the in-VM template identity) + the v0.5 model (state,
+   * token-agent Merkle leaf, transitions, template-scaled budgets,
+   * token-amount primitives) + the token intent manifest with its
+   * deterministic local verifier + the token explanation renderer. Every
+   * client (browser here; mobile by byte-identical sync) consumes THESE
+   * rules: no client may treat indexer/UI token metadata as authoritative. */
+  "core/model/canonical-json.js",
+  "core/model/token-amounts.js",
+  "core/assets/blake2b.js",
+  "core/assets/kcc20.js",
+  "core/assets/descriptor.js",
+  "core/assets/index.js",
+  "core/model/vault-state-v5.js",
+  "core/model/agent-merkle-v5.js",
+  "core/model/vault-transitions-v5.js",
+  "core/model/compute-budget-v5.js",
+  "core/intent/token-manifest-v5.js",
+  "core/explain/token-explain.js"
 ];
 
 /*
@@ -357,7 +378,15 @@ function generateBundle() {
   parts.push('    vaultTransitionsV4: load("core/model/vault-transitions-v4"),');
   parts.push('    governance: load("core/governance/index"),');
   parts.push('    governanceExplain: load("core/explain/governance-explain"),');
-  parts.push('    riskExplain: load("core/explain/risk-explain")');
+  parts.push('    riskExplain: load("core/explain/risk-explain"),');
+  parts.push('    /* v0.5 token controller (shared asset layer + model + manifest + explain) */');
+  parts.push('    assets: load("core/assets/index"),');
+  parts.push('    vaultStateV5: load("core/model/vault-state-v5"),');
+  parts.push('    vaultTransitionsV5: load("core/model/vault-transitions-v5"),');
+  parts.push('    agentMerkleV5: load("core/model/agent-merkle-v5"),');
+  parts.push('    computeBudgetV5: load("core/model/compute-budget-v5"),');
+  parts.push('    tokenManifestV5: load("core/intent/token-manifest-v5"),');
+  parts.push('    tokenExplain: load("core/explain/token-explain")');
   parts.push("  });");
   parts.push("");
   parts.push('  if (typeof window !== "undefined") window.PolicyVaultCore = api;');
