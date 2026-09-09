@@ -208,5 +208,12 @@
     "family": "operator-path",
     "count": 9,
     "reason": "fullscale-rc29 image config (build f217011, digest sha256:ab893b13\u2026): the 9 matching history commands are the pinned Ubuntu base image's own upstream rockcraft build-directory paths, byte-identical to the previously classified config 070970f0\u2026; this config differs from it only in created timestamps, the POLICYVAULT_BUILD_ID env value and the rootfs diff_ids (Claude rc29 continuation, 2026-09-08)"
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "6d370a98ff31e28b13bf1ab82013622856c541cb379e2a2f9cb4cc5d24df6ed4",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "Codex local RC29 correction image 9dbc5f7: all matching upstream Ubuntu build-history commands are byte-identical to classified production RC29 config fedc5513. Exact command hashes independently compared; metadata changed for the correction and compiler notice. No PolicyVault operator identity."
   }
 ]

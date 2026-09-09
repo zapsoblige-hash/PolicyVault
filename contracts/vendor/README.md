@@ -12,3 +12,9 @@ compiled script must reproduce the token UTXO's exact P2SH script public
 key before the encoding is used (production-byte rule), otherwise the
 adapter fails closed ("unsupported token program"). No runtime dependency
 on the mutable reference checkout exists.
+
+The reference program and packaged `silverc` compiler come from Silverscript
+commit `d25bd3427a093c17327ca3d6b9e1aa5f7688c863`. The adjacent [LICENSE](LICENSE)
+is that revision's unchanged ISC copyright and permission notice. The runtime
+image includes it here and beside the compiler at `/home/pv/silverscript/LICENSE`.
+The reference program remains byte-identical to the pinned upstream example.

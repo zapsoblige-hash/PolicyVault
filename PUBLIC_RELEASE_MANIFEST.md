@@ -1,4 +1,4 @@
-# PolicyVault Public Release Manifest — 1.9.1 (PRODUCTION RELEASE `fullscale-rc29`)
+# PolicyVault Public Release Manifest — 1.9.2 (PRODUCTION RELEASE `fullscale-rc30`)
 
 Every published path, why it is included, and everything intentionally excluded. This release was assembled as a FRESH tree (no private git ancestry) from the exact accepted private source commit, exported with `git archive` (tracked files only) minus the recorded exclusion set, plus the release documents written for publication. The private repository's history is not published; this tree advances the existing public repository by a normal successor commit; no prior public history is rewritten.
 
@@ -6,48 +6,57 @@ Every published path, why it is included, and everything intentionally excluded.
 
 | Fact | Value |
 |---|---|
-| Live production | https://app.policy-vault.org — the served `/api/v1/health` buildId is authoritative for what is live at any moment (`f217011` = this release; `890b42c` = the preceding rc28 build) |
-| Live image after this release's rollout | `policyvault-app:fullscale-rc29` — image `sha256:ab893b13aeae661921dda11bc0782f2e0e29ead61cc232409f9532ba3cc2f847` — buildId `f217011` (the private release packet records whether and when the rollout happened; the served buildId is authoritative) |
-| This release's private source commit (build source = runtime + tests + harness) | `f217011` (lane `flagship-ux-successor`); the published tree is exported from the final docs commit `eff19beb61fe189a38a578a21fb1ef5dc31b0b53` (runtime bytes identical to the build source — verified by the final-tree image rebuild recorded in the packet) |
-| `git archive eff19beb61fe189a38a578a21fb1ef5dc31b0b53` sha256 | `df432f14f022ba2a987c21369b35abc9113058f5d6a8c9229e1d1c581b06ced7` |
+| Live production | https://app.policy-vault.org — the served `/api/v1/health` buildId is authoritative for what is live at any moment (`9dbc5f7` = this release; `f217011` = the preceding rc29 build) |
+| Live image after this release's rollout | `policyvault-app:fullscale-rc30` — image `sha256:4a6dce6e7646e9aa460340339887e117c48185bf7ecdbcae8c5107c72da8be21` — buildId `9dbc5f7` (the private release records state whether and when the rollout happened; the served buildId is authoritative) |
+| This release's private source commit (build source = runtime + tests + harness) | `9dbc5f7` (lane `flagship-ux-successor`); the published tree is exported from the final docs commit `fe498b4185bd33420095cfb056c5d11174ea5e05` (runtime bytes identical to the build source — verified mechanically, `git diff` over every runtime path is empty, and by the final-tree image rebuild recorded in the private release record) |
+| `git archive fe498b4185bd33420095cfb056c5d11174ea5e05` sha256 | `1d4f59e66a04baba0b97c127551ab72082104f02dffc6009b9bd21b6aa775908` |
 | Covenant identity (frozen) | `v0.3` `073d3243…` · `v0.4` `8f87deab…` · `v0.4.1` `421bfed8…` · `v0.5` `c693aeff…` · `v0.6` `c7c5f22c…` · `v0.7-root` `69417514…` · `v0.7-payment` `09cdbb6c…` (full hashes pinned by `sdk/test/covenant-freeze-v*.test.js`); `v0.7-kas` and `v0.7-payment-hd` are unfrozen candidates |
-| MCP package identity | npm `policyvault-mcp@1.5.0` CANDIDATE (source in `mcp/`; exact-tarball clean-consumer proof in the packet; the npm publication is credential-gated — its status is stated in the packet and README) |
+| MCP package identity | npm `policyvault-mcp@1.5.0` PUBLISHED 2026-09-09 (source in `mcp/`, unchanged by this release; registry tarball sha256 `73567fe0858b8a1c2382adb28dbc8b5381f56015b2a43532b7acf637e4dfc5b9`, byte-identical to the audited artifact; no republish) |
 | Release signing | `release-signers.json` carries ONE signer entry (placeholder public key `OWNER-TO-FILL`, threshold 1); no release has been signed; one real signer is the truthful current policy |
 | License | Apache-2.0 (`LICENSE`, `NOTICE`, package metadata); third-party MIT notices remain intact and do not relicense PolicyVault |
 
-## Classification of every published path (1099 files)
+## Classification of every published path (1101 files)
 
 | classification | count |
 |---|---|
-| PUBLISHED from the private source (byte-identical to the source commit) | 1097 |
+| PUBLISHED from the private source (byte-identical to the source commit) | 1091 |
 | PUBLIC-ONLY release documents (written for publication) | 2 (CHANGELOG.md, PUBLIC_RELEASE_MANIFEST.md; LICENSE and NOTICE are byte-identical to the source commit and counted above) |
-| PUBLIC-PRESENTATION-MODIFIED | 9 (README.md status table; SECURITY.md v1.9.1 claims table; deploy/droplet-setup.sh published in its already-public sanitized form — operator SSH public key supplied by the self-hoster via PV_OPS_PUBKEY instead of the embedded production operator key, generic ship step; the six df68a1f-produced legacy test fixtures under docs/postlaunch/ux-evidence/{codex-rc27f/fixtures,cp13-codex/probes} that the SDK suites read — their generator temp paths (inert metadata) redacted to <generator-tmp>/…) |
+| PUBLIC-PRESENTATION-MODIFIED (byte-different from the source commit) | 8 |
 | INTENTIONALLY-EXCLUDED — EXCLUDED-prev-release-exclusion-set | 147 |
 | INTENTIONALLY-EXCLUDED — EXCLUDED-probe-experiments | 7 |
-| INTENTIONALLY-EXCLUDED — EXCLUDED-task-dirs | 1915 |
+| INTENTIONALLY-EXCLUDED — EXCLUDED-task-dirs | 2048 |
 | INTENTIONALLY-EXCLUDED — EXCLUDED-internal-program-planning-records | 1 |
-| INTENTIONALLY-EXCLUDED — EXCLUDED-candidate-decision-promotion-packets | 28 |
+| INTENTIONALLY-EXCLUDED — EXCLUDED-candidate-decision-promotion-packets | 31 |
 | INTENTIONALLY-EXCLUDED — EXCLUDED-upstream-prepared-not-posted | 2 |
 
-### Added since the v1.9.0 candidate tree (staged 2026-09-08, never published) (17 files)
+Modified paths (compared after all presentation edits):
 
-- `LICENSE`
-- `NOTICE`
-- `mcp/LICENSE`
-- `mcp/NOTICE`
-- `mcp/tools/check-license.js`
-- `sdk/test/fixtures/legacy-df68a1f/delegate-dup-both-completed-rc28.json`
-- `sdk/test/fixtures/legacy-df68a1f/delegate-dup-prebroadcast.json`
-- `sdk/test/rc28-http-body-failure.test.js`
-- `sdk/test/rc28-live-stack-recovery.test.js`
-- `sdk/test/rc28-webhook-target.test.js`
-- `sdk/test/rc29-webhook-dns-transport.test.js`
-- `tools/artifact-privacy-scan.py`
-- `tools/audit-public-candidate.sh`
-- `tools/build-private-safe-vendor.sh`
+- `README.md`
+- `SECURITY.md`
+- `deploy/droplet-setup.sh`
+- `docs/postlaunch/ux-evidence/codex-rc27f/fixtures/deposit-terminal-with-retained-token.json`
+- `docs/postlaunch/ux-evidence/codex-rc27f/fixtures/interleaved-agents.json`
+- `docs/postlaunch/ux-evidence/codex-rc27f/fixtures/latest-delegate.json`
+- `docs/postlaunch/ux-evidence/codex-rc27f/fixtures/replaced-agent-and-recipients.json`
+- `docs/postlaunch/ux-evidence/codex-rc27f/fixtures/terminal-with-retained-token.json`
+
+### Added since the published v1.9.1 tree (2 files)
+
+- `contracts/vendor/LICENSE`
+- `sdk/test/rc29-webhook-response-deadline.test.js`
+
+### Byte-different from the published v1.9.1 tree (7 files; the release documents CHANGELOG.md, README.md, SECURITY.md are regenerated every release)
+
+- `CHANGELOG.md`
+- `README.md`
+- `SECURITY.md`
+- `contracts/vendor/README.md`
+- `deploy/Dockerfile`
+- `server/src/events-delivery.js`
 - `tools/image-privacy-classifications.json`
-- `tools/public-privacy-classifications.json`
-- `tools/test_artifact_privacy_scan.py`
+
+### Removed since the published v1.9.1 tree (0 files)
+
 
 ## Intentionally excluded (not published)
 
@@ -67,15 +76,15 @@ Rules, in the order applied: the mechanically derived v1.7.0 exclusion set (147 
 - `tests/vm/tests/v7_experiment_org_root.rs`
 - `tests/vm/tests/v7_experiment_org_root_p2.rs`
 
-### EXCLUDED-task-dirs (1915)
+### EXCLUDED-task-dirs (2048)
 
-1915 paths under: docs/postlaunch/audit-evidence/rc12-internal-review, docs/postlaunch/audit-evidence/rc12-internal-review/logs, docs/postlaunch/audit-evidence/rc12-internal-review/probes, docs/postlaunch/audit-evidence/rc13-internal-review, docs/postlaunch/audit-evidence/rc13-internal-review/logs, docs/postlaunch/audit-evidence/rc13-internal-review/probes, docs/postlaunch/audit-evidence/rc14-internal-review, docs/postlaunch/audit-evidence/rc14-internal-review/logs, docs/postlaunch/audit-evidence/rc14-internal-review/probes, docs/postlaunch/audit-evidence/rc15-internal-review, docs/postlaunch/audit-evidence/rc15-internal-review/logs, docs/postlaunch/audit-evidence/rc15-internal-review/probes, docs/postlaunch/audit-evidence/rc16-internal-review, docs/postlaunch/audit-evidence/rc16-internal-review/logs, docs/postlaunch/audit-evidence/rc16-internal-review/probes, docs/postlaunch/audit-evidence/rc16-internal-review/redfirst/rc15, docs/postlaunch/audit-evidence/rc16-internal-review/redfirst/rc16, docs/postlaunch/audit-evidence/rc18-internal-review, docs/postlaunch/audit-evidence/rc18-internal-review/probes, docs/postlaunch/audit-evidence/rc19-internal-review, docs/postlaunch/audit-evidence/rc19-internal-review/logs, docs/postlaunch/audit-evidence/rc19-internal-review/probes, docs/postlaunch/audit-evidence/rc20-internal-review, docs/postlaunch/audit-evidence/rc20-internal-review/probes, docs/postlaunch/audit-evidence/rc21-internal-review, docs/postlaunch/audit-evidence/rc21-internal-review/probes, docs/postlaunch/audit-evidence/rc26-internal-review, docs/postlaunch/audit-evidence/rc26-internal-review/logs, docs/postlaunch/audit-evidence/rc26-internal-review/logs/image, docs/postlaunch/audit-evidence/rc26-internal-review/probes, docs/postlaunch/ux-evidence/0bfb40b, docs/postlaunch/ux-evidence/0bfb40b/after, docs/postlaunch/ux-evidence/0bfb40b/lane, docs/postlaunch/ux-evidence/13a5306, docs/postlaunch/ux-evidence/13a5306/after, docs/postlaunch/ux-evidence/13a5306/lane, docs/postlaunch/ux-evidence/208767f, docs/postlaunch/ux-evidence/208767f/lane, docs/postlaunch/ux-evidence/23551d2, docs/postlaunch/ux-evidence/23551d2/after
+2048 paths under: docs/postlaunch/audit-evidence/rc12-internal-review, docs/postlaunch/audit-evidence/rc12-internal-review/logs, docs/postlaunch/audit-evidence/rc12-internal-review/probes, docs/postlaunch/audit-evidence/rc13-internal-review, docs/postlaunch/audit-evidence/rc13-internal-review/logs, docs/postlaunch/audit-evidence/rc13-internal-review/probes, docs/postlaunch/audit-evidence/rc14-internal-review, docs/postlaunch/audit-evidence/rc14-internal-review/logs, docs/postlaunch/audit-evidence/rc14-internal-review/probes, docs/postlaunch/audit-evidence/rc15-internal-review, docs/postlaunch/audit-evidence/rc15-internal-review/logs, docs/postlaunch/audit-evidence/rc15-internal-review/probes, docs/postlaunch/audit-evidence/rc16-internal-review, docs/postlaunch/audit-evidence/rc16-internal-review/logs, docs/postlaunch/audit-evidence/rc16-internal-review/probes, docs/postlaunch/audit-evidence/rc16-internal-review/redfirst/rc15, docs/postlaunch/audit-evidence/rc16-internal-review/redfirst/rc16, docs/postlaunch/audit-evidence/rc18-internal-review, docs/postlaunch/audit-evidence/rc18-internal-review/probes, docs/postlaunch/audit-evidence/rc19-internal-review, docs/postlaunch/audit-evidence/rc19-internal-review/logs, docs/postlaunch/audit-evidence/rc19-internal-review/probes, docs/postlaunch/audit-evidence/rc20-internal-review, docs/postlaunch/audit-evidence/rc20-internal-review/probes, docs/postlaunch/audit-evidence/rc21-internal-review, docs/postlaunch/audit-evidence/rc21-internal-review/probes, docs/postlaunch/audit-evidence/rc26-internal-review, docs/postlaunch/audit-evidence/rc26-internal-review/logs, docs/postlaunch/audit-evidence/rc26-internal-review/logs/image, docs/postlaunch/audit-evidence/rc26-internal-review/probes, docs/postlaunch/ux-evidence/0bfb40b, docs/postlaunch/ux-evidence/0bfb40b/after, docs/postlaunch/ux-evidence/0bfb40b/lane, docs/postlaunch/ux-evidence/13a5306, docs/postlaunch/ux-evidence/13a5306/after, docs/postlaunch/ux-evidence/13a5306/lane, docs/postlaunch/ux-evidence/208767f, docs/postlaunch/ux-evidence/208767f/lane, docs/postlaunch/ux-evidence/23551d2, docs/postlaunch/ux-evidence/23551d2/after
 
 ### EXCLUDED-internal-program-planning-records (1)
 
 - `docs/postlaunch/flagship-ux-field-map.md`
 
-### EXCLUDED-candidate-decision-promotion-packets (28)
+### EXCLUDED-candidate-decision-promotion-packets (31)
 
 - `docs/postlaunch/fullscale-rc10-candidate-packet.md`
 - `docs/postlaunch/fullscale-rc11-candidate-packet.md`
@@ -97,8 +106,11 @@ Rules, in the order applied: the mechanically derived v1.7.0 exclusion set (147 
 - `docs/postlaunch/fullscale-rc28-deployment-runbook.md`
 - `docs/postlaunch/fullscale-rc28-live-stack-handoff.md`
 - `docs/postlaunch/fullscale-rc29-candidate-packet.md`
+- `docs/postlaunch/fullscale-rc29-codex-launch-review.md`
 - `docs/postlaunch/fullscale-rc29-deployment-runbook.md`
 - `docs/postlaunch/fullscale-rc29-remediation-closure.md`
+- `docs/postlaunch/fullscale-rc30-deployment-runbook.md`
+- `docs/postlaunch/fullscale-rc30-release-remediation.md`
 - `docs/postlaunch/public-v1.7.0-candidate-packet.md`
 - `docs/postlaunch/public-v1.8.0-candidate-packet.md`
 - `docs/postlaunch/rc8-f03-edge-mitigation-packet.md`

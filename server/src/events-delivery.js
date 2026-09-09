@@ -229,6 +229,10 @@ function httpPostJson({ url, rawBody, headers, timeoutMs, allowLoopback }) {
           if (drained > RESPONSE_DRAIN_CAP) res.destroy();
         });
         res.on("error", () => {});
+        // Header acknowledgement does not end the attempt's socket lifetime.
+        // Keep the absolute deadline while a capped response body is drained.
+        res.once("end", () => clearTimeout(deadline));
+        res.once("close", () => clearTimeout(deadline));
         finish({ ok: status >= 200 && status < 300, httpStatus: status, errorCode: status >= 200 && status < 300 ? null : "WEBHOOK_HTTP_STATUS" });
       }
     );
@@ -240,7 +244,6 @@ function httpPostJson({ url, rawBody, headers, timeoutMs, allowLoopback }) {
       clearTimeout(deadline);
       finish({ ok: false, httpStatus: null, errorCode: error.code === "WEBHOOK_TARGET_FORBIDDEN" ? "WEBHOOK_TARGET_FORBIDDEN" : error.code === "WEBHOOK_TIMEOUT" ? "WEBHOOK_TIMEOUT" : "WEBHOOK_CONNECT_FAILED" });
     });
-    req.on("response", () => clearTimeout(deadline));
     req.end(rawBody);
   });
 }

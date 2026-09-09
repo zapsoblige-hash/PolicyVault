@@ -78,6 +78,7 @@ COPY deploy/vendor/bin/pv_call_encoder /app/tests/vm/target/debug/pv_call_encode
 COPY deploy/vendor/bin/pv_vm_preflight /app/tests/vm/target/debug/pv_vm_preflight
 COPY deploy/vendor/bin/pv_tx_probe /app/tests/vm/target/debug/pv_tx_probe
 COPY deploy/vendor/bin/silverc /home/pv/silverscript/target/debug/silverc
+COPY contracts/vendor/LICENSE /home/pv/silverscript/LICENSE
 COPY deploy/vendor/kaspa /home/pv/rusty-kaspa/wasm/nodejs/kaspa
 
 # Read-only code for pv; the data root is the ONLY writable path.
