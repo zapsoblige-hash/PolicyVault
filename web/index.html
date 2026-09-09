@@ -59,7 +59,7 @@
       .field .k { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; }
       .field .v { margin-top: 0.1rem; font-weight: 600; font-size: 0.9rem; }
       .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
-      .hint { color: var(--muted); font-size: 0.75rem; margin-top: 0.4rem; }
+      .hint { color: var(--muted); font-size: 0.875rem; margin-top: 0.4rem; line-height: 1.45; }
       .hint a { color: var(--accent); text-decoration: none; }
       .hint a:hover { text-decoration: underline; }
       a.docs-hint { margin: 0; display: inline-block; font-size: 0.85rem; line-height: 1.9; vertical-align: middle; }
@@ -94,6 +94,15 @@
       .opbanner.warn { border-color: var(--warn, #b58900); }
       .opbanner.bad { border-color: var(--bad); }
       .opbanner .act, .opbanner .primary { margin-left: 0.6rem; }
+      /* Refusal explanation (web/refusal-explain.js): the summary line stays
+         the heading; the code + the server's exact message and the closed
+         explanation sit under it. Never colour alone — the status region is
+         already .bad, and the heading is text. */
+      .refusal-head { font-size: 0.95rem; }
+      .refusal-detail { margin-top: 0.25rem; word-break: break-word; }
+      .refusal-why { margin-top: 0.5rem; font-size: 0.85rem; color: var(--text); }
+      .refusal-next { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: var(--muted); }
+      .refusal-next li { margin: 0.2rem 0; }
       details.adv { margin-top: 0.5rem; font-size: 0.75rem; }
       details.adv summary { cursor: pointer; color: var(--muted); }
       .orgbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin: 0.6rem 0; }
@@ -118,8 +127,11 @@
       .filterbar .pill.active { background: var(--accent); color: #08111e; border-color: var(--accent); font-weight: 700; }
       .filterbar select { padding: 0.3rem 0.5rem; }
       .cform { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.7rem 1rem; }
-      .cform label { font-size: 0.75rem; text-transform: uppercase; color: var(--muted); display: block; }
-      .cform input, .cform select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 0.45rem 0.6rem; font-size: 0.9rem; margin-top: 0.2rem; }
+      /* Sentence-case, readable labels + 44 px controls on every remaining
+         .cform form (spend, hosted-organization members) — same visual
+         system as the guided setups (owner UX directive 2026-09-05). */
+      .cform label { font-size: 0.95rem; font-weight: 600; text-transform: none; color: var(--text); display: block; }
+      .cform input, .cform select { width: 100%; min-height: 44px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 0.55rem 0.7rem; font-size: 1rem; margin-top: 0.3rem; }
       .cform .full { grid-column: 1 / -1; }
       .cform .inline { display: flex; gap: 0.5rem; align-items: center; }
       .cform .inline input { width: auto; flex: 1; }
@@ -130,6 +142,130 @@
       .ferr { display: none; color: var(--bad); font-size: 0.75rem; margin-top: 0.25rem; }
       .ferr.show { display: block; }
       .cform input.invalid, .cform select.invalid { border-color: var(--bad); }
+      /* ---- Keyboard operability (TRACK 11, finding A2) ----
+         Only the walkthrough dialog defined a focus ring; the rest of the
+         app relied on whatever the UA drew over its custom backgrounds. One
+         explicit, high-contrast ring for every interactive element. */
+      a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
+      textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+        outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
+      }
+      /* ---- Narrow viewports (TRACK 11, finding M1) ----
+         Before this pass the ONLY max-width rule in the application was the
+         walkthrough's; the product itself (header, panels, vault cards,
+         review modal, member/delegate tables) had none. At 375 px the
+         directory tables pushed the whole PAGE into horizontal scroll and
+         the controls were ~35 px tall. Layout only — no content is hidden,
+         reordered, or truncated at any width. */
+      @media (max-width: 600px) {
+        main { padding: 0.9rem 0.8rem; }
+        header { padding: 0.8rem 0.9rem; gap: 0.6rem; }
+        .panel, .vault { padding: 0.9rem 0.95rem; }
+        .modal-card { width: 96%; padding: 1rem 1rem; max-height: 92vh; max-height: 92dvh; }
+        /* Comfortable touch targets (>= 44 px) without changing any label. */
+        button, a.btnlink, .v4-tab, .filterbar .pill, select, input {
+          min-height: 44px; font-size: 0.9rem;
+        }
+        .copy, .pv-onb-art-replay { min-height: 0; }
+        /* Wide content scrolls inside ITS OWN container — never the page. */
+        .mtable { display: block; overflow-x: auto; max-width: 100%; }
+        /* Long addresses / ids WRAP on phones (real-browser finding,
+           2026-09-05 UX successor: the header wallet address and the
+           signing-wallet line forced a 576 px page at 375 px). Nothing is
+           truncated — the full value stays readable. */
+        .wallet-kv, #wallet-address, #v4-wallet, #v4-wallet .mono, .kv-line, .id, .mono { overflow-wrap: anywhere; word-break: break-word; }
+        .wallet-row { overflow-wrap: anywhere; }
+        .review, .review td { word-break: break-word; }
+        .grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+      }
+      /* ---- Guided setup components (web/setup-ui.js; owner UX directive
+         2026-09-05). Sentence-case labels, ~16 px inputs, ~14 px helper text,
+         44 px controls, one/two columns on desktop, one column on phones.
+         Essential help sits directly under its control; technical detail
+         expands inline (<details>), keyboard- and touch-operable. ---- */
+      .setup h3 { margin: 0.2rem 0 0.6rem; font-size: 1.15rem; }
+      .setup-form, .setup-card { font-size: 1rem; }
+      .setup-card { max-width: 760px; width: 96%; }
+      .stepper { list-style: none; margin: 0.4rem 0 0.2rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem; }
+      .stepper-item { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.95rem; padding: 0.25rem 0.1rem; }
+      .stepper-num { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center; border: 1px solid var(--border); font-size: 0.85rem; font-weight: 700; }
+      .stepper-item.current { color: var(--text); font-weight: 700; }
+      .stepper-item.current .stepper-num { background: var(--accent); color: #08111e; border-color: var(--accent); }
+      .stepper-item.done .stepper-num { color: var(--good); border-color: rgba(63,185,80,0.5); }
+      .stepper-status { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.9rem; }
+      .setup-step { display: block; }
+      .setup-step[hidden] { display: none; }
+      .setup-step > h3 { font-size: 1.1rem; margin: 0.4rem 0 0.8rem; }
+      .f { margin: 0 0 1.1rem; max-width: 640px; }
+      .f-wide { max-width: none; }
+      .f-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 1.2rem; }
+      .f-label { display: block; font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 0.3rem; text-transform: none; letter-spacing: 0; }
+      .f-opt { color: var(--muted); font-weight: 400; }
+      .f input:not([type="checkbox"]), .f select, .f textarea, .duration-custom input, .duration-custom select, .addr-row input {
+        width: 100%; min-height: 44px; font-size: 1rem; padding: 0.55rem 0.7rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      }
+      .f textarea { min-height: 88px; }
+      .f-unit-wrap { position: relative; }
+      .f-unit-wrap input { padding-right: 3.4rem; }
+      .f-unit { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.9rem; pointer-events: none; }
+      .f-help { color: var(--muted); font-size: 0.875rem; line-height: 1.45; margin-top: 0.35rem; }
+      .f-help b { color: var(--text); }
+      .f-help a { color: var(--accent); text-decoration: none; }
+      .f-check { display: flex; align-items: flex-start; gap: 0.6rem; min-height: 44px; padding: 0.4rem 0; font-size: 1rem; cursor: pointer; }
+      .f-check input { width: 22px; height: 22px; margin: 0.15rem 0 0; flex: none; }
+      .f-invalid input, .f-invalid select, .addr-row.f-invalid input { border-color: var(--bad); }
+      .f .ferr, .addr-row .ferr { display: none; color: var(--bad); font-size: 0.875rem; margin-top: 0.35rem; }
+      .f-tech summary { font-size: 0.85rem; }
+      .duration { display: block; }
+      .duration-custom { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+      .duration-custom[hidden] { display: none; }
+      .duration-custom input { max-width: 140px; }
+      .duration-effect { font-weight: 500; color: var(--text); }
+      .addr-rows { display: flex; flex-direction: column; gap: 0.5rem; }
+      .addr-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .addr-row .addr-name { flex: 0 1 180px; }
+      .addr-row .addr-addr, .addr-row .addr-key { flex: 1 1 320px; }
+      .addr-row input[hidden] { display: none; }
+      .addr-row button { min-height: 44px; }
+      .addr-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+      .addr-display { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0.45rem 0.7rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+      .addr-display .mono { word-break: break-all; font-size: 0.9rem; }
+      button.quiet { background: transparent; }
+      .addr-actions button, .addr-copy, .review-head button, .setup-form button, .setup-card button { min-height: 44px; }
+      .setup-nav { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+      .setup-nav-spacer { flex: 1; }
+      .setup-nav button, .modal-actions button { min-height: 44px; font-size: 1rem; padding: 0.55rem 1.1rem; }
+      .modal-actions { align-items: center; flex-wrap: wrap; }
+      .live-summary { margin: 0.4rem 0 1rem; padding: 0.7rem 0.9rem; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 0 8px 8px 0; font-size: 0.95rem; }
+      .live-summary .live-title { font-weight: 700; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+      .live-summary ul { margin: 0; padding-left: 1.1rem; }
+      .live-summary li { margin: 0.25rem 0; }
+      /* Sentences and values that embed full wallet addresses / ids must WRAP,
+         never widen the page (real-browser finding at 375 px). */
+      .live-summary, .rv-v, .f-help, .fund-row, .review-sec, .addr-display, .opbanner { overflow-wrap: anywhere; }
+      .review-title { margin: 0.6rem 0 0.4rem; font-size: 1.05rem; }
+      .review-sec { border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; margin: 0 0 0.7rem; }
+      .review-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.3rem; }
+      .review-head h4 { margin: 0; font-size: 1rem; }
+      .rv-row { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 0.3rem 1rem; padding: 0.35rem 0; border-top: 1px solid var(--border); font-size: 0.95rem; }
+      .rv-row:first-of-type { border-top: none; }
+      .rv-k { color: var(--muted); }
+      .rv-v { word-break: break-word; }
+      .rv-v .mono { word-break: break-all; }
+      .funding { border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; margin: 0.6rem 0; }
+      .funding h4 { margin: 0 0 0.4rem; font-size: 1rem; }
+      .fund-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.3rem 0; border-top: 1px solid var(--border); font-size: 0.95rem; }
+      .fund-row:first-of-type { border-top: none; }
+      .fund-total { font-weight: 700; border-top: 2px solid var(--border); }
+      @media (max-width: 600px) {
+        .f-grid { grid-template-columns: 1fr; }
+        .rv-row { grid-template-columns: 1fr; gap: 0.1rem; }
+        .addr-row .addr-name, .addr-row .addr-addr, .addr-row .addr-key { flex-basis: 100%; }
+        .setup-card { width: 100%; max-height: 100vh; max-height: 100dvh; border-radius: 12px 12px 0 0; }
+        .setup-nav button { flex: 1 1 40%; }
+        .duration-custom { flex-wrap: wrap; }
+        .duration-custom input { max-width: none; flex: 1 1 100px; }
+      }
       #legacy-section { margin-top: 2rem; }
       #legacy-section > summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
       /* ---- Adoption UX: Help menu, home entry, first-run walkthrough (web/onboarding.js).
@@ -328,11 +464,11 @@
          network identity, the SAME value the signing gate (verifyNetwork)
          compares against. Fail closed: the initial markup never names a
          network; a failed/pending probe shows UNKNOWN, never a stale one. -->
-    <div id="testnet-banner">VERIFYING NETWORK…</div>
+    <div id="testnet-banner" role="status" aria-live="polite" aria-atomic="true">VERIFYING NETWORK…</div>
     <header>
       <div class="brand"><img class="mark" src="/favicon.png" alt="" /> PolicyVault</div>
       <div style="display:flex; align-items:center; gap:0.8rem;">
-        <span class="net" id="net">connecting…</span>
+        <span class="net" id="net" role="status" aria-live="polite" aria-atomic="true">connecting…</span>
         <!-- Help menu (web/onboarding.js): replay the walkthrough, or open the docs.
              Presentation only; the walkthrough never gates anything. -->
         <span class="pv-help-wrap">
@@ -343,7 +479,6 @@
           </div>
         </span>
         <a class="btnlink" href="https://docs.policy-vault.org" target="_blank" rel="noopener noreferrer">Docs</a>
-        <button id="refresh">Refresh</button>
       </div>
     </header>
     <main>
@@ -352,9 +487,9 @@
         <span class="wallet-kv">provider <b id="wallet-provider">—</b></span>
         <span class="wallet-kv">account <b id="wallet-address" class="mono">—</b></span>
         <span class="wallet-kv">network <b id="wallet-network">—</b></span>
-        <span class="wstate" id="wallet-status">disconnected</span>
+        <span class="wstate" id="wallet-status" role="status" aria-live="polite" aria-atomic="true">disconnected</span>
         <span style="flex:1"></span>
-        <span class="net" id="auth-status" style="display:none"></span>
+        <span class="net" id="auth-status" role="status" aria-live="polite" aria-atomic="true" style="display:none"></span>
         <button id="btn-auth" style="display:none">Sign in</button>
         <button id="btn-connect-kasware" class="primary">Connect KasWare</button>
         <button id="btn-connect-mock" style="display:none">Connect mock signer (test)</button>
@@ -381,7 +516,7 @@
         <button class="v4-tab" data-view="advanced">Advanced</button>
         <button class="v4-tab" data-view="support">Support</button>
       </nav>
-      <div id="v4-notice" class="panel" style="display:none"></div>
+      <div id="v4-notice" class="panel" role="status" aria-live="polite" aria-atomic="true" style="display:none"></div>
       <div id="v4-root"><div class="empty">Connect a wallet to begin.</div></div>
 
       <details id="legacy-section">
@@ -403,7 +538,7 @@
 
     <div id="modal"><div class="modal-card"><button id="modal-close">✕</button><div id="modal-body"></div></div></div>
     <div id="v4-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:50"></div>
-    <div id="notice" class="notice"></div>
+    <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></div>
     <!-- First-run walkthrough container (web/onboarding.js renders the dialog
          inside it; hidden until opened; Escape / Skip / ✕ / backdrop close it). -->
     <div id="pv-onboarding" hidden></div>
@@ -421,10 +556,26 @@
          completion-standard items 1/2/3/6): presentational + hosted-workflow
          coordination ABOVE the covenant boundary, never a second signing
          path — governance-ui.js signs through the existing session adapter. -->
+    <script src="/refusal-explain.js"></script>
     <script src="/gov-risk-explain.js"></script>
     <script src="/governance-ui.js"></script>
     <script src="/risk-ui.js"></script>
     <script src="/org-controls-ui.js"></script>
+    <!-- v0.7 ON-CHAIN ORGANIZATIONAL ROOT (Wave 2, Track B-web; contract
+         docs/postlaunch/v0.7-app-surface-contract.md): a NEW covenant
+         generation holding a real M-of-N owner quorum, distinct from the
+         hosted-organization metadata above. Consumes /core-bundle.js's
+         v0.7 module closure directly — never a UI-local reimplementation
+         of owner-set well-formedness, manifest verification, or slot
+         signature extraction. -->
+    <!-- Guided setup components (owner UX directive 2026-09-05): shared
+         stepper / field / duration / approval-count / address-row / review
+         renderers and draft validation for Create vault, Create
+         organizational root and the owner action forms. Presentation +
+         pre-validation only; consumes /core-bundle.js's amounts and
+         durationDaa (the ONE human-duration <-> DAA path). -->
+    <script src="/setup-ui.js"></script>
+    <script src="/org-root-ui.js"></script>
     <script src="/app.js"></script>
     <script src="/app-v4.js"></script>
     <!-- Adoption UX: first-run walkthrough + Help menu. Loaded LAST; presentation

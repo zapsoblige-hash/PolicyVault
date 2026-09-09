@@ -6,24 +6,31 @@
  *
  * Embedded portable shared-core sources, VERBATIM (sha256 of each):
  *   core/intent/canonical.js  sha256:158d5a2663c1c49e7c9a43853d3c8f303185106011099bf71340195bde549b8d
- *   core/intent/manifest.js  sha256:e7dab437f4f413792b6a7c00df06a01213997fa194c749813554e43e4b9a5955
+ *   core/intent/manifest.js  sha256:104a612cba21c3add2e9d414905c305b46d0356ba8bd898fbf13735d3cb2666e
  *   core/intent/verify.js  sha256:0a1b0e685fc74e16559b1f6361da72b59e06203f8d55b41538e0c15588b98985
  *   core/intent/index.js  sha256:75aea5b60fe2e8eb12838d1b2f994b156eddabeb5cc5faa7959b3523e7737d4e
  *   core/explain/kas.js  sha256:2906726fa5ed5f13703e5f806dba654e17b64c04979d3f5597836d155f241b0b
- *   core/explain/intent-explain.js  sha256:f49c7cb836f1c6a148b46bb58adb83a98e9fa5ac8e1f0e949be6c04bd58d4ad4
+ *   core/explain/intent-explain.js  sha256:537ca7855e2fd7d3d4ca9a5a7492fea1bd456e572441327e486214ecef5e0156
  *   core/signer/errors.js  sha256:30210486548ff12a3a1ac9d697ec8094e2b1fa99823f37ca6c2f6768165bb195
  *   core/signer/interface.js  sha256:4f8f0fc31da573d06bbe3ccb4374fbe02c5c94c15977c68f1bdcb2cf79d6a291
+ *   core/signer/v2/errors.js  sha256:3d9b91153a789a46dd14d0786d3d2b343fff5af3822e94dd097ff9d2b5c8e2d9
+ *   core/signer/v2/interface.js  sha256:9cfd6798dc41944f556a30949a3c22367dc458688a6fb8e877a389d5b56c89a8
+ *   core/signer/v2/adapters/lift.js  sha256:c798ad9baa97644d9f2d13b4e2f3ae08503a0f65e4d73887e56061f21db427b0
+ *   core/signer/v2/adapters/kasware.js  sha256:fcc5e111514b449a2bf8c21183caaca6537226545443ec79ad779652194430e4
  *   core/model/amounts.js  sha256:a7bcc3c928ce0fe96e77ce33d1a2036087c777509f433c2799bed6f4dfdbc107
+ *   core/model/duration-daa.js  sha256:962c1b2a1c1a04ce83f42c692db718b73a8689272f7c8b5ffa94ddc373761613
+ *   core/intent/root-script-v7.js  sha256:96bd91900da1acfb044fd6d7826555d1b580ef27acc66b1ab7cceabf6f612b70
  *   core/model/contract-version.js  sha256:6e29edc3c29746f9b953bc5456c179f3e7cf54bb26331ffe4949adf5610aacac
  *   core/model/vault-state.js  sha256:bfcdacab6b22de5d1ecc442d73610fa7fb7ac34ffa7a3f3e76a9a56eac5fc98b
  *   core/model/recipient-merkle-v3.js  sha256:87b9da1560896bc383f749b594763e26c507f29d73cc38d0ae0606c120134b73
  *   core/model/agent-merkle-v4.js  sha256:8fb098c7657adb6ba5de1d377a1929d1adf5b2934d28d2b366d7badd98fe9d7c
  *   core/model/compute-budget-v3.js  sha256:5a8d7588a837a36d689c11474b4a96f690e22f8f0509ca486fdedea267b7b188
  *   core/model/compute-budget-v4.js  sha256:81f71aba783ccbded39ad076dbbf4431ee9e0a9c14dbbdf9b4b26f8b37e5cb64
- *   core/model/fee-mass.js  sha256:c1eb9277d018cc5fd7dcba96e9f6718e22e270aa0a01f58dc81559d3150e2e4c
+ *   core/model/fee-mass.js  sha256:49eacd68bd17aa33694034e0e7fe0da3cb06fad7aef09cc3be8042d58b33061e
  *   core/model/frozen-tx-v3.js  sha256:01571212821a9ff9e0a7befcc92d409bdf84c0f60e61e70b361b039bd9ea7567
- *   core/model/vault-state-v4.js  sha256:27dfae8761a4ecdf0d986e0daaf637a90f69d60fd1abe21a4b61849d46659eb9
- *   core/model/vault-transitions-v4.js  sha256:5f3ee089848488e1c22dbd96c09c0199da830c247cd79d9c4542c27d535c5655
+ *   core/model/own-get.js  sha256:53f0d07498217c8fd1e1d496b66b4117862050f8607a86e95c4f3b8975a241f7
+ *   core/model/vault-state-v4.js  sha256:ffb14056a5086e8169d968a5ea8614ebf6c09c5a20c86f170b0e4e2abc967131
+ *   core/model/vault-transitions-v4.js  sha256:65f8e0873d77d40cb3d20892a65684ffbca6cae3bed6714a7b70b1a85503ac9a
  *   core/governance/canonical.js  sha256:f4efbfdb97d3b279beedcb1094d220bacb40dc605b2e3e28671ec8b7b08087c6
  *   core/governance/authority-delta.js  sha256:d9e452d02e4d64cc5d92f6b2485b75e3b60076d291365ebbada27f56fe9a9f55
  *   core/governance/index.js  sha256:3a4480b6488c5d17596a60f3993284b987ec87ca2987df909becba8fed24104c
@@ -35,12 +42,42 @@
  *   core/assets/kcc20.js  sha256:bcae1173ef7f6233cd256c3c88ac63ae36d21f86d8c2a7848861b68ca964498b
  *   core/assets/descriptor.js  sha256:77fd06dbdd535be9fabd7ea55480a689b41151348d5d35e5df16157864a232dd
  *   core/assets/index.js  sha256:31379d3f6afa090a3a9a0f4971475103460ecaa72d38e32558c7ddbd8ce4cf45
- *   core/model/vault-state-v5.js  sha256:c054b79df559df890d35cece380f5da052793fc3ce347f6d09b6cac2e6ed0aed
+ *   core/model/vault-state-v5.js  sha256:17b481bfc9f226df64e428527ec58cc5ce00af8eca6d7a79f4c1f39fd68f5800
  *   core/model/agent-merkle-v5.js  sha256:87dac03725b63a82d877a3b71cae9c04f841a132bb743019738f1f6e09c990fd
  *   core/model/vault-transitions-v5.js  sha256:9e231b0bbedef5bc5df4ddc26a88816020f0857e4a41e7201a2ae0c0230a2d7e
  *   core/model/compute-budget-v5.js  sha256:7521977510fa670d928399e6226340bbccb96f3d1bade8f0b74959f47c2f928e
- *   core/intent/token-manifest-v5.js  sha256:e1ca049cb64decebde4c18000616693b8f85f9d479af52e12bd6b833a2e623df
+ *   core/intent/token-manifest-v5.js  sha256:af199c48c0b6f43f4dd63a0726007546da1e3056b385928fe0df7e0a5d27ea13
  *   core/explain/token-explain.js  sha256:7542d33e1377528119db800daae973439a4add19fc06ea4723519964162c3a3c
+ *   core/model/vault-state-v3.js  sha256:6a99bb9e569c702188bae0b7a3421a428722e1a0b79ca6a4ed71f40cabde22ce
+ *   core/model/approval-package-v3.js  sha256:759f1a81e21b22ae9596dec48ede1829f2942873a6d1aa2e9ef3a58aeb5b0005
+ *   core/model/approval-package-v4.js  sha256:e01105df8a1b3a56fd02626e09acd18ddf5ec5ec3577e422a9c98e2be04cb6fc
+ *   core/model/storage-mass.js  sha256:667dbee3125d31e40841f3d26ea09e7d60c08400c7b2a33bd9788876d62f0451
+ *   core/model/vault-state-v6.js  sha256:39c4e37304069912636b54ed38fb03181f1d917ec3465fe285790b3dbd3bd839
+ *   core/model/agent-merkle-v6.js  sha256:142c5cf7d96ab349e4a148dcaa29c3b04041c46cdb3b528f9aedab21e30e519f
+ *   core/model/swap-policy-v6.js  sha256:c186750e381ccab725e89afbcb4ba3c7cd00397bec09aad2bb99af1db6fab84e
+ *   core/model/vault-transitions-v6.js  sha256:e47d6b41a8cb4818ba84f12ab1fb00472aca1b772fb1593e1c9aa6375535c30d
+ *   core/model/compute-budget-v6.js  sha256:bc18937483f09a6823e6aa05dadfdf9f952c0ced78cb5582f5e1ef0897bc6889
+ *   core/intent/token-manifest-v6.js  sha256:fdb4825b77090e1bc399158291ab36d68e9331e29d52e4821dc4ec5cb8303b0c
+ *   core/intent/swap-manifest-v6.js  sha256:54a8892743d325d43a460b2a51a12d68968fa892bf2c7455643a5499bb14fa78
+ *   core/intent/router.js  sha256:ce8b8a51a9a3eb665b408c6af49596c9f1439cf3092d381d66b2d20683164eea
+ *   core/model/owner-set-v7.js  sha256:cd7470be9a9cc84200d3732d681dbbe1903c056f6db425078f0ddfd493ac9575
+ *   core/model/vault-state-v7-root.js  sha256:83bc5854bb115e204c943af779efcc52319cd3da8f69d1953b5e951f9415133a
+ *   core/model/vault-state-v7.js  sha256:212df733176c45b264627d833e80f2816caba6e572688cb4110d91b27e93ce84
+ *   core/model/vault-transitions-v7-root.js  sha256:3c19d90bc8a08a1a9d2cffb8440e43221ddb6e79fb8ec89dd767b78d7f858820
+ *   core/model/vault-transitions-v7.js  sha256:96a0fe00f7c328ce971db4260bcf8c74fff143545fd8d179a74eec0b307ad52e
+ *   core/model/compute-budget-v7.js  sha256:f2965f133feaafaa3bb5567ea45fa748a2b81715a5086318aaabe9e14780637b
+ *   core/intent/vault-script-v7.js  sha256:9a95ff3dc3092d9ccdc820a43e734b2adf79452a4464209ede3349499b7a945e
+ *   core/intent/org-root-manifest-v7.js  sha256:e25714f265d2754f924ead2cdb9df9c472228fedd5ebfca48d3985a67a9b2b07
+ *   core/explain/org-root-explain.js  sha256:760d6002c719025f7feaaab662e30565fe837246065b3a6ee2cf68070a2e122e
+ *   core/signer/org-root-slot-v7.js  sha256:7dddbbd989cb4b071dbcda668d0d1aa792fd3acd70bd9475a364fcf253eee528
+ *   core/model/hd-leaf-v7.js  sha256:71df56c389233b2c4b0d2382f33576f063e7b76253a6df2abdce9112f04e4c84
+ *   core/model/compute-budget-v7-hd.js  sha256:8e19dff0d8d931b1d87ea61fb75256c3aa6e976980a35ec9d43201847bf48033
+ *   core/intent/org-root-manifest-v7-hd.js  sha256:6bc3e5a62150d48c67a10f556bf11375fba512c5a84f0b6b24aa6f9ef22a0f9d
+ *   core/explain/hd-vault-explain.js  sha256:d20a64c3856bc19c4eb1f0d70725bc695ac6e6c67f31ed55367da80a17a55bcf
+ *   core/model/vault-state-v7-kas.js  sha256:5b56456db2d7cb3bee9593912227f7a6e2a8726438963dcc9118b3a7c5e8d6ad
+ *   core/model/vault-transitions-v7-kas.js  sha256:45797491ef5a70da4d5d54247868e670d7633a1e407db58190a5d49f1dd1f809
+ *   core/model/compute-budget-v7-kas.js  sha256:d4162ce0b44d6f028caf5f8fab5f802ff179bbed3426e1fad72c2b91c57bd0cb
+ *   core/intent/org-root-manifest-v7-kas.js  sha256:13c66e2c95848385d3e64930f22176eb4182ce75a48f76338b154a528d69680f
  *   <crypto shim>  sha256:18c64bc952c83297a0abe5b25e4a70a28740875eeac9b60335df40a984aeb681
  */
 (function (globalScope) {
@@ -387,6 +424,7 @@ module.exports = {
  */
 
 const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
 
 const MANIFEST_VERSION_1 = "policyvault-intent-manifest/1";
 const REQUESTED_INTENT_VERSION_1 = "policyvault-requested-intent/1";
@@ -735,7 +773,7 @@ function validateRequestedIntent(intent) {
     default:
       refuse("UNKNOWN_ACTION", `unknown action ${JSON.stringify(sdkAction)} — failing closed`);
   }
-  return { requestedAction, highLevelAction, sdkAction, info: ACTIONS[sdkAction] };
+  return { requestedAction, highLevelAction, sdkAction, info: ownGet(ACTIONS, sdkAction) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -2224,6 +2262,7 @@ module.exports = {
 
   define("core/explain/intent-explain", function (module, exports, require) {
 "use strict";
+const { ownGet } = require("../model/own-get");
 
 /*
  * PolicyVault Transaction Intent Manifest — EXPLANATIONS (v1).
@@ -2757,7 +2796,7 @@ function structured(input) {
       return {
         index,
         kind,
-        destinationKind: OUTPUT_DESTINATIONS[kind],
+        destinationKind: ownGet(OUTPUT_DESTINATIONS, kind),
         destinationXOnly,
         value,
         description: outputDescription(kind, value.kas, destinationXOnly)
@@ -4017,6 +4056,2419 @@ module.exports = {
 };
   });
 
+  define("core/signer/v2/errors", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault Universal Signer Interface v2 — structured error taxonomy.
+ *
+ * ADDITIVE VERSIONING (the same rule the covenant versions follow): the
+ * v1 vocabulary in `core/signer/errors.js` is FROZEN and is NEVER mutated
+ * or re-interpreted here. v2 re-declares every v1 code with its v1
+ * meaning and adds the codes v1 had no vocabulary for — capability
+ * probing, sighash negotiation, transaction-format pinning, transport
+ * negotiation, user presence, request expiry, consumer cancellation,
+ * request/response binding, replay, duplicate settlement, and
+ * verified-bytes drift.
+ *
+ * A v2 adapter/consumer that emits a code outside THIS set has broken the
+ * v2 contract: it is mapped, fail closed, to PROTOCOL_VIOLATION — never
+ * passed through, never guessed into a "similar" meaning.
+ *
+ * Pure CommonJS. Zero external dependencies. No Node builtins. No imports
+ * from server/ or sdk/. Browser-portable through web/core-bundle.js.
+ */
+
+const v1 = require("../errors");
+
+const SIGNER_INTERFACE_VERSION_V2 = "policyvault-signer/2";
+
+/*
+ * CLOSED error-code vocabulary for interface v2.
+ *
+ * Block 1 — the v1 codes, carried forward with IDENTICAL meanings (an
+ * adapter or consumer written against v1's taxonomy keeps its exact
+ * classification when it is lifted to v2).
+ *
+ * Block 2 — v2 additions. Each exists because v1 had to collapse the
+ * condition into a coarser code (or could not express it at all), which
+ * is precisely why a NEW interface version rather than a v1 amendment.
+ */
+const SignerErrorCodesV2 = Object.freeze({
+  /* ---- block 1: v1 codes, unchanged meanings ---- */
+  SIGNER_NOT_FOUND: v1.SignerErrorCodes.SIGNER_NOT_FOUND,
+  SIGNER_DISCONNECTED: v1.SignerErrorCodes.SIGNER_DISCONNECTED,
+  SIGNER_LOCKED: v1.SignerErrorCodes.SIGNER_LOCKED,
+  USER_REJECTED: v1.SignerErrorCodes.USER_REJECTED,
+  WRONG_NETWORK: v1.SignerErrorCodes.WRONG_NETWORK,
+  ACCOUNT_CHANGED: v1.SignerErrorCodes.ACCOUNT_CHANGED,
+  UNSUPPORTED_CAPABILITY: v1.SignerErrorCodes.UNSUPPORTED_CAPABILITY,
+  UNSUPPORTED_SCHEME: v1.SignerErrorCodes.UNSUPPORTED_SCHEME,
+  INVALID_PUBLIC_KEY: v1.SignerErrorCodes.INVALID_PUBLIC_KEY,
+  INVALID_SIGNATURE_RESPONSE: v1.SignerErrorCodes.INVALID_SIGNATURE_RESPONSE,
+  SIGNER_TIMEOUT: v1.SignerErrorCodes.SIGNER_TIMEOUT,
+  PROVIDER_ERROR: v1.SignerErrorCodes.PROVIDER_ERROR,
+  PROTOCOL_VIOLATION: v1.SignerErrorCodes.PROTOCOL_VIOLATION,
+  INTERFACE_VERSION_UNSUPPORTED: v1.SignerErrorCodes.INTERFACE_VERSION_UNSUPPORTED,
+  REQUEST_INVALID: v1.SignerErrorCodes.REQUEST_INVALID,
+
+  /* ---- block 2: v2 additions ---- */
+
+  /* The signer does not declare (or returned something other than) the
+   * sighash behaviour the request requires. PolicyVault emits SIGHASH_ALL
+   * ONLY; a signer that cannot commit to signing all outputs cannot sign
+   * a PolicyVault transaction. v1 could only express this as
+   * UNSUPPORTED_CAPABILITY, which loses the reason. */
+  UNSUPPORTED_SIGHASH: "UNSUPPORTED_SIGHASH",
+
+  /* The signer does not speak the exact transaction serialization format
+   * the request pins (v2 pins "kaspa-safe-json/1" — what the SDK builders
+   * emit and what the finalizer re-derives the frozen txid from). */
+  UNSUPPORTED_TRANSACTION_FORMAT: "UNSUPPORTED_TRANSACTION_FORMAT",
+
+  /* The adapter's transport kind is not one the consumer accepts for this
+   * request (e.g. a policy that refuses to hand a mainnet payload to a
+   * deep-link transport). */
+  TRANSPORT_UNSUPPORTED: "TRANSPORT_UNSUPPORTED",
+
+  /* The consumer requires a HUMAN present at the signer for this request
+   * and the adapter does not declare userPresence: "required". */
+  USER_PRESENCE_REQUIRED: "USER_PRESENCE_REQUIRED",
+
+  /* The request's own expiry elapsed — before invocation (stale request
+   * replayed out of a queue) or before the signer settled. Distinct from
+   * SIGNER_TIMEOUT, which is the CONSUMER's per-execution deadline. */
+  REQUEST_EXPIRED: "REQUEST_EXPIRED",
+
+  /* The consumer cancelled the request (navigation, policy revocation,
+   * an approver withdrawing) before the signer settled. Distinct from
+   * USER_REJECTED, which is the signer HOLDER declining. */
+  REQUEST_CANCELLED: "REQUEST_CANCELLED",
+
+  /* The response envelope is not bound to THIS request: requestId, nonce,
+   * kind, network, signer address, scheme, sighash, transaction format or
+   * declared interface version does not match. v1 had no envelope at all
+   * (bare strings), so this condition was structurally undetectable. */
+  RESPONSE_BINDING_MISMATCH: "RESPONSE_BINDING_MISMATCH",
+
+  /* A response envelope (or its nonce) was already consumed — a transport
+   * replayed an old, validly-signed answer at a new request. */
+  REPLAY_DETECTED: "REPLAY_DETECTED",
+
+  /* A second settlement arrived for a request that already reached a
+   * terminal state (duplicate deep-link callback, double QR scan, a
+   * relay delivering twice). */
+  DUPLICATE_SETTLEMENT: "DUPLICATE_SETTLEMENT",
+
+  /* The bytes that were signed are NOT the bytes that were locally
+   * verified: the response's payload digest differs from the request's,
+   * or the signed transaction's derived id differs from the unsigned
+   * one's. The signature is discarded. */
+  PAYLOAD_MUTATED: "PAYLOAD_MUTATED",
+
+  /* A capability PROBE of the live signer contradicts what the adapter's
+   * descriptor DECLARES. Declaring more than the provider can do is a
+   * contract breach, refused before any signing. */
+  CAPABILITY_MISMATCH: "CAPABILITY_MISMATCH"
+});
+
+const KNOWN_CODES_V2 = Object.freeze(new Set(Object.values(SignerErrorCodesV2)));
+
+function isKnownErrorCodeV2(code) {
+  return typeof code === "string" && KNOWN_CODES_V2.has(code);
+}
+
+function assertKnownErrorCodeV2(code) {
+  if (!isKnownErrorCodeV2(code)) {
+    const shown = typeof code === "string" ? JSON.stringify(code) : typeof code;
+    const err = new Error(
+      `unknown signer error code ${shown} — not in the ${SIGNER_INTERFACE_VERSION_V2} vocabulary; failing closed`
+    );
+    err.signerCode = SignerErrorCodesV2.PROTOCOL_VIOLATION;
+    throw err;
+  }
+  return code;
+}
+
+/*
+ * The one structured error type of interface v2. It deliberately extends
+ * the v1 SignerError CLASS so that consumers holding a mixed v1/v2
+ * registry can keep a single `instanceof` check and a single
+ * `signerCode` read — but its constructor validates against the WIDER v2
+ * vocabulary. `details` carries NON-SECRET diagnostics only (never key
+ * material, never raw malformed payloads — shapes and digests only).
+ */
+class SignerErrorV2 extends v1.SignerError {
+  constructor(code, message, { details, cause } = {}) {
+    assertKnownErrorCodeV2(code);
+    /* v1's constructor would refuse a v2-only code, so construct through
+     * a code it accepts and restate the real classification afterwards.
+     * PROTOCOL_VIOLATION is the fail-closed choice for that instant: if
+     * anything below threw, the error still reads as a contract breach. */
+    super(v1.SignerErrorCodes.PROTOCOL_VIOLATION, message || code, { details, cause });
+    this.name = "SignerErrorV2";
+    this.signerCode = code;
+    this.interfaceVersion = SIGNER_INTERFACE_VERSION_V2;
+  }
+}
+
+function signerErrorV2(code, message, extra) {
+  return new SignerErrorV2(code, message, extra);
+}
+
+function isSignerErrorV2(e) {
+  return e instanceof SignerErrorV2;
+}
+
+/*
+ * Fail-closed normalization of ANYTHING thrown across the v2 adapter
+ * boundary, with exactly the v1 rules widened to the v2 vocabulary:
+ *
+ *   1. a SignerErrorV2 passes through unchanged;
+ *   2. a v1 SignerError (e.g. thrown by a lifted v1 adapter or by the
+ *      shared v1 helpers this module reuses) is re-expressed as a
+ *      SignerErrorV2 with the SAME code — v1 codes are all v2 codes;
+ *   3. an error-like value carrying a KNOWN v2 signerCode is the
+ *      sanctioned adapter-side classification: wrapped preserving code,
+ *      message and cause;
+ *   4. an error-like value carrying an UNKNOWN signerCode broke the
+ *      contract -> PROTOCOL_VIOLATION, claimed code recorded;
+ *   5. anything else -> PROVIDER_ERROR with the original as `cause`.
+ */
+function normalizeAdapterFailureV2(raw, context) {
+  const where = context ? `${context}: ` : "";
+  if (isSignerErrorV2(raw)) return raw;
+  if (v1.isSignerError(raw)) {
+    return new SignerErrorV2(raw.signerCode, raw.message, { details: raw.details, cause: raw.cause !== undefined ? raw.cause : raw });
+  }
+  const claimed = raw && typeof raw === "object" ? raw.signerCode : undefined;
+  if (claimed !== undefined) {
+    if (isKnownErrorCodeV2(claimed)) {
+      return new SignerErrorV2(claimed, `${where}${(raw && raw.message) || claimed}`, { cause: raw });
+    }
+    return new SignerErrorV2(
+      SignerErrorCodesV2.PROTOCOL_VIOLATION,
+      `${where}adapter emitted unknown error code ${JSON.stringify(String(claimed))} — outside the ${SIGNER_INTERFACE_VERSION_V2} vocabulary; failing closed`,
+      { details: { claimedCode: String(claimed) }, cause: raw }
+    );
+  }
+  const message = raw && typeof raw === "object" && typeof raw.message === "string" && raw.message ? raw.message : String(raw);
+  return new SignerErrorV2(SignerErrorCodesV2.PROVIDER_ERROR, `${where}${message}`, { cause: raw });
+}
+
+module.exports = {
+  SIGNER_INTERFACE_VERSION_V2,
+  SignerErrorCodesV2,
+  SignerErrorV2,
+  signerErrorV2,
+  isSignerErrorV2,
+  isKnownErrorCodeV2,
+  assertKnownErrorCodeV2,
+  normalizeAdapterFailureV2
+};
+  });
+
+  define("core/signer/v2/interface", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault Universal Signer Interface v2 — the adapter contract.
+ *
+ * Spec: docs/postlaunch/signer-interface-v2-spec.md
+ * v1 (frozen, still exported and still supported): core/signer/
+ *
+ * WHY A NEW VERSION RATHER THAN AN AMENDMENT. Interface v1's vocabularies
+ * are CLOSED and FROZEN — the same discipline the covenant versions
+ * follow. Every capability v1 could not express is therefore added HERE,
+ * additively, leaving `policyvault-signer/1` byte-for-byte untouched and
+ * fully operational. Version strings are matched by EXACT EQUALITY in
+ * both directions: a v1 descriptor is refused by v2 and a v2 descriptor
+ * is refused by v1, both with INTERFACE_VERSION_UNSUPPORTED. There is no
+ * range matching, no downgrade, no "compatible enough".
+ *
+ * WHAT v2 ADDS (all declared explicitly, all negotiated, all fail-closed):
+ *
+ *   sighash            which sighash behaviours the signer will commit to.
+ *                      PolicyVault emits SIGHASH_ALL ONLY; a signer that
+ *                      does not declare `all` cannot sign for it.
+ *   transactionFormat  the exact serialization the signer speaks
+ *                      ("kaspa-safe-json/1" — what the SDK builders emit
+ *                      and what the finalizer re-derives the frozen txid
+ *                      from). Pinned per request.
+ *   pskt               BIP-370-style partially-signed-transaction support,
+ *                      DECLARED ONLY. v2 defines no PSKT response contract
+ *                      (see §PSKT below) — declaring it lets consumers
+ *                      route/refuse; it never changes what is signed.
+ *   userPresence       whether a human is at the signer for each request.
+ *   transport          how request and response physically travel
+ *                      (in-page / deep-link / qr-airgap / file / cli).
+ *   cancellation       whether a submitted request can be revoked.
+ *   maxTimeoutMs       the longest deadline the signer can honour.
+ *   probeCapabilities  a REQUIRED method returning what the live provider
+ *                      actually exposes, so a descriptor that claims more
+ *                      than the provider can do is refused (CAPABILITY_MISMATCH)
+ *                      instead of failing after a human clicks Sign.
+ *   request binding    every request carries a CSPRNG nonce, an explicit
+ *                      expiry, and the sha256 of the exact bytes to be
+ *                      signed; every response is an ENVELOPE that must
+ *                      echo them. v1 responses were bare strings, so
+ *                      mis-binding, replay and duplicate settlement were
+ *                      structurally undetectable.
+ *
+ * NON-CUSTODIAL INVARIANT (unchanged, structural): there is NO capability,
+ * NO request field and NO response field through which a seed phrase,
+ * private key or wallet backup could be requested, declared or returned.
+ * The vocabularies below are closed; a custody capability cannot even be
+ * spelled. PolicyVault is not a wallet and never becomes one.
+ *
+ * NO CRYPTOGRAPHY IN THE CORE (unchanged): this module hashes payloads
+ * with sha256 for BINDING only. It never verifies a signature, never
+ * derives a sighash, and never parses a transaction. Transaction-identity
+ * re-derivation is performed by an INJECTED function
+ * (`options.deriveTransactionId`) supplied by a consumer that already
+ * holds the authoritative kaspa-wasm module; without it the check is
+ * reported as NOT performed (`txIdVerified: false`) and the downstream
+ * SDK finalizer's TXID_MISMATCH refusal remains the authority. Consensus
+ * is the security boundary; this interface transports authorization
+ * material only.
+ *
+ * PSKT — WHY DECLARED ONLY. rusty-kaspa ships a real PSKT implementation
+ * (`wallet/pskt`, roles enumerated in `wallet/pskt/src/role.rs`: Creator,
+ * Constructor, Updater, Signer, Combiner, Finalizer, Extractor; WASM class
+ * `PSKT` in `wasm/nodejs/kaspa/kaspa.d.ts`). PolicyVault does NOT use it:
+ * the production browser signer's method is *named* `signPskt` but its
+ * payload is `{ txJsonString, options: { signInputs } }` and its result is
+ * a Kaspa **Safe JSON** transaction serialization (web/wallet.js,
+ * sdk/src/signer-dev.js, sdk/src/wallet-requests-v4.js) — not a PSKT
+ * bundle. v2 therefore lets an adapter DECLARE pskt support with the exact
+ * roles it implements, so consumers can route future multi-party flows,
+ * and defines NO pskt response contract: adding one requires source-backed
+ * evidence of the exact serialization, never a guess.
+ *
+ * Pure CommonJS, browser-portable through web/core-bundle.js. Zero
+ * external dependencies; the only Node builtin is `crypto`, used for
+ * `randomBytes` (nonces/ids) and `createHash("sha256")` (payload binding)
+ * — exactly the two surfaces the browser crypto shim implements. BigInt
+ * safe: this module performs no arithmetic on money.
+ */
+
+const crypto = require("crypto");
+const v1 = require("../interface");
+const {
+  SIGNER_INTERFACE_VERSION_V2,
+  SignerErrorCodesV2,
+  signerErrorV2,
+  normalizeAdapterFailureV2
+} = require("./errors");
+
+/* ------------------------------------------------------------------ */
+/* v2 closed vocabularies                                              */
+/* ------------------------------------------------------------------ */
+
+/* Re-exported from v1 UNCHANGED — these sets are shared, not forked. A
+ * new scheme/network/kind/feature is a change to BOTH versions' meaning
+ * and is therefore never made silently here. */
+const SIGNATURE_SCHEMES = v1.SIGNATURE_SCHEMES;
+const SIGNER_NETWORKS = v1.SIGNER_NETWORKS;
+const ADAPTER_KINDS = v1.ADAPTER_KINDS;
+const CAPABILITY_FEATURES = v1.CAPABILITY_FEATURES;
+const REQUEST_KINDS = v1.REQUEST_KINDS;
+const SIGHASH_ALL = v1.SIGHASH_ALL; /* 1 */
+
+/* Sighash behaviours a signer can declare. PolicyVault REQUIRES `all`
+ * and emits nothing else; the other three exist so a signer describes
+ * itself truthfully and a consumer can refuse it on the exact reason. */
+const SIGHASH_FLAGS = Object.freeze(["all", "none", "single", "anyoneCanPay"]);
+
+/* Transaction serialization formats. Exactly one is defined: the Kaspa
+ * Safe JSON serialization produced by `Transaction.serializeToSafeJSON()`
+ * and consumed by `Transaction.deserializeFromSafeJSON()` — the format
+ * every PolicyVault builder emits and every finalizer re-derives the
+ * frozen txid from. A PSKT bundle format would be a NEW entry added with
+ * source-backed evidence, never a re-interpretation of this one. */
+const TRANSACTION_FORMATS = Object.freeze(["kaspa-safe-json/1"]);
+
+/* BIP-370 PSKT roles, mirroring rusty-kaspa `wallet/pskt/src/role.rs`
+ * exactly (the upstream enum, in upstream order). Declaration vocabulary
+ * only — v2 defines no PSKT wire contract. */
+const PSKT_ROLES = Object.freeze([
+  "creator",
+  "constructor",
+  "updater",
+  "signer",
+  "combiner",
+  "finalizer",
+  "extractor"
+]);
+
+/* How a request and its response physically travel. This is a SECURITY
+ * fact, not a UX fact: a qr-airgap or file transport crosses a boundary
+ * where an attacker may substitute or replay a document, which is why
+ * every v2 response is a bound envelope. */
+const TRANSPORT_KINDS = Object.freeze([
+  "in-page", // injected provider inside the same page (browser extension)
+  "deep-link", // OS URL handoff to a wallet app and a callback back
+  "qr-airgap", // optical shuttle across an offline gap
+  "file", // file/share-sheet shuttle across an offline gap
+  "cli" // local process invocation (no transport hop at all)
+]);
+
+/* Whether a human is present at the signer for each request. Two values
+ * only: an "unknown" state would be a hole a consumer could accidentally
+ * accept, so an adapter that cannot honestly claim presence declares
+ * "not-required" and a presence-requiring consumer refuses it. */
+const USER_PRESENCE_MODES = Object.freeze(["required", "not-required"]);
+
+/* Whether a SUBMITTED request can be revoked before it settles. */
+const CANCELLATION_MODES = Object.freeze(["supported", "unsupported"]);
+
+/* v2 lifecycle states. CREATED is implicit at request creation; exactly
+ * ONE terminal state is emitted per execution. CANCELLED and EXPIRED are
+ * new: v1 could only express them as SIGNER_TIMEOUT. */
+const SIGNING_STATES_V2 = Object.freeze([
+  "REFUSED", // terminal — a fail-closed gate refused before the signer was invoked
+  "SUBMITTED", // the external signer holds the request
+  "APPROVED", // terminal — envelope validated and bound
+  "REJECTED", // terminal — the signer's holder declined
+  "TIMED_OUT", // terminal — the consumer's deadline elapsed
+  "EXPIRED", // terminal — the REQUEST's own expiry elapsed
+  "CANCELLED", // terminal — the consumer revoked the request
+  "FAILED" // terminal — provider/protocol/validation/binding failure
+]);
+
+/* Adapter methods required unconditionally in v2 = v1's seven plus the
+ * capability probe. */
+const REQUIRED_METHODS_V2 = Object.freeze([...v1.REQUIRED_METHODS, "probeCapabilities"]);
+
+/* Feature -> additionally-required method(s), inherited from v1. */
+const FEATURE_METHODS_V2 = v1.FEATURE_METHODS;
+
+const PROVIDER_ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
+const SCHNORR_SIG_RE = /^[0-9a-f]{128}$/;
+const HEX32_RE = /^[0-9a-f]{32}$/;
+const HEX64_RE = /^[0-9a-f]{64}$/;
+const MAX_MESSAGE_CHARS = 16384;
+const MAX_SAFE_JSON_CHARS = 1048576;
+
+/* Request time-to-live bounds. A request with no expiry is refused: a
+ * signing authorization that never goes stale is a replayable bearer
+ * token. The upper bound accommodates institutional/MPC approvals that
+ * legitimately take days. */
+const MIN_TTL_MS = 1000;
+const MAX_TTL_MS = 30 * 24 * 60 * 60 * 1000; /* 30 days */
+
+/* Longest deadline an adapter may declare it can honour. */
+const MAX_DECLARABLE_TIMEOUT_MS = MAX_TTL_MS;
+
+function violation(message, details) {
+  return signerErrorV2(SignerErrorCodesV2.PROTOCOL_VIOLATION, message, details ? { details } : undefined);
+}
+
+function invalidRequest(message, details) {
+  return signerErrorV2(SignerErrorCodesV2.REQUEST_INVALID, message, details ? { details } : undefined);
+}
+
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function sha256Hex(text) {
+  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+function uniqueKnownList(value, allowed, what, makeError) {
+  if (!Array.isArray(value)) {
+    throw makeError(`${what} must be an array`);
+  }
+  const seen = new Set();
+  for (const item of value) {
+    if (typeof item !== "string" || !allowed.includes(item)) {
+      throw makeError(
+        `${what} contains unknown value ${JSON.stringify(String(item))} — the ${SIGNER_INTERFACE_VERSION_V2} vocabulary is closed; refusing`,
+        { unknownValue: String(item) }
+      );
+    }
+    if (seen.has(item)) throw makeError(`${what} lists ${JSON.stringify(item)} more than once`);
+    seen.add(item);
+  }
+  return Object.freeze([...value]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Capability descriptor (v2)                                          */
+/* ------------------------------------------------------------------ */
+
+const DESCRIPTOR_KEYS_V2 = Object.freeze([
+  "interfaceVersion",
+  "provider",
+  "label",
+  "kind",
+  "schemes",
+  "networks",
+  "features",
+  "sighash",
+  "pskt",
+  "transactionFormats",
+  "userPresence",
+  "transport",
+  "cancellation",
+  "maxTimeoutMs"
+]);
+
+/*
+ * Validates an adapter-provided v2 capability descriptor and returns a
+ * deep-frozen normalized copy. EVERY key is required and EVERY value is
+ * checked against a closed vocabulary: unknown keys, missing keys,
+ * unknown values, wrong types and internally inconsistent declarations
+ * are REFUSED. Nothing is defaulted and nothing unknown is ignored.
+ *
+ * Internal-consistency rules (a descriptor that contradicts itself is a
+ * contract breach, not a preference):
+ *   - a signer that settles approvals out-of-band MUST support
+ *     cancellation (an unrevocable pending authorization is refused);
+ *   - a signer that declares transactionSigning MUST declare at least
+ *     one transaction format and at least one sighash behaviour;
+ *   - `pskt.roles` is non-empty exactly when `pskt.supported` is true;
+ *   - an air-gapped adapter cannot claim an "in-page" transport;
+ *   - `maxTimeoutMs` is a positive integer within the declarable bound.
+ */
+function validateCapabilityDescriptorV2(desc) {
+  if (!isPlainObject(desc)) throw violation("capability descriptor must be a plain object");
+
+  if (desc.interfaceVersion !== SIGNER_INTERFACE_VERSION_V2) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      `capability descriptor declares interface version ${JSON.stringify(desc.interfaceVersion)}; this core implements exactly ${JSON.stringify(SIGNER_INTERFACE_VERSION_V2)} — failing closed (no downgrade, no guessing)`
+    );
+  }
+
+  for (const key of Object.keys(desc)) {
+    if (!DESCRIPTOR_KEYS_V2.includes(key)) {
+      throw violation(`capability descriptor carries unknown key ${JSON.stringify(key)} — refusing (closed schema)`);
+    }
+  }
+  for (const key of DESCRIPTOR_KEYS_V2) {
+    if (!(key in desc)) throw violation(`capability descriptor is missing required key ${JSON.stringify(key)}`);
+  }
+
+  if (typeof desc.provider !== "string" || !PROVIDER_ID_RE.test(desc.provider)) {
+    throw violation("capability descriptor provider must match /^[a-z][a-z0-9-]{1,31}$/");
+  }
+  if (typeof desc.label !== "string" || !desc.label.trim() || desc.label.length > 64) {
+    throw violation("capability descriptor label must be a non-empty string of at most 64 characters");
+  }
+  if (typeof desc.kind !== "string" || !ADAPTER_KINDS.includes(desc.kind)) {
+    throw violation(`capability descriptor kind ${JSON.stringify(String(desc.kind))} is not a known adapter kind — refusing`, {
+      unknownValue: String(desc.kind)
+    });
+  }
+
+  const schemes = uniqueKnownList(desc.schemes, SIGNATURE_SCHEMES, "capability descriptor schemes", violation);
+  if (schemes.length === 0) throw violation("capability descriptor schemes must be non-empty");
+  const networks = uniqueKnownList(desc.networks, SIGNER_NETWORKS, "capability descriptor networks", violation);
+  if (networks.length === 0) throw violation("capability descriptor networks must be non-empty");
+
+  /* features: the v1 nine, still every key explicit and strictly boolean */
+  if (!isPlainObject(desc.features)) throw violation("capability descriptor features must be a plain object");
+  for (const key of Object.keys(desc.features)) {
+    if (!CAPABILITY_FEATURES.includes(key)) {
+      throw violation(`capability descriptor features carry unknown feature ${JSON.stringify(key)} — refusing (unknown capabilities are never ignored)`, {
+        unknownValue: key
+      });
+    }
+  }
+  const features = {};
+  for (const key of CAPABILITY_FEATURES) {
+    if (!(key in desc.features)) {
+      throw violation(`capability descriptor features must declare ${JSON.stringify(key)} explicitly (no defaults)`);
+    }
+    if (typeof desc.features[key] !== "boolean") {
+      throw violation(`capability descriptor feature ${JSON.stringify(key)} must be strictly boolean`);
+    }
+    features[key] = desc.features[key];
+  }
+
+  /* sighash: every flag explicit and strictly boolean */
+  if (!isPlainObject(desc.sighash)) throw violation("capability descriptor sighash must be a plain object");
+  for (const key of Object.keys(desc.sighash)) {
+    if (!SIGHASH_FLAGS.includes(key)) {
+      throw violation(`capability descriptor sighash carries unknown flag ${JSON.stringify(key)} — refusing`, { unknownValue: key });
+    }
+  }
+  const sighash = {};
+  for (const key of SIGHASH_FLAGS) {
+    if (!(key in desc.sighash)) {
+      throw violation(`capability descriptor sighash must declare ${JSON.stringify(key)} explicitly (no defaults)`);
+    }
+    if (typeof desc.sighash[key] !== "boolean") {
+      throw violation(`capability descriptor sighash flag ${JSON.stringify(key)} must be strictly boolean`);
+    }
+    sighash[key] = desc.sighash[key];
+  }
+
+  /* pskt: declaration only */
+  if (!isPlainObject(desc.pskt)) throw violation("capability descriptor pskt must be a plain object");
+  for (const key of Object.keys(desc.pskt)) {
+    if (key !== "supported" && key !== "roles") {
+      throw violation(`capability descriptor pskt carries unknown key ${JSON.stringify(key)} — refusing (closed schema)`);
+    }
+  }
+  if (typeof desc.pskt.supported !== "boolean") throw violation("capability descriptor pskt.supported must be strictly boolean");
+  const psktRoles = uniqueKnownList(desc.pskt.roles, PSKT_ROLES, "capability descriptor pskt.roles", violation);
+  if (desc.pskt.supported === true && psktRoles.length === 0) {
+    throw violation("capability descriptor declares pskt.supported without naming a single PSKT role — refusing (a support claim must say what it supports)");
+  }
+  if (desc.pskt.supported === false && psktRoles.length > 0) {
+    throw violation("capability descriptor names PSKT roles while declaring pskt.supported: false — refusing (self-contradictory declaration)");
+  }
+
+  const transactionFormats = uniqueKnownList(desc.transactionFormats, TRANSACTION_FORMATS, "capability descriptor transactionFormats", violation);
+
+  if (typeof desc.userPresence !== "string" || !USER_PRESENCE_MODES.includes(desc.userPresence)) {
+    throw violation(`capability descriptor userPresence ${JSON.stringify(String(desc.userPresence))} is not one of ${JSON.stringify(USER_PRESENCE_MODES)} — refusing`);
+  }
+  if (typeof desc.transport !== "string" || !TRANSPORT_KINDS.includes(desc.transport)) {
+    throw violation(`capability descriptor transport ${JSON.stringify(String(desc.transport))} is not a known transport kind — refusing`, {
+      unknownValue: String(desc.transport)
+    });
+  }
+  if (typeof desc.cancellation !== "string" || !CANCELLATION_MODES.includes(desc.cancellation)) {
+    throw violation(`capability descriptor cancellation ${JSON.stringify(String(desc.cancellation))} is not one of ${JSON.stringify(CANCELLATION_MODES)} — refusing`);
+  }
+  if (!Number.isInteger(desc.maxTimeoutMs) || desc.maxTimeoutMs <= 0 || desc.maxTimeoutMs > MAX_DECLARABLE_TIMEOUT_MS) {
+    throw violation(`capability descriptor maxTimeoutMs must be a positive integer of at most ${MAX_DECLARABLE_TIMEOUT_MS} — refusing`);
+  }
+
+  /* ---- internal consistency ---- */
+  if (features.asynchronousApproval === true && desc.cancellation !== "supported") {
+    throw violation(
+      "capability descriptor declares asynchronousApproval without cancellation support — refusing (an out-of-band approval that can never be revoked is not an acceptable authorization)"
+    );
+  }
+  if (features.transactionSigning === true) {
+    if (transactionFormats.length === 0) {
+      throw violation("capability descriptor declares transactionSigning without a single transaction format — refusing");
+    }
+    if (!SIGHASH_FLAGS.some((f) => sighash[f] === true)) {
+      throw violation("capability descriptor declares transactionSigning without a single sighash behaviour — refusing");
+    }
+  }
+  if (features.transactionSigning === false && transactionFormats.length > 0) {
+    throw violation("capability descriptor names transaction formats while declaring transactionSigning: false — refusing (self-contradictory declaration)");
+  }
+  if (features.airGapped === true && desc.transport === "in-page") {
+    throw violation('capability descriptor declares airGapped with an "in-page" transport — refusing (self-contradictory declaration)');
+  }
+
+  return Object.freeze({
+    interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+    provider: desc.provider,
+    label: desc.label,
+    kind: desc.kind,
+    schemes,
+    networks,
+    features: Object.freeze(features),
+    sighash: Object.freeze(sighash),
+    pskt: Object.freeze({ supported: desc.pskt.supported, roles: psktRoles }),
+    transactionFormats,
+    userPresence: desc.userPresence,
+    transport: desc.transport,
+    cancellation: desc.cancellation,
+    maxTimeoutMs: desc.maxTimeoutMs
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Capability PROBE — declaration vs observed reality                  */
+/* ------------------------------------------------------------------ */
+
+const PROBE_KEYS = Object.freeze([
+  "interfaceVersion",
+  "probed",
+  "reason",
+  "methods",
+  "sighash",
+  "pskt",
+  "transactionFormats",
+  "network"
+]);
+
+/*
+ * Validates a probe report. `probed: false` is an HONEST answer (an
+ * air-gapped signer cannot be interrogated before the shuttle) and MUST
+ * carry a reason; consumers that require probed capabilities refuse such
+ * an adapter rather than assuming.
+ */
+function validateProbeReport(report) {
+  if (!isPlainObject(report)) throw violation("capability probe report must be a plain object");
+  if (report.interfaceVersion !== SIGNER_INTERFACE_VERSION_V2) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      `capability probe report declares interface version ${JSON.stringify(report.interfaceVersion)}; expected exactly ${JSON.stringify(SIGNER_INTERFACE_VERSION_V2)} — failing closed`
+    );
+  }
+  for (const key of Object.keys(report)) {
+    if (!PROBE_KEYS.includes(key)) throw violation(`capability probe report carries unknown key ${JSON.stringify(key)} — refusing (closed schema)`);
+  }
+  if (typeof report.probed !== "boolean") throw violation("capability probe report must declare probed as a strict boolean");
+
+  if (report.probed === false) {
+    if (typeof report.reason !== "string" || !report.reason.trim() || report.reason.length > 256) {
+      throw violation("an unprobed capability report must carry a short non-empty reason — refusing (silence is not an answer)");
+    }
+    return Object.freeze({ interfaceVersion: SIGNER_INTERFACE_VERSION_V2, probed: false, reason: report.reason });
+  }
+
+  const out = { interfaceVersion: SIGNER_INTERFACE_VERSION_V2, probed: true };
+  if ("reason" in report && report.reason !== undefined) {
+    if (typeof report.reason !== "string" || report.reason.length > 256) throw violation("capability probe reason must be a short string when present");
+    out.reason = report.reason;
+  }
+  if ("methods" in report && report.methods !== undefined) {
+    if (!Array.isArray(report.methods)) throw violation("capability probe methods must be an array of method names");
+    const methods = [];
+    for (const m of report.methods) {
+      if (typeof m !== "string" || !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(m)) {
+        throw violation("capability probe methods must be plain method-name strings — refusing");
+      }
+      if (!methods.includes(m)) methods.push(m);
+    }
+    out.methods = Object.freeze(methods);
+  }
+  if ("sighash" in report && report.sighash !== undefined) {
+    if (!isPlainObject(report.sighash)) throw violation("capability probe sighash must be a plain object");
+    const sh = {};
+    for (const key of Object.keys(report.sighash)) {
+      if (!SIGHASH_FLAGS.includes(key)) throw violation(`capability probe sighash carries unknown flag ${JSON.stringify(key)} — refusing`);
+      if (typeof report.sighash[key] !== "boolean") throw violation("capability probe sighash flags must be strictly boolean");
+      sh[key] = report.sighash[key];
+    }
+    out.sighash = Object.freeze(sh);
+  }
+  if ("pskt" in report && report.pskt !== undefined) {
+    if (!isPlainObject(report.pskt)) throw violation("capability probe pskt must be a plain object");
+    for (const key of Object.keys(report.pskt)) {
+      if (key !== "supported" && key !== "roles") throw violation(`capability probe pskt carries unknown key ${JSON.stringify(key)} — refusing`);
+    }
+    if (typeof report.pskt.supported !== "boolean") throw violation("capability probe pskt.supported must be strictly boolean");
+    const roles = report.pskt.roles === undefined ? [] : uniqueKnownList(report.pskt.roles, PSKT_ROLES, "capability probe pskt.roles", violation);
+    out.pskt = Object.freeze({ supported: report.pskt.supported, roles });
+  }
+  if ("transactionFormats" in report && report.transactionFormats !== undefined) {
+    out.transactionFormats = uniqueKnownList(report.transactionFormats, TRANSACTION_FORMATS, "capability probe transactionFormats", violation);
+  }
+  if ("network" in report && report.network !== undefined && report.network !== null) {
+    if (typeof report.network !== "string" || !SIGNER_NETWORKS.includes(report.network)) {
+      throw violation(`capability probe network ${JSON.stringify(String(report.network))} is not a known network — refusing`);
+    }
+    out.network = report.network;
+  }
+  return Object.freeze(out);
+}
+
+/*
+ * Cross-checks a DECLARED descriptor against a PROBED report.
+ *
+ * The asymmetry is deliberate and is the whole point: an adapter may
+ * offer upward LESS than its provider can do (the v1 rule — a descriptor
+ * describes what the ADAPTER offers, e.g. KasWare's adapter declares
+ * schnorr only although the extension can emit ECDSA for Tangem cards).
+ * It may never offer MORE. Every declaration the probe contradicts is a
+ * CAPABILITY_MISMATCH and the adapter is refused before any signing.
+ *
+ * Returns a frozen { ok: true, probed } or throws. `probed: false`
+ * reports are accepted here (nothing was contradicted) and surfaced to
+ * the caller so a consumer requiring a live probe can refuse.
+ */
+function verifyDeclaredCapabilities(descriptor, report) {
+  const desc = validateCapabilityDescriptorV2(descriptor);
+  const probe = validateProbeReport(report);
+  if (probe.probed === false) {
+    return Object.freeze({ ok: true, provider: desc.provider, probed: false, reason: probe.reason });
+  }
+
+  const mismatches = [];
+
+  if (probe.methods !== undefined) {
+    /* method-bound features only: a declared feature whose backing
+     * provider method the probe did NOT observe is over-declaration. */
+    for (const [feature, methods] of Object.entries(FEATURE_METHODS_V2)) {
+      if (desc.features[feature] !== true) continue;
+      for (const m of methods) {
+        if (!probe.methods.includes(m)) mismatches.push(`feature ${feature} declared but the provider exposes no ${m}()`);
+      }
+    }
+  }
+  if (probe.sighash !== undefined) {
+    for (const flag of SIGHASH_FLAGS) {
+      if (desc.sighash[flag] === true && probe.sighash[flag] === false) {
+        mismatches.push(`sighash.${flag} declared but the provider does not support it`);
+      }
+    }
+  }
+  if (probe.pskt !== undefined) {
+    if (desc.pskt.supported === true && probe.pskt.supported === false) {
+      mismatches.push("pskt.supported declared but the provider exposes no PSKT surface");
+    }
+    if (desc.pskt.supported === true && probe.pskt.supported === true) {
+      for (const role of desc.pskt.roles) {
+        if (!probe.pskt.roles.includes(role)) mismatches.push(`pskt role ${role} declared but not offered by the provider`);
+      }
+    }
+  }
+  if (probe.transactionFormats !== undefined) {
+    for (const fmt of desc.transactionFormats) {
+      if (!probe.transactionFormats.includes(fmt)) mismatches.push(`transaction format ${fmt} declared but not spoken by the provider`);
+    }
+  }
+  if (probe.network !== undefined && !desc.networks.includes(probe.network)) {
+    mismatches.push(`the provider reports network ${probe.network}, which this adapter does not declare`);
+  }
+
+  if (mismatches.length > 0) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.CAPABILITY_MISMATCH,
+      `adapter ${desc.provider} declares capabilities its provider does not have: ${mismatches.join("; ")} — refusing (an adapter may offer LESS than its provider, never more)`,
+      { details: { mismatches } }
+    );
+  }
+  return Object.freeze({ ok: true, provider: desc.provider, probed: true });
+}
+
+/* ------------------------------------------------------------------ */
+/* Adapter validation + registry (v2)                                  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Validates a v2 adapter: describe() must yield a valid v2 descriptor,
+ * every unconditional method (including probeCapabilities) must exist,
+ * every feature-bound method must exist, and an adapter declaring
+ * cancellation support must implement cancelSigning. Returns a frozen
+ * { adapter, descriptor }. Partial acceptance does not exist.
+ */
+function validateAdapterV2(adapter) {
+  if (adapter === null || typeof adapter !== "object" || typeof adapter.describe !== "function") {
+    throw violation("adapter must be an object implementing describe()");
+  }
+  let raw;
+  try {
+    raw = adapter.describe();
+  } catch (e) {
+    throw normalizeAdapterFailureV2(e, "describe");
+  }
+  const descriptor = validateCapabilityDescriptorV2(raw);
+
+  const missing = [];
+  for (const name of REQUIRED_METHODS_V2) {
+    if (typeof adapter[name] !== "function") missing.push(name);
+  }
+  for (const [feature, methods] of Object.entries(FEATURE_METHODS_V2)) {
+    if (descriptor.features[feature]) {
+      for (const name of methods) {
+        if (typeof adapter[name] !== "function") missing.push(`${name} (required by feature ${feature})`);
+      }
+    }
+  }
+  if (descriptor.cancellation === "supported" && typeof adapter.cancelSigning !== "function") {
+    missing.push('cancelSigning (required by cancellation: "supported")');
+  }
+  if (missing.length > 0) {
+    throw violation(`adapter ${descriptor.provider} is missing required method(s): ${missing.join(", ")} — refusing registration`, { missing });
+  }
+  return Object.freeze({ adapter, descriptor });
+}
+
+/* Registry of validated v2 adapters, keyed by provider id. Kept separate
+ * from the v1 registry: mixing versions in one namespace would invite a
+ * consumer to hand a v2 request to a v1 adapter. */
+class SignerRegistryV2 {
+  constructor() {
+    this._records = new Map();
+  }
+
+  register(adapter) {
+    const record = validateAdapterV2(adapter);
+    if (this._records.has(record.descriptor.provider)) {
+      throw violation(`a signer adapter with provider id ${JSON.stringify(record.descriptor.provider)} is already registered — refusing duplicate registration`);
+    }
+    this._records.set(record.descriptor.provider, record);
+    return record.descriptor;
+  }
+
+  has(providerId) {
+    return this._records.has(providerId);
+  }
+
+  get(providerId) {
+    const record = this._records.get(providerId);
+    if (!record) {
+      throw signerErrorV2(SignerErrorCodesV2.SIGNER_NOT_FOUND, `no signer adapter registered under provider id ${JSON.stringify(providerId)}`);
+    }
+    return record;
+  }
+
+  list() {
+    return Object.freeze([...this._records.values()].map((r) => r.descriptor));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Capability negotiation (v2)                                         */
+/* ------------------------------------------------------------------ */
+
+const REQUIREMENT_KEYS_V2 = Object.freeze([
+  "schemes",
+  "features",
+  "network",
+  "sighash",
+  "transactionFormat",
+  "transports",
+  "userPresence",
+  "pskt",
+  "cancellation",
+  "minTimeoutMs"
+]);
+
+/*
+ * Consumer-side negotiation. Requirements are validated against the
+ * closed vocabularies FIRST: a consumer asking for something the
+ * vocabulary cannot express gets REQUEST_INVALID, because silently "not
+ * matching" an unknown requirement could pass an adapter the consumer
+ * meant to constrain.
+ *
+ * Returns frozen { ok: true, provider } or a structured refusal
+ * { ok: false, provider, code, missing }.
+ */
+function negotiateCapabilitiesV2(descriptor, requirements) {
+  const desc = validateCapabilityDescriptorV2(descriptor);
+  if (!isPlainObject(requirements)) throw invalidRequest("requirements must be a plain object");
+  for (const key of Object.keys(requirements)) {
+    if (!REQUIREMENT_KEYS_V2.includes(key)) {
+      throw invalidRequest(`unknown requirement key ${JSON.stringify(key)} — the ${SIGNER_INTERFACE_VERSION_V2} negotiation vocabulary is closed; failing closed`);
+    }
+  }
+
+  const refuse = (code, missing) => Object.freeze({ ok: false, provider: desc.provider, code, missing: Object.freeze([...missing]) });
+
+  if (requirements.schemes !== undefined) {
+    const wanted = uniqueKnownList(requirements.schemes, SIGNATURE_SCHEMES, "requirement schemes", invalidRequest);
+    if (wanted.length === 0) throw invalidRequest("requirement schemes must be non-empty");
+    const missing = wanted.filter((s) => !desc.schemes.includes(s));
+    if (missing.length > 0) return refuse(SignerErrorCodesV2.UNSUPPORTED_SCHEME, missing);
+  }
+  if (requirements.features !== undefined) {
+    const wanted = uniqueKnownList(requirements.features, CAPABILITY_FEATURES, "requirement features", invalidRequest);
+    if (wanted.length === 0) throw invalidRequest("requirement features must be non-empty");
+    const missing = wanted.filter((f) => desc.features[f] !== true);
+    if (missing.length > 0) return refuse(SignerErrorCodesV2.UNSUPPORTED_CAPABILITY, missing);
+  }
+  if (requirements.network !== undefined) {
+    if (typeof requirements.network !== "string" || !SIGNER_NETWORKS.includes(requirements.network)) {
+      throw invalidRequest(`unknown required network ${JSON.stringify(String(requirements.network))} — failing closed`);
+    }
+    if (!desc.networks.includes(requirements.network)) return refuse(SignerErrorCodesV2.WRONG_NETWORK, [requirements.network]);
+  }
+  if (requirements.sighash !== undefined) {
+    const wanted = uniqueKnownList(requirements.sighash, SIGHASH_FLAGS, "requirement sighash", invalidRequest);
+    if (wanted.length === 0) throw invalidRequest("requirement sighash must be non-empty");
+    const missing = wanted.filter((f) => desc.sighash[f] !== true);
+    if (missing.length > 0) return refuse(SignerErrorCodesV2.UNSUPPORTED_SIGHASH, missing);
+  }
+  if (requirements.transactionFormat !== undefined) {
+    if (typeof requirements.transactionFormat !== "string" || !TRANSACTION_FORMATS.includes(requirements.transactionFormat)) {
+      throw invalidRequest(`unknown required transaction format ${JSON.stringify(String(requirements.transactionFormat))} — failing closed`);
+    }
+    if (!desc.transactionFormats.includes(requirements.transactionFormat)) {
+      return refuse(SignerErrorCodesV2.UNSUPPORTED_TRANSACTION_FORMAT, [requirements.transactionFormat]);
+    }
+  }
+  if (requirements.transports !== undefined) {
+    const allowed = uniqueKnownList(requirements.transports, TRANSPORT_KINDS, "requirement transports", invalidRequest);
+    if (allowed.length === 0) throw invalidRequest("requirement transports must be non-empty");
+    if (!allowed.includes(desc.transport)) return refuse(SignerErrorCodesV2.TRANSPORT_UNSUPPORTED, [desc.transport]);
+  }
+  if (requirements.userPresence !== undefined) {
+    if (typeof requirements.userPresence !== "string" || !USER_PRESENCE_MODES.includes(requirements.userPresence)) {
+      throw invalidRequest(`unknown required userPresence ${JSON.stringify(String(requirements.userPresence))} — failing closed`);
+    }
+    if (requirements.userPresence === "required" && desc.userPresence !== "required") {
+      return refuse(SignerErrorCodesV2.USER_PRESENCE_REQUIRED, ["userPresence:required"]);
+    }
+  }
+  if (requirements.pskt !== undefined) {
+    const wanted = uniqueKnownList(requirements.pskt, PSKT_ROLES, "requirement pskt", invalidRequest);
+    if (wanted.length === 0) throw invalidRequest("requirement pskt must be non-empty");
+    const missing = desc.pskt.supported === true ? wanted.filter((r) => !desc.pskt.roles.includes(r)) : wanted;
+    if (missing.length > 0) return refuse(SignerErrorCodesV2.UNSUPPORTED_CAPABILITY, missing.map((r) => `pskt:${r}`));
+  }
+  if (requirements.cancellation !== undefined) {
+    if (typeof requirements.cancellation !== "string" || !CANCELLATION_MODES.includes(requirements.cancellation)) {
+      throw invalidRequest(`unknown required cancellation mode ${JSON.stringify(String(requirements.cancellation))} — failing closed`);
+    }
+    if (requirements.cancellation === "supported" && desc.cancellation !== "supported") {
+      return refuse(SignerErrorCodesV2.UNSUPPORTED_CAPABILITY, ["cancellation:supported"]);
+    }
+  }
+  if (requirements.minTimeoutMs !== undefined) {
+    if (!Number.isInteger(requirements.minTimeoutMs) || requirements.minTimeoutMs <= 0) {
+      throw invalidRequest("requirement minTimeoutMs must be a positive integer");
+    }
+    if (desc.maxTimeoutMs < requirements.minTimeoutMs) {
+      return refuse(SignerErrorCodesV2.UNSUPPORTED_CAPABILITY, [`maxTimeoutMs:${desc.maxTimeoutMs}`]);
+    }
+  }
+  return Object.freeze({ ok: true, provider: desc.provider });
+}
+
+/* Throwing variant. */
+function requireCapabilitiesV2(descriptor, requirements) {
+  const result = negotiateCapabilitiesV2(descriptor, requirements);
+  if (!result.ok) {
+    throw signerErrorV2(result.code, `adapter ${result.provider} does not satisfy required capabilities: ${result.missing.join(", ")}`, {
+      details: { missing: [...result.missing] }
+    });
+  }
+  return result;
+}
+
+/*
+ * The canonical PolicyVault consumer requirement set for a FUNDS-PATH
+ * transaction signature. Restated as a constant so no consumer has to
+ * remember it and no consumer can quietly relax it: BIP-340 Schnorr,
+ * transaction signing of exactly the named inputs, SIGHASH_ALL, and the
+ * Kaspa Safe JSON serialization the finalizer re-derives the frozen txid
+ * from.
+ */
+const POLICYVAULT_TRANSACTION_REQUIREMENTS = Object.freeze({
+  schemes: Object.freeze(["schnorr"]),
+  features: Object.freeze(["transactionSigning", "specificInputSigning"]),
+  sighash: Object.freeze(["all"]),
+  transactionFormat: "kaspa-safe-json/1"
+});
+
+/* ------------------------------------------------------------------ */
+/* Signing requests (v2): bound, nonced, expiring                      */
+/* ------------------------------------------------------------------ */
+
+function newRequestId() {
+  return crypto.randomBytes(16).toString("hex"); /* 32 hex */
+}
+
+function newNonce() {
+  return crypto.randomBytes(32).toString("hex"); /* 64 hex */
+}
+
+function assertNetworkValue(network, required) {
+  if (network === undefined) {
+    if (required) throw invalidRequest("network is required for this request kind");
+    return undefined;
+  }
+  if (typeof network !== "string" || !SIGNER_NETWORKS.includes(network)) {
+    throw invalidRequest(`unknown network ${JSON.stringify(String(network))} — the ${SIGNER_INTERFACE_VERSION_V2} network vocabulary is closed; failing closed`);
+  }
+  return network;
+}
+
+function assertScheme(scheme) {
+  if (typeof scheme !== "string" || !SIGNATURE_SCHEMES.includes(scheme)) {
+    throw invalidRequest("scheme must be explicit and known — the interface never defaults or auto-selects a signature scheme");
+  }
+  return scheme;
+}
+
+function assertAddress(address, required, what) {
+  if (address === undefined) {
+    if (required) throw invalidRequest(`${what} is required for this request kind`);
+    return undefined;
+  }
+  if (typeof address !== "string" || !address.trim() || address.length > 256) {
+    throw invalidRequest(`${what} must be a non-empty address string`);
+  }
+  return address.trim();
+}
+
+function assertTtl(ttlMs) {
+  if (!Number.isInteger(ttlMs) || ttlMs < MIN_TTL_MS || ttlMs > MAX_TTL_MS) {
+    throw invalidRequest(
+      `ttlMs must be an integer between ${MIN_TTL_MS} and ${MAX_TTL_MS} — every v2 request expires (an authorization that never goes stale is a replayable bearer token)`
+    );
+  }
+  return ttlMs;
+}
+
+/*
+ * Canonical frozen signing metadata (v2). Identical to the v1 rule —
+ * every entry is exactly { index: integer >= 0, sighashType: 1 } and
+ * nothing else — but v2 gives the refusal its own code
+ * (UNSUPPORTED_SIGHASH) when the sighash type is the thing that is
+ * wrong, rather than folding it into a generic malformed-request error.
+ */
+function assertCanonicalSignInputsV2(list) {
+  if (!Array.isArray(list) || list.length === 0) {
+    throw invalidRequest("signing metadata missing — refusing to invoke the signer");
+  }
+  const out = [];
+  for (const si of list) {
+    if (!isPlainObject(si)) throw invalidRequest("each signing entry must be a plain object — refusing");
+    const extras = Object.keys(si).filter((k) => k !== "index" && k !== "sighashType");
+    if (extras.length > 0) {
+      throw invalidRequest(`signing entry carries unknown key(s) ${JSON.stringify(extras)} — refusing (closed shape)`);
+    }
+    if (!Number.isInteger(si.index) || si.index < 0) {
+      throw invalidRequest("signing entry index must be an integer >= 0 — refusing");
+    }
+    if (si.sighashType !== SIGHASH_ALL) {
+      throw signerErrorV2(
+        SignerErrorCodesV2.UNSUPPORTED_SIGHASH,
+        `signing entry declares sighashType ${JSON.stringify(si.sighashType)}; PolicyVault emits SIGHASH_ALL (${SIGHASH_ALL}) only — refusing before the signer is invoked`,
+        { details: { index: si.index } }
+      );
+    }
+    out.push(Object.freeze({ index: si.index, sighashType: SIGHASH_ALL }));
+  }
+  return Object.freeze(out);
+}
+
+/*
+ * Personal-message signing request (authentication challenges).
+ * `ttlMs` is REQUIRED: a challenge signature request is an authorization
+ * and expires like one.
+ */
+function createMessageSigningRequestV2({ message, scheme, network, expectedSignerAddress, ttlMs, nowMs } = {}) {
+  if (typeof message !== "string" || message.length === 0) throw invalidRequest("message must be a non-empty string");
+  if (message.length > MAX_MESSAGE_CHARS) throw invalidRequest(`message exceeds ${MAX_MESSAGE_CHARS} characters`);
+  const created = Number.isInteger(nowMs) ? nowMs : Date.now();
+  const ttl = assertTtl(ttlMs);
+  return Object.freeze({
+    interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+    requestId: newRequestId(),
+    nonce: newNonce(),
+    kind: "sign-message",
+    message,
+    payloadSha256: sha256Hex(message),
+    scheme: assertScheme(scheme),
+    network: assertNetworkValue(network, false),
+    expectedSignerAddress: assertAddress(expectedSignerAddress, false, "expectedSignerAddress"),
+    createdAtMs: created,
+    expiresAtMs: created + ttl
+  });
+}
+
+/*
+ * Transaction signing request: FROZEN BYTES IN, BOUND ENVELOPE OUT.
+ * `unsignedSafeJson` is the EXACT frozen serialization from the SDK
+ * builders; this module never parses, rebuilds, edits, trims, or
+ * re-encodes it. `payloadSha256` is the fingerprint of those exact bytes
+ * — the anchor every later binding check is measured against.
+ */
+function createTransactionSigningRequestV2({
+  unsignedSafeJson,
+  signInputs,
+  network,
+  expectedSignerAddress,
+  scheme,
+  transactionFormat,
+  ttlMs,
+  nowMs
+} = {}) {
+  if (typeof unsignedSafeJson !== "string" || unsignedSafeJson.length === 0) {
+    throw invalidRequest("unsignedSafeJson must be the non-empty frozen serialized transaction string");
+  }
+  if (unsignedSafeJson.length > MAX_SAFE_JSON_CHARS) {
+    throw invalidRequest(`unsignedSafeJson exceeds ${MAX_SAFE_JSON_CHARS} characters`);
+  }
+  const fmt = transactionFormat === undefined ? TRANSACTION_FORMATS[0] : transactionFormat;
+  if (typeof fmt !== "string" || !TRANSACTION_FORMATS.includes(fmt)) {
+    throw invalidRequest(`unknown transaction format ${JSON.stringify(String(transactionFormat))} — failing closed`);
+  }
+  const created = Number.isInteger(nowMs) ? nowMs : Date.now();
+  const ttl = assertTtl(ttlMs);
+  return Object.freeze({
+    interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+    requestId: newRequestId(),
+    nonce: newNonce(),
+    kind: "sign-transaction",
+    unsignedSafeJson,
+    payloadSha256: sha256Hex(unsignedSafeJson),
+    signInputs: assertCanonicalSignInputsV2(signInputs),
+    transactionFormat: fmt,
+    /* what this request REQUIRES of the signer's sighash behaviour */
+    sighash: Object.freeze({ all: true, none: false, single: false, anyoneCanPay: false }),
+    network: assertNetworkValue(network, true),
+    expectedSignerAddress: assertAddress(expectedSignerAddress, true, "expectedSignerAddress"),
+    scheme: scheme === undefined ? undefined : assertScheme(scheme),
+    createdAtMs: created,
+    expiresAtMs: created + ttl
+  });
+}
+
+/* Structural re-validation of a v2 request (defense in depth inside
+ * executeSigningV2 — requests are re-checked, never trusted by marker).
+ * The payload digest is RECOMPUTED: a request whose digest does not match
+ * its own payload has been tampered with between creation and use. */
+function assertSigningRequestV2(request) {
+  if (!isPlainObject(request)) throw invalidRequest("signing request must be a plain object");
+  if (request.interfaceVersion !== SIGNER_INTERFACE_VERSION_V2) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      `signing request declares interface version ${JSON.stringify(request.interfaceVersion)}; this core implements exactly ${JSON.stringify(SIGNER_INTERFACE_VERSION_V2)} — failing closed`
+    );
+  }
+  if (typeof request.requestId !== "string" || !HEX32_RE.test(request.requestId)) throw invalidRequest("signing request requestId must be 32-hex");
+  if (typeof request.nonce !== "string" || !HEX64_RE.test(request.nonce)) throw invalidRequest("signing request nonce must be 64-hex (32 CSPRNG bytes)");
+  if (!Number.isInteger(request.createdAtMs) || !Number.isInteger(request.expiresAtMs) || request.expiresAtMs <= request.createdAtMs) {
+    throw invalidRequest("signing request must carry integer createdAtMs and a strictly later expiresAtMs");
+  }
+  if (request.expiresAtMs - request.createdAtMs > MAX_TTL_MS) {
+    throw invalidRequest(`signing request lifetime exceeds ${MAX_TTL_MS}ms — refusing`);
+  }
+
+  if (request.kind === "sign-message") {
+    if (typeof request.message !== "string" || !request.message || request.message.length > MAX_MESSAGE_CHARS) {
+      throw invalidRequest("sign-message request message is malformed");
+    }
+    if (request.payloadSha256 !== sha256Hex(request.message)) {
+      throw signerErrorV2(
+        SignerErrorCodesV2.PAYLOAD_MUTATED,
+        "sign-message request payload digest does not match its own message — the request was altered after creation; refusing"
+      );
+    }
+    assertScheme(request.scheme);
+    assertNetworkValue(request.network, false);
+    assertAddress(request.expectedSignerAddress, false, "expectedSignerAddress");
+    return request;
+  }
+  if (request.kind === "sign-transaction") {
+    if (typeof request.unsignedSafeJson !== "string" || !request.unsignedSafeJson || request.unsignedSafeJson.length > MAX_SAFE_JSON_CHARS) {
+      throw invalidRequest("sign-transaction request unsignedSafeJson is malformed");
+    }
+    if (request.payloadSha256 !== sha256Hex(request.unsignedSafeJson)) {
+      throw signerErrorV2(
+        SignerErrorCodesV2.PAYLOAD_MUTATED,
+        "sign-transaction request payload digest does not match its own unsignedSafeJson — the frozen bytes were altered after the request was created; refusing before the signer is invoked"
+      );
+    }
+    assertCanonicalSignInputsV2(request.signInputs);
+    if (typeof request.transactionFormat !== "string" || !TRANSACTION_FORMATS.includes(request.transactionFormat)) {
+      throw signerErrorV2(
+        SignerErrorCodesV2.UNSUPPORTED_TRANSACTION_FORMAT,
+        `signing request pins unknown transaction format ${JSON.stringify(String(request.transactionFormat))} — failing closed`
+      );
+    }
+    if (!isPlainObject(request.sighash) || request.sighash.all !== true) {
+      throw signerErrorV2(SignerErrorCodesV2.UNSUPPORTED_SIGHASH, "sign-transaction request must require sighash.all — refusing");
+    }
+    assertNetworkValue(request.network, true);
+    assertAddress(request.expectedSignerAddress, true, "expectedSignerAddress");
+    if (request.scheme !== undefined) assertScheme(request.scheme);
+    return request;
+  }
+  throw invalidRequest(`unknown signing request kind ${JSON.stringify(String(request.kind))} — failing closed`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Response envelopes (v2)                                             */
+/* ------------------------------------------------------------------ */
+
+const ENVELOPE_KEYS = Object.freeze([
+  "interfaceVersion",
+  "requestId",
+  "nonce",
+  "kind",
+  "network",
+  "signerAddress",
+  "scheme",
+  "payloadSha256",
+  "sighashType",
+  "transactionFormat",
+  "signedTxId",
+  "result"
+]);
+
+/*
+ * Builds the response envelope an adapter returns. Provided so adapters
+ * never hand-assemble the binding fields (and so the shape has exactly
+ * one producer). The adapter supplies the signing RESULT; every binding
+ * field is copied from the REQUEST, which is why a mis-bound envelope can
+ * only come from a transport substitution, a replay, or a signer that
+ * answered a different request — precisely the cases v2 detects.
+ */
+function buildResponseEnvelope(request, result, extra = {}) {
+  if (!isPlainObject(request)) throw invalidRequest("buildResponseEnvelope requires the signing request");
+  if (!isPlainObject(extra)) throw invalidRequest("buildResponseEnvelope extras must be a plain object");
+  for (const key of Object.keys(extra)) {
+    if (key !== "signerAddress" && key !== "signedTxId") {
+      throw invalidRequest(`unknown buildResponseEnvelope extra ${JSON.stringify(key)} — failing closed`);
+    }
+  }
+  const envelope = {
+    interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+    requestId: request.requestId,
+    nonce: request.nonce,
+    kind: request.kind,
+    network: request.network === undefined ? null : request.network,
+    signerAddress: extra.signerAddress !== undefined ? extra.signerAddress : request.expectedSignerAddress === undefined ? null : request.expectedSignerAddress,
+    scheme: request.scheme === undefined ? null : request.scheme,
+    payloadSha256: request.payloadSha256,
+    sighashType: request.kind === "sign-transaction" ? SIGHASH_ALL : null,
+    transactionFormat: request.kind === "sign-transaction" ? request.transactionFormat : null,
+    result
+  };
+  if (extra.signedTxId !== undefined) envelope.signedTxId = extra.signedTxId;
+  return Object.freeze(envelope);
+}
+
+/*
+ * Validates a response envelope AGAINST its request. Every mismatch is a
+ * distinct, structured refusal — this function is the reason a v2
+ * consumer can tell "the holder declined" from "the transport handed me
+ * somebody else's signature".
+ *
+ * Order matters: version -> shape -> binding -> sighash/format ->
+ * payload identity -> result shape. The cheapest, most fundamental
+ * refusals happen first, and no signature material is examined until the
+ * envelope is proven to belong to this request.
+ */
+function validateResponseEnvelope(request, envelope) {
+  if (!isPlainObject(envelope)) {
+    throw signerErrorV2(SignerErrorCodesV2.RESPONSE_BINDING_MISMATCH, "signer returned no response envelope — v2 responses are bound envelopes, never bare values");
+  }
+  if (envelope.interfaceVersion !== SIGNER_INTERFACE_VERSION_V2) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      `response envelope declares interface version ${JSON.stringify(envelope.interfaceVersion)}; expected exactly ${JSON.stringify(SIGNER_INTERFACE_VERSION_V2)} — failing closed`
+    );
+  }
+  for (const key of Object.keys(envelope)) {
+    if (!ENVELOPE_KEYS.includes(key)) {
+      throw violation(`response envelope carries unknown key ${JSON.stringify(key)} — refusing (closed schema)`);
+    }
+  }
+
+  const bindingMismatch = (what, expected, got) =>
+    signerErrorV2(SignerErrorCodesV2.RESPONSE_BINDING_MISMATCH, `response envelope ${what} does not match the request (expected ${JSON.stringify(expected)}, got ${JSON.stringify(got)}) — refusing`, {
+      details: { field: what }
+    });
+
+  if (envelope.requestId !== request.requestId) throw bindingMismatch("requestId", request.requestId, envelope.requestId);
+  if (envelope.nonce !== request.nonce) throw bindingMismatch("nonce", request.nonce, envelope.nonce);
+  if (envelope.kind !== request.kind) throw bindingMismatch("kind", request.kind, envelope.kind);
+
+  const expectedNetwork = request.network === undefined ? null : request.network;
+  if (envelope.network !== expectedNetwork) {
+    /* a signature produced under a different network identity is a
+     * WRONG_NETWORK condition, not a generic binding slip */
+    throw signerErrorV2(
+      SignerErrorCodesV2.WRONG_NETWORK,
+      `response envelope reports network ${JSON.stringify(envelope.network)}, request is bound to ${JSON.stringify(expectedNetwork)} — refusing`
+    );
+  }
+  if (request.expectedSignerAddress !== undefined && envelope.signerAddress !== request.expectedSignerAddress) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.ACCOUNT_CHANGED,
+      "response envelope was signed by a different identity than the request is bound to — discarding the signature"
+    );
+  }
+  const expectedScheme = request.scheme === undefined ? null : request.scheme;
+  if (envelope.scheme !== expectedScheme) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.UNSUPPORTED_SCHEME,
+      `response envelope declares scheme ${JSON.stringify(envelope.scheme)}, request pinned ${JSON.stringify(expectedScheme)} — refusing (the scheme is never re-negotiated by the signer)`
+    );
+  }
+
+  if (request.kind === "sign-transaction") {
+    if (envelope.sighashType !== SIGHASH_ALL) {
+      throw signerErrorV2(
+        SignerErrorCodesV2.UNSUPPORTED_SIGHASH,
+        `response envelope reports sighashType ${JSON.stringify(envelope.sighashType)}; PolicyVault accepts SIGHASH_ALL (${SIGHASH_ALL}) only — discarding the signature`
+      );
+    }
+    if (envelope.transactionFormat !== request.transactionFormat) {
+      throw signerErrorV2(
+        SignerErrorCodesV2.UNSUPPORTED_TRANSACTION_FORMAT,
+        `response envelope reports transaction format ${JSON.stringify(envelope.transactionFormat)}, request pinned ${JSON.stringify(request.transactionFormat)} — refusing`
+      );
+    }
+  } else {
+    if (envelope.sighashType !== null) throw bindingMismatch("sighashType", null, envelope.sighashType);
+    if (envelope.transactionFormat !== null) throw bindingMismatch("transactionFormat", null, envelope.transactionFormat);
+  }
+
+  if (envelope.payloadSha256 !== request.payloadSha256) {
+    throw signerErrorV2(
+      SignerErrorCodesV2.PAYLOAD_MUTATED,
+      "response envelope reports a different payload digest than the bytes PolicyVault verified and sent — the signature is not over the verified bytes; discarding it",
+      { details: { expectedSha256: request.payloadSha256, reportedSha256: String(envelope.payloadSha256).slice(0, 64) } }
+    );
+  }
+
+  if (!isPlainObject(envelope.result)) {
+    throw signerErrorV2(SignerErrorCodesV2.INVALID_SIGNATURE_RESPONSE, "response envelope carries no result object");
+  }
+  if (request.kind === "sign-message") {
+    const keys = Object.keys(envelope.result);
+    if (keys.length !== 1 || keys[0] !== "signature") {
+      throw signerErrorV2(SignerErrorCodesV2.INVALID_SIGNATURE_RESPONSE, 'sign-message result must carry exactly { signature } — refusing (closed shape)');
+    }
+    if (request.scheme === "ecdsa") {
+      throw signerErrorV2(
+        SignerErrorCodesV2.UNSUPPORTED_SCHEME,
+        "interface v2 defines no verified ECDSA personal-message response contract — failing closed (hosted auth refuses ECDSA/Tangem accounts)"
+      );
+    }
+    const raw = envelope.result.signature;
+    if (typeof raw !== "string" || !SCHNORR_SIG_RE.test(raw.trim().toLowerCase())) {
+      throw signerErrorV2(SignerErrorCodesV2.INVALID_SIGNATURE_RESPONSE, "signer returned an unexpected personal-message signature format (expected 128-hex Schnorr)");
+    }
+    return Object.freeze({ signature: raw.trim().toLowerCase() });
+  }
+
+  const keys = Object.keys(envelope.result);
+  if (keys.length !== 1 || keys[0] !== "signedSafeJson") {
+    throw signerErrorV2(SignerErrorCodesV2.INVALID_SIGNATURE_RESPONSE, "sign-transaction result must carry exactly { signedSafeJson } — refusing (closed shape)");
+  }
+  const signed = envelope.result.signedSafeJson;
+  if (typeof signed !== "string" || !signed.trim()) {
+    throw signerErrorV2(SignerErrorCodesV2.INVALID_SIGNATURE_RESPONSE, "signer returned no signed transaction serialization");
+  }
+  if (signed.length > MAX_SAFE_JSON_CHARS) {
+    throw signerErrorV2(SignerErrorCodesV2.INVALID_SIGNATURE_RESPONSE, `signed serialization exceeds ${MAX_SAFE_JSON_CHARS} characters — refusing`);
+  }
+  /* returned VERBATIM — never trimmed, never re-encoded: a downstream
+   * validator will check these exact bytes against the frozen txid. */
+  return Object.freeze({ signedSafeJson: signed });
+}
+
+/* ------------------------------------------------------------------ */
+/* Replay guard + cancellation token                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Session-scoped single-use ledger for requestIds and nonces.
+ *
+ * WHY: a transport that can deliver a response can usually deliver it
+ * TWICE (a duplicate deep-link callback, a QR frame scanned again, a
+ * relay retry), and an attacker who captured a valid response can hand
+ * it back at a later request. Envelope binding already refuses the
+ * second case when the new request has a new nonce; the guard makes the
+ * refusal explicit, ordered, and independent of whether the attacker
+ * happened to keep the old request around.
+ *
+ * `open(request)` claims the pair; `consume(request)` spends it exactly
+ * once. A second consume is DUPLICATE_SETTLEMENT; a nonce or requestId
+ * seen before under a DIFFERENT request is REPLAY_DETECTED.
+ */
+function createReplayGuard() {
+  const openRequests = new Map(); /* requestId -> nonce */
+  const seenNonces = new Map(); /* nonce -> requestId */
+  const settled = new Set(); /* requestIds already consumed */
+
+  return Object.freeze({
+    open(request) {
+      const { requestId, nonce } = request;
+      if (settled.has(requestId)) {
+        throw signerErrorV2(SignerErrorCodesV2.DUPLICATE_SETTLEMENT, `signing request ${requestId} already reached a terminal state — refusing to re-open it`);
+      }
+      const priorNonceOwner = seenNonces.get(nonce);
+      if (priorNonceOwner !== undefined && priorNonceOwner !== requestId) {
+        throw signerErrorV2(SignerErrorCodesV2.REPLAY_DETECTED, "signing request reuses a nonce already issued to a different request — refusing (nonces are single-use)");
+      }
+      const priorNonce = openRequests.get(requestId);
+      if (priorNonce !== undefined && priorNonce !== nonce) {
+        throw signerErrorV2(SignerErrorCodesV2.REPLAY_DETECTED, `signing request id ${requestId} was already issued with a different nonce — refusing`);
+      }
+      openRequests.set(requestId, nonce);
+      seenNonces.set(nonce, requestId);
+      return true;
+    },
+    consume(request) {
+      const { requestId, nonce } = request;
+      if (settled.has(requestId)) {
+        throw signerErrorV2(SignerErrorCodesV2.DUPLICATE_SETTLEMENT, `a settlement for signing request ${requestId} was already accepted — refusing the duplicate`);
+      }
+      const openNonce = openRequests.get(requestId);
+      if (openNonce === undefined) {
+        throw signerErrorV2(SignerErrorCodesV2.RESPONSE_BINDING_MISMATCH, `no open signing request ${requestId} — refusing a settlement for a request this session never issued`);
+      }
+      if (openNonce !== nonce) {
+        throw signerErrorV2(SignerErrorCodesV2.REPLAY_DETECTED, "settlement nonce does not match the nonce this request was issued with — refusing");
+      }
+      settled.add(requestId);
+      openRequests.delete(requestId);
+      return true;
+    },
+    isSettled(requestId) {
+      return settled.has(requestId);
+    },
+    /* diagnostics only (counts, never material) */
+    stats() {
+      return Object.freeze({ open: openRequests.size, settled: settled.size, noncesSeen: seenNonces.size });
+    }
+  });
+}
+
+/*
+ * A minimal cancellation token. Deliberately not AbortController: this
+ * module must behave identically in Node and in the browser bundle with
+ * no ambient-global assumptions, and the token carries a REASON the
+ * lifecycle can report.
+ */
+function createCancellationToken() {
+  const state = { cancelled: false, reason: null, listeners: [] };
+  return Object.freeze({
+    get cancelled() {
+      return state.cancelled;
+    },
+    get reason() {
+      return state.reason;
+    },
+    cancel(reason) {
+      if (state.cancelled) return false;
+      state.cancelled = true;
+      state.reason = typeof reason === "string" && reason.trim() ? reason.slice(0, 256) : "cancelled by the consumer";
+      const listeners = state.listeners.splice(0, state.listeners.length);
+      for (const cb of listeners) {
+        try {
+          cb(state.reason);
+        } catch {
+          /* a cancellation observer must never alter the outcome */
+        }
+      }
+      return true;
+    },
+    onCancel(cb) {
+      if (typeof cb !== "function") return;
+      if (state.cancelled) {
+        try {
+          cb(state.reason);
+        } catch {
+          /* isolated */
+        }
+        return;
+      }
+      state.listeners.push(cb);
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Signing execution + approval lifecycle (v2)                         */
+/* ------------------------------------------------------------------ */
+
+function emitTransition(onTransition, requestId, state, extra) {
+  if (typeof onTransition !== "function") return;
+  try {
+    onTransition(Object.freeze({ requestId, state, atMs: Date.now(), ...(extra || {}) }));
+  } catch {
+    /* observers must never alter signing outcomes */
+  }
+}
+
+async function activeAccountAddress(adapter) {
+  const account = await adapter.getActiveAccount();
+  if (account === null || account === undefined) return null;
+  if (isPlainObject(account) && typeof account.address === "string" && account.address.trim()) return account.address.trim();
+  throw violation("adapter getActiveAccount() must return null or { address: <non-empty string> }");
+}
+
+const EXECUTE_OPTIONS_V2 = Object.freeze([
+  "timeoutMs",
+  "onTransition",
+  "nowMs",
+  "replayGuard",
+  "cancellation",
+  "deriveTransactionId",
+  "requireUserPresence",
+  "allowedTransports",
+  "requireProbedCapabilities"
+]);
+
+/*
+ * Drives one v2 request through a validated adapter with every
+ * fail-closed gate, in this order (nothing reaches the signer until all
+ * pre-gates pass):
+ *
+ *   0. request re-validation (incl. payload-digest recomputation)
+ *   1. replay guard: claim requestId + nonce (single use)
+ *   2. expiry: the request must not already be stale
+ *   3. capability probe: declaration vs observed provider reality
+ *   4. capability / scheme gates
+ *   5. sighash gate       (SIGHASH_ALL declared by the signer)
+ *   6. transaction-format gate (exact pin)
+ *   7. transport gate     (consumer's allowed set)
+ *   8. user-presence gate (consumer's requirement)
+ *   9. deadline gate      (async signers require an explicit timeoutMs;
+ *                          the deadline is clamped to the request expiry
+ *                          and to the signer's declared maxTimeoutMs)
+ *  10. network gate       (declared AND live; unknown/null fails closed)
+ *  11. identity gate      (live active account === expectedSignerAddress)
+ *
+ * then SUBMITTED -> settlement race (provider / timeout / expiry /
+ * cancellation) -> envelope binding validation -> single-use consume ->
+ * transaction-identity re-derivation (when a deriver is injected) ->
+ * post-approval identity re-check -> APPROVED.
+ *
+ * Exactly ONE terminal transition is emitted; late provider settlements
+ * are DISCARDED and can never deliver a signature.
+ */
+async function executeSigningV2(adapterOrRegistration, request, options = {}) {
+  if (!isPlainObject(options)) throw invalidRequest("options must be a plain object");
+  for (const key of Object.keys(options)) {
+    if (!EXECUTE_OPTIONS_V2.includes(key)) {
+      throw invalidRequest(`unknown executeSigning option ${JSON.stringify(key)} — failing closed`);
+    }
+  }
+  const {
+    timeoutMs,
+    onTransition,
+    nowMs,
+    replayGuard,
+    cancellation,
+    deriveTransactionId,
+    requireUserPresence,
+    allowedTransports,
+    requireProbedCapabilities
+  } = options;
+
+  if (timeoutMs !== undefined && (!Number.isInteger(timeoutMs) || timeoutMs <= 0)) {
+    throw invalidRequest("timeoutMs must be a positive integer when provided");
+  }
+  if (deriveTransactionId !== undefined && typeof deriveTransactionId !== "function") {
+    throw invalidRequest("deriveTransactionId must be a function when provided");
+  }
+  if (requireUserPresence !== undefined && typeof requireUserPresence !== "boolean") {
+    throw invalidRequest("requireUserPresence must be a boolean when provided");
+  }
+  if (requireProbedCapabilities !== undefined && typeof requireProbedCapabilities !== "boolean") {
+    throw invalidRequest("requireProbedCapabilities must be a boolean when provided");
+  }
+  const now = () => (Number.isInteger(nowMs) ? nowMs : Date.now());
+
+  const registration =
+    isPlainObject(adapterOrRegistration) && adapterOrRegistration.adapter && adapterOrRegistration.descriptor
+      ? Object.freeze({ adapter: adapterOrRegistration.adapter, descriptor: validateCapabilityDescriptorV2(adapterOrRegistration.descriptor) })
+      : validateAdapterV2(adapterOrRegistration);
+  const { adapter, descriptor } = registration;
+
+  assertSigningRequestV2(request);
+
+  const refuse = (err) => {
+    emitTransition(onTransition, request.requestId, "REFUSED", { code: err.signerCode });
+    throw err;
+  };
+
+  /* 1. replay guard — single-use requestId/nonce for this session */
+  const guard = replayGuard === undefined ? createReplayGuard() : replayGuard;
+  if (!isPlainObject(guard) || typeof guard.open !== "function" || typeof guard.consume !== "function") {
+    throw invalidRequest("replayGuard must be a createReplayGuard() token when provided");
+  }
+  try {
+    guard.open(request);
+  } catch (e) {
+    refuse(normalizeAdapterFailureV2(e, "replayGuard"));
+  }
+
+  /* 2. expiry (stale request) */
+  if (now() >= request.expiresAtMs) {
+    refuse(
+      signerErrorV2(
+        SignerErrorCodesV2.REQUEST_EXPIRED,
+        `signing request ${request.requestId} expired at ${request.expiresAtMs} — refusing to present a stale authorization to the signer`
+      )
+    );
+  }
+
+  /* 3. capability probe — declaration vs observed reality */
+  let probeResult;
+  try {
+    probeResult = verifyDeclaredCapabilities(descriptor, await adapter.probeCapabilities());
+  } catch (e) {
+    refuse(normalizeAdapterFailureV2(e, "probeCapabilities"));
+  }
+  if (requireProbedCapabilities === true && probeResult.probed !== true) {
+    refuse(
+      signerErrorV2(
+        SignerErrorCodesV2.CAPABILITY_MISMATCH,
+        `adapter ${descriptor.provider} could not be probed (${probeResult.reason || "no reason given"}) and this consumer requires probed capabilities — refusing`
+      )
+    );
+  }
+
+  /* 4. capability + scheme gates */
+  if (request.kind === "sign-message" && descriptor.features.messageSigning !== true) {
+    refuse(signerErrorV2(SignerErrorCodesV2.UNSUPPORTED_CAPABILITY, `adapter ${descriptor.provider} does not offer messageSigning`));
+  }
+  if (request.kind === "sign-transaction") {
+    if (descriptor.features.transactionSigning !== true) {
+      refuse(signerErrorV2(SignerErrorCodesV2.UNSUPPORTED_CAPABILITY, `adapter ${descriptor.provider} does not offer transactionSigning`));
+    }
+    if (descriptor.features.specificInputSigning !== true) {
+      refuse(
+        signerErrorV2(
+          SignerErrorCodesV2.UNSUPPORTED_CAPABILITY,
+          `adapter ${descriptor.provider} cannot sign exactly the named inputs (specificInputSigning) — v2 transaction requests always carry canonical per-input signing entries; refusing`
+        )
+      );
+    }
+    /* 5. sighash gate */
+    if (descriptor.sighash.all !== true) {
+      refuse(
+        signerErrorV2(
+          SignerErrorCodesV2.UNSUPPORTED_SIGHASH,
+          `adapter ${descriptor.provider} does not declare SIGHASH_ALL — PolicyVault signs with SIGHASH_ALL only; refusing before the signer is invoked`
+        )
+      );
+    }
+    /* 6. transaction-format gate (exact pin) */
+    if (!descriptor.transactionFormats.includes(request.transactionFormat)) {
+      refuse(
+        signerErrorV2(
+          SignerErrorCodesV2.UNSUPPORTED_TRANSACTION_FORMAT,
+          `adapter ${descriptor.provider} does not speak transaction format ${JSON.stringify(request.transactionFormat)} — refusing`
+        )
+      );
+    }
+  }
+  if (request.scheme !== undefined && !descriptor.schemes.includes(request.scheme)) {
+    refuse(signerErrorV2(SignerErrorCodesV2.UNSUPPORTED_SCHEME, `adapter ${descriptor.provider} does not offer scheme ${JSON.stringify(request.scheme)}`));
+  }
+  if (request.kind === "sign-message" && request.scheme !== "schnorr") {
+    refuse(
+      signerErrorV2(
+        SignerErrorCodesV2.UNSUPPORTED_SCHEME,
+        `interface v2 defines a verified response contract only for schnorr personal-message signatures; refusing scheme ${JSON.stringify(request.scheme)} before invoking the signer`
+      )
+    );
+  }
+
+  /* 7. transport gate */
+  if (allowedTransports !== undefined) {
+    let allowed;
+    try {
+      allowed = uniqueKnownList(allowedTransports, TRANSPORT_KINDS, "allowedTransports", invalidRequest);
+    } catch (e) {
+      refuse(normalizeAdapterFailureV2(e, "allowedTransports"));
+    }
+    if (allowed.length === 0) refuse(invalidRequest("allowedTransports must be non-empty when provided"));
+    if (!allowed.includes(descriptor.transport)) {
+      refuse(
+        signerErrorV2(
+          SignerErrorCodesV2.TRANSPORT_UNSUPPORTED,
+          `adapter ${descriptor.provider} uses the ${descriptor.transport} transport, which this consumer does not accept for this request — refusing`
+        )
+      );
+    }
+  }
+
+  /* 8. user-presence gate */
+  if (requireUserPresence === true && descriptor.userPresence !== "required") {
+    refuse(
+      signerErrorV2(
+        SignerErrorCodesV2.USER_PRESENCE_REQUIRED,
+        `adapter ${descriptor.provider} declares userPresence ${JSON.stringify(descriptor.userPresence)} but this request requires a human present at the signer — refusing`
+      )
+    );
+  }
+
+  /* 9. deadline gate */
+  if (descriptor.features.asynchronousApproval === true && timeoutMs === undefined) {
+    refuse(
+      signerErrorV2(
+        SignerErrorCodesV2.REQUEST_INVALID,
+        `adapter ${descriptor.provider} settles approvals asynchronously — an explicit timeoutMs is required (an unbounded wait is refused, fail closed)`
+      )
+    );
+  }
+  if (timeoutMs !== undefined && timeoutMs > descriptor.maxTimeoutMs) {
+    refuse(
+      signerErrorV2(
+        SignerErrorCodesV2.REQUEST_INVALID,
+        `timeoutMs ${timeoutMs} exceeds the deadline adapter ${descriptor.provider} declares it can honour (${descriptor.maxTimeoutMs}) — refusing rather than waiting past the signer's own limit`
+      )
+    );
+  }
+
+  /* 10. network gate — declared AND live */
+  if (request.network !== undefined) {
+    if (!descriptor.networks.includes(request.network)) {
+      refuse(signerErrorV2(SignerErrorCodesV2.WRONG_NETWORK, `adapter ${descriptor.provider} does not declare network ${JSON.stringify(request.network)}`));
+    }
+    let liveNetwork;
+    try {
+      liveNetwork = await adapter.getNetwork();
+    } catch (e) {
+      refuse(normalizeAdapterFailureV2(e, "getNetwork"));
+    }
+    if (liveNetwork !== request.network) {
+      refuse(
+        signerErrorV2(
+          SignerErrorCodesV2.WRONG_NETWORK,
+          `signer reports network ${JSON.stringify(liveNetwork === undefined ? null : liveNetwork)}, required ${JSON.stringify(request.network)} — failing closed`
+        )
+      );
+    }
+  }
+
+  /* 11. identity gate (pre-invocation) */
+  if (request.expectedSignerAddress !== undefined) {
+    let before;
+    try {
+      before = await activeAccountAddress(adapter);
+    } catch (e) {
+      refuse(normalizeAdapterFailureV2(e, "getActiveAccount"));
+    }
+    if (before === null) refuse(signerErrorV2(SignerErrorCodesV2.SIGNER_DISCONNECTED, "no active signer account — connect the signer first"));
+    if (before !== request.expectedSignerAddress) {
+      refuse(
+        signerErrorV2(
+          SignerErrorCodesV2.ACCOUNT_CHANGED,
+          "the active signer account is not the expected signer — refusing to request a signature from a different identity"
+        )
+      );
+    }
+  }
+
+  /* ---- invoke the external signer ---- */
+  emitTransition(onTransition, request.requestId, "SUBMITTED");
+  const invoke = request.kind === "sign-message" ? () => adapter.signMessage(request) : () => adapter.signTransaction(request);
+  const providerPromise = Promise.resolve().then(invoke);
+  providerPromise.catch(() => {}); /* consumed through the settlement race — never unhandled */
+
+  /* the effective deadline is the EARLIEST of: the consumer's timeout and
+   * the request's own expiry. A signer is never given more time than the
+   * authorization itself is valid for. */
+  const deadlines = [];
+  if (timeoutMs !== undefined) deadlines.push({ at: now() + timeoutMs, kind: "timeout" });
+  deadlines.push({ at: request.expiresAtMs, kind: "expiry" });
+  deadlines.sort((a, b) => a.at - b.at);
+  const deadline = deadlines[0];
+  const waitMs = Math.max(0, deadline.at - now());
+
+  let timer = null;
+  let outcome;
+  try {
+    outcome = await new Promise((resolve) => {
+      /* NOT unref'd: the deadline is the thing that must keep the runtime
+       * alive while an out-of-band approval is outstanding. It is always
+       * cleared in the finally below, so it can never leak. */
+      timer = setTimeout(() => resolve({ deadline: deadline.kind }), waitMs);
+      if (isPlainObject(cancellation) && typeof cancellation.onCancel === "function") {
+        if (cancellation.cancelled === true) resolve({ cancelled: cancellation.reason });
+        else cancellation.onCancel((reason) => resolve({ cancelled: reason }));
+      }
+      providerPromise.then(
+        (value) => resolve({ value }),
+        (error) => resolve({ error })
+      );
+    });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
+  /* best-effort revocation shared by the timeout / expiry / cancel paths.
+   * A cancellation failure never masks the terminal condition. */
+  const bestEffortCancel = async () => {
+    if (typeof adapter.cancelSigning !== "function") return;
+    try {
+      await adapter.cancelSigning(request.requestId);
+    } catch {
+      /* best-effort */
+    }
+  };
+
+  if (outcome.cancelled !== undefined) {
+    await bestEffortCancel();
+    emitTransition(onTransition, request.requestId, "CANCELLED");
+    throw signerErrorV2(
+      SignerErrorCodesV2.REQUEST_CANCELLED,
+      `signing request ${request.requestId} was cancelled by the consumer (${outcome.cancelled}) — any later settlement is discarded`
+    );
+  }
+  if (outcome.deadline !== undefined) {
+    await bestEffortCancel();
+    if (outcome.deadline === "expiry") {
+      emitTransition(onTransition, request.requestId, "EXPIRED");
+      throw signerErrorV2(
+        SignerErrorCodesV2.REQUEST_EXPIRED,
+        `signing request ${request.requestId} expired before the signer settled — cancelled fail-closed; any later settlement is discarded`
+      );
+    }
+    emitTransition(onTransition, request.requestId, "TIMED_OUT");
+    throw signerErrorV2(SignerErrorCodesV2.SIGNER_TIMEOUT, `signing request ${request.requestId} was not approved within ${timeoutMs}ms — cancelled fail-closed`);
+  }
+
+  if (outcome.error !== undefined) {
+    const err = normalizeAdapterFailureV2(outcome.error, request.kind);
+    emitTransition(onTransition, request.requestId, err.signerCode === SignerErrorCodesV2.USER_REJECTED ? "REJECTED" : "FAILED", { code: err.signerCode });
+    throw err;
+  }
+
+  /* A settlement that arrives after the request's own expiry is stale
+   * even if the race resolved first (clock advanced during validation). */
+  const fail = (err) => {
+    emitTransition(onTransition, request.requestId, "FAILED", { code: err.signerCode });
+    throw err;
+  };
+
+  let result;
+  try {
+    result = validateResponseEnvelope(request, outcome.value);
+  } catch (e) {
+    fail(normalizeAdapterFailureV2(e, request.kind));
+  }
+
+  /* single-use settlement: a duplicate callback or a replayed envelope
+   * cannot be accepted twice */
+  try {
+    guard.consume(request);
+  } catch (e) {
+    fail(normalizeAdapterFailureV2(e, "settlement"));
+  }
+
+  /* transaction-identity re-derivation (injected; the core holds no
+   * transaction code). Kaspa txids EXCLUDE signature scripts, so a
+   * correctly signed transaction has the SAME id as the unsigned one —
+   * a different id means different consensus-visible bytes were signed. */
+  let txIdVerified = false;
+  let transactionId = null;
+  if (request.kind === "sign-transaction" && deriveTransactionId !== undefined) {
+    let unsignedId;
+    let signedId;
+    try {
+      unsignedId = deriveTransactionId(request.unsignedSafeJson);
+      signedId = deriveTransactionId(result.signedSafeJson);
+    } catch (e) {
+      fail(
+        signerErrorV2(SignerErrorCodesV2.PAYLOAD_MUTATED, "the signed serialization could not be parsed to re-derive its transaction id — refusing to accept unverifiable bytes", {
+          cause: e
+        })
+      );
+    }
+    if (typeof unsignedId !== "string" || !unsignedId || typeof signedId !== "string" || !signedId) {
+      fail(violation("deriveTransactionId must return a non-empty transaction id string — refusing"));
+    }
+    if (unsignedId !== signedId) {
+      fail(
+        signerErrorV2(
+          SignerErrorCodesV2.PAYLOAD_MUTATED,
+          "the signer returned a DIFFERENT transaction than the one PolicyVault verified and sent (transaction id drift) — discarding the signature",
+          { details: { expectedTxId: unsignedId, returnedTxId: signedId } }
+        )
+      );
+    }
+    if (isPlainObject(outcome.value) && outcome.value.signedTxId !== undefined && outcome.value.signedTxId !== signedId) {
+      fail(
+        signerErrorV2(
+          SignerErrorCodesV2.RESPONSE_BINDING_MISMATCH,
+          "the response envelope claims a transaction id that the signed bytes do not produce — refusing",
+          { details: { claimed: String(outcome.value.signedTxId).slice(0, 128), derived: signedId } }
+        )
+      );
+    }
+    txIdVerified = true;
+    transactionId = signedId;
+  }
+
+  /* post-approval identity re-check: a mid-prompt account switch discards
+   * the signature (v1 parity, mirroring web/app-v4.js walletSign I). */
+  if (request.expectedSignerAddress !== undefined) {
+    let after = null;
+    try {
+      after = await activeAccountAddress(adapter);
+    } catch (e) {
+      fail(normalizeAdapterFailureV2(e, "getActiveAccount"));
+    }
+    if (after !== request.expectedSignerAddress) {
+      fail(
+        signerErrorV2(
+          SignerErrorCodesV2.ACCOUNT_CHANGED,
+          "signer account changed during signing — refusing to accept a signature from a different identity"
+        )
+      );
+    }
+  }
+
+  emitTransition(onTransition, request.requestId, "APPROVED");
+  return Object.freeze({
+    interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+    requestId: request.requestId,
+    status: "approved",
+    provider: descriptor.provider,
+    transport: descriptor.transport,
+    capabilitiesProbed: probeResult.probed === true,
+    txIdVerified,
+    transactionId,
+    result
+  });
+}
+
+module.exports = {
+  SIGNER_INTERFACE_VERSION_V2,
+  SIGNATURE_SCHEMES,
+  SIGNER_NETWORKS,
+  ADAPTER_KINDS,
+  CAPABILITY_FEATURES,
+  REQUEST_KINDS,
+  SIGHASH_ALL,
+  SIGHASH_FLAGS,
+  TRANSACTION_FORMATS,
+  PSKT_ROLES,
+  TRANSPORT_KINDS,
+  USER_PRESENCE_MODES,
+  CANCELLATION_MODES,
+  SIGNING_STATES_V2,
+  REQUIRED_METHODS_V2,
+  FEATURE_METHODS_V2,
+  DESCRIPTOR_KEYS_V2,
+  REQUIREMENT_KEYS_V2,
+  ENVELOPE_KEYS,
+  MIN_TTL_MS,
+  MAX_TTL_MS,
+  POLICYVAULT_TRANSACTION_REQUIREMENTS,
+  validateCapabilityDescriptorV2,
+  validateProbeReport,
+  verifyDeclaredCapabilities,
+  validateAdapterV2,
+  SignerRegistryV2,
+  negotiateCapabilitiesV2,
+  requireCapabilitiesV2,
+  normalizePublicKeyToXOnly: v1.normalizePublicKeyToXOnly,
+  assertCanonicalSignInputsV2,
+  createMessageSigningRequestV2,
+  createTransactionSigningRequestV2,
+  assertSigningRequestV2,
+  buildResponseEnvelope,
+  validateResponseEnvelope,
+  createReplayGuard,
+  createCancellationToken,
+  executeSigningV2,
+  sha256Hex
+};
+  });
+
+  define("core/signer/v2/adapters/lift", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault Universal Signer Interface — LIFT: run an existing,
+ * conformant interface-v1 adapter behind the v2 contract.
+ *
+ * WHY A LIFT RATHER THAN A REWRITE. v1 adapters (the production KasWare
+ * browser adapter, the offline CLI keyfile signer) are reviewed, tested
+ * code whose provider calls are byte-exact reproductions of the shipped
+ * flow. Rewriting them for v2 would put every one of those bytes back on
+ * the table. The lift instead keeps the v1 adapter EXACTLY as it is and
+ * adds, around it, only what v2 introduces:
+ *
+ *   - a v2 capability descriptor, whose EXTRA declarations the caller
+ *     must state EXPLICITLY (sighash, pskt, transaction formats, user
+ *     presence, transport, cancellation, maxTimeoutMs). Nothing is
+ *     inferred: a lift that guessed "probably SIGHASH_ALL" would be
+ *     exactly the silent capability assumption v2 exists to abolish. The
+ *     v1 half of the descriptor (provider, label, kind, schemes,
+ *     networks, features) is carried over VERBATIM from the v1
+ *     descriptor, which the lift re-validates through v1 first.
+ *   - a capability PROBE (caller-supplied; a lift cannot invent one).
+ *   - v2 -> v1 request translation, and v1 -> v2 response ENVELOPE
+ *     construction.
+ *
+ * HONEST LIMITATION OF A LIFTED ADAPTER (stated here and in the spec).
+ * A v1 adapter returns a BARE signature/serialization: it has no
+ * vocabulary for the binding fields. The envelope is therefore assembled
+ * by the LIFT from the request plus the adapter's own live
+ * getActiveAccount() answer. Consequently:
+ *
+ *   - envelope binding (requestId, nonce, kind, network, scheme, payload
+ *     digest) proves the transport between the LIFT and the consumer,
+ *     NOT the segment between the lift and the signer;
+ *   - `signerAddress` IS a live claim (read from the adapter after the
+ *     signature returns) and is genuinely checked;
+ *   - detection of "the signer signed a DIFFERENT transaction" therefore
+ *     rests on the injected transaction-identity re-derivation
+ *     (`deriveTransactionId`) and on the downstream SDK finalizer's
+ *     frozen-txid refusal — both of which read the RETURNED bytes and
+ *     are unaffected by the lift.
+ *
+ * A signer that natively speaks v2 (returning its own envelope) gets the
+ * stronger property; a lifted v1 signer gets exactly what v1 could
+ * prove, plus the new pre-signing gates. Neither is silently upgraded.
+ *
+ * Pure CommonJS, browser-portable. Zero external dependencies.
+ */
+
+const v1 = require("../../interface");
+const { SIGNER_INTERFACE_VERSION_V2, SignerErrorCodesV2, signerErrorV2 } = require("../errors");
+const {
+  SIGHASH_FLAGS,
+  TRANSACTION_FORMATS,
+  PSKT_ROLES,
+  TRANSPORT_KINDS,
+  USER_PRESENCE_MODES,
+  CANCELLATION_MODES,
+  validateCapabilityDescriptorV2,
+  buildResponseEnvelope
+} = require("../interface");
+
+const V2_ONLY_DECLARATIONS = Object.freeze(["sighash", "pskt", "transactionFormats", "userPresence", "transport", "cancellation", "maxTimeoutMs"]);
+
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function invalid(message) {
+  return signerErrorV2(SignerErrorCodesV2.REQUEST_INVALID, message);
+}
+
+/*
+ * Translate a v2 request into the v1 request shape the underlying
+ * adapter was written against. The requestId is carried over unchanged
+ * (both versions use the same 32-hex form) so adapter-side diagnostics
+ * and cancellation keep referring to the same request. v2-only fields
+ * (nonce, payloadSha256, expiresAtMs, transactionFormat, sighash) are
+ * NOT passed down: a v1 adapter's closed request schema would refuse
+ * them, and they are enforced by the v2 core on both sides of the call.
+ */
+function toV1Request(request) {
+  if (request.kind === "sign-message") {
+    return Object.freeze({
+      interfaceVersion: v1.SIGNER_INTERFACE_VERSION,
+      requestId: request.requestId,
+      kind: "sign-message",
+      message: request.message,
+      scheme: request.scheme,
+      network: request.network,
+      expectedSignerAddress: request.expectedSignerAddress,
+      createdAtMs: request.createdAtMs
+    });
+  }
+  return Object.freeze({
+    interfaceVersion: v1.SIGNER_INTERFACE_VERSION,
+    requestId: request.requestId,
+    kind: "sign-transaction",
+    unsignedSafeJson: request.unsignedSafeJson,
+    signInputs: request.signInputs.map((si) => Object.freeze({ index: si.index, sighashType: si.sighashType })),
+    network: request.network,
+    expectedSignerAddress: request.expectedSignerAddress,
+    scheme: request.scheme,
+    createdAtMs: request.createdAtMs
+  });
+}
+
+/*
+ * liftV1Adapter(v1Adapter, declarations)
+ *
+ * `declarations` MUST contain every v2-only field plus `probeCapabilities`
+ * (a function returning the probe report for this provider). Unknown keys
+ * are refused; missing keys are refused. The result is a v2 adapter that
+ * passes validateAdapterV2.
+ */
+function liftV1Adapter(v1Adapter, declarations) {
+  const registration = v1.validateAdapter(v1Adapter); /* the v1 contract still holds */
+  const v1Descriptor = registration.descriptor;
+
+  if (!isPlainObject(declarations)) throw invalid("liftV1Adapter requires a declarations object");
+  const ALLOWED = [...V2_ONLY_DECLARATIONS, "probeCapabilities", "provider", "label"];
+  for (const key of Object.keys(declarations)) {
+    if (!ALLOWED.includes(key)) throw invalid(`unknown lift declaration ${JSON.stringify(key)} — failing closed`);
+  }
+  for (const key of V2_ONLY_DECLARATIONS) {
+    if (!(key in declarations)) {
+      throw invalid(`lift declaration ${JSON.stringify(key)} is required — a lift never infers a v2 capability from a v1 adapter`);
+    }
+  }
+  if (typeof declarations.probeCapabilities !== "function") {
+    throw invalid("lift declaration probeCapabilities must be a function — a lifted adapter must still be probeable (or report probed:false with a reason)");
+  }
+  /* shape pre-checks with lift-local messages; validateCapabilityDescriptorV2
+   * is the authority and runs on the assembled descriptor below */
+  if (!isPlainObject(declarations.sighash) || SIGHASH_FLAGS.some((f) => typeof declarations.sighash[f] !== "boolean")) {
+    throw invalid(`lift declaration sighash must declare every flag of ${JSON.stringify(SIGHASH_FLAGS)} as a strict boolean`);
+  }
+  if (!isPlainObject(declarations.pskt) || typeof declarations.pskt.supported !== "boolean" || !Array.isArray(declarations.pskt.roles)) {
+    throw invalid(`lift declaration pskt must be { supported: boolean, roles: [...] } (roles from ${JSON.stringify(PSKT_ROLES)})`);
+  }
+  if (!Array.isArray(declarations.transactionFormats)) {
+    throw invalid(`lift declaration transactionFormats must be an array (known: ${JSON.stringify(TRANSACTION_FORMATS)})`);
+  }
+  if (!USER_PRESENCE_MODES.includes(declarations.userPresence)) {
+    throw invalid(`lift declaration userPresence must be one of ${JSON.stringify(USER_PRESENCE_MODES)}`);
+  }
+  if (!TRANSPORT_KINDS.includes(declarations.transport)) {
+    throw invalid(`lift declaration transport must be one of ${JSON.stringify(TRANSPORT_KINDS)}`);
+  }
+  if (!CANCELLATION_MODES.includes(declarations.cancellation)) {
+    throw invalid(`lift declaration cancellation must be one of ${JSON.stringify(CANCELLATION_MODES)}`);
+  }
+
+  const descriptor = validateCapabilityDescriptorV2({
+    interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+    provider: declarations.provider === undefined ? v1Descriptor.provider : declarations.provider,
+    label: declarations.label === undefined ? v1Descriptor.label : declarations.label,
+    kind: v1Descriptor.kind,
+    schemes: [...v1Descriptor.schemes],
+    networks: [...v1Descriptor.networks],
+    features: { ...v1Descriptor.features },
+    sighash: { ...declarations.sighash },
+    pskt: { supported: declarations.pskt.supported, roles: [...declarations.pskt.roles] },
+    transactionFormats: [...declarations.transactionFormats],
+    userPresence: declarations.userPresence,
+    transport: declarations.transport,
+    cancellation: declarations.cancellation,
+    maxTimeoutMs: declarations.maxTimeoutMs
+  });
+
+  async function liveSignerAddress() {
+    try {
+      const account = await v1Adapter.getActiveAccount();
+      if (isPlainObject(account) && typeof account.address === "string" && account.address.trim()) return account.address.trim();
+    } catch {
+      /* the v2 core re-reads the identity itself; a failure here must not
+       * masquerade as a successful signature, so fall through to null */
+    }
+    return null;
+  }
+
+  async function sign(request) {
+    const downstream = toV1Request(request);
+    const raw = request.kind === "sign-message" ? await v1Adapter.signMessage(downstream) : await v1Adapter.signTransaction(downstream);
+    const result = request.kind === "sign-message" ? { signature: raw } : { signedSafeJson: raw };
+    const signerAddress = await liveSignerAddress();
+    return buildResponseEnvelope(request, result, {
+      signerAddress: signerAddress === null ? request.expectedSignerAddress === undefined ? null : request.expectedSignerAddress : signerAddress
+    });
+  }
+
+  const lifted = {
+    /* the lifted v1 adapter, exposed for diagnostics and for consumers
+     * that still drive the v1 pipeline (both versions stay usable) */
+    v1Adapter,
+    v1Descriptor,
+
+    describe() {
+      return {
+        interfaceVersion: descriptor.interfaceVersion,
+        provider: descriptor.provider,
+        label: descriptor.label,
+        kind: descriptor.kind,
+        schemes: [...descriptor.schemes],
+        networks: [...descriptor.networks],
+        features: { ...descriptor.features },
+        sighash: { ...descriptor.sighash },
+        pskt: { supported: descriptor.pskt.supported, roles: [...descriptor.pskt.roles] },
+        transactionFormats: [...descriptor.transactionFormats],
+        userPresence: descriptor.userPresence,
+        transport: descriptor.transport,
+        cancellation: descriptor.cancellation,
+        maxTimeoutMs: descriptor.maxTimeoutMs
+      };
+    },
+
+    probeCapabilities() {
+      return declarations.probeCapabilities();
+    },
+
+    detect() {
+      return v1Adapter.detect();
+    },
+    connect() {
+      return v1Adapter.connect();
+    },
+    disconnect() {
+      return v1Adapter.disconnect();
+    },
+    getActiveAccount() {
+      return v1Adapter.getActiveAccount();
+    },
+    getNetwork() {
+      return v1Adapter.getNetwork();
+    },
+    getPublicKey() {
+      return v1Adapter.getPublicKey();
+    }
+  };
+
+  if (descriptor.features.messageSigning) lifted.signMessage = (request) => sign(request);
+  if (descriptor.features.transactionSigning) lifted.signTransaction = (request) => sign(request);
+  if (descriptor.features.accountEvents) lifted.on = (event, cb) => v1Adapter.on(event, cb);
+  if (descriptor.cancellation === "supported" || descriptor.features.asynchronousApproval) {
+    lifted.cancelSigning = (requestId) => {
+      if (typeof v1Adapter.cancelSigning === "function") return v1Adapter.cancelSigning(requestId);
+      return undefined; /* nothing to revoke downstream; the v2 core still discards late settlements */
+    };
+  }
+
+  return lifted;
+}
+
+module.exports = { liftV1Adapter, toV1Request, V2_ONLY_DECLARATIONS };
+  });
+
+  define("core/signer/v2/adapters/kasware", function (module, exports, require) {
+"use strict";
+const { ownGet } = require("../../../model/own-get");
+
+/*
+ * PolicyVault Universal Signer Interface v2 — KasWare capability PROFILE.
+ *
+ * DOM-FREE BY CONSTRUCTION. This module holds the truthful v2
+ * declarations for the KasWare browser extension and the pure function
+ * that turns an OBSERVED provider report into a v2 probe report. It never
+ * touches `window`, never probes anything itself, and performs no I/O —
+ * exactly the split the mobile portable layer already uses
+ * (mobile/www/js/portable/signer-capabilities.js negotiateInjectedProvider):
+ * the browser layer observes, this layer judges.
+ *
+ * web/signer-kasware-adapter.js composes these declarations with the
+ * EXISTING, unchanged v1 KasWare adapter through core/signer/v2/adapters/
+ * lift.js. No production signing semantics change: the same
+ * `kw.signMessage(message, { type: "schnorr" })` and
+ * `kw.signPskt({ txJsonString, options: { signInputs } })` calls are made,
+ * with the same arguments, by the same v1 adapter code.
+ *
+ * WHY EACH DECLARATION IS WHAT IT IS (evidence, not assumption):
+ *
+ *   sighash: { all: true, none/single/anyoneCanPay: false }
+ *       The production flow emits ONLY `{ index, sighashType: 1 }`
+ *       entries (web/app-v4.js assertCanonicalSignInputs; the
+ *       server/SDK build path in sdk/src/wallet-requests-v4.js maps every
+ *       input to sighashType 1). This project has never verified KasWare
+ *       accepting any other sighash type, so the adapter declares only
+ *       what it uses and can stand behind. A descriptor may offer LESS
+ *       than its provider; it may never offer more.
+ *
+ *   pskt: { supported: false, roles: [] }
+ *       The provider method is NAMED `signPskt`, but its payload is
+ *       `{ txJsonString, options: { signInputs } }` and its return value
+ *       is a Kaspa **Safe JSON transaction serialization** — the exact
+ *       string the SDK feeds to `Transaction.deserializeFromSafeJSON`
+ *       (web/wallet.js, sdk/src/signer-dev.js "Mirrors KasWare's signPskt
+ *       return shape", sdk/src/wallet-requests-v4.js). It is NOT a
+ *       BIP-370 partially-signed-transaction bundle: rusty-kaspa's real
+ *       PSKT lives in `wallet/pskt` (roles in `wallet/pskt/src/role.rs`,
+ *       WASM class `PSKT`) and nothing in this path constructs, combines,
+ *       finalizes or extracts one. Declaring pskt support because of the
+ *       method's NAME would be exactly the kind of unverified capability
+ *       claim v2 exists to make impossible.
+ *
+ *   transactionFormats: ["kaspa-safe-json/1"]   — per the above.
+ *   userPresence: "required"                    — the extension opens a
+ *       popup and a human clicks Sign for every signature.
+ *   transport: "in-page"                        — injected provider in
+ *       the same page.
+ *   cancellation: "unsupported"                 — KasWare exposes no
+ *       cancellation API (docs/postlaunch/signer-kasware-mapping.md §2);
+ *       consumers needing revocable approvals must refuse it, and now
+ *       structurally do.
+ *
+ * Pure CommonJS, browser-portable. Zero external dependencies.
+ */
+
+const { SIGNER_INTERFACE_VERSION_V2 } = require("../errors");
+const { TRANSACTION_FORMATS, SIGNER_NETWORKS } = require("../interface");
+
+/* Frozen v2 declaration set for the KasWare browser extension. */
+const KASWARE_V2_DECLARATIONS = Object.freeze({
+  sighash: Object.freeze({ all: true, none: false, single: false, anyoneCanPay: false }),
+  pskt: Object.freeze({ supported: false, roles: Object.freeze([]) }),
+  transactionFormats: Object.freeze([TRANSACTION_FORMATS[0]]),
+  userPresence: "required",
+  transport: "in-page",
+  cancellation: "unsupported",
+  /* A human may leave the popup open; five minutes is the longest wait
+   * this adapter will claim it can honour. */
+  maxTimeoutMs: 300000
+});
+
+/*
+ * Provider method name -> interface method name. The probe vocabulary is
+ * the INTERFACE's, so the translation happens here, once, where the
+ * evidence for it lives.
+ */
+const PROVIDER_METHOD_MAP = Object.freeze({
+  signMessage: "signMessage",
+  signPskt: "signTransaction",
+  on: "on"
+});
+
+/* Exactly the provider surface the v1 KasWare adapter drives. A provider
+ * missing any of these cannot support the declared features. */
+const REQUIRED_PROVIDER_METHODS = Object.freeze(["requestAccounts", "getAccounts", "getNetwork", "getPublicKey", "signMessage", "signPskt"]);
+
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/*
+ * probeKasWareProvider(found) -> a v2 probe report.
+ *
+ * `found` is the browser layer's HONEST observation of the injected
+ * provider — NOT the provider object itself:
+ *   { present: boolean, methods: [<provider method names>],
+ *     network: <normalized network id> | null }
+ *
+ * Rules:
+ *   - no provider  -> probed: false with the reason (never an optimistic
+ *     "assume it is there"); the v2 core then refuses any consumer that
+ *     required probed capabilities, and the descriptor's declarations are
+ *     never silently accepted as observations;
+ *   - a provider present but missing a method the declared features need
+ *     is reported as probed WITHOUT that method, so
+ *     verifyDeclaredCapabilities raises CAPABILITY_MISMATCH — the refusal
+ *     happens before a popup opens, not after a human clicks Sign;
+ *   - sighash / pskt / transaction formats are reported as this project
+ *     has evidence for them, and no further.
+ */
+function probeKasWareProvider(found) {
+  const f = isPlainObject(found) ? found : {};
+  if (f.present !== true) {
+    return {
+      interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+      probed: false,
+      reason: "no KasWare provider is injected into this page — capabilities cannot be observed"
+    };
+  }
+  const observed = Array.isArray(f.methods) ? f.methods : [];
+  const methods = [];
+  for (const name of observed) {
+    const mapped = ownGet(PROVIDER_METHOD_MAP, name);
+    if (mapped !== undefined && !methods.includes(mapped)) methods.push(mapped);
+  }
+  const report = {
+    interfaceVersion: SIGNER_INTERFACE_VERSION_V2,
+    probed: true,
+    methods,
+    /* KasWare is driven with SIGHASH_ALL only; nothing else is claimed on
+     * its behalf. `false` here would ASSERT the provider cannot do it —
+     * which this project has not established — so the other flags are
+     * simply reported as unsupported-by-this-adapter, matching what the
+     * descriptor declares. */
+    sighash: { all: methods.includes("signTransaction"), none: false, single: false, anyoneCanPay: false },
+    /* the signPskt method is a Safe-JSON transaction signer, not a PSKT
+     * surface (see the header) */
+    pskt: { supported: false, roles: [] },
+    transactionFormats: methods.includes("signTransaction") ? [TRANSACTION_FORMATS[0]] : []
+  };
+  if (typeof f.network === "string" && SIGNER_NETWORKS.includes(f.network)) report.network = f.network;
+  return report;
+}
+
+/* Convenience for the browser layer: the list of provider method names to
+ * look for on the injected object. Kept here so the observation site has
+ * no hard-coded knowledge of its own. */
+function providerMethodNames() {
+  return [...REQUIRED_PROVIDER_METHODS, "on", "disconnect"];
+}
+
+module.exports = {
+  KASWARE_V2_DECLARATIONS,
+  PROVIDER_METHOD_MAP,
+  REQUIRED_PROVIDER_METHODS,
+  probeKasWareProvider,
+  providerMethodNames
+};
+  });
+
   define("core/model/amounts", function (module, exports, require) {
 "use strict";
 
@@ -4119,6 +6571,466 @@ module.exports = {
   kasToSompi,
   sompiToKas
 };
+  });
+
+  define("core/model/duration-daa", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault — THE ONE conversion path between human durations (hours /
+ * days / weeks) and Kaspa DAA score, shared by the SDK
+ * (sdk/src/ux-normalize-v4.js re-exports it), the browser (through the
+ * reviewed web/core-bundle.js closure) and the mobile client (through the
+ * vendored copy of that bundle). No other file may carry its own
+ * DAA-per-second constant, unit table, or bound (owner UX directive
+ * 2026-09-05 §5: "Convert through one tested normalization path ... never
+ * duplicate an arbitrary conversion constant in web and mobile").
+ *
+ * BASIS (verified in source, not inferred from a screenshot): both
+ * operational networks run 10 blocks/second and the DAA score advances by
+ * one per block — testnet-10 AND mainnet use BlockrateParams::new::<10>()
+ * with Crescendo activated (~/rusty-kaspa/consensus/core/src/config/
+ * params.rs, MAINNET_PARAMS / TESTNET_PARAMS, source-verified 2026-08-22).
+ * The frozen reference policies use periodLengthDaa 864000 for a ~1-day
+ * period. DAA score is NETWORK PROGRESS, not a clock: DAA -> wall time is
+ * APPROXIMATE by protocol nature. Every rendered duration says so.
+ *
+ * ARITHMETIC: BigInt only. A human duration is value x unitSeconds x
+ * DAA_PER_SECOND — an exact integer product, so nothing is ever rounded,
+ * and in particular a security delay can never be silently shortened. The
+ * reverse direction is exact rational: daa / 10 seconds with the remainder
+ * kept as tenths of a second. Whole-number input only: "1.5 days" is
+ * refused with the whole-number equivalent suggested (36 hours), never
+ * truncated.
+ *
+ * UNITS (unambiguous, fixed): 1 hour = 3600 s; 1 day = 24 hours; 1 week =
+ * 7 days. Calendar months/years are NOT units (they are not fixed lengths).
+ *
+ * SETTINGS are generation-specific. A setting names the covenant
+ * generation(s) it applies to, its encoding/product bounds, and the presets
+ * a UI may offer. Unknown settings / generations FAIL CLOSED.
+ */
+
+const DAA_PER_SECOND = 10n;
+const UNIT_SECONDS = Object.freeze({ hour: 3600n, day: 86400n, week: 604800n });
+const UNIT_ORDER = Object.freeze(["week", "day", "hour"]);
+const UNIT_LABEL = Object.freeze({ week: ["week", "weeks"], day: ["day", "days"], hour: ["hour", "hours"], minute: ["minute", "minutes"], second: ["second", "seconds"] });
+
+function fail(message, code, extra) {
+  const e = new Error(`duration-daa: ${message}`);
+  e.code = code;
+  if (extra) Object.assign(e, extra);
+  throw e;
+}
+
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/* Exact BigInt from a digit string / integer / bigint; refuses everything else. */
+function toBigInt(value, label, code) {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) fail(`${label} must be a safe whole number`, code);
+    return BigInt(value);
+  }
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (/^(0|[1-9][0-9]*)$/.test(s)) return BigInt(s);
+    if (/^[0-9]+$/.test(s)) return BigInt(s); // leading zeros: still a whole number
+    if (/^[0-9]*[.,][0-9]+$/.test(s) || /^[0-9]+[.,][0-9]*$/.test(s)) fail(`${label} must be a whole number of the chosen unit — decimals are not supported`, "DURATION_PRECISION");
+    fail(`${label} must be a whole number`, code);
+  }
+  fail(`${label} is required`, code);
+  return 0n;
+}
+
+/* A human duration -> exact DAA score (BigInt). */
+function humanToDaa(input) {
+  if (!isPlainObject(input)) fail("a { value, unit } duration is required", "DURATION_VALUE_INVALID");
+  const unitSecs = Object.prototype.hasOwnProperty.call(UNIT_SECONDS, String(input.unit)) ? UNIT_SECONDS[input.unit] : undefined;
+  if (unitSecs === undefined) fail(`unknown duration unit ${JSON.stringify(input.unit)} — supported: ${Object.keys(UNIT_SECONDS).join(", ")}`, "DURATION_UNIT_INVALID");
+  const raw = input.value;
+  if (typeof raw === "string" && /^\s*[0-9]*[.,][0-9]*\s*$/.test(raw) && raw.trim() !== "") {
+    fail(precisionHint(raw.trim(), input.unit), "DURATION_PRECISION");
+  }
+  const value = toBigInt(raw, "duration value", "DURATION_VALUE_INVALID");
+  if (value <= 0n) fail("duration value must be greater than 0", "DURATION_VALUE_INVALID");
+  return value * unitSecs * DAA_PER_SECOND;
+}
+
+/* "1.5 days" -> "36 hours" when the decimal maps exactly to a smaller unit. */
+function precisionHint(raw, unit) {
+  const base = "Enter a whole number of the chosen unit (decimals are not supported)";
+  const m = /^([0-9]*)[.,]([0-9]+)$/.exec(raw);
+  if (!m || !UNIT_SECONDS[unit]) return `${base}.`;
+  const whole = BigInt(m[1] || "0");
+  const fracDigits = m[2];
+  const denom = 10n ** BigInt(fracDigits.length);
+  const numer = whole * denom + BigInt(fracDigits);
+  const totalSeconds = numer * UNIT_SECONDS[unit];
+  if (totalSeconds % denom !== 0n) return `${base}.`;
+  const seconds = totalSeconds / denom;
+  for (const u of ["day", "hour"]) {
+    if (u === unit) continue;
+    if (seconds % UNIT_SECONDS[u] === 0n && UNIT_SECONDS[u] < UNIT_SECONDS[unit]) {
+      const n = seconds / UNIT_SECONDS[u];
+      return `${base} — for ${raw} ${UNIT_LABEL[unit][1]} enter ${n} ${n === 1n ? UNIT_LABEL[u][0] : UNIT_LABEL[u][1]}.`;
+    }
+  }
+  return `${base}.`;
+}
+
+/* DAA -> exact seconds + tenths (10 DAA per second). */
+function daaToSeconds(daa) {
+  const d = toBigInt(daa, "DAA score", "DAA_INVALID");
+  if (d < 0n) fail("DAA score must not be negative", "DAA_INVALID");
+  return Object.freeze({ seconds: d / DAA_PER_SECOND, tenths: d % DAA_PER_SECOND });
+}
+
+function plural(count, unit) {
+  const [one, many] = UNIT_LABEL[unit];
+  return `${count} ${count === 1n ? one : many}`;
+}
+
+/*
+ * Describe a DAA score as an APPROXIMATE human duration.
+ *   largestUnit: "week" (budget periods) or "day" (waiting periods) — the
+ *   largest unit the decomposition may use, so "7 days" stays "7 days" for a
+ *   waiting period instead of becoming "1 week".
+ * Returns { daa, seconds, tenths, parts, text, exactText, wholeSeconds }.
+ *   text      — "about 1 day" / "about 1 day 6 hours" (at most the two
+ *               largest non-zero parts; never rounds the number shown)
+ *   exactText — the full decomposition incl. minutes/seconds/tenths.
+ */
+function describeDaa(daa, { largestUnit = "day" } = {}) {
+  const { seconds, tenths } = daaToSeconds(daa);
+  const units = largestUnit === "week" ? ["week", "day", "hour"] : largestUnit === "day" ? ["day", "hour"] : largestUnit === "hour" ? ["hour"] : fail(`unknown largestUnit ${JSON.stringify(largestUnit)}`, "DURATION_UNIT_INVALID");
+  const parts = [];
+  let rest = seconds;
+  for (const u of units) {
+    const n = rest / UNIT_SECONDS[u];
+    if (n > 0n) parts.push({ unit: u, count: n });
+    rest %= UNIT_SECONDS[u];
+  }
+  const minutes = rest / 60n;
+  const secs = rest % 60n;
+  if (minutes > 0n) parts.push({ unit: "minute", count: minutes });
+  if (secs > 0n || parts.length === 0) parts.push({ unit: "second", count: secs });
+  const shown = parts.slice(0, 2);
+  const text = `about ${shown.map((p) => plural(p.count, p.unit)).join(" ")}`;
+  const exact = parts.map((p) => plural(p.count, p.unit)).join(" ") + (tenths > 0n ? ` ${tenths}/10 second` : "");
+  return Object.freeze({
+    daa: toBigInt(daa, "DAA score", "DAA_INVALID").toString(),
+    seconds,
+    tenths,
+    wholeSeconds: tenths === 0n,
+    parts: Object.freeze(parts.map((p) => Object.freeze({ ...p }))),
+    text,
+    exactText: exact
+  });
+}
+
+/* Canonical "N unit(s)" when the DAA score is exactly a whole number of ONE
+ * unit (the SDK's historical daaToHumanPeriod contract); otherwise the
+ * approximate text without the "about" prefix. Never throws on garbage:
+ * echoes the input string (presentation convenience only). */
+function daaToHumanPeriod(periodLengthDaa) {
+  let daa;
+  try { daa = toBigInt(periodLengthDaa, "DAA score", "DAA_INVALID"); } catch { return String(periodLengthDaa); }
+  if (daa <= 0n) return String(periodLengthDaa);
+  const { seconds, tenths } = daaToSeconds(daa);
+  if (tenths === 0n) {
+    for (const [name, secs] of [["week", 604800n], ["day", 86400n], ["hour", 3600n], ["minute", 60n]]) {
+      if (seconds >= secs && seconds % secs === 0n) return plural(seconds / secs, name);
+    }
+    return plural(seconds, "second");
+  }
+  return `${seconds}.${tenths} seconds`;
+}
+
+/* ------------------------------------------------------------------ */
+/* generation-specific settings                                        */
+/* ------------------------------------------------------------------ */
+
+function preset(key, value, unit, label) {
+  return Object.freeze({ key, value, unit, label, daa: humanToDaa({ value, unit }).toString() });
+}
+
+const DURATION_SETTINGS = Object.freeze({
+  /* Budget period of a delegate/agent policy: the rolling window over which
+   * the spending budget is counted. Product range 1 hour .. 53 weeks (the
+   * SDK's frozen product range; the covenant itself only requires > 0 via
+   * the shared-core leaf normalizers). */
+  budgetPeriod: Object.freeze({
+    kind: "budgetPeriod",
+    label: "Budget period",
+    generations: Object.freeze(["policyvault-0.4.1"]),
+    minDaa: (3600n * DAA_PER_SECOND).toString(),
+    maxDaa: (604800n * 53n * DAA_PER_SECOND).toString(),
+    /* The protocol's accepted range for a v0.4.1 periodLengthDaa is FAR wider
+     * than the product range: the agent-policy leaf parser accepts any
+     * positive value up to MAX_SOMPI (core/model/agent-merkle-v4
+     * parsePositiveSompi; core/model/amounts MAX_SOMPI — pinned equal by
+     * test; rc16 review N-01). An EXISTING exact value between the two must
+     * round-trip, flagged — never be refused (rc15 review F-04). */
+    encodingMaxDaa: "2900000000000000000",
+    largestUnit: "week",
+    rolling: true,
+    presets: Object.freeze([preset("1h", 1n, "hour", "1 hour"), preset("6h", 6n, "hour", "6 hours"), preset("1d", 1n, "day", "1 day"), preset("1w", 1n, "week", "1 week")]),
+    defaultPreset: "1d"
+  }),
+  /* Organizational root recovery waiting period: relative age of the current
+   * root output before the recovery quorum may act. Covenant encoding bound
+   * 1 .. 2^32-1 (core/model/vault-state-v7-root normalizeRootTemplateV7). */
+  rootRecoveryDelay: Object.freeze({
+    kind: "rootRecoveryDelay",
+    label: "Recovery waiting period",
+    generations: Object.freeze(["policyvault-0.7-root"]),
+    minDaa: "1",
+    maxDaa: "4294967295",
+    encodingMaxDaa: "4294967295",
+    largestUnit: "day",
+    rolling: false,
+    presets: Object.freeze([preset("1d", 1n, "day", "1 day"), preset("7d", 7n, "day", "7 days"), preset("30d", 30n, "day", "30 days"), preset("90d", 90n, "day", "90 days")]),
+    defaultPreset: "30d"
+  }),
+  rootSuccessionDelay: Object.freeze({
+    kind: "rootSuccessionDelay",
+    label: "Successor waiting period",
+    generations: Object.freeze(["policyvault-0.7-root"]),
+    minDaa: "1",
+    maxDaa: "4294967295",
+    encodingMaxDaa: "4294967295",
+    largestUnit: "day",
+    rolling: false,
+    presets: Object.freeze([preset("1d", 1n, "day", "1 day"), preset("7d", 7n, "day", "7 days"), preset("30d", 30n, "day", "30 days"), preset("90d", 90n, "day", "90 days")]),
+    defaultPreset: "90d"
+  })
+});
+
+/* Self-check at load: every preset lies inside its setting's bounds. */
+for (const s of Object.values(DURATION_SETTINGS)) {
+  for (const p of s.presets) {
+    if (BigInt(p.daa) < BigInt(s.minDaa) || BigInt(p.daa) > BigInt(s.maxDaa)) throw new Error(`duration-daa: preset ${s.kind}/${p.key} lies outside its own bounds`);
+  }
+}
+
+/* Resolve a setting for a covenant generation — unknown pairs FAIL CLOSED. */
+function durationSettingFor(kind, contractVersion) {
+  const s = Object.prototype.hasOwnProperty.call(DURATION_SETTINGS, String(kind)) ? DURATION_SETTINGS[kind] : null;
+  if (!s) fail(`unknown duration setting ${JSON.stringify(kind)} — failing closed`, "DURATION_SETTING_UNKNOWN");
+  if (contractVersion !== undefined && !s.generations.includes(String(contractVersion))) {
+    fail(`${s.label} is not a setting of covenant generation ${JSON.stringify(contractVersion)} — failing closed`, "DURATION_SETTING_UNKNOWN");
+  }
+  return s;
+}
+
+function presetForDaa(setting, daa) {
+  const d = toBigInt(daa, "DAA score", "DAA_INVALID").toString();
+  const hit = setting.presets.find((p) => p.daa === d);
+  return hit ? hit.key : null;
+}
+
+function withinBounds(setting, daa) {
+  return daa >= BigInt(setting.minDaa) && daa <= BigInt(setting.maxDaa);
+}
+
+function boundsText(setting) {
+  return `${describeDaa(setting.minDaa, { largestUnit: setting.largestUnit }).text.replace(/^about /, "")} .. ${describeDaa(setting.maxDaa, { largestUnit: setting.largestUnit }).text.replace(/^about /, "")}`;
+}
+
+/*
+ * Normalize ONE duration selection for a setting.
+ *   selection = { mode: "preset", preset: "1d" }
+ *             | { mode: "custom", value, unit }
+ *             | { mode: "existing", daa }       (an imported/live exact value
+ *                                                that must round-trip UNCHANGED)
+ * Returns { daa (digit string), source, exact (bool), preset|null,
+ *           describe, outOfProductRange (existing only: outside minDaa..maxDaa
+ *           but within the protocol's accepted range — kept, never refused) }.
+ * Fails closed (never clamps, never rounds) on invalid / out-of-bounds
+ * input with an actionable message.
+ */
+function normalizeDurationSelection(setting, selection) {
+  if (!setting || !Array.isArray(setting.presets)) fail("a duration setting is required", "DURATION_SETTING_UNKNOWN");
+  if (!isPlainObject(selection)) fail(`${setting.label}: choose a preset or enter a custom duration`, "DURATION_VALUE_INVALID");
+  let daa;
+  let source;
+  let key = null;
+  if (selection.mode === "preset") {
+    const p = setting.presets.find((x) => x.key === selection.preset);
+    if (!p) fail(`${setting.label}: unknown preset ${JSON.stringify(selection.preset)}`, "DURATION_VALUE_INVALID");
+    daa = BigInt(p.daa);
+    source = "preset";
+    key = p.key;
+  } else if (selection.mode === "custom") {
+    try {
+      daa = humanToDaa({ value: selection.value, unit: selection.unit });
+    } catch (e) {
+      throw Object.assign(new Error(`${setting.label}: ${e.message.replace(/^duration-daa: /, "")}`), { code: e.code });
+    }
+    source = "custom";
+    key = presetForDaa(setting, daa);
+  } else if (selection.mode === "existing") {
+    daa = toBigInt(selection.daa, `${setting.label} (existing exact value)`, "DAA_INVALID");
+    if (daa < 1n) fail(`${setting.label}: the existing value ${daa} is not a positive DAA score`, "DAA_INVALID");
+    // Only the covenant ENCODING bound refuses an existing value; the product
+    // range (minDaa..maxDaa) is reported as a flag so the exact value can be
+    // kept unchanged on display and resubmit (directive §5).
+    if (daa > BigInt(setting.encodingMaxDaa)) fail(`${setting.label}: the existing value ${daa} exceeds the protocol's accepted range (max ${setting.encodingMaxDaa})`, "DURATION_OUT_OF_RANGE");
+    source = "existing";
+    key = presetForDaa(setting, daa);
+    const d = describeDaa(daa, { largestUnit: setting.largestUnit });
+    return Object.freeze({ daa: daa.toString(), source, preset: key, exact: d.wholeSeconds, describe: d, outOfProductRange: !withinBounds(setting, daa) });
+  } else {
+    fail(`${setting.label}: choose a preset or enter a custom duration`, "DURATION_VALUE_INVALID");
+  }
+  if (!withinBounds(setting, daa)) {
+    fail(`${setting.label} must be between ${boundsText(setting)} (you chose ${describeDaa(daa, { largestUnit: setting.largestUnit }).text})`, "DURATION_OUT_OF_RANGE");
+  }
+  const d = describeDaa(daa, { largestUnit: setting.largestUnit });
+  return Object.freeze({ daa: daa.toString(), source, preset: key, exact: d.wholeSeconds, describe: d, outOfProductRange: false });
+}
+
+/* The fixed helper sentence every duration control shows. */
+const MEASUREMENT_NOTE = "Measured using Kaspa network progress, so the elapsed time is approximate.";
+
+module.exports = {
+  DAA_PER_SECOND,
+  UNIT_SECONDS,
+  UNIT_ORDER,
+  DURATION_SETTINGS,
+  MEASUREMENT_NOTE,
+  humanToDaa,
+  daaToSeconds,
+  describeDaa,
+  daaToHumanPeriod,
+  durationSettingFor,
+  presetForDaa,
+  normalizeDurationSelection,
+  boundsText
+};
+  });
+
+  define("core/intent/root-script-v7", function (module, exports, require) {
+"use strict";
+/*
+ * PolicyVault v0.7 ORGANIZATIONAL ROOT — exact locking-script reconstruction
+ * (Codex checkpoint 3, UX-02: "establish a locally trusted relationship
+ * between reviewed governance rules and the actual genesis locking script").
+ *
+ * The frozen root covenant (contracts/PolicyVault.v0.7-root.sil, sha256
+ * 69417514…) compiles, for ANY template + genesis state, to:
+ *
+ *     prefix (1 byte) || STATE REGION (467 bytes) || suffix (~11 KB)
+ *
+ * where the suffix is a generation-constant SKELETON with exactly twelve
+ * holes: the template constants (rootMaxFeePerTx ×4, recoveryDelayDaa ×1,
+ * successorPk ×2, successionDelayDaa ×1) pushed as minimal script numbers /
+ * 32-byte pushes, and the script's own TOTAL LENGTH ×4 (a 2-byte push). The
+ * skeleton below was extracted from real silverc output and is PROVEN equal
+ * to silverc, byte for byte, across a value matrix by
+ * sdk/test/root-script-v7-reconstruction.test.js (which recompiles with the
+ * vendored silverc and compares). It is pure data + pure functions, so the
+ * browser can rebuild the exact redeem script from the rules the owner
+ * reviewed and bind the genesis output's P2SH hash to it BEFORE the wallet
+ * is asked to sign. No covenant bytes change here; nothing is recompiled.
+ */
+const { serializeRootStateHexV7, normalizeRootTemplateV7, normalizeRootStateV7, genesisRootStateV7, ROOT_STATE_LEN_V7 } = require("../model/vault-state-v7-root");
+const { normalizeOwnerSetV7 } = require("../model/owner-set-v7");
+const { blake2bHex } = require("../assets/blake2b");
+
+const ROOT_SCRIPT_PREFIX_HEX_V7 = "6b";
+const ROOT_SCRIPT_HOLES_V7 = Object.freeze(["rootMaxFeePerTx", "rootMaxFeePerTx", "recoveryDelayDaa", "scriptLen", "scriptLen", "successorPk", "successorPk", "successionDelayDaa", "rootMaxFeePerTx", "rootMaxFeePerTx", "scriptLen", "scriptLen"]);
+/* generation-constant suffix chunks between the holes (hex) */
+const ROOT_SCRIPT_CHUNKS_V7 = Object.freeze([
+  "6c76009c63750111790111790111790111790111790111790111790111790111790111790111790111790111790111790111790111790111790111790137790137790137790137790137790137790137790137790137790137790137790137790137790137790137790137790137790137790137790137797800a2697854a16976827c755196020c039c6901247901247901247901247901247901247901247901247901247901247901247901247901247901247901247901247900607920000000000000000000000000000000000000000000000000000000000000000087916376519377685f7920000000000000000000000000000000000000000000000000000000000000000087916376519377685e7920000000000000000000000000000000000000000000000000000000000000000087916376519377685d7920000000000000000000000000000000000000000000000000000000000000000087916376519377685c7920000000000000000000000000000000000000000000000000000000000000000087916376519377685b7920000000000000000000000000000000000000000000000000000000000000000087916376519377685a79200000000000000000000000000000000000000000000000000000000000000000879163765193776859792000000000000000000000000000000000000000000000000000000000000000008791637651937768587920000000000000000000000000000000000000000000000000000000000000000087916376519377685779200000000000000000000000000000000000000000000000000000000000000000879163765193776856792000000000000000000000000000000000000000000000000000000000000000008791637651937768557920000000000000000000000000000000000000000000000000000000000000000087916376519377687651a2695f79200000000000000000000000000000000000000000000000000000000000000000879163607920000000000000000000000000000000000000000000000000000000000000000087916960796079879169685e792000000000000000000000000000000000000000000000000000000000000000008791635f7920000000000000000000000000000000000000000000000000000000000000000087916960795f798791695f795f79879169685d792000000000000000000000000000000000000000000000000000000000000000008791635e7920000000000000000000000000000000000000000000000000000000000000000087916960795e798791695f795e798791695e795e79879169685c792000000000000000000000000000000000000000000000000000000000000000008791635d7920000000000000000000000000000000000000000000000000000000000000000087916960795d798791695f795d798791695e795d798791695d795d79879169685b792000000000000000000000000000000000000000000000000000000000000000008791635c7920000000000000000000000000000000000000000000000000000000000000000087916960795c798791695f795c798791695e795c798791695d795c798791695c795c79879169685a792000000000000000000000000000000000000000000000000000000000000000008791635b7920000000000000000000000000000000000000000000000000000000000000000087916960795b798791695f795b798791695e795b798791695d795b798791695c795b798791695b795b798791696859792000000000000000000000000000000000000000000000000000000000000000008791635a7920000000000000000000000000000000000000000000000000000000000000000087916960795a798791695f795a798791695e795a798791695d795a798791695c795a798791695b795a798791695a795a798791696858792000000000000000000000000000000000000000000000000000000000000000008791635979200000000000000000000000000000000000000000000000000000000000000000879169607959798791695f7959798791695e7959798791695d7959798791695c7959798791695b7959798791695a795979879169597959798791696857792000000000000000000000000000000000000000000000000000000000000000008791635879200000000000000000000000000000000000000000000000000000000000000000879169607958798791695f7958798791695e7958798791695d7958798791695c7958798791695b7958798791695a79587987916959795879879169587958798791696856792000000000000000000000000000000000000000000000000000000000000000008791635779200000000000000000000000000000000000000000000000000000000000000000879169607957798791695f7957798791695e7957798791695d7957798791695c7957798791695b7957798791695a7957798791695979577987916958795779879169577957798791696855792000000000000000000000000000000000000000000000000000000000000000008791635679200000000000000000000000000000000000000000000000000000000000000000879169607956798791695f7956798791695e7956798791695d7956798791695c7956798791695b7956798791695a7956798791695979567987916958795679879169577956798791695679567987916968547951a269547978a169537951a26953795579a169527900a26952795579a1690052790100876351776852790101876351776876519c6901267900a2690125790138798769011479012779519358cd8769",
+  "00a269b900ccc2b9be",
+  "94a26901127976827c755196020c039c69760000013a790078200000000000000000000000000000000000000000000000000000000000000000879163547954790093007c7f557982567900937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a75013c79007820000000000000000000000000000000000000000000000000000000000000000087916357795779014193007c7f58798259790141937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a75013e7900782000000000000000000000000000000000000000000000000000000000000000008791635a795a7902820093007c7f5b79825c79028200937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a7501407900782000000000000000000000000000000000000000000000000000000000000000008791635d795d7902c30093007c7f5e79825f7902c300937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a7501427900782000000000000000000000000000000000000000000000000000000000000000008791636079607902040193007c7f01117982011279020401937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a75014479007820000000000000000000000000000000000000000000000000000000000000000087916301137901137902450193007c7f01147982011579024501937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a757601167902860100014a790078200000000000000000000000000000000000000000000000000000000000000000879163547954790093007c7f557982567900937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a75014c79007820000000000000000000000000000000000000000000000000000000000000000087916357795779014193007c7f58798259790141937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a75014e7900782000000000000000000000000000000000000000000000000000000000000000008791635a795a7902820093007c7f5b79825c79028200937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a7501507900782000000000000000000000000000000000000000000000000000000000000000008791635d795d7902c30093007c7f5e79825f7902c300937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a7501527900782000000000000000000000000000000000000000000000000000000000000000008791636079607902040193007c7f01117982011279020401937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a75015479007820000000000000000000000000000000000000000000000000000000000000000087916301137901137902450193007c7f01147982011579024501937c7f760141007c7f788201417c7f780140007c7f52798201407c7f760101876953795879ac6351577a757c6b7c6b7c6b7c6b7c6b7c6b6c6c6c6c6c6c68757575757575687653797893547a75760000014279009c630156790100876901447901577987690159797b757c68014279519c6301447901577987690159797b75517b7568014279529c6301567901008769014479010187690158797b757c68014279539c6301567901018769014479010087690159797b757c68014279549c6301577951a269",
+  "b1014479010187690157797b75517b75687851a2690118795379935279a26976519c6301537901537901537901537901537901537901537901537901537901537901537901537901537901537901537901537900607920000000000000000000000000000000000000000000000000000000000000000087916376519377685f7920000000000000000000000000000000000000000000000000000000000000000087916376519377685e7920000000000000000000000000000000000000000000000000000000000000000087916376519377685d7920000000000000000000000000000000000000000000000000000000000000000087916376519377685c7920000000000000000000000000000000000000000000000000000000000000000087916376519377685b7920000000000000000000000000000000000000000000000000000000000000000087916376519377685a79200000000000000000000000000000000000000000000000000000000000000000879163765193776859792000000000000000000000000000000000000000000000000000000000000000008791637651937768587920000000000000000000000000000000000000000000000000000000000000000087916376519377685779200000000000000000000000000000000000000000000000000000000000000000879163765193776856792000000000000000000000000000000000000000000000000000000000000000008791637651937768557920000000000000000000000000000000000000000000000000000000000000000087916376519377687651a2695f79200000000000000000000000000000000000000000000000000000000000000000879163607920000000000000000000000000000000000000000000000000000000000000000087916960796079879169685e792000000000000000000000000000000000000000000000000000000000000000008791635f7920000000000000000000000000000000000000000000000000000000000000000087916960795f798791695f795f79879169685d792000000000000000000000000000000000000000000000000000000000000000008791635e7920000000000000000000000000000000000000000000000000000000000000000087916960795e798791695f795e798791695e795e79879169685c792000000000000000000000000000000000000000000000000000000000000000008791635d7920000000000000000000000000000000000000000000000000000000000000000087916960795d798791695f795d798791695e795d798791695d795d79879169685b792000000000000000000000000000000000000000000000000000000000000000008791635c7920000000000000000000000000000000000000000000000000000000000000000087916960795c798791695f795c798791695e795c798791695d795c798791695c795c79879169685a792000000000000000000000000000000000000000000000000000000000000000008791635b7920000000000000000000000000000000000000000000000000000000000000000087916960795b798791695f795b798791695e795b798791695d795b798791695c795b798791695b795b798791696859792000000000000000000000000000000000000000000000000000000000000000008791635a7920000000000000000000000000000000000000000000000000000000000000000087916960795a798791695f795a798791695e795a798791695d795a798791695c795a798791695b795a798791695a795a798791696858792000000000000000000000000000000000000000000000000000000000000000008791635979200000000000000000000000000000000000000000000000000000000000000000879169607959798791695f7959798791695e7959798791695d7959798791695c7959798791695b7959798791695a795979879169597959798791696857792000000000000000000000000000000000000000000000000000000000000000008791635879200000000000000000000000000000000000000000000000000000000000000000879169607958798791695f7958798791695e7958798791695d7958798791695c7958798791695b7958798791695a79587987916959795879879169587958798791696856792000000000000000000000000000000000000000000000000000000000000000008791635779200000000000000000000000000000000000000000000000000000000000000000879169607957798791695f7957798791695e7957798791695d7957798791695c7957798791695b7957798791695a7957798791695979577987916958795779879169577957798791696855792000000000000000000000000000000000000000000000000000000000000000008791635679200000000000000000000000000000000000000000000000000000000000000000879169607956798791695f7956798791695e7956798791695d7956798791695c7956798791695b7956798791695a7956798791695979567987916958795679879169577956798791695679567987916968547951a269547978a169537951a26953795579a169527900a26952795579a1690052790100876351776852790101876351776876519c6901557900a269757575757575757575757575757575757575670153790166798769015279016579876901517901647987690150790163798769014f790162798769014e790161798769014d790160798769014c79015f798769014b79015e798769014a79015d798769014979015c798769014879015b798769014779015a799c690146790159799c690145790158799c6968b9cb519c69028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007901207c7e028c007958cd01087c7e028c007958cd01087c7e028c007958cd01087c7e028c007901017c7e028c007901087c7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7eb976c9",
+  "94765193bc7c7eb976c976",
+  "9402d401937cbc7eaa02000001aa7e01207e7c7e01877eb900ccc38769007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a757575757575757575757575757575757575757575757575757575757575757575757575757575516776519c63750111790111795279012779012779011979011979011979",
+  "20000000000000000000000000000000000000000000000000000000000000000087916976827c75519601419c69760140007c7f788201407c7f76010187695279",
+  "ac69",
+  "b15879011a79011a79011a79011a79011a79011a79011a79011a79011a79011a79011a79011a79011a79011a79011a7900607920000000000000000000000000000000000000000000000000000000000000000087916376519377685f7920000000000000000000000000000000000000000000000000000000000000000087916376519377685e7920000000000000000000000000000000000000000000000000000000000000000087916376519377685d7920000000000000000000000000000000000000000000000000000000000000000087916376519377685c7920000000000000000000000000000000000000000000000000000000000000000087916376519377685b7920000000000000000000000000000000000000000000000000000000000000000087916376519377685a79200000000000000000000000000000000000000000000000000000000000000000879163765193776859792000000000000000000000000000000000000000000000000000000000000000008791637651937768587920000000000000000000000000000000000000000000000000000000000000000087916376519377685779200000000000000000000000000000000000000000000000000000000000000000879163765193776856792000000000000000000000000000000000000000000000000000000000000000008791637651937768557920000000000000000000000000000000000000000000000000000000000000000087916376519377687651a2695f79200000000000000000000000000000000000000000000000000000000000000000879163607920000000000000000000000000000000000000000000000000000000000000000087916960796079879169685e792000000000000000000000000000000000000000000000000000000000000000008791635f7920000000000000000000000000000000000000000000000000000000000000000087916960795f798791695f795f79879169685d792000000000000000000000000000000000000000000000000000000000000000008791635e7920000000000000000000000000000000000000000000000000000000000000000087916960795e798791695f795e798791695e795e79879169685c792000000000000000000000000000000000000000000000000000000000000000008791635d7920000000000000000000000000000000000000000000000000000000000000000087916960795d798791695f795d798791695e795d798791695d795d79879169685b792000000000000000000000000000000000000000000000000000000000000000008791635c7920000000000000000000000000000000000000000000000000000000000000000087916960795c798791695f795c798791695e795c798791695d795c798791695c795c79879169685a792000000000000000000000000000000000000000000000000000000000000000008791635b7920000000000000000000000000000000000000000000000000000000000000000087916960795b798791695f795b798791695e795b798791695d795b798791695c795b798791695b795b798791696859792000000000000000000000000000000000000000000000000000000000000000008791635a7920000000000000000000000000000000000000000000000000000000000000000087916960795a798791695f795a798791695e795a798791695d795a798791695c795a798791695b795a798791695a795a798791696858792000000000000000000000000000000000000000000000000000000000000000008791635979200000000000000000000000000000000000000000000000000000000000000000879169607959798791695f7959798791695e7959798791695d7959798791695c7959798791695b7959798791695a795979879169597959798791696857792000000000000000000000000000000000000000000000000000000000000000008791635879200000000000000000000000000000000000000000000000000000000000000000879169607958798791695f7958798791695e7958798791695d7958798791695c7958798791695b7958798791695a79587987916959795879879169587958798791696856792000000000000000000000000000000000000000000000000000000000000000008791635779200000000000000000000000000000000000000000000000000000000000000000879169607957798791695f7957798791695e7957798791695d7957798791695c7957798791695b7957798791695a7957798791695979577987916958795779879169577957798791696855792000000000000000000000000000000000000000000000000000000000000000008791635679200000000000000000000000000000000000000000000000000000000000000000879169607956798791695f7956798791695e7956798791695d7956798791695c7956798791695b7956798791695a7956798791695979567987916958795679879169577956798791695679567987916968547951a269547978a169537951a26953795579a169527900a26952795579a1690052790100876351776852790101876351776876519c6901197900a269011779013f79013f79013f79013f79013f79013f79013f79013f79013f79013f79013f79013f79013f79013f7901257900607920000000000000000000000000000000000000000000000000000000000000000087916376519377685f7920000000000000000000000000000000000000000000000000000000000000000087916376519377685e7920000000000000000000000000000000000000000000000000000000000000000087916376519377685d7920000000000000000000000000000000000000000000000000000000000000000087916376519377685c7920000000000000000000000000000000000000000000000000000000000000000087916376519377685b7920000000000000000000000000000000000000000000000000000000000000000087916376519377685a79200000000000000000000000000000000000000000000000000000000000000000879163765193776859792000000000000000000000000000000000000000000000000000000000000000008791637651937768587920000000000000000000000000000000000000000000000000000000000000000087916376519377685779200000000000000000000000000000000000000000000000000000000000000000879163765193776856792000000000000000000000000000000000000000000000000000000000000000008791637651937768557920000000000000000000000000000000000000000000000000000000000000000087916376519377687651a2695f79200000000000000000000000000000000000000000000000000000000000000000879163607920000000000000000000000000000000000000000000000000000000000000000087916960796079879169685e792000000000000000000000000000000000000000000000000000000000000000008791635f7920000000000000000000000000000000000000000000000000000000000000000087916960795f798791695f795f79879169685d792000000000000000000000000000000000000000000000000000000000000000008791635e7920000000000000000000000000000000000000000000000000000000000000000087916960795e798791695f795e798791695e795e79879169685c792000000000000000000000000000000000000000000000000000000000000000008791635d7920000000000000000000000000000000000000000000000000000000000000000087916960795d798791695f795d798791695e795d798791695d795d79879169685b792000000000000000000000000000000000000000000000000000000000000000008791635c7920000000000000000000000000000000000000000000000000000000000000000087916960795c798791695f795c798791695e795c798791695d795c798791695c795c79879169685a792000000000000000000000000000000000000000000000000000000000000000008791635b7920000000000000000000000000000000000000000000000000000000000000000087916960795b798791695f795b798791695e795b798791695d795b798791695c795b798791695b795b798791696859792000000000000000000000000000000000000000000000000000000000000000008791635a7920000000000000000000000000000000000000000000000000000000000000000087916960795a798791695f795a798791695e795a798791695d795a798791695c795a798791695b795a798791695a795a798791696858792000000000000000000000000000000000000000000000000000000000000000008791635979200000000000000000000000000000000000000000000000000000000000000000879169607959798791695f7959798791695e7959798791695d7959798791695c7959798791695b7959798791695a795979879169597959798791696857792000000000000000000000000000000000000000000000000000000000000000008791635879200000000000000000000000000000000000000000000000000000000000000000879169607958798791695f7958798791695e7958798791695d7958798791695c7958798791695b7958798791695a79587987916959795879879169587958798791696856792000000000000000000000000000000000000000000000000000000000000000008791635779200000000000000000000000000000000000000000000000000000000000000000879169607957798791695f7957798791695e7957798791695d7957798791695c7957798791695b7957798791695a7957798791695979577987916958795779879169577957798791696855792000000000000000000000000000000000000000000000000000000000000000008791635679200000000000000000000000000000000000000000000000000000000000000000879169607956798791695f7956798791695e7956798791695d7956798791695c7956798791695b7956798791695a7956798791695979567987916958795679879169577956798791695679567987916968547951a269547978a169537951a26953795579a169527900a26952795579a1690052790100876351776852790101876351776876519c6901277900a269012a79012e798769012779012c79519358cd876901287901018769012979012d79879169",
+  "00a269b900ccc2b9be",
+  "94a269b9cb519c6901527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527901207c7e01527958cd01087c7e01527958cd01087c7e01527958cd01087c7e01527901017c7e01527901087c7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7eb976c9",
+  "94765193bc7c7eb976c976",
+  "9402d401937cbc7eaa02000001aa7e01207e7c7e01877eb900ccc38769007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a757575757575757575757575757575757575757575757575757575757575757575757575757551677500696868",
+]);
+const ROOT_SCRIPT_SKELETON_SHA256_V7 = "4c8f81e6d39a5de809aba18b97c26d20e310ccbe63f469a4c94d3f5cab95cb83"; // sha256(chunks.join("|") + "#" + holes.join(","))
+
+function fail(message, code) { const e = new Error(); e.code = code || "ROOT_SCRIPT_INVALID"; throw e; }
+function hexToBytes(hex) { const out = new Uint8Array(hex.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16); return out; }
+
+/* Minimal script-number push (the encoding silverc emits for integer
+ * constants): 0 -> OP_0 (0x00), 1..16 -> OP_1..OP_16, otherwise
+ * OP_DATA_n + little-endian magnitude with a sign-bit pad byte. */
+function pushScriptNumHex(value) {
+  let v = BigInt(value);
+  if (v < 0n) fail("negative constants are not used by the root covenant", "ROOT_SCRIPT_INVALID");
+  if (v === 0n) return "00";
+  if (v <= 16n) return (0x50 + Number(v)).toString(16);
+  const bytes = [];
+  while (v > 0n) { bytes.push(Number(v & 0xffn)); v >>= 8n; }
+  if (bytes[bytes.length - 1] & 0x80) bytes.push(0x00);
+  if (bytes.length > 75) fail("constant too large for a direct push", "ROOT_SCRIPT_INVALID");
+  return bytes.length.toString(16).padStart(2, "0") + bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function pushBytes32Hex(hex) {
+  const h = String(hex || "").toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(h)) fail("a 32-byte constant is required", "ROOT_SCRIPT_INVALID");
+  return "20" + h;
+}
+function le16PushHex(n) {
+  if (!Number.isInteger(n) || n < 0 || n > 0xffff) fail("script length out of range", "ROOT_SCRIPT_INVALID");
+  return "02" + (n & 0xff).toString(16).padStart(2, "0") + ((n >> 8) & 0xff).toString(16).padStart(2, "0");
+}
+
+/* The exact redeem script (hex) for a template + root state. */
+function reconstructRootScriptHexV7({ template: templateInput, state: stateInput }) {
+  const template = normalizeRootTemplateV7(templateInput);
+  const state = normalizeRootStateV7(stateInput);
+  if (state.boundOrgId !== template.orgId) fail("state.boundOrgId != template.orgId", "ORG_ID_MISMATCH");
+  const stateHex = serializeRootStateHexV7(state);
+  if (stateHex.length !== ROOT_STATE_LEN_V7 * 2) fail("root state region length", "ROOT_SCRIPT_INVALID");
+  const constants = {
+    rootMaxFeePerTx: pushScriptNumHex(template.rootMaxFeePerTx),
+    recoveryDelayDaa: pushScriptNumHex(template.recoveryDelayDaa),
+    successionDelayDaa: pushScriptNumHex(template.successionDelayDaa),
+    successorPk: pushBytes32Hex(template.successorPk)
+  };
+  const assemble = (lenPush) => {
+    let out = "";
+    for (let i = 0; i < ROOT_SCRIPT_HOLES_V7.length; i++) {
+      out += ROOT_SCRIPT_CHUNKS_V7[i];
+      const h = ROOT_SCRIPT_HOLES_V7[i];
+      out += h === "scriptLen" ? lenPush : constants[h];
+    }
+    return out + ROOT_SCRIPT_CHUNKS_V7[ROOT_SCRIPT_CHUNKS_V7.length - 1];
+  };
+  const provisional = assemble("020000");
+  const total = ROOT_SCRIPT_PREFIX_HEX_V7.length / 2 + ROOT_STATE_LEN_V7 + provisional.length / 2;
+  const suffix = assemble(le16PushHex(total));
+  return ROOT_SCRIPT_PREFIX_HEX_V7 + stateHex + suffix;
+}
+
+/* Version-0 P2SH scriptPublicKey (script hex, no wire version prefix) of a redeem script. */
+function p2shSpkHexOf(redeemHex) { return "aa20" + blake2bHex(hexToBytes(redeemHex), 32) + "87"; }
+
+/* The P2SH scriptPublicKey a GENESIS output must carry for the reviewed rules. */
+function genesisRootSpkHexV7({ template, ownerSet }) {
+  const t = normalizeRootTemplateV7(template);
+  const os = normalizeOwnerSetV7(ownerSet);
+  const state = genesisRootStateV7({ template: t, ownerSet: os });
+  return p2shSpkHexOf(reconstructRootScriptHexV7({ template: t, state }));
+}
+
+module.exports = Object.freeze({
+  ROOT_SCRIPT_PREFIX_HEX_V7, ROOT_SCRIPT_HOLES_V7, ROOT_SCRIPT_CHUNKS_V7, ROOT_SCRIPT_SKELETON_SHA256_V7,
+  pushScriptNumHex, pushBytes32Hex, reconstructRootScriptHexV7, p2shSpkHexOf, genesisRootSpkHexV7
+});
   });
 
   define("core/model/contract-version", function (module, exports, require) {
@@ -5286,6 +8198,20 @@ const RELAY_FEE_DIVISOR = 1000n;
 const BLOCK_COMPUTE_LIMIT = 500_000n;
 const BLOCK_TRANSIENT_LIMIT = 1_000_000n;
 const STANDARD_MASS_CAP = 500_000n;
+/*
+ * rc26 round-7 review R7-08: the node's OTHER standard cap. Before Toccata a
+ * node rejected any transaction whose compute mass OR transient mass exceeded
+ * 100,000 per dimension (rusty-kaspa mining/src/mempool/
+ * check_transaction_standard.rs, MAXIMUM_STANDARD_TRANSACTION_MASS_PRE_TOCCATA;
+ * the cap is dropped 30 minutes before activation). Toccata is active on both
+ * supported networks (consensus/core/src/config/params.rs, v2.0.1: mainnet
+ * DAA 474,165,565, testnet-10 DAA 467,579,632 — both long past), so today the
+ * 500,000 fee-mass cap above is the only standard cap. The legacy cap is
+ * still modelled and enforced FAIL-CLOSED on request so a caller targeting a
+ * pre-activation network (or a fixture proving a margin) can never build a
+ * consensus-valid-but-non-standard transaction silently.
+ */
+const STANDARD_MASS_CAP_PRE_TOCCATA = 100_000n;
 
 // Serialized-size fixed widths.
 const OUTPOINT_SIZE = 36n; // 32 txid + 4 index
@@ -5385,8 +8311,16 @@ function feeMass(tx) {
  *   minimum_fee = (fee_mass * MINIMUM_RELAY_TRANSACTION_FEE) / 1000
  * with the node's `if minimum_fee == 0 { minimum_fee = relay_fee }` floor.
  */
-function calculateRequiredFee(tx) {
+function calculateRequiredFee(tx, { preToccataStandardCap = false } = {}) {
   const m = feeMass(tx);
+  if (preToccataStandardCap === true) {
+    if (m.computeMass > STANDARD_MASS_CAP_PRE_TOCCATA) {
+      fail(`compute_mass ${m.computeMass} exceeds the pre-Toccata per-dimension standard cap ${STANDARD_MASS_CAP_PRE_TOCCATA}`);
+    }
+    if (m.transientMass > STANDARD_MASS_CAP_PRE_TOCCATA) {
+      fail(`transient_mass ${m.transientMass} exceeds the pre-Toccata per-dimension standard cap ${STANDARD_MASS_CAP_PRE_TOCCATA}`);
+    }
+  }
   if (m.feeMass > STANDARD_MASS_CAP) {
     fail(`fee_mass ${m.feeMass} exceeds the standard mass cap ${STANDARD_MASS_CAP}`);
   }
@@ -5494,6 +8428,7 @@ function finalizeWithExactFee({ transaction, signAll, changeIndex, totalInputVal
 module.exports = {
   MINIMUM_RELAY_TRANSACTION_FEE,
   STANDARD_MASS_CAP,
+  STANDARD_MASS_CAP_PRE_TOCCATA,
   estimatedSerializedSize,
   computeMass,
   feeMass,
@@ -5739,8 +8674,63 @@ module.exports = {
 };
   });
 
+  define("core/model/own-get", function (module, exports, require) {
+"use strict";
+
+/*
+ * OWN-PROPERTY table lookup for every version / action / kind dispatch map
+ * in the shared core, the SDK and the server (rc11 internal security review
+ * F-01/F-05, 2026-09-04).
+ *
+ * WHY: a bare `TABLE[key]` lookup on a plain (even frozen) object resolves
+ * PROTOTYPE-CHAIN keys — "constructor", "__proto__", "toString",
+ * "hasOwnProperty", "valueOf", "isPrototypeOf", "propertyIsEnumerable",
+ * "toLocaleString", "__defineGetter__", … — to truthy built-ins. Every
+ * `if (!TABLE[key]) fail(...)` guard then passes, and the caller continues
+ * with a Function or Object.prototype where it expected a descriptor: the
+ * audit found `resolveV4Abi("constructor")` returning `Function`, whose
+ * `.version` is `undefined`, which downstream defaulted to policyvault-0.4 —
+ * an UNKNOWN version silently routed to a default, which CLAUDE.md's
+ * fail-closed rule forbids. `core/intent/router.js` had already adopted this
+ * exact guard; this module makes it the single shared implementation so no
+ * dispatch map can regress independently.
+ *
+ * Semantics (byte-for-byte those of the router's former local helper):
+ *   ownGet(table, key) -> table[key] iff `key` is a string AND an OWN
+ *   property of `table`; otherwise `undefined`. Never throws, never
+ *   coerces (arrays / numbers / objects are not keys), never consults the
+ *   prototype chain. Callers keep their own closed refusal on `undefined`.
+ */
+function ownGet(table, key) {
+  if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(table, key)) return undefined;
+  return table[key];
+}
+
+/* `true` iff `key` is a string naming an OWN property of `table`. */
+function ownHas(table, key) {
+  return typeof key === "string" && Object.prototype.hasOwnProperty.call(table, key);
+}
+
+/* Safe key description for refusal messages: JSON.stringify throws on BigInt
+ * and returns undefined for Symbol; a refusal must never turn into a
+ * TypeError just because the hostile input was an exotic type. */
+function describeKey(key) {
+  if (typeof key === "string") return JSON.stringify(key);
+  if (key === undefined) return "undefined";
+  if (key === null) return "null";
+  if (typeof key === "bigint") return `<bigint ${key.toString()}n>`;
+  if (typeof key === "symbol") return "<symbol>";
+  if (Array.isArray(key)) return "<array>";
+  if (typeof key === "object") return "<object>";
+  return `<${typeof key} ${String(key)}>`;
+}
+
+module.exports = { ownGet, ownHas, describeKey };
+  });
+
   define("core/model/vault-state-v4", function (module, exports, require) {
 "use strict";
+const { ownGet, describeKey } = require("./own-get");
 
 /*
  * Exact live-state model for a PolicyVault v0.4 vault (FROZEN ABI,
@@ -5802,9 +8792,13 @@ const OWNER_OP_SELECTOR_V4_1 = Object.freeze({
 });
 
 function resolveV4Abi(contractVersion) {
-  const abi = V4_ABIS[contractVersion ?? CONTRACT_VERSION_V4];
+  // OWN-PROPERTY lookup only (F-01/F-05): an absent version keeps the documented
+  // v0.4 default; every STRING must name an own key — prototype-chain keys and
+  // non-strings fail closed exactly like any unknown version.
+  const key = contractVersion === undefined || contractVersion === null ? CONTRACT_VERSION_V4 : contractVersion;
+  const abi = ownGet(V4_ABIS, key);
   if (!abi) {
-    fail(`unknown contract version ${JSON.stringify(contractVersion)} for the v0.4 family — failing closed (no cross-version fallback)`);
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.4 family — failing closed (no cross-version fallback)`);
   }
   return abi;
 }
@@ -6139,7 +9133,7 @@ function agentSpendSuccessorV4(state, { agentPolicy, agentProof, payAmount, peri
 
   const pay = parsePositiveSompi(payAmount, "payAmount");
   if (pay > policy.maxPerSpend) {
-    fail("agentSpend: payAmount exceeds this agent's maxPerSpend");
+    fail("agentSpend: payAmount exceeds this agent's maxPerSpend", "OVER_CAP");
   }
   const periods = parseSompi(periodsElapsed ?? 0n, "periodsElapsed");
   if (periods > MAX_PERIODS_ELAPSED) {
@@ -6154,7 +9148,7 @@ function agentSpendSuccessorV4(state, { agentPolicy, agentProof, payAmount, peri
     lockTime = newStart; // covenant CLTV: tx lockTime must be >= newStart
   }
   if (newSpent > policy.periodBudget) {
-    fail("agentSpend: spend exceeds this agent's remaining period budget");
+    fail("agentSpend: spend exceeds this agent's remaining period budget", "OVER_BUDGET");
   }
 
   if (pay >= state.protectedValue) {
@@ -9484,6 +12478,7 @@ module.exports = Object.freeze({
 
   define("core/model/vault-state-v5", function (module, exports, require) {
 "use strict";
+const { ownGet, describeKey } = require("./own-get");
 
 /*
  * Exact live-state model for a PolicyVault v0.5 TOKEN CONTROLLER instance
@@ -9534,9 +12529,9 @@ function fail(message, code) {
 }
 
 function resolveV5Abi(contractVersion) {
-  const abi = V5_ABIS[contractVersion];
+  const abi = ownGet(V5_ABIS, contractVersion); // own-property only (F-05)
   if (!abi) {
-    fail(`unknown contract version ${JSON.stringify(contractVersion)} for the v0.5 lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.5 lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
   }
   return abi;
 }
@@ -10371,6 +13366,7 @@ module.exports = { V5_BUDGET, UNITS_PER_BUDGET, SIGOP_UNITS, selectComputeBudget
  */
 
 const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
 const assets = require("../assets");
 const { kcc20 } = assets;
 const { normalizeTokenAgentPolicyV5, verifyTokenAgentProofV5, foldTokenAgentPolicyV5 } = require("../model/agent-merkle-v5");
@@ -10425,7 +13421,7 @@ function deepFreeze(value) {
 function buildTokenIntentManifest({ build, descriptor, agentPolicy = null, recipients = null }) {
   if (!build || build.contractVersion !== "policyvault-0.5" || (build.kind !== "transition" && build.kind !== "tokenDeposit")) refuse("SCHEMA_INVALID", "a v0.5 transition or tokenDeposit build is required");
   if (build.kind === "tokenDeposit") return buildDepositManifest({ build, descriptor });
-  const info = ACTIONS[build.action];
+  const info = ownGet(ACTIONS, build.action);
   if (!info) refuse("UNKNOWN_ACTION", `unknown v0.5 action ${JSON.stringify(build.action)} — failing closed`);
   const validated = assets.validateAssetDescriptor(descriptor);
   const descriptorHash = assets.computeDescriptorHash(validated);
@@ -10538,7 +13534,7 @@ function verifyTokenIntentManifest({ manifest, descriptor }) {
     if (manifest.manifestVersion !== TOKEN_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown token manifest version — failing closed");
     const { manifestHash, ...body } = manifest;
     check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
-    const info = ACTIONS[manifest.action?.sdkAction];
+    const info = ownGet(ACTIONS, manifest.action?.sdkAction);
     if (!info) refuse("UNKNOWN_ACTION", "unknown action");
     check("actionRole", info.role === manifest.action.role && info.terminal === manifest.action.terminal, "role/terminal derived from the action table");
 
@@ -10621,7 +13617,13 @@ function verifyTokenIntentManifest({ manifest, descriptor }) {
         const newStart = periods >= 1n ? policy.periodStartDaa + periods * policy.periodLengthDaa : policy.periodStartDaa;
         const newSpent = periods >= 1n ? spend : policy.tokenPeriodSpent + spend;
         check("spendWithinBudget", newSpent <= policy.tokenPeriodBudget, `period spent ${newSpent} <= budget ${policy.tokenPeriodBudget}`);
-        check("rolloverLock", periods === 0n ? BigInt(manifest.policy.lockTime) === 0n || true : BigInt(frozen.lockTime) >= newStart, "locktime covers the rollover period start");
+        /* I3C-F3 (v0.7 hostile matrix, 2026-09-03): bind the lockTime EXACTLY —
+         * the builder pins lockTime == rollover start (0 without rollover); the
+         * covenant's CLTV only requires >=, so an upward-forged lockTime is
+         * consensus-valid but delays validity (availability tamper). The
+         * verifier must refuse anything but the exact rule value, and the
+         * declared policy lockTime must equal the frozen transaction's. */
+        check("rolloverLock", BigInt(frozen.lockTime) === (periods >= 1n ? newStart : 0n) && BigInt(manifest.policy.lockTime) === BigInt(frozen.lockTime), "lockTime == rollover start (or 0) and equals the declared policy lockTime");
         const after = normalizeStateV5(manifest.stateAfter.state);
         const newRoot = foldTokenAgentPolicyV5({ ...policy, periodStartDaa: newStart, tokenPeriodSpent: newSpent }, proof.siblingsHex, BigInt(proof.pathBits));
         check("successorRootDerived", newRoot === after.agentRoot, "successor agentRoot == single-leaf fold of the advanced leaf");
@@ -10806,13 +13808,11726 @@ function explainTokenIntent({ manifest, descriptor }) {
 module.exports = { explainTokenIntent, scaled };
   });
 
+  define("core/model/vault-state-v3", function (module, exports, require) {
+"use strict";
+
+/*
+ * Exact live-state model for a PolicyVault v0.3 vault.
+ *
+ * v0.3 identity = immutable template constants (owner, vaultId) + mutable
+ * state. Over v0.2 it adds a Merkle recipient allowlist (recipientRoot)
+ * and a covenant-enforced M-of-N approval policy over up to 10 fixed
+ * distinct approver slots (sentinel = the all-zero pubkey).
+ *
+ * Strict, fail-closed normalization ONLY — no transaction building here
+ * (that is later SDK work). Enforces the funds-critical set-time rules the
+ * covenant relies on:
+ *   - approver x-only keys are distinct among ACTIVE slots (Phase 3.5 A2);
+ *   - 1 <= approvalM <= activeApproverCount when there is an approval tier;
+ *   - the "no approval tier" config (0 approvers) requires approvalM == 0
+ *     AND approvalThresholdAmount >= maxPerSpend, so a spend can never
+ *     exceed the threshold and approvals can never be required on-chain.
+ * All quantities are BigInt sompi / integers — never JS Number.
+ */
+
+const crypto = require("crypto");
+const { parseSompi, parsePositiveSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+
+const CONTRACT_VERSION_V3 = "policyvault-0.3";
+const MAX_APPROVERS = 10;
+const APPROVER_SENTINEL = "00".repeat(32);
+const DAA_LOCK_THRESHOLD = 500_000_000_000n;
+
+function fail(message) {
+  throw new Error(`vault-state-v3: ${message}`);
+}
+
+function normalizeDaa(value, field) {
+  const daa = parseSompi(value, field);
+  if (daa >= DAA_LOCK_THRESHOLD) {
+    fail(`${field} must be below the DAA lock-time threshold`);
+  }
+  return daa;
+}
+
+function normalizeSmallInt(value, field, { min, max }) {
+  const n = parseSompi(value, field);
+  if (n < min || n > max) {
+    fail(`${field} out of range [${min}, ${max}]`);
+  }
+  return n;
+}
+
+/* v0.3 immutable template constants. */
+function normalizeTemplateV3(input) {
+  if (!input || typeof input !== "object") {
+    fail("template object is required");
+  }
+  return Object.freeze({
+    owner: normalizeXOnlyPubkey(input.owner, "template.owner"),
+    vaultId: normalizeHex(input.vaultId, 32, "template.vaultId")
+  });
+}
+
+/*
+ * Recipient root: exactly 32-byte lowercase hex (the SHA-256 Merkle
+ * commitment). The tree/proof builder is separate SDK work; here we only
+ * validate the on-chain commitment value.
+ */
+function normalizeRecipientRoot(value) {
+  return normalizeHex(value, 32, "state.recipientRoot");
+}
+
+/*
+ * Approver set. Two accepted input forms:
+ *
+ *  - `input.approvers`: an array of 0..10 x-only hex strings for the
+ *    ACTIVE approvers (the creation form). The SDK canonicalizes: sorts
+ *    ascending and pads with sentinels, so one approver set has exactly
+ *    one layout. NOTE: the PRODUCTION covenant does NOT require sorted
+ *    order — it enforces distinctness via 45 pairwise `!=` checks (byte
+ *    ordering aborts on 32-byte keys, Phase 4.5) — sorting is purely the
+ *    SDK's deterministic canonical convention.
+ *
+ *  - `input.approverSlots`: an EXACT 10-slot layout (sentinels allowed in
+ *    any position). Used when reloading persisted/observed state: the slot
+ *    layout is consensus-visible (it is baked into the compiled script),
+ *    so it must be preserved EXACTLY, never re-sorted.
+ *
+ * Fails closed on: too many, malformed key, the sentinel passed as an
+ * active key (creation form), or a duplicate active key.
+ */
+function normalizeApprovers(input) {
+  if (input.approverSlots !== undefined) {
+    const slots = input.approverSlots;
+    if (!Array.isArray(slots) || slots.length !== MAX_APPROVERS) {
+      fail(`state.approverSlots must be exactly ${MAX_APPROVERS} slots (sentinel = 64 zero hex)`);
+    }
+    const seen = new Set();
+    let activeCount = 0;
+    const normalized = slots.map((k, i) => {
+      const key = normalizeHex(k, 32, `state.approverSlots[${i}]`);
+      if (key !== APPROVER_SENTINEL) {
+        if (seen.has(key)) {
+          fail(`state.approverSlots[${i}] duplicates an earlier active approver key — active approver keys must be distinct`);
+        }
+        seen.add(key);
+        activeCount += 1;
+      }
+      return key;
+    });
+    return { approvers: Object.freeze(normalized), activeCount };
+  }
+
+  const raw = input.approvers;
+  if (!Array.isArray(raw)) {
+    fail("state.approvers must be an array (0..10 x-only pubkeys) or state.approverSlots an exact 10-slot layout");
+  }
+  if (raw.length > MAX_APPROVERS) {
+    fail(`state.approvers has ${raw.length} entries; max is ${MAX_APPROVERS}`);
+  }
+  const active = [];
+  const seen = new Set();
+  raw.forEach((k, i) => {
+    const key = normalizeXOnlyPubkey(k, `state.approvers[${i}]`);
+    if (key === APPROVER_SENTINEL) {
+      fail(`state.approvers[${i}] is the all-zero sentinel; pass only active approver keys`);
+    }
+    if (seen.has(key)) {
+      fail(`state.approvers[${i}] duplicates an earlier approver key — active approver keys must be distinct`);
+    }
+    seen.add(key);
+    active.push(key);
+  });
+  active.sort();
+  const padded = active.slice();
+  while (padded.length < MAX_APPROVERS) {
+    padded.push(APPROVER_SENTINEL);
+  }
+  return { approvers: Object.freeze(padded), activeCount: active.length };
+}
+
+/*
+ * v0.3 mutable state. Every field strictly validated; approval policy
+ * cross-checked against the active approver count.
+ */
+function normalizeStateV3(input) {
+  if (!input || typeof input !== "object") {
+    fail("state object is required");
+  }
+  const maxPerSpend = parsePositiveSompi(input.maxPerSpend, "state.maxPerSpend");
+  const periodBudget = parsePositiveSompi(input.periodBudget, "state.periodBudget");
+  if (periodBudget < maxPerSpend) {
+    fail("state.periodBudget must be >= state.maxPerSpend");
+  }
+
+  const { approvers, activeCount } = normalizeApprovers(input);
+  const approvalM = normalizeSmallInt(input.approvalM, "state.approvalM", { min: 0n, max: BigInt(MAX_APPROVERS) });
+  const approvalThresholdAmount = parseSompi(input.approvalThresholdAmount, "state.approvalThresholdAmount");
+  if (approvalThresholdAmount < 0n) {
+    fail("state.approvalThresholdAmount must be >= 0");
+  }
+
+  if (activeCount === 0) {
+    // No approval tier: approvals must be unreachable on-chain.
+    if (approvalM !== 0n) {
+      fail("state.approvalM must be 0 when there are no active approvers");
+    }
+    if (approvalThresholdAmount < maxPerSpend) {
+      fail(
+        "a vault with no approvers must set approvalThresholdAmount >= maxPerSpend " +
+          "so a spend can never require approvals"
+      );
+    }
+  } else {
+    if (approvalM < 1n) {
+      fail("state.approvalM must be >= 1 when approvers are configured");
+    }
+    if (approvalM > BigInt(activeCount)) {
+      fail(`state.approvalM (${approvalM}) exceeds the active approver count (${activeCount})`);
+    }
+  }
+
+  return Object.freeze({
+    protectedValue: parsePositiveSompi(input.protectedValue, "state.protectedValue"),
+    periodStartDaa: normalizeDaa(input.periodStartDaa, "state.periodStartDaa"),
+    periodSpent: parseSompi(input.periodSpent, "state.periodSpent"),
+    paused: normalizeSmallInt(input.paused, "state.paused", { min: 0n, max: 1n }),
+    delegate: normalizeXOnlyPubkey(input.delegate, "state.delegate"),
+    delegateActive: normalizeSmallInt(input.delegateActive, "state.delegateActive", { min: 0n, max: 1n }),
+    maxPerSpend,
+    periodBudget,
+    periodLengthDaa: normalizeSmallInt(input.periodLengthDaa, "state.periodLengthDaa", { min: 1n, max: DAA_LOCK_THRESHOLD }),
+    recipientRoot: normalizeRecipientRoot(input.recipientRoot),
+    approvers,
+    activeApproverCount: activeCount,
+    approvalM,
+    approvalThresholdAmount,
+    /* Consensus-visible; REQUIRED — no implicit default (fail closed). */
+    policyNonce: normalizeSmallInt(input.policyNonce, "state.policyNonce", { min: 0n, max: 1_000_000_000n })
+  });
+}
+
+/*
+ * RECOVERY-MODE normalization (break-glass parse; Phase 4H §13).
+ *
+ * Consensus does NOT validate v0.3 genesis state, so a hand-baked UTXO can
+ * carry an approver set the strict normalizer rejects (duplicate active
+ * keys, approvalM = 0 with active approvers, M > activeCount, budget <
+ * cap, …). The production covenant still allows ownerRecover from such a
+ * state, and the SDK must be able to CONSTRUCT that recovery — which
+ * requires compiling the EXACT malformed state, not a sanitized one.
+ *
+ * This parser validates only the field SHAPES needed for exact-state
+ * compilation (hex widths, integer domains) and preserves the approver
+ * slot layout exactly, INCLUDING duplicates. It performs NO approval-
+ * policy validation. The result is marked `recoveryParse: true` and MUST
+ * only be used for ownerRecover construction — every ordinary transition
+ * builder rejects it.
+ */
+function normalizeStateV3ForRecovery(input) {
+  if (!input || typeof input !== "object") {
+    fail("state object is required");
+  }
+  const slotsIn = input.approverSlots ?? input.approvers;
+  if (!Array.isArray(slotsIn) || slotsIn.length > MAX_APPROVERS) {
+    fail(`recovery parse requires an approver slot array of at most ${MAX_APPROVERS} entries`);
+  }
+  const slots = slotsIn.map((k, i) => normalizeHex(k, 32, `state.approverSlots[${i}]`));
+  while (slots.length < MAX_APPROVERS) {
+    slots.push(APPROVER_SENTINEL);
+  }
+  let activeCount = 0;
+  for (const s of slots) {
+    if (s !== APPROVER_SENTINEL) activeCount += 1;
+  }
+  /* Shape-only integer domains: recovery ignores policy semantics, so a
+   * paused=1/delegateActive=0/duplicate-approver/M=0/budget<cap state all
+   * parse — only widths and the representable integer range are enforced
+   * (the compiled template substitutes the exact values). */
+  return Object.freeze({
+    recoveryParse: true,
+    protectedValue: parsePositiveSompi(input.protectedValue, "state.protectedValue"),
+    periodStartDaa: parseSompi(input.periodStartDaa, "state.periodStartDaa"),
+    periodSpent: parseSompi(input.periodSpent, "state.periodSpent"),
+    paused: parseSompi(input.paused, "state.paused"),
+    delegate: normalizeXOnlyPubkey(input.delegate, "state.delegate"),
+    delegateActive: parseSompi(input.delegateActive, "state.delegateActive"),
+    maxPerSpend: parseSompi(input.maxPerSpend, "state.maxPerSpend"),
+    periodBudget: parseSompi(input.periodBudget, "state.periodBudget"),
+    periodLengthDaa: parseSompi(input.periodLengthDaa, "state.periodLengthDaa"),
+    recipientRoot: normalizeRecipientRoot(input.recipientRoot),
+    approvers: Object.freeze(slots),
+    activeApproverCount: activeCount,
+    approvalM: parseSompi(input.approvalM, "state.approvalM"),
+    approvalThresholdAmount: parseSompi(input.approvalThresholdAmount, "state.approvalThresholdAmount"),
+    policyNonce: parseSompi(input.policyNonce, "state.policyNonce")
+  });
+}
+
+/* Deterministic v0.3 state ID (application identity, versioned encoding). */
+function computeStateIdV3({ networkId, template, state }) {
+  if (typeof networkId !== "string" || networkId.length === 0) {
+    fail("networkId is required for the state ID");
+  }
+  const canonical = [
+    "policyvault-state/v3",
+    `network:${networkId}`,
+    `contract:${CONTRACT_VERSION_V3}`,
+    `owner:${template.owner}`,
+    `vaultId:${template.vaultId}`,
+    `protectedValue:${state.protectedValue}`,
+    `periodStartDaa:${state.periodStartDaa}`,
+    `periodSpent:${state.periodSpent}`,
+    `paused:${state.paused}`,
+    `delegate:${state.delegate}`,
+    `delegateActive:${state.delegateActive}`,
+    `maxPerSpend:${state.maxPerSpend}`,
+    `periodBudget:${state.periodBudget}`,
+    `periodLengthDaa:${state.periodLengthDaa}`,
+    `recipientRoot:${state.recipientRoot}`,
+    `approvers:${state.approvers.join(",")}`,
+    `approvalM:${state.approvalM}`,
+    `approvalThresholdAmount:${state.approvalThresholdAmount}`,
+    `policyNonce:${requireNonce(state)}`
+  ].join("\n");
+  return crypto.createHash("sha256").update(canonical, "utf8").digest("hex");
+}
+
+/* policyNonce is consensus-visible: never default it implicitly. */
+function requireNonce(state) {
+  if (typeof state.policyNonce !== "bigint") {
+    fail("state.policyNonce is required (BigInt) — refusing an implicit default for a consensus-visible value");
+  }
+  return state.policyNonce;
+}
+
+/* JSON-safe encoding (BigInt -> digit strings) for manifests/receipts. */
+function stateToJsonV3(state) {
+  return {
+    protectedValue: state.protectedValue.toString(),
+    periodStartDaa: state.periodStartDaa.toString(),
+    periodSpent: state.periodSpent.toString(),
+    paused: state.paused.toString(),
+    delegate: state.delegate,
+    delegateActive: state.delegateActive.toString(),
+    maxPerSpend: state.maxPerSpend.toString(),
+    periodBudget: state.periodBudget.toString(),
+    periodLengthDaa: state.periodLengthDaa.toString(),
+    recipientRoot: state.recipientRoot,
+    approverSlots: [...state.approvers],
+    approvalM: state.approvalM.toString(),
+    approvalThresholdAmount: state.approvalThresholdAmount.toString(),
+    policyNonce: requireNonce(state).toString()
+  };
+}
+
+module.exports = {
+  CONTRACT_VERSION_V3,
+  MAX_APPROVERS,
+  APPROVER_SENTINEL,
+  normalizeTemplateV3,
+  normalizeStateV3,
+  normalizeStateV3ForRecovery,
+  normalizeApprovers,
+  normalizeRecipientRoot,
+  computeStateIdV3,
+  stateToJsonV3
+};
+  });
+
+  define("core/model/approval-package-v3", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault v0.3 approval-package MODEL CORE (Phase 4H §7–§10) — the
+ * PURE members of sdk/src/approval-package-v3.js, split out in shared-core
+ * extraction step 3. Member bodies are verbatim from the pre-split sdk
+ * implementation.
+ *
+ * Here live the canonical commitment preimage + hasher (the G-2
+ * key-order-independent serialization), the fixed-slot bookkeeping
+ * (collected / missing / complete), the canonical placeholder material,
+ * and the P2PK script projection. Everything that reaches the real
+ * consensus code through pv_tx_probe (package creation, the integrity
+ * gate's txId/sighash re-derivation, approval submission, blob emission,
+ * JSON round-trip — all of which invoke that gate) is IMPURE and stays in
+ * sdk/src/approval-package-v3.js, which composes this module.
+ *
+ * THE COMMITMENT IS NOT A SIGNING DIGEST — approver authority comes only
+ * from the Kaspa transaction signature over the real input sighash. The
+ * commitment merely identifies "this exact frozen approval package" and
+ * closes the fields consensus does not commit (notably the covenant
+ * input's compute budget, which the v1 sighash does NOT cover — see
+ * frozen-tx-v3.js).
+ *
+ * Fixed-slot semantics (production covenant): 10 slots x 65 bytes = one
+ * 650-byte blob; slot i verifies ONLY approver i's configured key;
+ * sentinel (all-zero) slots never count; the canonical absent/placeholder
+ * signature is 64 x 0x00 || 0x01.
+ */
+
+const crypto = require("crypto");
+
+const { canonicalJsonStringify } = require("./canonical-json");
+const { APPROVER_SENTINEL, MAX_APPROVERS } = require("./vault-state-v3");
+
+const APPROVAL_PACKAGE_SCHEMA = "policyvault-approval-package/v1";
+const PLACEHOLDER_APPROVAL = "00".repeat(64) + "01";
+
+/* P2PK script for an x-only key: OpData32 push + key + OpCheckSig. */
+function p2pkScriptHex(xOnly) {
+  return `20${xOnly}ac`;
+}
+
+/*
+ * The canonical commitment preimage: EVERY security-relevant field in a
+ * fixed order. Excludes only `approvals` (the collected material — each
+ * approval's validity is independently bound to the sighash), `createdAt`
+ * (explicitly NONSECURITY metadata), and the commitment itself.
+ */
+/* Key-order-independent serialization (Phase G defect G-2 — same class as
+ * v0.4): the commitment binds VALUES only, never a storage backend's JSON
+ * key ordering (PostgreSQL jsonb re-orders keys; the JSON-file backend
+ * does not). Pre-G-2 commitments verify differently: an in-flight
+ * awaiting-approvals package from an older build fails closed and its
+ * request must be rebuilt — no funds impact. */
+function commitmentPreimage(pkg) {
+  return canonicalJsonStringify({
+    schema: pkg.schema,
+    contractVersion: pkg.contractVersion,
+    networkId: pkg.networkId,
+    vaultId: pkg.vaultId,
+    action: pkg.action,
+    predecessorOutpoint: { transactionId: pkg.predecessorOutpoint.transactionId, index: pkg.predecessorOutpoint.index },
+    predecessorStateId: pkg.predecessorStateId,
+    successorStateId: pkg.successorStateId,
+    policyNonce: pkg.policyNonce,
+    txId: pkg.txId,
+    covenantInputIndex: pkg.covenantInputIndex,
+    covenantSighash: pkg.covenantSighash,
+    frozenTransaction: pkg.frozenTransaction,
+    recipient: pkg.recipient,
+    payAmountSompi: pkg.payAmountSompi,
+    recipientProof: {
+      root: pkg.recipientProof.root,
+      siblingsHex: pkg.recipientProof.siblingsHex,
+      pathBits: pkg.recipientProof.pathBits
+    },
+    approvalThresholdAmount: pkg.approvalThresholdAmount,
+    approvalM: pkg.approvalM,
+    approverSlots: pkg.approverSlots,
+    computeBudget: pkg.computeBudget,
+    requiredFeeSompi: pkg.requiredFeeSompi
+  });
+}
+
+function packageCommitmentV3(pkg) {
+  return crypto.createHash("sha256").update(commitmentPreimage(pkg), "utf8").digest("hex");
+}
+
+function collectedCount(pkg) {
+  return pkg.approvals.filter((a) => typeof a === "string").length;
+}
+
+/* Slots still missing a real approval (active slots only). */
+function missingSlots(pkg) {
+  const missing = [];
+  pkg.approverSlots.forEach((key, i) => {
+    if (key !== APPROVER_SENTINEL && pkg.approvals[i] === null) {
+      missing.push(i);
+    }
+  });
+  return missing;
+}
+
+function isCompleteV3(pkg) {
+  return BigInt(collectedCount(pkg)) >= BigInt(pkg.approvalM);
+}
+
+/* The all-placeholder blob for at/below-threshold delegate-only spends. */
+function placeholderApprovalsBlob() {
+  return PLACEHOLDER_APPROVAL.repeat(MAX_APPROVERS);
+}
+
+module.exports = {
+  APPROVAL_PACKAGE_SCHEMA,
+  PLACEHOLDER_APPROVAL,
+  p2pkScriptHex,
+  commitmentPreimage,
+  packageCommitmentV3,
+  collectedCount,
+  missingSlots,
+  isCompleteV3,
+  placeholderApprovalsBlob
+};
+  });
+
+  define("core/model/approval-package-v4", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault v0.4 approval-package MODEL CORE (Checkpoint E §E7/§E8) —
+ * the PURE members of sdk/src/approval-package-v4.js, split out in
+ * shared-core extraction step 3. Member bodies are verbatim from the
+ * pre-split sdk implementation.
+ *
+ * Here live the v0.4 canonical commitment preimage + hasher and the
+ * fixed-slot bookkeeping; the shared placeholder / P2PK members are
+ * re-exported from the v0.3 model core exactly as the sdk module has
+ * always re-exported them. Everything that reaches the real consensus
+ * code through pv_tx_probe (package creation, the integrity gate's
+ * txId/sighash re-derivation, approval submission, blob emission, JSON
+ * round-trip) is IMPURE and stays in sdk/src/approval-package-v4.js,
+ * which composes this module.
+ *
+ * Serialized with canonicalJsonStringify (key-order-independent): the
+ * commitment is a function of the VALUES only, never of a storage
+ * backend's JSON representation. Phase G defect G-2: PostgreSQL jsonb
+ * re-orders object keys, so the previous JSON.stringify preimage
+ * "mutated" across a postgres round trip with every value intact and
+ * finalize voided real collected approvals. Commitments computed by
+ * pre-G-2 builds verify differently: any in-flight AWAITING_APPROVALS
+ * package from an older build fails closed (PACKAGE_MUTATED) and its
+ * request must simply be rebuilt — no funds impact.
+ *
+ * THE COMMITMENT IS NOT A SIGNING DIGEST — approver authority comes only
+ * from the Kaspa transaction signature over the real input sighash.
+ */
+
+const crypto = require("crypto");
+
+const { canonicalJsonStringify } = require("./canonical-json");
+const { APPROVER_SENTINEL } = require("./vault-state-v4");
+const { PLACEHOLDER_APPROVAL, placeholderApprovalsBlob, p2pkScriptHex } = require("./approval-package-v3");
+
+const APPROVAL_PACKAGE_SCHEMA_V4 = "policyvault-approval-package/v4";
+
+/*
+ * The canonical commitment preimage: EVERY security-relevant field.
+ * Excludes only `approvals` (the collected material — each approval's
+ * validity is independently bound to the sighash), `createdAt`
+ * (explicitly NONSECURITY metadata), and the commitment itself.
+ */
+function commitmentPreimage(pkg) {
+  return canonicalJsonStringify({
+    schema: pkg.schema,
+    contractVersion: pkg.contractVersion,
+    networkId: pkg.networkId,
+    vaultId: pkg.vaultId,
+    action: pkg.action,
+    predecessorOutpoint: { transactionId: pkg.predecessorOutpoint.transactionId, index: pkg.predecessorOutpoint.index },
+    predecessorStateId: pkg.predecessorStateId,
+    successorStateId: pkg.successorStateId,
+    policyNonce: pkg.policyNonce,
+    txId: pkg.txId,
+    covenantInputIndex: pkg.covenantInputIndex,
+    covenantSighash: pkg.covenantSighash,
+    frozenTransaction: pkg.frozenTransaction,
+    agentPolicy: pkg.agentPolicy,
+    agentProof: { root: pkg.agentProof.root, siblingsHex: pkg.agentProof.siblingsHex, pathBits: pkg.agentProof.pathBits },
+    successorAgentRoot: pkg.successorAgentRoot,
+    periodsElapsed: pkg.periodsElapsed,
+    recipient: pkg.recipient,
+    payAmountSompi: pkg.payAmountSompi,
+    recipientProof: { root: pkg.recipientProof.root, siblingsHex: pkg.recipientProof.siblingsHex, pathBits: pkg.recipientProof.pathBits },
+    reserveConsumedSompi: pkg.reserveConsumedSompi,
+    approvalM: pkg.approvalM,
+    approverSlots: pkg.approverSlots,
+    computeBudget: pkg.computeBudget,
+    requiredFeeSompi: pkg.requiredFeeSompi
+  });
+}
+
+function packageCommitmentV4(pkg) {
+  return crypto.createHash("sha256").update(commitmentPreimage(pkg), "utf8").digest("hex");
+}
+
+function collectedCountV4(pkg) {
+  return pkg.approvals.filter((a) => typeof a === "string").length;
+}
+
+/* Slots still missing a real approval (active slots only). */
+function missingSlotsV4(pkg) {
+  const missing = [];
+  pkg.approverSlots.forEach((key, i) => {
+    if (key !== APPROVER_SENTINEL && pkg.approvals[i] === null) {
+      missing.push(i);
+    }
+  });
+  return missing;
+}
+
+function isCompleteV4(pkg) {
+  return BigInt(collectedCountV4(pkg)) >= BigInt(pkg.approvalM);
+}
+
+module.exports = {
+  APPROVAL_PACKAGE_SCHEMA_V4,
+  PLACEHOLDER_APPROVAL,
+  placeholderApprovalsBlob,
+  p2pkScriptHex,
+  commitmentPreimage,
+  packageCommitmentV4,
+  collectedCountV4,
+  missingSlotsV4,
+  isCompleteV4
+};
+  });
+
+  define("core/model/storage-mass", function (module, exports, require) {
+"use strict";
+
+/*
+ * KIP-9 STORAGE MASS — an EXACT model of rusty-kaspa v2.0.1
+ * consensus/core/src/mass/mod.rs (`calc_storage_mass` + `utxo_plurality`).
+ *
+ * A CONSENSUS dimension bounded per transaction by the post-Toccata block-fit
+ * limit (500,000 grams): an over-limit value makes a transaction INVALID
+ * regardless of the fee paid ("transaction storage mass of N is larger than
+ * max allowed size of 500000"). Pure BigInt; no floating point.
+ *
+ * PLURALITY (the part the first version of this module omitted — found the
+ * hard way on 2026-09-03 when a live HD level-1 spend was refused at 840,919
+ * grams while this module said ~210,000): every UTXO occupies
+ * p = ceil((63 + spk_script_len + (32 if it carries a covenant id)) / 100)
+ * storage units and contributes C · p² / amount, so a covenant-bearing P2SH
+ * output (35-byte script + 32-byte covenant id → 130 bytes → p = 2) weighs
+ * FOUR times a plain output of the same amount. Standard plain outputs have
+ * p = 1, which is why the omission never surfaced on plain shapes.
+ *
+ *   harmonic_outs  = Σ_o  C · p(o)² / amount(o)
+ *   |O| = Σ p(o);  |I| = Σ p(i)
+ *   relaxed path  (|O| = 1, or (≤ 2 inputs and (|I| = 1 or |O| = |I| = 2))):
+ *       max(0, harmonic_outs − Σ_i C · p(i)² / amount(i))
+ *   otherwise:
+ *       mean = max(1, Σ amount(i) / |I|);  max(0, harmonic_outs − |I| · (C / mean))
+ *
+ * Every division is integer division, exactly as the node computes it.
+ *
+ * API: cells are `{ amount: BigInt, plurality: BigInt }`; a bare positive
+ * BigInt is accepted as a plurality-1 cell (the pre-plurality call shape) so
+ * plain-shape callers keep working — but any caller that can see the script
+ * and covenant fields MUST pass real cells (`cellsOfFrozenTx`).
+ */
+const STORAGE_MASS_PARAMETER = 1_000_000_000_000n; // C
+const STORAGE_MASS_LIMIT = 500_000n; // per-transaction block-fit limit (post-Toccata)
+const UTXO_CONST_STORAGE = 63; // outpoint tx_id 32 + index 4 + amount 8 + DAA 8 + is_coinbase 1 + spk version 2 + spk len 8
+const UTXO_COVENANT_STORAGE = 32; // HASH_SIZE
+const UTXO_UNIT_SIZE = 100;
+
+function fail(message) {
+  throw new Error(`storage-mass: ${message}`);
+}
+
+/* rusty-kaspa `utxo_plurality(spk, has_covenant_id)` */
+function utxoPlurality({ scriptLenBytes, hasCovenant }) {
+  if (!Number.isInteger(scriptLenBytes) || scriptLenBytes < 0) fail("scriptLenBytes must be a non-negative integer");
+  const bytes = UTXO_CONST_STORAGE + scriptLenBytes + (hasCovenant ? UTXO_COVENANT_STORAGE : 0);
+  return BigInt(Math.ceil(bytes / UTXO_UNIT_SIZE));
+}
+
+function utxoPluralityOfScriptHex(scriptHex, hasCovenant) {
+  if (typeof scriptHex !== "string" || scriptHex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(scriptHex)) fail("scriptHex must be an even-length hex string");
+  return utxoPlurality({ scriptLenBytes: scriptHex.length / 2, hasCovenant: Boolean(hasCovenant) });
+}
+
+function cells(list, label) {
+  if (!Array.isArray(list) || list.length === 0) fail(`${label} must be a non-empty array of cells or BigInt sompi`);
+  return list.map((v, i) => {
+    if (typeof v === "bigint") {
+      if (v <= 0n) fail(`${label}[${i}] must be a positive BigInt`);
+      return { amount: v, plurality: 1n };
+    }
+    if (!v || typeof v !== "object" || typeof v.amount !== "bigint" || v.amount <= 0n) fail(`${label}[${i}].amount must be a positive BigInt`);
+    const p = typeof v.plurality === "bigint" ? v.plurality : (v.plurality === undefined ? 1n : BigInt(v.plurality));
+    if (p < 1n) fail(`${label}[${i}].plurality must be >= 1`);
+    return { amount: v.amount, plurality: p };
+  });
+}
+
+function harmonic(list) {
+  return list.reduce((s, c) => s + (STORAGE_MASS_PARAMETER * c.plurality * c.plurality) / c.amount, 0n);
+}
+
+function insTermOf(ins, outsPlurality) {
+  const insPlurality = ins.reduce((s, c) => s + c.plurality, 0n);
+  let relaxed;
+  if (outsPlurality === 1n) relaxed = true;
+  else if (ins.length > 2) relaxed = false;
+  else relaxed = insPlurality === 1n || (outsPlurality === 2n && insPlurality === 2n);
+  if (relaxed) return harmonic(ins);
+  const sumIns = ins.reduce((s, c) => s + c.amount, 0n);
+  let mean = sumIns / insPlurality;
+  if (mean < 1n) mean = 1n;
+  return insPlurality * (STORAGE_MASS_PARAMETER / mean);
+}
+
+function calcStorageMass(inputCells, outputCells) {
+  const ins = cells(inputCells, "inputs");
+  const outs = cells(outputCells, "outputs");
+  const outsPlurality = outs.reduce((s, c) => s + c.plurality, 0n);
+  const harmonicOuts = harmonic(outs);
+  const insTerm = insTermOf(ins, outsPlurality);
+  return harmonicOuts > insTerm ? harmonicOuts - insTerm : 0n;
+}
+
+/* Cells of a frozen PolicyVault transaction (sdk frozen-tx shape): inputs
+ * carry `utxo.{amount, scriptPublicKey.scriptHex, covenantId}`, outputs carry
+ * `{value, scriptPublicKey.scriptHex, covenant}`. */
+function cellsOfFrozenTx(frozen) {
+  if (!frozen || !Array.isArray(frozen.inputs) || !Array.isArray(frozen.outputs)) fail("a frozen transaction with inputs and outputs is required");
+  const inputCells = frozen.inputs.map((i, k) => {
+    const u = i && i.utxo;
+    if (!u || !u.scriptPublicKey || typeof u.scriptPublicKey.scriptHex !== "string") fail(`inputs[${k}].utxo.scriptPublicKey.scriptHex is required to compute plurality`);
+    return { amount: BigInt(u.amount), plurality: utxoPluralityOfScriptHex(u.scriptPublicKey.scriptHex, u.covenantId !== null && u.covenantId !== undefined) };
+  });
+  const outputCells = frozen.outputs.map((o, k) => {
+    if (!o || !o.scriptPublicKey || typeof o.scriptPublicKey.scriptHex !== "string") fail(`outputs[${k}].scriptPublicKey.scriptHex is required to compute plurality`);
+    return { amount: BigInt(o.value), plurality: utxoPluralityOfScriptHex(o.scriptPublicKey.scriptHex, o.covenant !== null && o.covenant !== undefined) };
+  });
+  return { inputCells, outputCells };
+}
+
+/* The smallest amount for output `index` (its plurality kept) that keeps
+ * storage mass within the limit (or null if impossible). */
+function minimumOutputValueForLimit(inputCells, outputCells, index, limit = STORAGE_MASS_LIMIT) {
+  const ins = cells(inputCells, "inputs");
+  const outs = cells(outputCells, "outputs");
+  if (!Number.isInteger(index) || index < 0 || index >= outs.length) fail("index out of range");
+  const outsPlurality = outs.reduce((s, c) => s + c.plurality, 0n);
+  const others = outs.reduce((s, c, i) => (i === index ? s : s + (STORAGE_MASS_PARAMETER * c.plurality * c.plurality) / c.amount), 0n);
+  const insTerm = insTermOf(ins, outsPlurality);
+  const room = limit + insTerm - others;
+  if (room <= 0n) return null;
+  const p = outs[index].plurality;
+  let candidate = (STORAGE_MASS_PARAMETER * p * p + room - 1n) / room;
+  /* integer division rounds down; step up until the exact formula fits */
+  for (let guard = 0; guard < 8; guard++) {
+    const test = outs.map((c, i) => (i === index ? { amount: candidate, plurality: c.plurality } : c));
+    if (calcStorageMass(ins, test) <= limit) return candidate;
+    candidate += 1n;
+  }
+  return null;
+}
+
+module.exports = {
+  STORAGE_MASS_PARAMETER,
+  STORAGE_MASS_LIMIT,
+  UTXO_CONST_STORAGE,
+  UTXO_COVENANT_STORAGE,
+  UTXO_UNIT_SIZE,
+  utxoPlurality,
+  utxoPluralityOfScriptHex,
+  cellsOfFrozenTx,
+  calcStorageMass,
+  minimumOutputValueForLimit
+};
+  });
+
+  define("core/model/vault-state-v6", function (module, exports, require) {
+"use strict";
+const { ownGet, describeKey } = require("./own-get");
+
+/*
+ * Exact live-state model for a PolicyVault v0.6 ATOMIC-COMPOSABILITY TOKEN
+ * CONTROLLER instance (docs/postlaunch/v0.6-architecture-freeze.md;
+ * contracts/PolicyVault.v0.6.sil — CANDIDATE, not byte-frozen). Low-level
+ * normalization + exact serialization only — the deterministic core's
+ * single source of truth for what a v0.6 instance IS. Covenant generation
+ * v0.6 is unrelated to application release v1.6.0.
+ *
+ * v0.6 identity = the v0.5 immutable template (owner, vaultId,
+ * descriptorHash, tokenCovenantId, templateVmHash, geometry) + 7 mutable
+ * state fields (boundVaultId = vaultId, feeReserve, swapPrincipal, paused,
+ * agentRoot, swapRoot, policyNonce). The controller UTXO's VALUE is
+ * feeReserve + swapPrincipal — TWO KAS domains in one UTXO, never mixed:
+ * feeReserve may only become network fee; swapPrincipal is the ONLY BUY
+ * consideration source and the type-A SELL proceeds sink. All KAS
+ * quantities are BigInt sompi; token quantities never appear here.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-state-v6.test.js).
+ */
+
+const crypto = require("crypto");
+const { parseSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { KCC20_STATE_LEN } = require("./token-amounts");
+
+const CONTRACT_VERSION_V6 = "policyvault-0.6";
+
+const V6_ABIS = Object.freeze({
+  [CONTRACT_VERSION_V6]: Object.freeze({
+    version: CONTRACT_VERSION_V6,
+    contractName: "PolicyVaultV6",
+    contractRelPath: "contracts/PolicyVault.v0.6.sil",
+    buildSubdir: "build-v6",
+    consolidatedOwner: true,
+    /* the covenant's actual freeze status is a separate owner decision; the
+     * core never infers it */
+    byteFrozen: false
+  })
+});
+
+/* ownerControl opSelector (mutually exclusive covenant branches). */
+const OWNER_OP_SELECTOR_V6 = Object.freeze({
+  ownerSetAgentRoot: 0,
+  ownerTopUpReserve: 1,
+  ownerPause: 2,
+  ownerUnpause: 3,
+  ownerSetSwapRoot: 4,
+  ownerFundSwapPrincipal: 5
+});
+
+function fail(message, code) {
+  const e = new Error(`vault-state-v6: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function resolveV6Abi(contractVersion) {
+  const abi = ownGet(V6_ABIS, contractVersion); // own-property only (F-05)
+  if (!abi) {
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.6 lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
+  }
+  return abi;
+}
+
+function normalizeSmallInt(value, field, { min, max }) {
+  const n = parseSompi(value, field);
+  if (n < min || n > max) fail(`${field} out of range [${min}, ${max}]`);
+  return n;
+}
+function normalizeLen(value, field) {
+  if (!Number.isInteger(value) || value < 0 || value > 1_000_000) fail(`${field} must be an integer 0..1000000`);
+  return value;
+}
+
+/* v0.6 immutable template constants (identical layout to v0.5). */
+function normalizeTemplateV6(input) {
+  if (!input || typeof input !== "object") fail("template object is required");
+  const stateLen = normalizeLen(input.templateStateLen, "template.templateStateLen");
+  if (stateLen !== KCC20_STATE_LEN) fail(`template.templateStateLen must be ${KCC20_STATE_LEN} for kcc20-state/1 — failing closed`);
+  return Object.freeze({
+    owner: normalizeXOnlyPubkey(input.owner, "template.owner"),
+    vaultId: normalizeHex(input.vaultId, 32, "template.vaultId"),
+    descriptorHash: normalizeHex(input.descriptorHash, 32, "template.descriptorHash"),
+    tokenCovenantId: normalizeHex(input.tokenCovenantId, 32, "template.tokenCovenantId"),
+    templateVmHash: normalizeHex(input.templateVmHash, 32, "template.templateVmHash"),
+    templatePrefixLen: normalizeLen(input.templatePrefixLen, "template.templatePrefixLen"),
+    templateStateLen: stateLen,
+    templateSuffixLen: normalizeLen(input.templateSuffixLen, "template.templateSuffixLen")
+  });
+}
+
+const STATE_FIELDS_V6 = Object.freeze(["feeReserve", "swapPrincipal", "paused", "agentRoot", "swapRoot", "policyNonce"]);
+
+/* v0.6 mutable state (boundVaultId is always the template vaultId). */
+function normalizeStateV6(input) {
+  if (!input || typeof input !== "object") fail("state object is required");
+  for (const key of Object.keys(input)) {
+    if (!STATE_FIELDS_V6.includes(key)) fail(`unknown state field ${JSON.stringify(key)} — closed layout, failing closed`);
+  }
+  return Object.freeze({
+    feeReserve: parseSompi(input.feeReserve, "state.feeReserve"),
+    swapPrincipal: parseSompi(input.swapPrincipal, "state.swapPrincipal"),
+    paused: normalizeSmallInt(input.paused, "state.paused", { min: 0n, max: 1n }),
+    agentRoot: normalizeHex(input.agentRoot, 32, "state.agentRoot"),
+    swapRoot: normalizeHex(input.swapRoot, 32, "state.swapRoot"),
+    policyNonce: normalizeSmallInt(input.policyNonce, "state.policyNonce", { min: 0n, max: 1_000_000_000n })
+  });
+}
+
+/* BREAK-GLASS shape-only parse for ownerRecover (quarantined marker). */
+function normalizeStateV6ForRecovery(input) {
+  if (!input || typeof input !== "object") fail("state object is required");
+  return Object.freeze({
+    recoveryParse: true,
+    feeReserve: parseSompi(input.feeReserve, "state.feeReserve"),
+    swapPrincipal: parseSompi(input.swapPrincipal, "state.swapPrincipal"),
+    paused: parseSompi(input.paused, "state.paused"),
+    agentRoot: normalizeHex(input.agentRoot, 32, "state.agentRoot"),
+    swapRoot: normalizeHex(input.swapRoot, 32, "state.swapRoot"),
+    policyNonce: parseSompi(input.policyNonce, "state.policyNonce")
+  });
+}
+
+/* The controller UTXO's exact value (two domains, one UTXO). */
+function controllerValueV6(state) {
+  if (typeof state.feeReserve !== "bigint" || typeof state.swapPrincipal !== "bigint") fail("state.feeReserve and state.swapPrincipal are required (BigInt)");
+  return state.feeReserve + state.swapPrincipal;
+}
+
+function requireNonce(state) {
+  if (typeof state.policyNonce !== "bigint") fail("state.policyNonce is required (BigInt) — refusing an implicit default for a consensus-visible value");
+  return state.policyNonce;
+}
+
+/* Deterministic v0.6 state ID (application identity; never a consensus value). */
+function computeStateIdV6({ networkId, template, state, contractVersion }) {
+  if (typeof networkId !== "string" || networkId.length === 0) fail("networkId is required for the state ID");
+  const abi = resolveV6Abi(contractVersion ?? CONTRACT_VERSION_V6);
+  const canonical = [
+    "policyvault-state/v6",
+    `network:${networkId}`,
+    `contract:${abi.version}`,
+    `owner:${template.owner}`,
+    `vaultId:${template.vaultId}`,
+    `descriptorHash:${template.descriptorHash}`,
+    `tokenCovenantId:${template.tokenCovenantId}`,
+    `templateVmHash:${template.templateVmHash}`,
+    `templateGeometry:${template.templatePrefixLen}/${template.templateStateLen}/${template.templateSuffixLen}`,
+    `feeReserve:${state.feeReserve}`,
+    `swapPrincipal:${state.swapPrincipal}`,
+    `paused:${state.paused}`,
+    `agentRoot:${state.agentRoot}`,
+    `swapRoot:${state.swapRoot}`,
+    `policyNonce:${requireNonce(state)}`
+  ].join("\n");
+  return crypto.createHash("sha256").update(canonical, "utf8").digest("hex");
+}
+
+function stateToJsonV6(state) {
+  return {
+    feeReserve: state.feeReserve.toString(),
+    swapPrincipal: state.swapPrincipal.toString(),
+    paused: state.paused.toString(),
+    agentRoot: state.agentRoot,
+    swapRoot: state.swapRoot,
+    policyNonce: requireNonce(state).toString()
+  };
+}
+function templateToJsonV6(template) {
+  return { ...template };
+}
+
+module.exports = {
+  CONTRACT_VERSION_V6,
+  V6_ABIS,
+  OWNER_OP_SELECTOR_V6,
+  STATE_FIELDS_V6,
+  resolveV6Abi,
+  normalizeTemplateV6,
+  normalizeStateV6,
+  normalizeStateV6ForRecovery,
+  controllerValueV6,
+  computeStateIdV6,
+  stateToJsonV6,
+  templateToJsonV6
+};
+  });
+
+  define("core/model/agent-merkle-v6", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.6 TOKEN-AGENT policy Merkle tree — the per-agent policy leaves
+ * committed by a PolicyVault v0.6 controller's agentRoot
+ * (contracts/PolicyVault.v0.6.sil CANDIDATE; docs/postlaunch/v0.6-architecture-freeze.md).
+ *
+ * Leaf (149-byte preimage; distinct from every other PolicyVault leaf
+ * length — v0.5 agent 125, v0.4 agent 124, recipient 36, node 64, v0.6
+ * swap policy 229):
+ *   sha256(0x50563601 || agentPk(32) || num8(tokenMaxPerSpend) ||
+ *          num8(tokenPeriodBudget) || num8(periodLengthDaa) ||
+ *          num8(periodStartDaa) || num8(tokenPeriodSpent) ||
+ *          num8(agentMaxFeePerTx) || num8(agentMaxCarryKas) ||
+ *          num8(kasMaxPerSwap) || num8(kasPeriodBudget) || num8(kasPeriodSpent) ||
+ *          agentRecipientRoot(32) || 0x00)
+ *
+ * THREE DOMAINS inside one leaf, never mixed: tokenMaxPerSpend /
+ * tokenPeriodBudget / tokenPeriodSpent are TOKEN atomic units (bound
+ * tokenAgentSpend + tokenAtomicSell); kasMaxPerSwap / kasPeriodBudget /
+ * kasPeriodSpent are KAS sompi of BUY consideration (bound tokenAtomicBuy;
+ * kasMaxPerSwap = 0 means NO buy authority); agentMaxFeePerTx /
+ * agentMaxCarryKas are KAS sompi of the fee-reserve / carry domains. One
+ * period clock resets BOTH spent counters at rollover.
+ *
+ * Tree mechanics (sorted leaves, UNSPENDABLE padding, depth <= 12,
+ * single-leaf co-path fold == the covenant computeMerkleRoot) are the
+ * VM-proven v0.4/v0.5 mechanism.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED; leaf bytes pinned against the SAME
+ * Rust leaf function the real-engine v0.6 suite accepts
+ * (core/model/test/fixtures/token-agent-leaf-v6.json).
+ */
+
+const crypto = require("crypto");
+const { parseSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { parseAtomicAmount } = require("./token-amounts");
+
+const TOKEN_AGENT_LEAF_DOMAIN_V6 = Uint8Array.of(0x50, 0x56, 0x36, 0x01);
+const TOKEN_AGENT_PADDING_DOMAIN_V6 = Uint8Array.of(0x50, 0x56, 0x36, 0x00);
+const RECIPIENT_SCHEME_P2PK = 0x00;
+const MAX_AGENT_DEPTH = 12;
+const MAX_AGENTS = 1 << MAX_AGENT_DEPTH;
+const LEAF_PREIMAGE_LEN_V6 = 149;
+
+function fail(message, code) {
+  const error = new Error(`agent-merkle-v6: ${message}`);
+  if (code) error.code = code;
+  throw error;
+}
+function bytesToHex(bytes) {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function concatBytes(chunks) {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
+}
+function sha256(bytes) {
+  return new Uint8Array(crypto.createHash("sha256").update(bytes).digest());
+}
+const PADDING_LEAF = sha256(TOKEN_AGENT_PADDING_DOMAIN_V6);
+const PADDING_LEAF_HEX = bytesToHex(PADDING_LEAF);
+
+function num8(value) {
+  if (typeof value !== "bigint" || value < 0n || value > 0x7fffffffffffffffn) fail("num8 requires a BigInt in 0..2^63-1");
+  const out = new Uint8Array(8);
+  new DataView(out.buffer).setBigUint64(0, value, true);
+  return out;
+}
+function parsePositiveAtomic(value, field) {
+  const n = parseAtomicAmount(value, field);
+  if (n <= 0n) fail(`${field} must be > 0 (atomic token units)`);
+  return n;
+}
+function parseDaa(value, field, { positive = false } = {}) {
+  const n = parseSompi(value, field);
+  if (positive && n <= 0n) fail(`${field} must be > 0`);
+  return n;
+}
+
+const TOKEN_AGENT_POLICY_FIELDS_V6 = Object.freeze([
+  "agentPk",
+  "tokenMaxPerSpend",
+  "tokenPeriodBudget",
+  "periodLengthDaa",
+  "periodStartDaa",
+  "tokenPeriodSpent",
+  "agentMaxFeePerTx",
+  "agentMaxCarryKas",
+  "kasMaxPerSwap",
+  "kasPeriodBudget",
+  "kasPeriodSpent",
+  "agentRecipientRoot"
+]);
+
+/*
+ * Normalize one v0.6 token-agent policy (the full frozen leaf tuple).
+ * Strict fail-closed validation; every quantity BigInt. kasMaxPerSwap and
+ * kasPeriodBudget MAY be 0 (an agent without BUY authority); the token
+ * caps must be positive (a leaf without any authority is not a policy).
+ */
+function normalizeTokenAgentPolicyV6(input) {
+  if (!input || typeof input !== "object") fail("token agent policy object is required");
+  for (const key of Object.keys(input)) {
+    if (!TOKEN_AGENT_POLICY_FIELDS_V6.includes(key)) fail(`unknown token agent policy field ${JSON.stringify(key)} — closed layout, failing closed`);
+  }
+  const p = Object.freeze({
+    agentPk: normalizeXOnlyPubkey(input.agentPk, "agentPolicy.agentPk"),
+    tokenMaxPerSpend: parsePositiveAtomic(input.tokenMaxPerSpend, "agentPolicy.tokenMaxPerSpend"),
+    tokenPeriodBudget: parsePositiveAtomic(input.tokenPeriodBudget, "agentPolicy.tokenPeriodBudget"),
+    periodLengthDaa: parseDaa(input.periodLengthDaa, "agentPolicy.periodLengthDaa", { positive: true }),
+    periodStartDaa: parseDaa(input.periodStartDaa, "agentPolicy.periodStartDaa"),
+    tokenPeriodSpent: parseAtomicAmount(input.tokenPeriodSpent, "agentPolicy.tokenPeriodSpent"),
+    agentMaxFeePerTx: parseSompi(input.agentMaxFeePerTx, "agentPolicy.agentMaxFeePerTx"),
+    agentMaxCarryKas: parseSompi(input.agentMaxCarryKas, "agentPolicy.agentMaxCarryKas"),
+    kasMaxPerSwap: parseSompi(input.kasMaxPerSwap, "agentPolicy.kasMaxPerSwap"),
+    kasPeriodBudget: parseSompi(input.kasPeriodBudget, "agentPolicy.kasPeriodBudget"),
+    kasPeriodSpent: parseSompi(input.kasPeriodSpent, "agentPolicy.kasPeriodSpent"),
+    agentRecipientRoot: normalizeHex(input.agentRecipientRoot, 32, "agentPolicy.agentRecipientRoot")
+  });
+  if (p.kasMaxPerSwap > p.kasPeriodBudget && p.kasPeriodBudget !== 0n) fail("agentPolicy.kasMaxPerSwap exceeds kasPeriodBudget — an unusable BUY cap; failing closed");
+  return p;
+}
+
+function tokenAgentLeafPreimageV6(policyInput) {
+  const p = normalizeTokenAgentPolicyV6(policyInput);
+  const preimage = concatBytes([
+    TOKEN_AGENT_LEAF_DOMAIN_V6,
+    hexToBytes(p.agentPk),
+    num8(p.tokenMaxPerSpend),
+    num8(p.tokenPeriodBudget),
+    num8(p.periodLengthDaa),
+    num8(p.periodStartDaa),
+    num8(p.tokenPeriodSpent),
+    num8(p.agentMaxFeePerTx),
+    num8(p.agentMaxCarryKas),
+    num8(p.kasMaxPerSwap),
+    num8(p.kasPeriodBudget),
+    num8(p.kasPeriodSpent),
+    hexToBytes(p.agentRecipientRoot),
+    Uint8Array.of(RECIPIENT_SCHEME_P2PK)
+  ]);
+  if (preimage.length !== LEAF_PREIMAGE_LEN_V6) fail(`internal: token-agent leaf preimage is ${preimage.length} bytes, not ${LEAF_PREIMAGE_LEN_V6}`);
+  return preimage;
+}
+function tokenAgentLeafHashV6(policyInput) {
+  return sha256(tokenAgentLeafPreimageV6(policyInput));
+}
+
+function buildTokenAgentTreeV6(agentsInput) {
+  if (!Array.isArray(agentsInput)) fail("agents must be an array of token-agent-policy objects (may be empty)");
+  const agents = agentsInput.map((a, i) => {
+    try {
+      return normalizeTokenAgentPolicyV6(a);
+    } catch (error) {
+      fail(`agents[${i}]: ${error.message}`);
+    }
+  });
+  const seen = new Set();
+  for (const a of agents) {
+    if (seen.has(a.agentPk)) fail(`duplicate agentPk ${a.agentPk} — one key may hold exactly one policy leaf`, "DUPLICATE_AGENT");
+    seen.add(a.agentPk);
+  }
+  if (agents.length > MAX_AGENTS) fail(`agent count ${agents.length} exceeds the maximum ${MAX_AGENTS} (depth ${MAX_AGENT_DEPTH})`);
+  agents.sort((x, y) => (x.agentPk < y.agentPk ? -1 : x.agentPk > y.agentPk ? 1 : 0));
+
+  let level = agents.map((a) => tokenAgentLeafHashV6(a));
+  if (level.length === 0) level = [PADDING_LEAF];
+  while ((level.length & (level.length - 1)) !== 0) level.push(PADDING_LEAF);
+  const levels = [level];
+  while (level.length > 1) {
+    const next = [];
+    for (let i = 0; i < level.length; i += 2) next.push(sha256(concatBytes([level[i], level[i + 1]])));
+    levels.push(next);
+    level = next;
+  }
+  const depth = levels.length - 1;
+  if (depth > MAX_AGENT_DEPTH) fail(`tree depth ${depth} exceeds the covenant maximum ${MAX_AGENT_DEPTH}`);
+  return Object.freeze({ root: bytesToHex(levels[levels.length - 1][0]), agents: Object.freeze(agents), realCount: agents.length, leafCount: levels[0].length, depth, levels });
+}
+
+function agentIndex(tree, agentPkHex, label) {
+  const key = normalizeXOnlyPubkey(agentPkHex, label ?? "agentPk");
+  return { key, index: tree.agents.findIndex((a) => a.agentPk === key) };
+}
+
+function generateTokenAgentProofV6(tree, agentPkHex) {
+  const { key, index } = agentIndex(tree, agentPkHex);
+  if (index < 0) fail(`agent ${key} is not in this tree — refusing to fabricate a proof`);
+  let idx = index;
+  const siblings = [];
+  let pathBits = 0n;
+  for (let levelIdx = 0; levelIdx < tree.depth; levelIdx++) {
+    const level = tree.levels[levelIdx];
+    const siblingIdx = idx % 2 === 0 ? idx + 1 : idx - 1;
+    siblings.push(level[siblingIdx]);
+    if (idx % 2 === 1) pathBits |= 1n << BigInt(levelIdx);
+    idx = Math.floor(idx / 2);
+  }
+  return Object.freeze({ agentPk: key, policy: tree.agents[index], root: tree.root, siblingsHex: bytesToHex(concatBytes(siblings)), pathBits, depth: tree.depth });
+}
+
+function normalizeSiblings(siblingsHex) {
+  if (typeof siblingsHex !== "string" || !/^[0-9a-f]*$/.test(siblingsHex) || siblingsHex.length % 2 !== 0) fail("siblingsHex must be lowercase hex");
+  const siblings = hexToBytes(siblingsHex);
+  if (siblings.length % 32 !== 0) fail("siblings length must be a multiple of 32 bytes");
+  if (siblings.length > 32 * MAX_AGENT_DEPTH) fail(`proof depth ${siblings.length / 32} exceeds the covenant maximum ${MAX_AGENT_DEPTH}`);
+  return siblings;
+}
+function normalizePathBits(pathBits) {
+  const bits = typeof pathBits === "bigint" ? pathBits : BigInt(pathBits);
+  if (bits < 0n || bits >= BigInt(MAX_AGENTS)) fail(`pathBits out of range [0, ${MAX_AGENTS})`);
+  return bits;
+}
+
+/* Exact covenant computeMerkleRoot walk; null when path bits are not consumed. */
+function foldLeafV6(leafBuffer, siblingsHex, pathBits) {
+  if (!(leafBuffer instanceof Uint8Array) || leafBuffer.length !== 32) fail("leaf must be a 32-byte Uint8Array");
+  const siblings = normalizeSiblings(siblingsHex);
+  let bits = normalizePathBits(pathBits);
+  const depth = siblings.length / 32;
+  let node = leafBuffer;
+  for (let level = 0; level < depth; level++) {
+    const sib = siblings.subarray(level * 32, level * 32 + 32);
+    node = bits % 2n === 1n ? sha256(concatBytes([sib, node])) : sha256(concatBytes([node, sib]));
+    bits /= 2n;
+  }
+  if (bits !== 0n) return null;
+  return bytesToHex(node);
+}
+function foldTokenAgentPolicyV6(policyInput, siblingsHex, pathBits) {
+  return foldLeafV6(tokenAgentLeafHashV6(policyInput), siblingsHex, pathBits);
+}
+function verifyTokenAgentProofV6({ root, policy, siblingsHex, pathBits }) {
+  const rootHex = normalizeHex(root, 32, "root");
+  const computed = foldTokenAgentPolicyV6(policy, siblingsHex, pathBits);
+  return computed !== null && computed === rootHex;
+}
+
+/* ---- canonical tree edits (owner lifecycle; every edit is a rebuild) ---- */
+function addTokenAgentV6(tree, policyInput) {
+  const policy = normalizeTokenAgentPolicyV6(policyInput);
+  if (agentIndex(tree, policy.agentPk, "new agentPk").index >= 0) fail(`agent ${policy.agentPk} already exists — use updateTokenAgentPolicyV6/rotateTokenAgentV6`, "DUPLICATE_AGENT");
+  return buildTokenAgentTreeV6([...tree.agents, policy]);
+}
+function removeTokenAgentV6(tree, agentPkHex) {
+  const { key, index } = agentIndex(tree, agentPkHex);
+  if (index < 0) fail(`agent ${key} is not in this tree — nothing to remove`);
+  return buildTokenAgentTreeV6(tree.agents.filter((a) => a.agentPk !== key));
+}
+function updateTokenAgentPolicyV6(tree, policyInput) {
+  const policy = normalizeTokenAgentPolicyV6(policyInput);
+  if (agentIndex(tree, policy.agentPk, "agentPk").index < 0) fail(`agent ${policy.agentPk} is not in this tree — use addTokenAgentV6`);
+  return buildTokenAgentTreeV6(tree.agents.map((a) => (a.agentPk === policy.agentPk ? policy : a)));
+}
+function rotateTokenAgentV6(tree, currentPkHex, newPolicyInput) {
+  const { key, index } = agentIndex(tree, currentPkHex, "currentPk");
+  if (index < 0) fail(`agent ${key} is not in this tree — cannot rotate`);
+  const newPolicy = normalizeTokenAgentPolicyV6(newPolicyInput);
+  if (newPolicy.agentPk === key) fail("rotation requires a NEW agent key — use updateTokenAgentPolicyV6 to re-policy the same key");
+  return buildTokenAgentTreeV6([...tree.agents.filter((a) => a.agentPk !== key), newPolicy]);
+}
+
+/*
+ * Apply an agent accounting advance (spend / sell / buy): ONLY the acting
+ * agent's periodStartDaa / tokenPeriodSpent / kasPeriodSpent change.
+ * INVARIANT (asserted): the canonical rebuild equals the covenant's
+ * single-leaf fold of the new leaf up the old co-path.
+ */
+function applyTokenAgentAdvanceV6(tree, agentPkHex, { newPeriodStartDaa, newTokenPeriodSpent, newKasPeriodSpent }) {
+  const { key, index } = agentIndex(tree, agentPkHex);
+  if (index < 0) fail(`agent ${key} is not in this tree — cannot advance accounting`);
+  const previousPolicy = tree.agents[index];
+  const newPolicy = normalizeTokenAgentPolicyV6({
+    ...previousPolicy,
+    periodStartDaa: parseDaa(newPeriodStartDaa, "newPeriodStartDaa"),
+    tokenPeriodSpent: parseAtomicAmount(newTokenPeriodSpent, "newTokenPeriodSpent"),
+    kasPeriodSpent: parseSompi(newKasPeriodSpent, "newKasPeriodSpent")
+  });
+  const proof = generateTokenAgentProofV6(tree, key);
+  const foldedRoot = foldTokenAgentPolicyV6(newPolicy, proof.siblingsHex, proof.pathBits);
+  const rebuilt = buildTokenAgentTreeV6(tree.agents.map((a) => (a.agentPk === key ? newPolicy : a)));
+  if (rebuilt.root !== foldedRoot) fail(`internal invariant violated: canonical rebuild root ${rebuilt.root} != single-leaf fold root ${foldedRoot} — refusing to emit a successor tree that disagrees with consensus`);
+  return Object.freeze({ tree: rebuilt, previousPolicy, newPolicy });
+}
+
+function tokenAgentPolicyToJsonV6(p) {
+  const n = normalizeTokenAgentPolicyV6(p);
+  const out = {};
+  for (const f of TOKEN_AGENT_POLICY_FIELDS_V6) out[f] = typeof n[f] === "bigint" ? n[f].toString() : n[f];
+  return out;
+}
+
+module.exports = {
+  TOKEN_AGENT_LEAF_DOMAIN_V6,
+  TOKEN_AGENT_PADDING_DOMAIN_V6,
+  TOKEN_AGENT_POLICY_FIELDS_V6,
+  RECIPIENT_SCHEME_P2PK,
+  PADDING_LEAF_HEX,
+  MAX_AGENT_DEPTH,
+  MAX_AGENTS,
+  LEAF_PREIMAGE_LEN_V6,
+  normalizeTokenAgentPolicyV6,
+  tokenAgentLeafPreimageV6,
+  tokenAgentLeafHashV6,
+  buildTokenAgentTreeV6,
+  generateTokenAgentProofV6,
+  verifyTokenAgentProofV6,
+  foldLeafV6,
+  foldTokenAgentPolicyV6,
+  addTokenAgentV6,
+  removeTokenAgentV6,
+  updateTokenAgentPolicyV6,
+  rotateTokenAgentV6,
+  applyTokenAgentAdvanceV6,
+  tokenAgentPolicyToJsonV6
+};
+  });
+
+  define("core/model/swap-policy-v6", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.6 SWAP VENUE PROFILE (policyvault-swap-venue-profile/1) + owner-approved
+ * SWAP POLICY leaves and their Merkle tree (committed by a v0.6 controller's
+ * swapRoot). docs/postlaunch/v0.6-architecture-freeze.md.
+ *
+ * BOUNDARY (frozen): the VENUE PROFILE holds only mechanically verifiable
+ * protocol facts about ONE external pool covenant family/template (identity,
+ * geometry, state layout, invariant + fee model, required shape, sighash
+ * semantics, provenance). It never carries owner financial authority. The
+ * SWAP POLICY LEAF is the owner's authority: it pins the profile (by hash),
+ * the pool family + template + geometry + protocol-fee key (the VM-relevant
+ * facts, explicit so the covenant needs no profile parser), the
+ * protocol-fee cap, the SELL floor / BUY ceiling prices, the allowed
+ * directions and the proceeds destination. PolicyVault never becomes a
+ * DEX: the profile DESCRIBES a venue, it never blesses one.
+ *
+ * Leaf (229-byte preimage; distinct length):
+ *   sha256(0x50563602 || profileHash || poolCovenantId || poolTemplateVmHash ||
+ *          num8(poolPrefixLen) || num8(poolSuffixLen) || poolFeePk ||
+ *          num8(maxProtocolFeeKas) || num8(sellFloorNum) || num8(sellFloorDen) ||
+ *          num8(buyCeilNum) || num8(buyCeilDen) || num8(directionMask) ||
+ *          destScheme || destIdentity)
+ * Tree: sorted by leaf hash, UNSPENDABLE padding, depth <= 8 (the covenant
+ * fold accepts <= 12; the core keeps the owner's tree small), single-leaf
+ * co-path fold == the covenant computeMerkleRoot.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/swap-policy-v6.test.js);
+ * leaf bytes pinned against the SAME Rust leaf function the real-engine
+ * v0.6 suite accepts (core/model/test/fixtures/swap-policy-leaf-v6.json).
+ */
+
+const crypto = require("crypto");
+const { parseSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { canonicalJsonStringify } = require("./canonical-json");
+
+const SWAP_VENUE_PROFILE_VERSION_1 = "policyvault-swap-venue-profile/1";
+const SWAP_POLICY_LEAF_DOMAIN_V6 = Uint8Array.of(0x50, 0x56, 0x36, 0x02);
+const SWAP_POLICY_PADDING_DOMAIN_V6 = Uint8Array.of(0x50, 0x56, 0x36, 0x03);
+const LEAF_PREIMAGE_LEN_SWAP = 229;
+const MAX_SWAP_DEPTH = 8;
+const MAX_SWAP_LEAVES = 1 << MAX_SWAP_DEPTH;
+const COVENANT_MAX_DEPTH = 12;
+/* rationals are bounded so covenant products (sompi × den, tokens × num) stay far inside i64 */
+const MAX_PRICE_TERM = 1_000_000_000n;
+
+const DIRECTION = Object.freeze({ SELL: 1n, BUY: 2n, BOTH: 3n });
+const DEST_SCHEME = Object.freeze({ CONTROLLER: 0x02, P2PK: 0x00 });
+const ZERO32_HEX = "00".repeat(32);
+
+function fail(message, code) {
+  const error = new Error(`swap-policy-v6: ${message}`);
+  if (code) error.code = code;
+  throw error;
+}
+function bytesToHex(bytes) {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function concatBytes(chunks) {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
+}
+function sha256(bytes) {
+  return new Uint8Array(crypto.createHash("sha256").update(bytes).digest());
+}
+function num8(value) {
+  if (typeof value !== "bigint" || value < 0n || value > 0x7fffffffffffffffn) fail("num8 requires a BigInt in 0..2^63-1");
+  const out = new Uint8Array(8);
+  new DataView(out.buffer).setBigUint64(0, value, true);
+  return out;
+}
+const PADDING_LEAF = sha256(SWAP_POLICY_PADDING_DOMAIN_V6);
+const PADDING_LEAF_HEX = bytesToHex(PADDING_LEAF);
+
+function requireKeys(obj, keys, where) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) fail(`${where} must be an object`);
+  const actual = Object.keys(obj).sort();
+  const expected = [...keys].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) fail(`${where} must carry exactly [${expected.join(", ")}], got [${actual.join(", ")}] — closed schema, failing closed`);
+}
+function smallInt(value, field, max = 1_000_000) {
+  if (typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value) && value.length <= 7) value = Number(value);
+  if (typeof value === "bigint" && value >= 0n && value <= BigInt(max)) value = Number(value);
+  if (!Number.isInteger(value) || value < 0 || value > max) fail(`${field} must be an integer 0..${max}`);
+  return value;
+}
+function nonEmptyString(value, field, max = 200) {
+  if (typeof value !== "string" || value.length === 0 || value.length > max) fail(`${field} must be a non-empty string (<= ${max} chars)`);
+  return value;
+}
+
+/* ---------------- venue profile (protocol facts only) ---------------- */
+
+const PROFILE_FIELDS = Object.freeze([
+  "profileVersion",
+  "profileId",
+  "networkId",
+  "poolCovenantId",
+  "poolTemplateVmHashBlake2b256",
+  "poolTemplateGeometry",
+  "poolStateLayout",
+  "tokenStandard",
+  "tokenCovenantId",
+  "invariantModel",
+  "feeModel",
+  "requiredShape",
+  "signerSemantics",
+  "provenance"
+]);
+const POOL_STATE_LAYOUT_1 = "constant-product-pool-state/1"; // kasReserve, tokenReserve, feeBps, nonce (LE64 each)
+const INVARIANT_MODEL_1 = "constant-product-bps-fee/1";
+const REQUIRED_SHAPE_1 = Object.freeze({ tokenFamilyInputs: 2, tokenFamilyOutputs: 2, poolInputs: 1, poolOutputs: 1, outputsTypeA: 5, outputsTypeB: 6 });
+
+function normalizeSwapVenueProfile(input) {
+  requireKeys(input, PROFILE_FIELDS, "venue profile");
+  if (input.profileVersion !== SWAP_VENUE_PROFILE_VERSION_1) fail(`unknown profileVersion ${JSON.stringify(input.profileVersion)} — failing closed`, "UNKNOWN_VERSION");
+  requireKeys(input.poolTemplateGeometry, ["prefixLen", "stateLen", "suffixLen"], "venue profile.poolTemplateGeometry");
+  requireKeys(input.feeModel, ["poolFeeBps", "protocolFeeBps", "protocolFeePk"], "venue profile.feeModel");
+  requireKeys(input.requiredShape, Object.keys(REQUIRED_SHAPE_1), "venue profile.requiredShape");
+  requireKeys(input.signerSemantics, ["sighash", "postSignIdentityVerification", "poolOutpointBinding"], "venue profile.signerSemantics");
+  requireKeys(input.provenance, ["sourceRelPath", "sourceSha256", "reference"], "venue profile.provenance");
+  if (input.poolStateLayout !== POOL_STATE_LAYOUT_1) fail(`unsupported poolStateLayout ${JSON.stringify(input.poolStateLayout)} — failing closed`);
+  if (input.invariantModel !== INVARIANT_MODEL_1) fail(`unsupported invariantModel ${JSON.stringify(input.invariantModel)} — failing closed`);
+  if (input.tokenStandard !== "kcc20-state/1") fail(`unsupported tokenStandard ${JSON.stringify(input.tokenStandard)} — failing closed`);
+  for (const k of Object.keys(REQUIRED_SHAPE_1)) {
+    if (input.requiredShape[k] !== REQUIRED_SHAPE_1[k]) fail(`requiredShape.${k} must be ${REQUIRED_SHAPE_1[k]} for ${INVARIANT_MODEL_1}`);
+  }
+  if (input.signerSemantics.sighash !== "ALL") fail("signerSemantics.sighash must be ALL");
+  if (input.signerSemantics.postSignIdentityVerification !== true || input.signerSemantics.poolOutpointBinding !== "exact") fail("signerSemantics must declare post-sign identity verification and exact pool-outpoint binding");
+  const geometry = input.poolTemplateGeometry;
+  const stateLen = smallInt(geometry.stateLen, "poolTemplateGeometry.stateLen");
+  if (stateLen !== 36) fail(`poolTemplateGeometry.stateLen must be 36 for ${POOL_STATE_LAYOUT_1}`);
+  const feeModel = input.feeModel;
+  const poolFeeBps = parseSompi(feeModel.poolFeeBps, "feeModel.poolFeeBps");
+  const protocolFeeBps = parseSompi(feeModel.protocolFeeBps, "feeModel.protocolFeeBps");
+  if (poolFeeBps > 10_000n || protocolFeeBps > 10_000n) fail("fee bps out of range");
+  return Object.freeze({
+    profileVersion: SWAP_VENUE_PROFILE_VERSION_1,
+    profileId: nonEmptyString(input.profileId, "profileId"),
+    networkId: nonEmptyString(input.networkId, "networkId"),
+    poolCovenantId: normalizeHex(input.poolCovenantId, 32, "poolCovenantId"),
+    poolTemplateVmHashBlake2b256: normalizeHex(input.poolTemplateVmHashBlake2b256, 32, "poolTemplateVmHashBlake2b256"),
+    poolTemplateGeometry: Object.freeze({ prefixLen: smallInt(geometry.prefixLen, "poolTemplateGeometry.prefixLen"), stateLen, suffixLen: smallInt(geometry.suffixLen, "poolTemplateGeometry.suffixLen") }),
+    poolStateLayout: POOL_STATE_LAYOUT_1,
+    tokenStandard: "kcc20-state/1",
+    tokenCovenantId: normalizeHex(input.tokenCovenantId, 32, "tokenCovenantId"),
+    invariantModel: INVARIANT_MODEL_1,
+    feeModel: Object.freeze({ poolFeeBps, protocolFeeBps, protocolFeePk: normalizeXOnlyPubkey(feeModel.protocolFeePk, "feeModel.protocolFeePk") }),
+    requiredShape: REQUIRED_SHAPE_1,
+    signerSemantics: Object.freeze({ sighash: "ALL", postSignIdentityVerification: true, poolOutpointBinding: "exact" }),
+    provenance: Object.freeze({
+      sourceRelPath: nonEmptyString(input.provenance.sourceRelPath, "provenance.sourceRelPath"),
+      sourceSha256: normalizeHex(input.provenance.sourceSha256, 32, "provenance.sourceSha256"),
+      reference: nonEmptyString(input.provenance.reference, "provenance.reference", 500)
+    })
+  });
+}
+function swapVenueProfileToJson(profile) {
+  const p = normalizeSwapVenueProfile(profile);
+  return {
+    ...p,
+    poolTemplateGeometry: { ...p.poolTemplateGeometry },
+    feeModel: { poolFeeBps: p.feeModel.poolFeeBps.toString(), protocolFeeBps: p.feeModel.protocolFeeBps.toString(), protocolFeePk: p.feeModel.protocolFeePk },
+    requiredShape: { ...p.requiredShape },
+    signerSemantics: { ...p.signerSemantics },
+    provenance: { ...p.provenance }
+  };
+}
+/* Application identity of a profile (never evaluated in-VM; pinned by the leaf). */
+function computeSwapVenueProfileHash(profile) {
+  const canonical = canonicalJsonStringify(swapVenueProfileToJson(profile));
+  return crypto.createHash("sha256").update(`${SWAP_VENUE_PROFILE_VERSION_1}\n${canonical}`, "utf8").digest("hex");
+}
+
+/* ---------------- swap policy leaf (owner authority) ---------------- */
+
+const SWAP_POLICY_FIELDS_V6 = Object.freeze([
+  "profileHash",
+  "poolCovenantId",
+  "poolTemplateVmHash",
+  "poolPrefixLen",
+  "poolSuffixLen",
+  "poolFeePk",
+  "maxProtocolFeeKas",
+  "sellFloorNum",
+  "sellFloorDen",
+  "buyCeilNum",
+  "buyCeilDen",
+  "directionMask",
+  "destScheme",
+  "destIdentity"
+]);
+
+function priceTerm(value, field, { positive }) {
+  const n = parseSompi(value, field);
+  if (positive && n <= 0n) fail(`${field} must be > 0`);
+  if (n > MAX_PRICE_TERM) fail(`${field} exceeds ${MAX_PRICE_TERM} — bounded so covenant products stay inside i64`);
+  return n;
+}
+
+function normalizeSwapPolicyV6(input) {
+  if (!input || typeof input !== "object") fail("swap policy object is required");
+  for (const key of Object.keys(input)) {
+    if (!SWAP_POLICY_FIELDS_V6.includes(key)) fail(`unknown swap policy field ${JSON.stringify(key)} — closed layout, failing closed`);
+  }
+  const directionMask = parseSompi(input.directionMask, "swapPolicy.directionMask");
+  if (directionMask < 1n || directionMask > 3n) fail("swapPolicy.directionMask must be 1 (SELL), 2 (BUY) or 3 (BOTH)");
+  const destScheme = input.destScheme;
+  if (destScheme !== DEST_SCHEME.CONTROLLER && destScheme !== DEST_SCHEME.P2PK) fail("swapPolicy.destScheme must be 0x02 (PolicyVault-controlled successor) or 0x00 (allowlisted P2PK) — no other destination schemes exist");
+  const destIdentity = normalizeHex(input.destIdentity, 32, "swapPolicy.destIdentity");
+  if (destScheme === DEST_SCHEME.CONTROLLER && destIdentity !== ZERO32_HEX) fail("swapPolicy.destIdentity must be all-zero for the controller destination (type A)");
+  if (destScheme === DEST_SCHEME.P2PK) {
+    normalizeXOnlyPubkey(destIdentity, "swapPolicy.destIdentity");
+    if (directionMask !== DIRECTION.SELL) fail("a type-B (allowlisted P2PK) destination is SELL-only: tokens never leave to a third party on a buy — failing closed");
+  }
+  const p = Object.freeze({
+    profileHash: normalizeHex(input.profileHash, 32, "swapPolicy.profileHash"),
+    poolCovenantId: normalizeHex(input.poolCovenantId, 32, "swapPolicy.poolCovenantId"),
+    poolTemplateVmHash: normalizeHex(input.poolTemplateVmHash, 32, "swapPolicy.poolTemplateVmHash"),
+    poolPrefixLen: BigInt(smallInt(input.poolPrefixLen, "swapPolicy.poolPrefixLen")),
+    poolSuffixLen: BigInt(smallInt(input.poolSuffixLen, "swapPolicy.poolSuffixLen")),
+    poolFeePk: normalizeXOnlyPubkey(input.poolFeePk, "swapPolicy.poolFeePk"),
+    maxProtocolFeeKas: parseSompi(input.maxProtocolFeeKas, "swapPolicy.maxProtocolFeeKas"),
+    sellFloorNum: priceTerm(input.sellFloorNum, "swapPolicy.sellFloorNum", { positive: false }),
+    sellFloorDen: priceTerm(input.sellFloorDen, "swapPolicy.sellFloorDen", { positive: true }),
+    buyCeilNum: priceTerm(input.buyCeilNum, "swapPolicy.buyCeilNum", { positive: false }),
+    buyCeilDen: priceTerm(input.buyCeilDen, "swapPolicy.buyCeilDen", { positive: true }),
+    directionMask,
+    destScheme,
+    destIdentity
+  });
+  if (p.poolCovenantId === ZERO32_HEX) fail("swapPolicy.poolCovenantId must not be zero");
+  if ((directionMask & DIRECTION.SELL) !== 0n && p.sellFloorNum === 0n) fail("a SELL-enabled leaf must set a positive floor price (sellFloorNum > 0) — a zero floor is no protection");
+  if ((directionMask & DIRECTION.BUY) !== 0n && p.buyCeilNum === 0n) fail("a BUY-enabled leaf must set a positive ceiling price (buyCeilNum > 0)");
+  return p;
+}
+
+/* A leaf derived from a profile: the VM-relevant facts come from the profile, the authority from the owner. */
+function swapPolicyFromProfileV6(profile, owner) {
+  const p = normalizeSwapVenueProfile(profile);
+  return normalizeSwapPolicyV6({
+    profileHash: computeSwapVenueProfileHash(p),
+    poolCovenantId: p.poolCovenantId,
+    poolTemplateVmHash: p.poolTemplateVmHashBlake2b256,
+    poolPrefixLen: p.poolTemplateGeometry.prefixLen,
+    poolSuffixLen: p.poolTemplateGeometry.suffixLen,
+    poolFeePk: p.feeModel.protocolFeePk,
+    maxProtocolFeeKas: owner.maxProtocolFeeKas,
+    sellFloorNum: owner.sellFloorNum ?? 0n,
+    sellFloorDen: owner.sellFloorDen ?? 1n,
+    buyCeilNum: owner.buyCeilNum ?? 0n,
+    buyCeilDen: owner.buyCeilDen ?? 1n,
+    directionMask: owner.directionMask,
+    destScheme: owner.destScheme,
+    destIdentity: owner.destIdentity ?? ZERO32_HEX
+  });
+}
+
+function swapPolicyLeafPreimageV6(policyInput) {
+  const p = normalizeSwapPolicyV6(policyInput);
+  const preimage = concatBytes([
+    SWAP_POLICY_LEAF_DOMAIN_V6,
+    hexToBytes(p.profileHash),
+    hexToBytes(p.poolCovenantId),
+    hexToBytes(p.poolTemplateVmHash),
+    num8(p.poolPrefixLen),
+    num8(p.poolSuffixLen),
+    hexToBytes(p.poolFeePk),
+    num8(p.maxProtocolFeeKas),
+    num8(p.sellFloorNum),
+    num8(p.sellFloorDen),
+    num8(p.buyCeilNum),
+    num8(p.buyCeilDen),
+    num8(p.directionMask),
+    Uint8Array.of(p.destScheme),
+    hexToBytes(p.destIdentity)
+  ]);
+  if (preimage.length !== LEAF_PREIMAGE_LEN_SWAP) fail(`internal: swap-policy leaf preimage is ${preimage.length} bytes, not ${LEAF_PREIMAGE_LEN_SWAP}`);
+  return preimage;
+}
+function swapPolicyLeafHashV6(policyInput) {
+  return sha256(swapPolicyLeafPreimageV6(policyInput));
+}
+function swapPolicyLeafHexV6(policyInput) {
+  return bytesToHex(swapPolicyLeafHashV6(policyInput));
+}
+
+function buildSwapPolicyTreeV6(policiesInput) {
+  if (!Array.isArray(policiesInput)) fail("policies must be an array of swap-policy objects (may be empty)");
+  const policies = policiesInput.map((p, i) => {
+    try {
+      return normalizeSwapPolicyV6(p);
+    } catch (error) {
+      fail(`policies[${i}]: ${error.message}`);
+    }
+  });
+  const withLeaf = policies.map((policy) => ({ policy, leaf: swapPolicyLeafHashV6(policy), leafHex: swapPolicyLeafHexV6(policy) }));
+  const seen = new Set();
+  for (const e of withLeaf) {
+    if (seen.has(e.leafHex)) fail(`duplicate swap policy leaf ${e.leafHex}`, "DUPLICATE_POLICY");
+    seen.add(e.leafHex);
+  }
+  if (withLeaf.length > MAX_SWAP_LEAVES) fail(`swap policy count ${withLeaf.length} exceeds the maximum ${MAX_SWAP_LEAVES} (depth ${MAX_SWAP_DEPTH})`);
+  withLeaf.sort((x, y) => (x.leafHex < y.leafHex ? -1 : x.leafHex > y.leafHex ? 1 : 0));
+  let level = withLeaf.map((e) => e.leaf);
+  if (level.length === 0) level = [PADDING_LEAF];
+  while ((level.length & (level.length - 1)) !== 0) level.push(PADDING_LEAF);
+  const levels = [level];
+  while (level.length > 1) {
+    const next = [];
+    for (let i = 0; i < level.length; i += 2) next.push(sha256(concatBytes([level[i], level[i + 1]])));
+    levels.push(next);
+    level = next;
+  }
+  const depth = levels.length - 1;
+  if (depth > MAX_SWAP_DEPTH) fail(`tree depth ${depth} exceeds the core maximum ${MAX_SWAP_DEPTH}`);
+  return Object.freeze({
+    root: bytesToHex(levels[levels.length - 1][0]),
+    policies: Object.freeze(withLeaf.map((e) => e.policy)),
+    leafHexes: Object.freeze(withLeaf.map((e) => e.leafHex)),
+    realCount: withLeaf.length,
+    leafCount: levels[0].length,
+    depth,
+    levels
+  });
+}
+
+function policyIndex(tree, policyInput) {
+  const leafHex = swapPolicyLeafHexV6(policyInput);
+  return { leafHex, index: tree.leafHexes.indexOf(leafHex) };
+}
+
+function generateSwapPolicyProofV6(tree, policyInput) {
+  const { leafHex, index } = policyIndex(tree, policyInput);
+  if (index < 0) fail(`swap policy ${leafHex} is not in this tree — refusing to fabricate a proof`);
+  let idx = index;
+  const siblings = [];
+  let pathBits = 0n;
+  for (let levelIdx = 0; levelIdx < tree.depth; levelIdx++) {
+    const level = tree.levels[levelIdx];
+    const siblingIdx = idx % 2 === 0 ? idx + 1 : idx - 1;
+    siblings.push(level[siblingIdx]);
+    if (idx % 2 === 1) pathBits |= 1n << BigInt(levelIdx);
+    idx = Math.floor(idx / 2);
+  }
+  return Object.freeze({ leafHex, policy: tree.policies[index], root: tree.root, siblingsHex: bytesToHex(concatBytes(siblings)), pathBits, depth: tree.depth });
+}
+
+function normalizeSiblings(siblingsHex) {
+  if (typeof siblingsHex !== "string" || !/^[0-9a-f]*$/.test(siblingsHex) || siblingsHex.length % 2 !== 0) fail("siblingsHex must be lowercase hex");
+  const siblings = hexToBytes(siblingsHex);
+  if (siblings.length % 32 !== 0) fail("siblings length must be a multiple of 32 bytes");
+  if (siblings.length > 32 * COVENANT_MAX_DEPTH) fail(`proof depth ${siblings.length / 32} exceeds the covenant maximum ${COVENANT_MAX_DEPTH}`);
+  return siblings;
+}
+function foldSwapPolicyV6(policyInput, siblingsHex, pathBits) {
+  const siblings = normalizeSiblings(siblingsHex);
+  let bits = typeof pathBits === "bigint" ? pathBits : BigInt(pathBits);
+  if (bits < 0n || bits >= BigInt(1 << COVENANT_MAX_DEPTH)) fail("pathBits out of range");
+  let node = swapPolicyLeafHashV6(policyInput);
+  const depth = siblings.length / 32;
+  for (let level = 0; level < depth; level++) {
+    const sib = siblings.subarray(level * 32, level * 32 + 32);
+    node = bits % 2n === 1n ? sha256(concatBytes([sib, node])) : sha256(concatBytes([node, sib]));
+    bits /= 2n;
+  }
+  if (bits !== 0n) return null;
+  return bytesToHex(node);
+}
+function verifySwapPolicyProofV6({ root, policy, siblingsHex, pathBits }) {
+  const rootHex = normalizeHex(root, 32, "root");
+  const computed = foldSwapPolicyV6(policy, siblingsHex, pathBits);
+  return computed !== null && computed === rootHex;
+}
+
+function addSwapPolicyV6(tree, policyInput) {
+  const policy = normalizeSwapPolicyV6(policyInput);
+  if (policyIndex(tree, policy).index >= 0) fail("this swap policy already exists in the tree", "DUPLICATE_POLICY");
+  return buildSwapPolicyTreeV6([...tree.policies, policy]);
+}
+function removeSwapPolicyV6(tree, policyInput) {
+  const { leafHex, index } = policyIndex(tree, policyInput);
+  if (index < 0) fail(`swap policy ${leafHex} is not in this tree — nothing to remove`);
+  return buildSwapPolicyTreeV6(tree.policies.filter((_, i) => i !== index));
+}
+
+function swapPolicyToJsonV6(p) {
+  const n = normalizeSwapPolicyV6(p);
+  const out = {};
+  for (const f of SWAP_POLICY_FIELDS_V6) out[f] = typeof n[f] === "bigint" ? n[f].toString() : n[f];
+  return out;
+}
+
+module.exports = {
+  SWAP_VENUE_PROFILE_VERSION_1,
+  POOL_STATE_LAYOUT_1,
+  INVARIANT_MODEL_1,
+  REQUIRED_SHAPE_1,
+  SWAP_POLICY_LEAF_DOMAIN_V6,
+  SWAP_POLICY_PADDING_DOMAIN_V6,
+  SWAP_POLICY_FIELDS_V6,
+  PROFILE_FIELDS,
+  LEAF_PREIMAGE_LEN_SWAP,
+  MAX_SWAP_DEPTH,
+  MAX_SWAP_LEAVES,
+  MAX_PRICE_TERM,
+  PADDING_LEAF_HEX,
+  DIRECTION,
+  DEST_SCHEME,
+  ZERO32_HEX,
+  normalizeSwapVenueProfile,
+  swapVenueProfileToJson,
+  computeSwapVenueProfileHash,
+  normalizeSwapPolicyV6,
+  swapPolicyFromProfileV6,
+  swapPolicyLeafPreimageV6,
+  swapPolicyLeafHashV6,
+  swapPolicyLeafHexV6,
+  buildSwapPolicyTreeV6,
+  generateSwapPolicyProofV6,
+  foldSwapPolicyV6,
+  verifySwapPolicyProofV6,
+  addSwapPolicyV6,
+  removeSwapPolicyV6,
+  swapPolicyToJsonV6
+};
+  });
+
+  define("core/model/vault-transitions-v6", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.6 atomic-composability controller transition planner — deterministic
+ * successor derivation for every PolicyVault.v0.6.sil entrypoint, mirroring
+ * the covenant's rules EXACTLY so the core refuses locally what consensus
+ * would refuse (local pre-check ONLY; the covenant remains the authority).
+ *
+ * THREE accounting domains, never mixed:
+ *   TOKEN — spend / sell amounts, buy proceeds, positions: atomic units;
+ *           conservation verified HERE from revealed note states, never an
+ *           indexer;
+ *   KAS consideration — swapPrincipal (sompi): the ONLY BUY consideration
+ *           source and the type-A SELL proceeds sink; per-agent kasMaxPerSwap
+ *           / kasPeriodBudget;
+ *   KAS fee reserve — feeReserve (sompi): may only become network fee
+ *           (agentMaxFeePerTx, exact fee).
+ *
+ * POOL QUOTES are computed HERE from the pool's revealed on-chain state with
+ * the venue profile's constant-product-bps-fee/1 integer arithmetic (the
+ * exact expressions of contracts/experiments/V6PoolFixture.sil) — never from
+ * a DEX API, indexer or hosted quote. A quote is bound to the exact pool
+ * outpoint by the builder; any pool transition makes it unusable.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-transitions-v6.test.js).
+ */
+
+const { parseSompi, parsePositiveSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { normalizeStateV6, OWNER_OP_SELECTOR_V6 } = require("./vault-state-v6");
+const { normalizeTokenAgentPolicyV6, verifyTokenAgentProofV6, foldTokenAgentPolicyV6 } = require("./agent-merkle-v6");
+const { normalizeSwapPolicyV6, verifySwapPolicyProofV6, DIRECTION, DEST_SCHEME } = require("./swap-policy-v6");
+const { parseAtomicAmount, OWNER_SCHEMES } = require("./token-amounts");
+
+const MAX_PERIODS_ELAPSED = 1000n;
+const BPS = 10_000n;
+/* swaps carry EXACTLY these inputs/outputs (pinned in-covenant) */
+const SWAP_INPUT_COUNT = 4;
+const SWAP_OUTPUTS_TYPE_A = 5;
+const SWAP_OUTPUTS_TYPE_B = 6;
+
+function fail(message, code) {
+  const e = new Error(`vault-transitions-v6: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+function ceilDiv(a, b) {
+  if (b <= 0n) fail("internal: ceilDiv by non-positive");
+  return (a + b - 1n) / b;
+}
+function requireContinuingState(state, label) {
+  if (!state || typeof state !== "object") fail(`${label}: state is required`);
+  if (state.recoveryParse === true) fail(`${label}: a recovery-mode (shape-only) state may only be used by ownerRecover — refusing to derive a successor from it`, "RECOVERY_STATE_ONLY");
+  return normalizeStateV6(state);
+}
+function withChanges(state, changes) {
+  return normalizeStateV6({ ...state, ...changes });
+}
+function resolveAgent(s, params, label) {
+  const policy = normalizeTokenAgentPolicyV6(params.agentPolicy);
+  const proofIn = params.agentProof;
+  if (!proofIn || typeof proofIn !== "object") fail(`${label}: agentProof { siblingsHex, pathBits } is required`);
+  const proof = { siblingsHex: String(proofIn.siblingsHex ?? "").toLowerCase(), pathBits: typeof proofIn.pathBits === "bigint" ? proofIn.pathBits : BigInt(proofIn.pathBits) };
+  if (!verifyTokenAgentProofV6({ root: s.agentRoot, policy, siblingsHex: proof.siblingsHex, pathBits: proof.pathBits })) {
+    fail(`${label}: the agent policy proof does not verify against the live agentRoot — stale tree or forged policy`, "AGENT_PROOF_INVALID");
+  }
+  return { policy, proof: Object.freeze(proof) };
+}
+function resolveSwapPolicy(s, params, label) {
+  const policy = normalizeSwapPolicyV6(params.swapPolicy);
+  const proofIn = params.swapProof;
+  if (!proofIn || typeof proofIn !== "object") fail(`${label}: swapProof { siblingsHex, pathBits } is required`);
+  const proof = { siblingsHex: String(proofIn.siblingsHex ?? "").toLowerCase(), pathBits: typeof proofIn.pathBits === "bigint" ? proofIn.pathBits : BigInt(proofIn.pathBits) };
+  if (!verifySwapPolicyProofV6({ root: s.swapRoot, policy, siblingsHex: proof.siblingsHex, pathBits: proof.pathBits })) {
+    fail(`${label}: the swap policy proof does not verify against the live swapRoot — stale tree or unapproved venue/pool policy`, "SWAP_PROOF_INVALID");
+  }
+  return { policy, proof: Object.freeze(proof) };
+}
+
+/* Agent accounting advance shared by spend / sell / buy (mirrors requireAgentTransition). */
+function advanceAgent(policy, { tokenSpend, kasSpend, periodsElapsed }, proof, label) {
+  if (tokenSpend > policy.tokenMaxPerSpend) fail(`${label}: token amount exceeds this agent's tokenMaxPerSpend`, "OVER_CAP");
+  if (kasSpend > policy.kasMaxPerSwap) fail(`${label}: KAS consideration exceeds this agent's kasMaxPerSwap`, "OVER_KAS_CAP");
+  const periods = parseSompi(periodsElapsed ?? 0n, "periodsElapsed");
+  if (periods > MAX_PERIODS_ELAPSED) fail(`${label}: periodsElapsed out of range [0, ${MAX_PERIODS_ELAPSED}]`);
+  let newStart = policy.periodStartDaa;
+  let newTokenSpent = policy.tokenPeriodSpent + tokenSpend;
+  let newKasSpent = policy.kasPeriodSpent + kasSpend;
+  let lockTime = 0n;
+  if (periods >= 1n) {
+    newStart = policy.periodStartDaa + periods * policy.periodLengthDaa;
+    newTokenSpent = tokenSpend;
+    newKasSpent = kasSpend;
+    lockTime = newStart;
+  }
+  if (newTokenSpent > policy.tokenPeriodBudget) fail(`${label}: token amount exceeds this agent's remaining token period budget`, "OVER_BUDGET");
+  if (newKasSpent > policy.kasPeriodBudget) fail(`${label}: KAS consideration exceeds this agent's remaining KAS period budget`, "OVER_KAS_BUDGET");
+  const newPolicy = normalizeTokenAgentPolicyV6({ ...policy, periodStartDaa: newStart, tokenPeriodSpent: newTokenSpent, kasPeriodSpent: newKasSpent });
+  const newRoot = foldTokenAgentPolicyV6(newPolicy, proof.siblingsHex, proof.pathBits);
+  if (newRoot === null) fail(`${label}: internal — successor-root fold left unconsumed path bits`);
+  return { newPolicy, newRoot, newStart, newTokenSpent, newKasSpent, lockTime };
+}
+
+/*
+ * The protocol fee actually PAID to the venue's fee key: at least the venue's
+ * minimum (bps of the swap), optionally padded (params.protocolFeeSompi) so
+ * the fee output clears KIP-9 storage mass, never above the owner's
+ * maxProtocolFeeKas. Padding is a real cost surfaced in the plan.
+ */
+function resolveProtocolFee(quote, swap, params, label) {
+  let paid = quote.protocolFee;
+  if (params.protocolFeeSompi !== undefined && params.protocolFeeSompi !== null) {
+    paid = parseSompi(params.protocolFeeSompi, "protocolFeeSompi");
+    if (paid < quote.protocolFee) fail(`${label}: protocolFeeSompi ${paid} is below the venue's minimum ${quote.protocolFee} — the pool would refuse`, "PROTOCOL_FEE_BELOW_MIN");
+  }
+  if (paid > swap.maxProtocolFeeKas) fail(`${label}: the protocol fee ${paid} exceeds the owner's maxProtocolFeeKas ${swap.maxProtocolFeeKas}`, "PROTOCOL_FEE_OVER_MAX");
+  return paid;
+}
+
+/* Fee-reserve domain (mirrors requireFeeReserveDomain's local half). */
+function consumeReserve(s, policy, reserveConsumed, label) {
+  const consumed = parseSompi(reserveConsumed ?? 0n, "reserveConsumed");
+  if (consumed > policy.agentMaxFeePerTx) fail(`${label}: reserveConsumed exceeds this agent's agentMaxFeePerTx`, "OVER_AGENT_FEE_CAP");
+  if (consumed > s.feeReserve) fail(`${label}: reserveConsumed exceeds the available fee reserve`, "INSUFFICIENT_RESERVE");
+  return consumed;
+}
+
+/* ---------------- pool quotes (constant-product-bps-fee/1, exact integers) ---------------- */
+
+function normalizePool(input) {
+  if (!input || typeof input !== "object") fail("pool state { kasReserve, tokenReserve, feeBps, nonce } is required");
+  const pool = Object.freeze({
+    kasReserve: parsePositiveSompi(input.kasReserve, "pool.kasReserve"),
+    tokenReserve: parseAtomicAmount(input.tokenReserve, "pool.tokenReserve"),
+    feeBps: parseSompi(input.feeBps, "pool.feeBps"),
+    nonce: parseSompi(input.nonce ?? 0n, "pool.nonce")
+  });
+  if (pool.tokenReserve <= 0n) fail("pool.tokenReserve must be > 0");
+  if (pool.feeBps >= BPS) fail("pool.feeBps must be < 10000");
+  return pool;
+}
+function normalizeBps(value, field) {
+  const n = parseSompi(value, field);
+  if (n > BPS) fail(`${field} out of range`);
+  return n;
+}
+
+/* SELL amountIn tokens: the pool's exact successor and the trader's net KAS. */
+function poolSellQuote(poolInput, amountInInput, protocolFeeBpsInput) {
+  const pool = normalizePool(poolInput);
+  const amountIn = parseAtomicAmount(amountInInput, "amountIn");
+  if (amountIn <= 0n) fail("amountIn must be > 0", "ZERO_SPEND");
+  const protocolFeeBps = normalizeBps(protocolFeeBpsInput, "protocolFeeBps");
+  const feeTok = ceilDiv(amountIn * pool.feeBps, BPS);
+  const netIn = amountIn - feeTok;
+  if (netIn <= 0n) fail("amountIn is consumed entirely by the pool fee — no quote", "QUOTE_TOO_SMALL");
+  const k = pool.kasReserve * pool.tokenReserve;
+  const newTokenReserve = pool.tokenReserve + amountIn;
+  const newKasReserve = ceilDiv(k, pool.tokenReserve + netIn);
+  if (newKasReserve <= 0n || newKasReserve > pool.kasReserve) fail("internal: sell quote produced a non-decreasing KAS reserve");
+  const kasOut = pool.kasReserve - newKasReserve;
+  if (kasOut <= 0n) fail("the pool would pay nothing for this amount — no quote", "QUOTE_TOO_SMALL");
+  const protocolFee = ceilDiv(kasOut * protocolFeeBps, BPS);
+  if (protocolFee >= kasOut) fail("the protocol fee would consume the whole proceeds — no quote", "QUOTE_TOO_SMALL");
+  return Object.freeze({ direction: "SELL", amountIn, newKasReserve, newTokenReserve, newNonce: pool.nonce + 1n, kasOut, protocolFee, netProceeds: kasOut - protocolFee, pool });
+}
+
+/* BUY tokensOut tokens: the smallest KAS the pool accepts + the protocol fee. */
+function poolBuyQuote(poolInput, tokensOutInput, protocolFeeBpsInput) {
+  const pool = normalizePool(poolInput);
+  const tokensOut = parseAtomicAmount(tokensOutInput, "tokensOut");
+  if (tokensOut <= 0n) fail("tokensOut must be > 0", "ZERO_SPEND");
+  const protocolFeeBps = normalizeBps(protocolFeeBpsInput, "protocolFeeBps");
+  const newTokenReserve = pool.tokenReserve - tokensOut;
+  if (newTokenReserve <= 0n) fail("tokensOut would drain the pool's reserve — no quote", "QUOTE_TOO_LARGE");
+  const k = pool.kasReserve * pool.tokenReserve;
+  let target = ceilDiv(k, newTokenReserve) - pool.kasReserve; // minimum net KAS the invariant needs
+  if (target < 1n) target = 1n;
+  let kasIn = ceilDiv(target * BPS, BPS - pool.feeBps);
+  for (let guard = 0; guard < 8; guard++) {
+    const netIn = kasIn - ceilDiv(kasIn * pool.feeBps, BPS);
+    if (netIn >= target) break;
+    kasIn += 1n;
+  }
+  const netIn = kasIn - ceilDiv(kasIn * pool.feeBps, BPS);
+  if (netIn < target || netIn <= 0n) fail("internal: buy quote search did not converge");
+  if (newTokenReserve * (pool.kasReserve + netIn) < k) fail("internal: buy quote violates the invariant");
+  const protocolFee = ceilDiv(kasIn * protocolFeeBps, BPS);
+  return Object.freeze({ direction: "BUY", tokensOut, newKasReserve: pool.kasReserve + kasIn, newTokenReserve, newNonce: pool.nonce + 1n, kasIn, protocolFee, kasSpend: kasIn + protocolFee, pool });
+}
+
+/* ---------------- entrypoint successors ---------------- */
+
+/*
+ * tokenAgentSpend (v0.5 semantics; swapPrincipal / swapRoot preserved).
+ */
+function tokenAgentSpendSuccessorV6(state, params) {
+  const s = requireContinuingState(state, "tokenAgentSpend");
+  if (s.paused !== 0n) fail("tokenAgentSpend: controller is paused", "PAUSED");
+  const { policy, proof } = resolveAgent(s, params, "tokenAgentSpend");
+  const spend = parseAtomicAmount(params.spendAmount, "spendAmount");
+  if (spend <= 0n) fail("tokenAgentSpend: spendAmount must be > 0", "ZERO_SPEND");
+  const position = parseAtomicAmount(params.tokenPositionAmount, "tokenPositionAmount");
+  if (spend > position) fail("tokenAgentSpend: spendAmount exceeds the controller's token position — conservation would break", "INSUFFICIENT_TOKENS");
+  const adv = advanceAgent(policy, { tokenSpend: spend, kasSpend: 0n, periodsElapsed: params.periodsElapsed }, proof, "tokenAgentSpend");
+  const consumed = consumeReserve(s, policy, params.reserveConsumed, "tokenAgentSpend");
+  const tokenInputKas = parseSompi(params.tokenInputKas, "tokenInputKas");
+  const selfCarryKas = parseSompi(params.selfCarryKas, "selfCarryKas");
+  const recipientCarryKas = parseSompi(params.recipientCarryKas, "recipientCarryKas");
+  if (recipientCarryKas > policy.agentMaxCarryKas) fail("tokenAgentSpend: recipient carry KAS exceeds this agent's agentMaxCarryKas", "OVER_CARRY_CAP");
+  if (selfCarryKas + recipientCarryKas < tokenInputKas) fail("tokenAgentSpend: the token family's KAS would leak (self + recipient carry < token input KAS)", "TOKEN_FAMILY_KAS_LEAK");
+  const successor = withChanges(s, { feeReserve: s.feeReserve - consumed, agentRoot: adv.newRoot });
+  return Object.freeze({
+    action: "tokenAgentSpend",
+    successor,
+    previousPolicy: policy,
+    newPolicy: adv.newPolicy,
+    newStart: adv.newStart,
+    newSpent: adv.newTokenSpent,
+    lockTime: adv.lockTime,
+    spendAmount: spend,
+    tokenPositionAmount: position,
+    tokenSelfAfter: position - spend,
+    reserveConsumed: consumed,
+    kas: Object.freeze({ tokenInputKas, selfCarryKas, recipientCarryKas }),
+    agentProof: proof
+  });
+}
+
+/*
+ * tokenAtomicSell. params: agentPolicy, agentProof, swapPolicy, swapProof,
+ * pool { kasReserve, tokenReserve, feeBps, nonce }, protocolFeeBps, amountIn,
+ * tokenPositionAmount, poolNoteAmount, minKasOut, periodsElapsed,
+ * reserveConsumed, ourNoteKas, ourNoteKasAfter (>= ourNoteKas).
+ */
+function tokenAtomicSellSuccessorV6(state, params) {
+  const s = requireContinuingState(state, "tokenAtomicSell");
+  if (s.paused !== 0n) fail("tokenAtomicSell: controller is paused", "PAUSED");
+  const { policy, proof } = resolveAgent(s, params, "tokenAtomicSell");
+  const { policy: swap, proof: swapProof } = resolveSwapPolicy(s, params, "tokenAtomicSell");
+  if ((swap.directionMask & DIRECTION.SELL) === 0n) fail("tokenAtomicSell: this swap policy does not allow SELL", "DIRECTION_FORBIDDEN");
+  const quote = poolSellQuote(params.pool, params.amountIn, params.protocolFeeBps);
+  const position = parseAtomicAmount(params.tokenPositionAmount, "tokenPositionAmount");
+  if (quote.amountIn > position) fail("tokenAtomicSell: amountIn exceeds the controller's token position — conservation would break", "INSUFFICIENT_TOKENS");
+  const poolNoteAmount = parseAtomicAmount(params.poolNoteAmount, "poolNoteAmount");
+  if (poolNoteAmount !== quote.pool.tokenReserve) fail("tokenAtomicSell: the pool's reserve note amount != its declared tokenReserve — the pool would refuse; failing closed", "POOL_STATE_MISMATCH");
+  const minKasOut = parsePositiveSompi(params.minKasOut, "minKasOut");
+  const protocolFee = resolveProtocolFee(quote, swap, params, "tokenAtomicSell");
+  if (protocolFee >= quote.kasOut) fail("tokenAtomicSell: the protocol fee would consume the whole proceeds", "QUOTE_TOO_SMALL");
+  const netProceeds = quote.kasOut - protocolFee;
+  if (netProceeds < minKasOut) fail(`tokenAtomicSell: net proceeds ${netProceeds} below minKasOut ${minKasOut}`, "BELOW_MIN_OUT");
+  if (netProceeds * swap.sellFloorDen < quote.amountIn * swap.sellFloorNum) fail("tokenAtomicSell: net proceeds below the owner's floor price", "BELOW_FLOOR");
+  const adv = advanceAgent(policy, { tokenSpend: quote.amountIn, kasSpend: 0n, periodsElapsed: params.periodsElapsed }, proof, "tokenAtomicSell");
+  const consumed = consumeReserve(s, policy, params.reserveConsumed, "tokenAtomicSell");
+  const ourNoteKas = parseSompi(params.ourNoteKas, "ourNoteKas");
+  const ourNoteKasAfter = parseSompi(params.ourNoteKasAfter ?? params.ourNoteKas, "ourNoteKasAfter");
+  if (ourNoteKasAfter < ourNoteKas) fail("tokenAtomicSell: our token note's KAS carry would leak", "TOKEN_FAMILY_KAS_LEAK");
+  if (ourNoteKasAfter > ourNoteKas) fail("tokenAtomicSell: our token note's KAS carry may not grow (the fee reserve is never token backing and no external input exists)", "CARRY_GROWTH");
+  const typeA = swap.destScheme === DEST_SCHEME.CONTROLLER;
+  const successor = withChanges(s, {
+    feeReserve: s.feeReserve - consumed,
+    swapPrincipal: typeA ? s.swapPrincipal + netProceeds : s.swapPrincipal,
+    agentRoot: adv.newRoot
+  });
+  return Object.freeze({
+    action: "tokenAtomicSell",
+    direction: "SELL",
+    successor,
+    previousPolicy: policy,
+    newPolicy: adv.newPolicy,
+    newStart: adv.newStart,
+    newTokenSpent: adv.newTokenSpent,
+    newKasSpent: adv.newKasSpent,
+    lockTime: adv.lockTime,
+    swapPolicy: swap,
+    swapProof,
+    agentProof: proof,
+    quote,
+    amountIn: quote.amountIn,
+    tokenPositionAmount: position,
+    tokenSelfAfter: position - quote.amountIn,
+    poolNoteAmount,
+    poolNoteAfter: poolNoteAmount + quote.amountIn,
+    minKasOut,
+    netProceeds,
+    protocolFee,
+    protocolFeeMinimum: quote.protocolFee,
+    destination: Object.freeze(typeA ? { type: "A", scheme: DEST_SCHEME.CONTROLLER, identity: null, outputs: SWAP_OUTPUTS_TYPE_A } : { type: "B", scheme: DEST_SCHEME.P2PK, identity: swap.destIdentity, outputs: SWAP_OUTPUTS_TYPE_B }),
+    reserveConsumed: consumed,
+    kas: Object.freeze({ ourNoteKas, ourNoteKasAfter, principalDelta: typeA ? netProceeds : 0n }),
+    inputs: SWAP_INPUT_COUNT
+  });
+}
+
+/*
+ * tokenAtomicBuy. params: agentPolicy, agentProof, swapPolicy, swapProof,
+ * pool, protocolFeeBps, tokensOut, tokenPositionAmount, poolNoteAmount,
+ * maxKasIn, periodsElapsed, reserveConsumed, ourNoteKas, ourNoteKasAfter.
+ */
+function tokenAtomicBuySuccessorV6(state, params) {
+  const s = requireContinuingState(state, "tokenAtomicBuy");
+  if (s.paused !== 0n) fail("tokenAtomicBuy: controller is paused", "PAUSED");
+  const { policy, proof } = resolveAgent(s, params, "tokenAtomicBuy");
+  const { policy: swap, proof: swapProof } = resolveSwapPolicy(s, params, "tokenAtomicBuy");
+  if ((swap.directionMask & DIRECTION.BUY) === 0n) fail("tokenAtomicBuy: this swap policy does not allow BUY", "DIRECTION_FORBIDDEN");
+  if (swap.destScheme !== DEST_SCHEME.CONTROLLER) fail("tokenAtomicBuy: a buy always accrues tokens to the controller's own position (type A) — failing closed", "DESTINATION_FORBIDDEN");
+  const quote = poolBuyQuote(params.pool, params.tokensOut, params.protocolFeeBps);
+  const position = parseAtomicAmount(params.tokenPositionAmount, "tokenPositionAmount");
+  const poolNoteAmount = parseAtomicAmount(params.poolNoteAmount, "poolNoteAmount");
+  if (poolNoteAmount !== quote.pool.tokenReserve) fail("tokenAtomicBuy: the pool's reserve note amount != its declared tokenReserve — the pool would refuse; failing closed", "POOL_STATE_MISMATCH");
+  const maxKasIn = parsePositiveSompi(params.maxKasIn, "maxKasIn");
+  const protocolFee = resolveProtocolFee(quote, swap, params, "tokenAtomicBuy");
+  const kasSpend = quote.kasIn + protocolFee;
+  if (kasSpend > maxKasIn) fail(`tokenAtomicBuy: consideration ${kasSpend} exceeds maxKasIn ${maxKasIn}`, "ABOVE_MAX_IN");
+  if (kasSpend * swap.buyCeilDen > quote.tokensOut * swap.buyCeilNum) fail("tokenAtomicBuy: consideration above the owner's ceiling price", "ABOVE_CEILING");
+  if (kasSpend > s.swapPrincipal) fail("tokenAtomicBuy: consideration exceeds the protected swap principal — the fee reserve and token backing are never consideration", "INSUFFICIENT_PRINCIPAL");
+  const adv = advanceAgent(policy, { tokenSpend: 0n, kasSpend, periodsElapsed: params.periodsElapsed }, proof, "tokenAtomicBuy");
+  const consumed = consumeReserve(s, policy, params.reserveConsumed, "tokenAtomicBuy");
+  const ourNoteKas = parseSompi(params.ourNoteKas, "ourNoteKas");
+  const ourNoteKasAfter = parseSompi(params.ourNoteKasAfter ?? params.ourNoteKas, "ourNoteKasAfter");
+  if (ourNoteKasAfter < ourNoteKas) fail("tokenAtomicBuy: our token note's KAS carry would leak", "TOKEN_FAMILY_KAS_LEAK");
+  if (ourNoteKasAfter > ourNoteKas) fail("tokenAtomicBuy: our token note's KAS carry may not grow", "CARRY_GROWTH");
+  const successor = withChanges(s, { feeReserve: s.feeReserve - consumed, swapPrincipal: s.swapPrincipal - kasSpend, agentRoot: adv.newRoot });
+  return Object.freeze({
+    action: "tokenAtomicBuy",
+    direction: "BUY",
+    successor,
+    previousPolicy: policy,
+    newPolicy: adv.newPolicy,
+    newStart: adv.newStart,
+    newTokenSpent: adv.newTokenSpent,
+    newKasSpent: adv.newKasSpent,
+    lockTime: adv.lockTime,
+    swapPolicy: swap,
+    swapProof,
+    agentProof: proof,
+    quote,
+    tokensOut: quote.tokensOut,
+    tokenPositionAmount: position,
+    tokenSelfAfter: position + quote.tokensOut,
+    poolNoteAmount,
+    poolNoteAfter: poolNoteAmount - quote.tokensOut,
+    maxKasIn,
+    kasIn: quote.kasIn,
+    protocolFee,
+    protocolFeeMinimum: quote.protocolFee,
+    kasSpend,
+    destination: Object.freeze({ type: "A", scheme: DEST_SCHEME.CONTROLLER, identity: null, outputs: SWAP_OUTPUTS_TYPE_A }),
+    reserveConsumed: consumed,
+    kas: Object.freeze({ ourNoteKas, ourNoteKasAfter, principalDelta: -kasSpend }),
+    inputs: SWAP_INPUT_COUNT
+  });
+}
+
+/* The token continuation states the covenant will template-verify. */
+function tokenContinuationStatesV6({ controllerCovenantId, recipientPk, plan }) {
+  const covid = normalizeHex(controllerCovenantId, 32, "controllerCovenantId");
+  const recipient = normalizeXOnlyPubkey(recipientPk, "recipientPk");
+  return Object.freeze({
+    selfNew: Object.freeze({ ownerIdentifier: covid, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: plan.tokenSelfAfter, isMinter: false }),
+    recipientNew: Object.freeze({ ownerIdentifier: recipient, identifierType: OWNER_SCHEMES.P2PK, amount: plan.spendAmount, isMinter: false })
+  });
+}
+function swapContinuationStatesV6({ controllerCovenantId, plan }) {
+  const covid = normalizeHex(controllerCovenantId, 32, "controllerCovenantId");
+  const poolId = normalizeHex(plan.swapPolicy.poolCovenantId, 32, "swapPolicy.poolCovenantId");
+  return Object.freeze({
+    selfNew: Object.freeze({ ownerIdentifier: covid, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: plan.tokenSelfAfter, isMinter: false }),
+    poolNoteNew: Object.freeze({ ownerIdentifier: poolId, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: plan.poolNoteAfter, isMinter: false })
+  });
+}
+
+/* ---------------- owner operations ---------------- */
+
+function setAgentRootSuccessorV6(state, newAgentRoot) {
+  const s = requireContinuingState(state, "setAgentRoot");
+  const agentRoot = normalizeHex(newAgentRoot, 32, "newAgentRoot");
+  return Object.freeze({ successor: withChanges(s, { agentRoot, policyNonce: s.policyNonce + 1n }), opSelector: OWNER_OP_SELECTOR_V6.ownerSetAgentRoot });
+}
+function topUpReserveSuccessorV6(state, topUpAmount) {
+  const s = requireContinuingState(state, "topUpReserve");
+  const amount = parsePositiveSompi(topUpAmount, "topUpAmount");
+  return Object.freeze({ successor: withChanges(s, { feeReserve: s.feeReserve + amount }), topUpAmount: amount, opSelector: OWNER_OP_SELECTOR_V6.ownerTopUpReserve });
+}
+function pauseSuccessorV6(state, pause) {
+  const s = requireContinuingState(state, pause ? "pause" : "unpause");
+  if (pause && s.paused !== 0n) fail("pause: controller is already paused");
+  if (!pause && s.paused !== 1n) fail("unpause: controller is not paused");
+  return Object.freeze({ successor: withChanges(s, { paused: pause ? 1n : 0n }), opSelector: pause ? OWNER_OP_SELECTOR_V6.ownerPause : OWNER_OP_SELECTOR_V6.ownerUnpause });
+}
+function setSwapRootSuccessorV6(state, newSwapRoot) {
+  const s = requireContinuingState(state, "setSwapRoot");
+  const swapRoot = normalizeHex(newSwapRoot, 32, "newSwapRoot");
+  return Object.freeze({ successor: withChanges(s, { swapRoot, policyNonce: s.policyNonce + 1n }), opSelector: OWNER_OP_SELECTOR_V6.ownerSetSwapRoot });
+}
+function fundSwapPrincipalSuccessorV6(state, fundAmount) {
+  const s = requireContinuingState(state, "fundSwapPrincipal");
+  const amount = parsePositiveSompi(fundAmount, "fundAmount");
+  return Object.freeze({ successor: withChanges(s, { swapPrincipal: s.swapPrincipal + amount }), fundAmount: amount, opSelector: OWNER_OP_SELECTOR_V6.ownerFundSwapPrincipal });
+}
+
+/* ownerRecover plan (terminal): reserve + principal pay out to the owner; tokens to the owner key. */
+function recoverPlanV6(state, ownerXOnly, tokenPositionAmount) {
+  if (!state || typeof state !== "object") fail("recover: state is required");
+  const owner = normalizeXOnlyPubkey(ownerXOnly, "owner");
+  const payout = parseSompi(state.feeReserve, "state.feeReserve") + parseSompi(state.swapPrincipal, "state.swapPrincipal");
+  let tokenRecipient = null;
+  if (tokenPositionAmount !== null && tokenPositionAmount !== undefined) {
+    const amount = parseAtomicAmount(tokenPositionAmount, "tokenPositionAmount");
+    tokenRecipient = Object.freeze({ ownerIdentifier: owner, identifierType: OWNER_SCHEMES.P2PK, amount, isMinter: false });
+  }
+  return Object.freeze({ terminal: true, payout, payoutTo: owner, tokenRecipient });
+}
+
+module.exports = {
+  MAX_PERIODS_ELAPSED,
+  SWAP_INPUT_COUNT,
+  SWAP_OUTPUTS_TYPE_A,
+  SWAP_OUTPUTS_TYPE_B,
+  poolSellQuote,
+  poolBuyQuote,
+  tokenAgentSpendSuccessorV6,
+  tokenAtomicSellSuccessorV6,
+  tokenAtomicBuySuccessorV6,
+  tokenContinuationStatesV6,
+  swapContinuationStatesV6,
+  setAgentRootSuccessorV6,
+  topUpReserveSuccessorV6,
+  pauseSuccessorV6,
+  setSwapRootSuccessorV6,
+  fundSwapPrincipalSuccessorV6,
+  recoverPlanV6
+};
+  });
+
+  define("core/model/compute-budget-v6", function (module, exports, require) {
+"use strict";
+
+/*
+ * Centralized v0.6 controller compute-budget selection.
+ *
+ * The committed budget is CONSENSUS-CRITICAL for usability: an
+ * under-committed budget makes an otherwise-valid transaction fail script
+ * execution on a live node. Like v0.5 the controller's cost scales with the
+ * accepted token template (two template reads + two output reconstructions
+ * on a swap; one + two on a spend) AND, on a swap, with the APPROVED POOL
+ * TEMPLATE (one hash-verified read of the pool's revealed redeem).
+ *
+ * Measured on the CANDIDATE PolicyVault.v0.6.sil under production sig-op
+ * pricing (tests/vm/tests/v6_production.rs v6_measurement_units_mass_standardness,
+ * 2026-09-03; token template = upstream kcc20.sil bound 2, suffix 2,686 B;
+ * pool fixture redeem 10,566 B; priced units INCLUDE the 100,000-unit
+ * Schnorr sig-op):
+ *
+ *   tokenAgentSpend, agent depth 1 / recipient depth 0:      294,894 -> 29
+ *   tokenAgentSpend, agent depth 12 / recipient depth 16:    346,027 -> 34
+ *   tokenAtomicSell A, agent depth 1 / swap depth 2:         385,481 -> 38
+ *   tokenAtomicSell A, agent depth 12 / swap depth 12:       426,614 -> 42
+ *   tokenAtomicSell B (P2PK proceeds):                        385,652 -> 38
+ *   tokenAtomicBuy,   agent depth 1 / swap depth 2:          385,481 -> 38
+ *   tokenAtomicBuy,   agent depth 12 / swap depth 12:        426,614 -> 42
+ *   ownerControl (fundSwapPrincipal):                         251,097 -> 25
+ *   ownerRecover (with position):                             174,206 -> 17
+ *
+ * Model = base (max-depth measurement) + 24 units per token-template byte
+ * above the reference + 24 units per pool-template byte above the
+ * reference (the v0.5 measured slope; the pool read hashes the pool redeem
+ * once) + 20,000 headroom, in 10,000-unit budget units, ceiling-rounded.
+ * Callers may NEVER lower the committed budget below the model value; the
+ * production-byte suite executes SDK-built shapes with the SDK's own
+ * committed budget and asserts sufficiency.
+ */
+
+const UNITS_PER_BUDGET = 10_000;
+const SIGOP_UNITS = 100_000;
+const SLOPE_PER_TEMPLATE_BYTE = 24;
+const REFERENCE_TEMPLATE_BYTES = 2_687; // prefix 1 + suffix 2,686 (bound 2)
+const REFERENCE_POOL_BYTES = 10_566;
+const HEADROOM = 20_000;
+const SPEND_BASE = 346_027; // depths 12/16, incl. sig-op
+const SWAP_BASE = 426_614; // depths 12/12, incl. sig-op (sell A/B and buy measured equal within 171 units)
+const OWNER_BASE = 251_097;
+const RECOVER_BASE = 174_206;
+
+const V6_BUDGET = Object.freeze({
+  ORDINARY_INPUT: 10,
+  /* the pool fixture input executes its own family scan (measured 90,000 units -> 9 at one reserve note) */
+  POOL_INPUT_MIN: 12
+});
+
+function fail(message) {
+  throw new Error(`compute-budget-v6: ${message}`);
+}
+function templateBytes({ templatePrefixLen, templateSuffixLen }) {
+  if (!Number.isInteger(templatePrefixLen) || !Number.isInteger(templateSuffixLen) || templatePrefixLen < 0 || templateSuffixLen < 0) fail("template geometry (templatePrefixLen/templateSuffixLen) is required to size a template-scaled budget");
+  return templatePrefixLen + templateSuffixLen;
+}
+function poolBytes({ poolPrefixLen, poolSuffixLen }) {
+  const p = Number(poolPrefixLen);
+  const s = Number(poolSuffixLen);
+  if (!Number.isInteger(p) || !Number.isInteger(s) || p < 0 || s < 0) fail("pool geometry (poolPrefixLen/poolSuffixLen) is required to size a swap budget");
+  return p + s;
+}
+function ceilBudget(units) {
+  return Math.ceil(units / UNITS_PER_BUDGET);
+}
+
+function selectComputeBudgetV6({ operation, templatePrefixLen, templateSuffixLen, poolPrefixLen, poolSuffixLen }) {
+  const tplExtra = () => Math.max(0, templateBytes({ templatePrefixLen, templateSuffixLen }) - REFERENCE_TEMPLATE_BYTES) * SLOPE_PER_TEMPLATE_BYTE;
+  switch (operation) {
+    case "tokenAgentSpend":
+      return ceilBudget(SPEND_BASE + tplExtra() + HEADROOM);
+    case "tokenAtomicSell":
+    case "tokenAtomicBuy": {
+      const poolExtra = Math.max(0, poolBytes({ poolPrefixLen, poolSuffixLen }) - REFERENCE_POOL_BYTES) * SLOPE_PER_TEMPLATE_BYTE;
+      return ceilBudget(SWAP_BASE + tplExtra() + poolExtra + HEADROOM);
+    }
+    case "ownerSetAgentRoot":
+    case "ownerTopUpReserve":
+    case "ownerPause":
+    case "ownerUnpause":
+    case "ownerSetSwapRoot":
+    case "ownerFundSwapPrincipal":
+      return ceilBudget(OWNER_BASE + HEADROOM);
+    case "ownerRecover":
+      return ceilBudget(RECOVER_BASE + tplExtra() + HEADROOM);
+    default:
+      fail(`unknown v0.6 operation ${JSON.stringify(operation)} — failing closed`);
+  }
+}
+
+/* Token-family input executing the reference KCC20 program (v0.5 model: 20,000 + 24/byte; +sig-op when signer-owned). */
+function selectTokenInputBudgetV6({ templatePrefixLen, templateSuffixLen, signerOwned = false }) {
+  const base = 20_000 + SLOPE_PER_TEMPLATE_BYTE * templateBytes({ templatePrefixLen, templateSuffixLen });
+  return Math.max(4, ceilBudget(base + (signerOwned ? SIGOP_UNITS : 0)));
+}
+
+/* Pool fixture input: family scan of up to 4 notes (each a template read) + one output reconstruction. */
+function selectPoolInputBudgetV6({ templatePrefixLen, templateSuffixLen, poolPrefixLen, poolSuffixLen }) {
+  const base = 40_000 + 4 * SLOPE_PER_TEMPLATE_BYTE * templateBytes({ templatePrefixLen, templateSuffixLen }) + 2 * poolBytes({ poolPrefixLen, poolSuffixLen });
+  return Math.max(V6_BUDGET.POOL_INPUT_MIN, ceilBudget(base + HEADROOM));
+}
+
+function assertBudgetSufficientV6(args) {
+  const required = selectComputeBudgetV6(args);
+  if (!Number.isInteger(args.committed) || args.committed < required) fail(`committed compute budget ${args.committed} is below the proven-safe minimum ${required} for ${args.operation}`);
+  return args.committed;
+}
+
+module.exports = { V6_BUDGET, UNITS_PER_BUDGET, SIGOP_UNITS, selectComputeBudgetV6, selectTokenInputBudgetV6, selectPoolInputBudgetV6, assertBudgetSufficientV6 };
+  });
+
+  define("core/intent/token-manifest-v6", function (module, exports, require) {
+"use strict";
+const { ownGet } = require("../model/own-get");
+
+/*
+ * policyvault-controller-intent-manifest/1 — the closed-schema,
+ * hash-committed description of ONE frozen v0.6 NON-SWAP controller
+ * transaction (tokenAgentSpend, the six owner control operations,
+ * ownerRecover, and a v0.6-labelled tokenDeposit), plus its deterministic
+ * LOCAL PRE-SIGN VERIFICATION against the frozen transaction bytes.
+ *
+ * WHY THIS EXISTS (the application-integration gap this closes):
+ * `docs/postlaunch/v0.6-byte-freeze-readiness.md` limitation 8 recorded that
+ * "v0.6-labelled manifests exist for swaps only; spend/owner/recover on a
+ * v0.6 controller are verified by the builder's frozen bytes (the v0.5 token
+ * manifest is version-pinned to v0.5)". `core/intent/token-manifest-v5.js`
+ * REFUSES any build whose contractVersion is not `policyvault-0.5`, and
+ * `core/intent/swap-manifest-v6.js` REFUSES any build without `build.swap`,
+ * so every non-swap v0.6 operation had NO manifest and therefore NO
+ * signer-side independent recomputation. That is exactly the condition the
+ * architecture target forbids: a financial fact whose only local proof is
+ * "the builder said so". This module gives the v0.6 controller the SAME
+ * local pre-sign verification v0.5 already has, additively — v0.5 and the
+ * v0.6 swap manifest are untouched.
+ *
+ * WHAT THE SIGNER GETS, as SEPARATE sections: controller identity; token
+ * asset identity + issuer trust; the THREE v0.6 KAS domains stated apart
+ * (fee reserve / swap principal / token-note carries); the token domain;
+ * the agent authority actually exercised (leaf + Merkle proof + caps +
+ * budget + successor-root fold); the owner authority actually exercised
+ * (op selector + external funding); and the verification result. NOTHING
+ * here is trusted as stated: verify() recomputes every financial fact from
+ * the frozen transaction + the accepted descriptor + the core's own codecs
+ * and refuses on any mismatch.
+ *
+ * FAIL-CLOSED VERSION ROUTING: this module handles `policyvault-0.6`
+ * NON-SWAP builds only. A swap build (tokenAtomicSell / tokenAtomicBuy)
+ * is REFUSED here and belongs to swap-manifest-v6.js; a v0.5 build is
+ * REFUSED here and belongs to token-manifest-v5.js. `core/intent/router.js`
+ * performs that dispatch and refuses every unknown combination.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/intent/test/token-manifest-v6.test.js,
+ * sdk/test/token-manifest-v6.test.js over REAL builds). The codecs it
+ * recomputes with are the SAME modules tests/vm/tests/v6_sdk_integration.rs
+ * executes byte-for-byte on the real engine.
+ */
+
+const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const assets = require("../assets");
+const { kcc20 } = assets;
+const { normalizeTokenAgentPolicyV6, verifyTokenAgentProofV6, foldTokenAgentPolicyV6 } = require("../model/agent-merkle-v6");
+const { verifyRecipientProof } = require("../model/recipient-merkle-v3");
+const { normalizeStateV6, normalizeStateV6ForRecovery, OWNER_OP_SELECTOR_V6 } = require("../model/vault-state-v6");
+const { calcStorageMass, cellsOfFrozenTx, STORAGE_MASS_LIMIT } = require("../model/storage-mass");
+const { OWNER_SCHEMES } = require("../model/token-amounts");
+
+const CONTROLLER_MANIFEST_VERSION_1 = "policyvault-controller-intent-manifest/1";
+const CONTRACT_VERSION_V6 = "policyvault-0.6";
+
+/*
+ * The closed action table. `role` and `terminal` are DERIVED here and
+ * re-derived by verify(); a manifest that states a different role/terminal
+ * than the table says is refused, so a hostile builder cannot relabel an
+ * owner operation as an agent one (or a terminal one as continuing).
+ * `opSelector` is the covenant's own ownerControl selector — pinned so a
+ * relabelled owner op refuses.
+ */
+const ACTIONS = Object.freeze({
+  tokenAgentSpend: Object.freeze({ role: "agent", terminal: false, opSelector: null }),
+  ownerSetAgentRoot: Object.freeze({ role: "owner", terminal: false, opSelector: OWNER_OP_SELECTOR_V6.ownerSetAgentRoot }),
+  ownerTopUpReserve: Object.freeze({ role: "owner", terminal: false, opSelector: OWNER_OP_SELECTOR_V6.ownerTopUpReserve }),
+  ownerPause: Object.freeze({ role: "owner", terminal: false, opSelector: OWNER_OP_SELECTOR_V6.ownerPause }),
+  ownerUnpause: Object.freeze({ role: "owner", terminal: false, opSelector: OWNER_OP_SELECTOR_V6.ownerUnpause }),
+  ownerSetSwapRoot: Object.freeze({ role: "owner", terminal: false, opSelector: OWNER_OP_SELECTOR_V6.ownerSetSwapRoot }),
+  ownerFundSwapPrincipal: Object.freeze({ role: "owner", terminal: false, opSelector: OWNER_OP_SELECTOR_V6.ownerFundSwapPrincipal }),
+  ownerRecover: Object.freeze({ role: "owner", terminal: true, opSelector: null }),
+  /* user-owned position -> controller (no controller input; the family leader authorizes with the user's signature) */
+  tokenDeposit: Object.freeze({ role: "tokenOwner", terminal: false, opSelector: null })
+});
+
+/* Handled by core/intent/swap-manifest-v6.js — named here so the refusal is specific, never a silent default. */
+const SWAP_ACTIONS = Object.freeze(["tokenAtomicSell", "tokenAtomicBuy"]);
+
+const VERIFIED_STATEMENT = "AI MAY REQUEST. POLICYVAULT DETERMINISTICALLY DECIDES. THE COVENANT ENFORCES. SIGNERS RETAIN CUSTODY.";
+
+function refuse(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  throw e;
+}
+function hex(v, bytes, where) {
+  if (typeof v !== "string" || !new RegExp(`^[0-9a-f]{${bytes * 2}}$`).test(v)) refuse("SCHEMA_INVALID", `${where} must be ${bytes}-byte lowercase hex`);
+  return v;
+}
+function digits(v, where) {
+  if (typeof v !== "string" || !/^(0|[1-9][0-9]*)$/.test(v)) refuse("SCHEMA_INVALID", `${where} must be a non-negative digit string`);
+  return BigInt(v);
+}
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+function p2pkSpk(pk) {
+  return `20${pk}ac`;
+}
+
+/* The asset section, identical in shape to the v0.5 and v0.6-swap manifests. */
+function assetSection({ validated, descriptorHash, templateIndex }) {
+  const tpl = validated.acceptedTransferTemplates[templateIndex];
+  return {
+    descriptorHash,
+    assetId: validated.assetId,
+    displayName: validated.displayName,
+    tokenStandard: validated.tokenStandard,
+    decimalsDisplay: validated.decimalsDisplay,
+    templateIndex,
+    templateVmHashBlake2b256: tpl ? tpl.templateVmHashBlake2b256 : null,
+    templateKcc1HashBlake3: tpl && tpl.templateKcc1HashBlake3 !== undefined ? tpl.templateKcc1HashBlake3 : null,
+    issuerPowers: { ...validated.issuerPowers },
+    trust: Object.values(validated.issuerPowers).some(Boolean) ? "ISSUER_CONTROLLED" : "NO_DECLARED_ISSUER_POWERS"
+  };
+}
+
+function controllerSection(template, covenantId) {
+  return {
+    contractVersion: CONTRACT_VERSION_V6,
+    vaultId: template.vaultId,
+    owner: template.owner,
+    covenantId,
+    descriptorHash: template.descriptorHash,
+    tokenCovenantId: template.tokenCovenantId,
+    templateVmHashBlake2b256: template.templateVmHash,
+    templateGeometry: { prefixLen: template.templatePrefixLen, stateLen: template.templateStateLen, suffixLen: template.templateSuffixLen }
+  };
+}
+
+/* KIP-9 storage mass over the frozen shape (a CONSENSUS dimension: an
+ * over-limit value makes the transaction invalid regardless of fee). */
+function storageMassOf(frozen) {
+  const { inputCells, outputCells } = cellsOfFrozenTx(frozen);
+  return calcStorageMass(inputCells, outputCells);
+}
+
+/*
+ * Build the manifest from a v0.6 SDK build (vault-builders-v6 output) +
+ * the accepted descriptor + the agent registry facts the build used.
+ */
+function buildControllerIntentManifestV6({ build, descriptor, agentPolicy = null, recipients = null }) {
+  if (!build || typeof build !== "object") refuse("SCHEMA_INVALID", "a v0.6 build is required");
+  if (build.contractVersion !== CONTRACT_VERSION_V6) refuse("SCHEMA_INVALID", `a ${CONTRACT_VERSION_V6} build is required (got ${JSON.stringify(build.contractVersion ?? null)}) — failing closed`);
+  if (build.kind === "tokenDeposit") return buildDepositManifestV6({ build, descriptor });
+  if (build.kind !== "transition") refuse("SCHEMA_INVALID", `a v0.6 transition or tokenDeposit build is required (got kind ${JSON.stringify(build.kind ?? null)})`);
+  if (SWAP_ACTIONS.includes(build.action) || build.swap) {
+    refuse("WRONG_MANIFEST_FOR_ACTION", `${JSON.stringify(build.action)} is an ATOMIC SWAP — use core/intent/swap-manifest-v6.js (policyvault-swap-intent-manifest/1); this manifest never describes a swap`);
+  }
+  const info = ownGet(ACTIONS, build.action);
+  if (!info) refuse("UNKNOWN_ACTION", `unknown v0.6 action ${JSON.stringify(build.action)} — failing closed`);
+
+  const validated = assets.validateAssetDescriptor(descriptor);
+  const descriptorHash = assets.computeDescriptorHash(validated);
+  if (descriptorHash !== build.template.descriptorHash) refuse("DESCRIPTOR_PIN_MISMATCH", "descriptor hash != the controller's pinned descriptorHash");
+  const templateIndex = build.asset?.templateIndex ?? 0;
+
+  const frozen = JSON.parse(build.frozenCanonicalJson);
+  const body = {
+    manifestVersion: CONTROLLER_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    controller: controllerSection(build.template, build.covenantId),
+    asset: assetSection({ validated, descriptorHash, templateIndex }),
+    action: { sdkAction: build.action, role: info.role, terminal: info.terminal, opSelector: info.opSelector },
+    transaction: {
+      txId: build.txId,
+      frozenCanonicalJson: build.frozenCanonicalJson,
+      computeBudget: build.computeBudget,
+      requiredFeeSompi: build.requiredFeeSompi,
+      storageMass: storageMassOf(frozen).toString()
+    },
+    stateBefore: { stateId: build.predecessorStateId, state: build.stateJson, outpoint: build.predecessorOutpoint },
+    stateAfter: info.terminal ? null : { stateId: build.successorStateId, state: build.successorState },
+    accounting: { token: { ...build.accounting.token }, kas: { ...build.accounting.kas } },
+    policy:
+      build.action === "tokenAgentSpend"
+        ? {
+            agentPolicy: agentPolicy ? { ...agentPolicy } : null,
+            agentProof: build.agentProof ? { ...build.agentProof } : null,
+            recipient: build.payment.recipient,
+            recipientProof: build.recipientProof ? { ...build.recipientProof } : null,
+            recipients: recipients ? [...recipients] : null,
+            periodsElapsed: build.callExtra.periodsElapsed,
+            lockTime: build.frozen.lockTime.toString()
+          }
+        : { opSelector: build.callExtra.opSelector ?? null, externalFunding: build.accounting.kas.externalFunding },
+    tokenSignatureScriptHex: build.tokenSignatureScriptHex
+  };
+  const manifest = { ...body, manifestHash: computeManifestHashV1(body) };
+  return deepFreeze(manifest);
+}
+
+/*
+ * A v0.6-LABELLED deposit (buildTokenDepositV6): mechanically the v0.5
+ * deposit (`build.depositMechanics === "policyvault-0.5"`; no controller
+ * input — the family leader authorizes with the user's own signature),
+ * carried under the v0.6 lineage so a deposit into a v0.6 controller is
+ * never described by a manifest pinned to the v0.5 lineage. Before this
+ * module existed, `buildTokenDepositV6` produced a build that NO manifest
+ * accepted (the v0.5 manifest refuses its contractVersion), which is why
+ * the live v0.6 proof had to fall back to the v0.5 builder.
+ */
+function buildDepositManifestV6({ build, descriptor }) {
+  if (build.depositMechanics !== "policyvault-0.5") refuse("SCHEMA_INVALID", "a v0.6 tokenDeposit build must declare depositMechanics policyvault-0.5 — failing closed");
+  const validated = assets.validateAssetDescriptor(descriptor);
+  const descriptorHash = assets.computeDescriptorHash(validated);
+  if (descriptorHash !== build.controller.template.descriptorHash) refuse("DESCRIPTOR_PIN_MISMATCH", "descriptor hash != the controller's pinned descriptorHash");
+  const frozen = JSON.parse(build.frozenCanonicalJson);
+  const body = {
+    manifestVersion: CONTROLLER_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    controller: controllerSection(build.controller.template, build.controller.covenantId),
+    asset: assetSection({ validated, descriptorHash, templateIndex: build.asset.templateIndex }),
+    action: { sdkAction: "tokenDeposit", role: "tokenOwner", terminal: false, opSelector: null },
+    transaction: {
+      txId: build.txId,
+      frozenCanonicalJson: build.frozenCanonicalJson,
+      computeBudget: build.frozen.inputs[0].computeBudget,
+      requiredFeeSompi: build.requiredFeeSompi,
+      storageMass: storageMassOf(frozen).toString()
+    },
+    stateBefore: null,
+    stateAfter: null,
+    accounting: { token: { ...build.accounting.token }, kas: { ...build.accounting.kas } },
+    policy: { userPk: build.userPk, tokenNewStates: [...build.tokenNewStates], depositMechanics: build.depositMechanics },
+    tokenSignatureScriptHex: null
+  };
+  const manifest = { ...body, manifestHash: computeManifestHashV1(body) };
+  return deepFreeze(manifest);
+}
+
+/*
+ * Deterministic local PRE-SIGN verification: recompute every financial
+ * fact from the frozen transaction + descriptor + core codecs. Returns
+ * { verdict: "VERIFIED" | "REFUSED", checks, failures, manifestHash }.
+ */
+function verifyControllerIntentManifestV6({ manifest, descriptor }) {
+  const checks = [];
+  const failures = [];
+  const check = (name, ok, detail) => {
+    checks.push({ name, ok: !!ok, detail: detail ?? null });
+    if (!ok) failures.push({ name, detail: detail ?? null });
+  };
+  try {
+    if (!manifest || typeof manifest !== "object") refuse("SCHEMA_INVALID", "manifest must be an object");
+    if (manifest.manifestVersion !== CONTROLLER_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown controller manifest version — failing closed");
+    const { manifestHash, ...body } = manifest;
+    check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+    const info = ownGet(ACTIONS, manifest.action?.sdkAction);
+    if (!info) refuse("UNKNOWN_ACTION", "unknown action");
+    check(
+      "actionRole",
+      info.role === manifest.action.role && info.terminal === manifest.action.terminal && info.opSelector === (manifest.action.opSelector ?? null),
+      "role/terminal/opSelector derived from the action table"
+    );
+    check("contractVersion", manifest.controller.contractVersion === CONTRACT_VERSION_V6, "v0.6 lineage only");
+
+    /* asset + descriptor pins */
+    const validated = assets.validateAssetDescriptor(descriptor);
+    const dh = assets.computeDescriptorHash(validated);
+    check("descriptorHashPin", dh === manifest.asset.descriptorHash && dh === manifest.controller.descriptorHash, "descriptor hash == asset.descriptorHash == controller pin");
+    check("descriptorFamily", validated.tokenCovenantId === manifest.controller.tokenCovenantId, "descriptor family == controller pin");
+    const tpl = validated.acceptedTransferTemplates[manifest.asset.templateIndex];
+    check(
+      "templatePin",
+      !!tpl &&
+        tpl.templateVmHashBlake2b256 === manifest.controller.templateVmHashBlake2b256 &&
+        tpl.prefixLen === manifest.controller.templateGeometry.prefixLen &&
+        tpl.suffixLen === manifest.controller.templateGeometry.suffixLen,
+      "descriptor template == controller pin (hash + geometry)"
+    );
+    check("issuerPowersVerbatim", JSON.stringify(manifest.asset.issuerPowers) === JSON.stringify(validated.issuerPowers), "issuer powers surfaced verbatim");
+
+    /* frozen transaction: the only source of financial truth below */
+    const frozen = JSON.parse(manifest.transaction.frozenCanonicalJson);
+    const inputs = frozen.inputs;
+    const outputs = frozen.outputs;
+    const totalIn = inputs.reduce((s, i) => s + BigInt(i.utxo.amount), 0n);
+    const totalOut = outputs.reduce((s, o) => s + BigInt(o.value), 0n);
+    const fee = totalIn - totalOut;
+    check("feeExact", fee > 0n && fee.toString() === manifest.accounting.kas.fee && fee.toString() === manifest.transaction.requiredFeeSompi, `fee ${fee}`);
+    const storage = storageMassOf(frozen);
+    check("storageMass", storage <= STORAGE_MASS_LIMIT && storage.toString() === manifest.transaction.storageMass, `KIP-9 storage mass ${storage} <= ${STORAGE_MASS_LIMIT}`);
+
+    if (manifest.action.sdkAction === "tokenDeposit") {
+      verifyDepositV6(manifest, validated, check, frozen, fee);
+      const verdictD = failures.length === 0 ? "VERIFIED" : "REFUSED";
+      return deepFreeze({ verdict: verdictD, statement: verdictD === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest.manifestHash ?? null });
+    }
+
+    /* ---------------- KAS domains: reserve + principal, stated apart ---------------- */
+    /*
+     * BREAK-GLASS PARSE, quarantined exactly as the builder quarantines it
+     * (`vault-builders-v6.js`: `allowMalformedState` is accepted ONLY for
+     * ownerRecover). A controller whose stored state is malformed —
+     * out-of-range `paused`/`policyNonce` — can still be recovered by its
+     * owner, and refusing to describe that transaction would push the owner
+     * to sign it with NO local verification at all, which is the exact
+     * failure mode this manifest exists to remove. So ownerRecover falls
+     * back to the shape-only recovery parse; every continuing action keeps
+     * the strict parse (a malformed state there throws -> REFUSED). The
+     * fallback is never silent: `stateParse` is always reported, and the
+     * payout is still proven against the frozen output bytes below.
+     */
+    let before;
+    let strictParse = true;
+    try {
+      before = normalizeStateV6(manifest.stateBefore.state);
+    } catch (e) {
+      if (!info.terminal) throw e;
+      before = normalizeStateV6ForRecovery(manifest.stateBefore.state);
+      strictParse = false;
+    }
+    check(
+      "stateParse",
+      strictParse || (info.terminal && before.recoveryParse === true),
+      strictParse ? "predecessor state parsed under the strict v0.6 layout" : "BREAK-GLASS: the predecessor state is MALFORMED under the strict v0.6 layout and was parsed shape-only; only ownerRecover may consume it, and the payout is proven from the transaction bytes"
+    );
+    const controllerValueBefore = before.feeReserve + before.swapPrincipal;
+    const ctrlIn = inputs[0];
+    check(
+      "controllerInput",
+      ctrlIn.utxo.covenantId === manifest.controller.covenantId && BigInt(ctrlIn.utxo.amount) === controllerValueBefore,
+      "input 0 is the controller carrying feeReserve + swapPrincipal"
+    );
+    check(
+      "predecessorDomains",
+      before.feeReserve.toString() === manifest.accounting.kas.predecessorFeeReserve && before.swapPrincipal.toString() === manifest.accounting.kas.predecessorSwapPrincipal,
+      "stateBefore reserve/principal == accounting"
+    );
+
+    const family = manifest.controller.tokenCovenantId;
+    check(
+      "noForeignCovenantInputs",
+      inputs.every((i, idx) => idx === 0 || i.utxo.covenantId === null || i.utxo.covenantId === family),
+      "every non-controller input is plain fuel or the pinned token family — no third covenant"
+    );
+
+    let after = null;
+    if (!info.terminal) {
+      after = normalizeStateV6(manifest.stateAfter.state);
+      const controllerValueAfter = after.feeReserve + after.swapPrincipal;
+      const succ = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.controller.covenantId);
+      check(
+        "successorOutput",
+        succ.length === 1 && BigInt(succ[0].value) === controllerValueAfter,
+        "exactly one successor output carrying feeReserve' + swapPrincipal'"
+      );
+      check(
+        "successorDomains",
+        after.feeReserve.toString() === manifest.accounting.kas.successorFeeReserve && after.swapPrincipal.toString() === manifest.accounting.kas.successorSwapPrincipal,
+        "stateAfter reserve/principal == accounting"
+      );
+      /*
+       * The fee reserve moves in exactly two ways, and never both at once:
+       *   - an AGENT operation may CONSUME from it (0 <= consumed <= the
+       *     exact network fee — the covenant's own bound);
+       *   - an OWNER ownerTopUpReserve ADDS externally funded value to it
+       *     (declared reserveConsumed is then 0, and the per-action
+       *     equations below prove the increase equals the funding).
+       * Treating the reserve as monotonically decreasing would wrongly
+       * refuse a legitimate top-up, so the direction is checked per role.
+       */
+      const reserveDelta = after.feeReserve - before.feeReserve;
+      const declaredConsumed = digits(manifest.accounting.kas.reserveConsumed, "accounting.kas.reserveConsumed");
+      if (info.role === "agent") {
+        check(
+          "reserveConsumed",
+          reserveDelta === -declaredConsumed && declaredConsumed >= 0n && declaredConsumed <= fee,
+          `agent op: reserve consumed ${declaredConsumed} (delta ${reserveDelta}) <= fee ${fee}`
+        );
+      } else {
+        check(
+          "reserveConsumed",
+          declaredConsumed === 0n && reserveDelta >= 0n,
+          `owner op: consumes no reserve (declared ${declaredConsumed}, delta ${reserveDelta}) — the fee comes from the owner's fuel input`
+        );
+      }
+      const principalDelta = after.swapPrincipal - before.swapPrincipal;
+      check("principalDelta", principalDelta.toString() === manifest.accounting.kas.principalDelta, `principal delta ${principalDelta}`);
+    }
+
+    /* ---------------- per-action state equations + authority ---------------- */
+    if (manifest.action.sdkAction === "tokenAgentSpend") {
+      verifySpendV6({ manifest, validated, check, frozen, inputs, outputs, before, after, fee, family });
+    } else if (manifest.action.sdkAction === "ownerRecover") {
+      verifyRecoverV6({ manifest, validated, check, inputs, outputs, before, family });
+    } else {
+      verifyOwnerControlV6({ manifest, check, before, after, family, inputs, outputs });
+    }
+  } catch (e) {
+    const detail = `${e.code ?? "ERROR"}: ${e.message}`;
+    failures.push({ name: "exception", detail });
+    checks.push({ name: "exception", ok: false, detail });
+  }
+  const verdict = failures.length === 0 ? "VERIFIED" : "REFUSED";
+  return deepFreeze({ verdict, statement: verdict === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest?.manifestHash ?? null });
+}
+
+/*
+ * tokenAgentSpend: the token domain reconstructed from the revealed redeem
+ * + the descriptor template (never from labels), the agent's authority
+ * proven under the LIVE agentRoot, the caps/budget arithmetic redone, and
+ * the successor agentRoot re-folded from the advanced leaf up the SAME
+ * co-path. The two v0.6-only domains (swapRoot, swapPrincipal) must be
+ * untouched: a spend can never move protected principal or re-approve a
+ * venue.
+ */
+function verifySpendV6({ manifest, validated, check, frozen, inputs, outputs, before, after, fee, family }) {
+  check(
+    "spendStatePreserved",
+    before.paused === 0n && after.paused === 0n && before.policyNonce === after.policyNonce && before.swapRoot === after.swapRoot && before.swapPrincipal === after.swapPrincipal,
+    "spend preserves nonce/paused(0)/swapRoot/swapPrincipal — no owner authority, no principal movement"
+  );
+  check("spendAdvancesAgentRoot", before.agentRoot !== after.agentRoot, "agentRoot advanced (period accounting recorded on chain)");
+
+  const tokenIns = inputs.filter((i) => i.utxo.covenantId === family);
+  const tokenOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === family);
+  check("familyShape", tokenIns.length === 1 && tokenOuts.length === 2, "exactly 1 token input, 2 token outputs (self + recipient)");
+  if (tokenIns.length !== 1 || tokenOuts.length !== 2) return;
+
+  const redeemHex = assets.redeemFromSignatureScript(manifest.tokenSignatureScriptHex);
+  const verified = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex });
+  const tokenIn = tokenIns[0];
+  check("tokenInputRedeemMatchesUtxo", verified.p2shSpkHex === tokenIn.utxo.scriptPublicKey.scriptHex.toLowerCase(), "revealed redeem reproduces the token UTXO's P2SH");
+  check(
+    "tokenInputOwnedByController",
+    verified.state.ownerIdentifier === manifest.controller.covenantId && verified.state.identifierType === OWNER_SCHEMES.COVENANT_ID && !verified.state.isMinter,
+    "position owned via covenant-id/v1"
+  );
+
+  const positionBefore = verified.state.amount;
+  const spend = digits(manifest.accounting.token.spendAmount, "accounting.token.spendAmount");
+  const positionAfter = digits(manifest.accounting.token.positionAfter, "accounting.token.positionAfter");
+  check(
+    "tokenConservation",
+    positionBefore.toString() === manifest.accounting.token.positionBefore && positionBefore === spend + positionAfter && spend > 0n,
+    `${positionBefore} == ${spend} + ${positionAfter}`
+  );
+
+  /* reconstruct both continuation outputs from the template + declared states */
+  const selfState = kcc20.encodeState({ ownerIdentifier: manifest.controller.covenantId, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: positionAfter, isMinter: false });
+  const recipState = kcc20.encodeState({ ownerIdentifier: manifest.policy.recipient, identifierType: OWNER_SCHEMES.P2PK, amount: spend, isMinter: false });
+  const selfSpk = kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, selfState, verified.suffixHex));
+  const recipSpk = kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, recipState, verified.suffixHex));
+  check("selfContinuationReconstructed", tokenOuts[0].scriptPublicKey.scriptHex.toLowerCase() === selfSpk, "family output 0 == template(self state)");
+  check("recipientContinuationReconstructed", tokenOuts[1].scriptPublicKey.scriptHex.toLowerCase() === recipSpk, "family output 1 == template(recipient state)");
+
+  /* KAS carry rules: the token family's KAS never leaks into the fee or the reserve */
+  const carryIn = BigInt(tokenIn.utxo.amount);
+  const selfCarry = BigInt(tokenOuts[0].value);
+  const recipCarry = BigInt(tokenOuts[1].value);
+  check(
+    "tokenFamilyKasNoLeak",
+    selfCarry + recipCarry >= carryIn && selfCarry.toString() === manifest.accounting.kas.tokenSelfCarryKas && recipCarry.toString() === manifest.accounting.kas.tokenRecipientCarryKas,
+    "self + recipient carry >= token input KAS"
+  );
+
+  /* agent authority: leaf under the LIVE predecessor root, caps, budget, allowlist, successor fold */
+  const policy = manifest.policy.agentPolicy ? normalizeTokenAgentPolicyV6(manifest.policy.agentPolicy) : null;
+  check("agentPolicyPresent", !!policy, "agent policy carried");
+  if (!policy) return;
+  const proof = manifest.policy.agentProof;
+  check(
+    "agentPolicyCommitted",
+    !!proof && proof.root === before.agentRoot && verifyTokenAgentProofV6({ root: before.agentRoot, policy, siblingsHex: proof.siblingsHex, pathBits: BigInt(proof.pathBits) }),
+    "leaf proven under the predecessor agentRoot"
+  );
+  check("spendWithinCap", spend <= policy.tokenMaxPerSpend, `spend ${spend} <= cap ${policy.tokenMaxPerSpend}`);
+  const periods = digits(manifest.policy.periodsElapsed, "policy.periodsElapsed");
+  const newStart = periods >= 1n ? policy.periodStartDaa + periods * policy.periodLengthDaa : policy.periodStartDaa;
+  const newTokenSpent = periods >= 1n ? spend : policy.tokenPeriodSpent + spend;
+  /* a spend moves NO KAS consideration: the KAS period accounting must not advance */
+  const newKasSpent = periods >= 1n ? 0n : policy.kasPeriodSpent;
+  check("spendWithinBudget", newTokenSpent <= policy.tokenPeriodBudget, `period spent ${newTokenSpent} <= budget ${policy.tokenPeriodBudget}`);
+  check("rolloverLock", periods >= 1n ? BigInt(frozen.lockTime) === newStart : BigInt(frozen.lockTime) === 0n, "lockTime == rollover period start (or 0)");
+  check("lockTimeDeclared", manifest.policy.lockTime === frozen.lockTime.toString(), "declared lockTime == frozen lockTime");
+  const newPolicy = { ...manifest.policy.agentPolicy, periodStartDaa: newStart.toString(), tokenPeriodSpent: newTokenSpent.toString(), kasPeriodSpent: newKasSpent.toString() };
+  check("successorRootDerived", foldTokenAgentPolicyV6(newPolicy, proof.siblingsHex, BigInt(proof.pathBits)) === after.agentRoot, "successor agentRoot == fold(advanced leaf) up the same co-path");
+  check("reserveWithinAgentCap", digits(manifest.accounting.kas.reserveConsumed, "accounting.kas.reserveConsumed") <= policy.agentMaxFeePerTx, "reserve consumed <= agentMaxFeePerTx");
+  check("carryWithinAgentCap", recipCarry <= policy.agentMaxCarryKas, "recipient carry <= agentMaxCarryKas");
+  const rp = manifest.policy.recipientProof;
+  check(
+    "recipientAllowlisted",
+    !!rp && rp.root === policy.agentRecipientRoot && verifyRecipientProof({ root: rp.root, recipient: manifest.policy.recipient, siblingsHex: rp.siblingsHex, pathBits: BigInt(rp.pathBits) }),
+    "recipient proven under the agent's recipient root"
+  );
+  void fee;
+}
+
+/*
+ * The six owner control operations. Each one may change EXACTLY its own
+ * field(s); every other state field must be preserved, and any external
+ * funding must land in exactly the domain the operation names.
+ */
+function verifyOwnerControlV6({ manifest, check, before, after, family, inputs, outputs }) {
+  const action = manifest.action.sdkAction;
+  check("declaredOpSelector", manifest.policy.opSelector === (ownGet(ACTIONS, action) || {}).opSelector, "the build's covenant op selector == the action table");
+  check("noTokenMovement", !inputs.some((i) => i.utxo.covenantId === family) && !outputs.some((o) => o.covenant && o.covenant.covenantId === family), "owner control ops never move tokens");
+  const funding = digits(manifest.policy.externalFunding ?? "0", "policy.externalFunding");
+  const reserveDelta = after.feeReserve - before.feeReserve;
+  const principalDelta = after.swapPrincipal - before.swapPrincipal;
+  const nonceDelta = after.policyNonce - before.policyNonce;
+
+  const preserved = (fields) => fields.every((f) => before[f] === after[f]);
+  switch (action) {
+    case "ownerSetAgentRoot":
+      check("stateEquations", nonceDelta === 1n && reserveDelta === 0n && principalDelta === 0n && preserved(["swapRoot", "paused"]) && before.agentRoot !== after.agentRoot, "agentRoot replaced; nonce +1; reserve/principal/swapRoot/paused preserved");
+      check("noExternalFunding", funding === 0n, "a root change funds nothing");
+      break;
+    case "ownerSetSwapRoot":
+      check("stateEquations", nonceDelta === 1n && reserveDelta === 0n && principalDelta === 0n && preserved(["agentRoot", "paused"]) && before.swapRoot !== after.swapRoot, "swapRoot replaced; nonce +1; reserve/principal/agentRoot/paused preserved");
+      check("noExternalFunding", funding === 0n, "a root change funds nothing");
+      break;
+    case "ownerTopUpReserve":
+      check("stateEquations", nonceDelta === 0n && principalDelta === 0n && preserved(["agentRoot", "swapRoot", "paused"]) && reserveDelta > 0n, "fee reserve increases only; nonce/principal/roots/paused preserved");
+      check("fundingLandsInReserve", reserveDelta === funding && funding > 0n, `reserve +${reserveDelta} == declared external funding ${funding}`);
+      break;
+    case "ownerFundSwapPrincipal":
+      check("stateEquations", nonceDelta === 0n && reserveDelta === 0n && preserved(["agentRoot", "swapRoot", "paused"]) && principalDelta > 0n, "swap principal increases only; nonce/reserve/roots/paused preserved");
+      check("fundingLandsInPrincipal", principalDelta === funding && funding > 0n, `principal +${principalDelta} == declared external funding ${funding}`);
+      break;
+    case "ownerPause":
+      check("stateEquations", nonceDelta === 0n && reserveDelta === 0n && principalDelta === 0n && preserved(["agentRoot", "swapRoot"]) && before.paused === 0n && after.paused === 1n, "paused 0 -> 1; every other field preserved");
+      check("noExternalFunding", funding === 0n, "pausing funds nothing");
+      break;
+    case "ownerUnpause":
+      check("stateEquations", nonceDelta === 0n && reserveDelta === 0n && principalDelta === 0n && preserved(["agentRoot", "swapRoot"]) && before.paused === 1n && after.paused === 0n, "paused 1 -> 0; every other field preserved");
+      check("noExternalFunding", funding === 0n, "unpausing funds nothing");
+      break;
+    default:
+      check("ownerActionKnown", false, `unhandled owner action ${JSON.stringify(action)} — failing closed`);
+  }
+}
+
+/*
+ * ownerRecover (terminal): BOTH KAS domains return to the owner key in one
+ * output, and any token position becomes an owner-owned continuation
+ * reconstructed from the descriptor template.
+ */
+function verifyRecoverV6({ manifest, validated, check, inputs, outputs, before, family }) {
+  const payout = before.feeReserve + before.swapPrincipal;
+  check(
+    "payoutToOwner",
+    outputs[0].covenant === null &&
+      outputs[0].scriptPublicKey.scriptHex.toLowerCase() === p2pkSpk(manifest.controller.owner) &&
+      BigInt(outputs[0].value) === payout &&
+      outputs[0].value === manifest.accounting.kas.terminalPayout,
+    "output 0 pays feeReserve + swapPrincipal to the owner key"
+  );
+  check("noSuccessor", !outputs.some((o) => o.covenant && o.covenant.covenantId === manifest.controller.covenantId), "terminal: no controller successor output");
+  const tokenIns = inputs.filter((i) => i.utxo.covenantId === family);
+  const tokenOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === family);
+  check("familyShape", tokenIns.length <= 1 && tokenOuts.length === tokenIns.length, "0 or 1 token input with a matching owner-owned continuation");
+  if (tokenIns.length === 1) {
+    const redeemHex = assets.redeemFromSignatureScript(manifest.tokenSignatureScriptHex);
+    const verified = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex });
+    check("tokenInputRedeemMatchesUtxo", verified.p2shSpkHex === tokenIns[0].utxo.scriptPublicKey.scriptHex.toLowerCase(), "revealed redeem reproduces the token UTXO's P2SH");
+    const ownerState = kcc20.encodeState({ ownerIdentifier: manifest.controller.owner, identifierType: OWNER_SCHEMES.P2PK, amount: verified.state.amount, isMinter: false });
+    const ownerSpk = kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, ownerState, verified.suffixHex));
+    check(
+      "tokensReturnToOwner",
+      tokenOuts[0].scriptPublicKey.scriptHex.toLowerCase() === ownerSpk && verified.state.amount.toString() === manifest.accounting.token.recoveredToOwner,
+      "the entire token amount moves to the owner key"
+    );
+  }
+}
+
+/*
+ * v0.6-labelled deposit verification — the same rules the v0.5 deposit
+ * verifier applies (the mechanics ARE v0.5), re-stated against the v0.6
+ * controller pins: the user's revealed position reconstructed through the
+ * descriptor template, exact token conservation, family KAS conserved,
+ * exact fee, and NO controller or foreign covenant input.
+ */
+function verifyDepositV6(manifest, validated, check, frozen, fee) {
+  check("depositMechanics", manifest.policy.depositMechanics === "policyvault-0.5", "deposit mechanics declared (v0.5 mechanics under the v0.6 lineage)");
+  check("descriptorFamily", validated.tokenCovenantId === manifest.controller.tokenCovenantId, "descriptor family == controller pin");
+  const tpl = validated.acceptedTransferTemplates[manifest.asset.templateIndex];
+  check(
+    "templatePin",
+    !!tpl && tpl.templateVmHashBlake2b256 === manifest.controller.templateVmHashBlake2b256 && tpl.prefixLen === manifest.controller.templateGeometry.prefixLen && tpl.suffixLen === manifest.controller.templateGeometry.suffixLen,
+    "descriptor template == controller pin"
+  );
+  const inputs = frozen.inputs;
+  const outputs = frozen.outputs;
+  const family = manifest.controller.tokenCovenantId;
+  const tokenIns = inputs.filter((i) => i.utxo.covenantId === family);
+  const tokenOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === family);
+  check(
+    "noControllerOrForeignInputs",
+    inputs.every((i) => i.utxo.covenantId === null || i.utxo.covenantId === family) && !inputs.some((i) => i.utxo.covenantId === manifest.controller.covenantId),
+    "only the user's token input and plain fuel"
+  );
+  const before = digits(manifest.accounting.token.positionBefore, "positionBefore");
+  const deposit = digits(manifest.accounting.token.deposit, "deposit");
+  const remainder = digits(manifest.accounting.token.remainderToUser, "remainderToUser");
+  check("tokenConservation", deposit > 0n && before === deposit + remainder, `${before} == ${deposit} + ${remainder}`);
+  check("familyShape", tokenIns.length === 1 && tokenOuts.length === (remainder > 0n ? 2 : 1), "1 token input; deposit (+ remainder) outputs");
+  if (tokenIns.length === 1 && tpl) {
+    const userPk = hex(manifest.policy.userPk, 32, "policy.userPk");
+    check("userPositionEnvelope", tokenIns[0].utxo.scriptPublicKey.scriptHex.length === 70, "token input is a version-0 P2SH");
+    const declared = manifest.policy.tokenNewStates;
+    check(
+      "depositOwnerIsController",
+      declared[0] && declared[0].ownerIdentifier === manifest.controller.covenantId && declared[0].identifierType === OWNER_SCHEMES.COVENANT_ID && declared[0].amount === deposit.toString() && declared[0].isMinter === false,
+      "continuation 0 owned by the controller covenant id with the deposit amount"
+    );
+    if (remainder > 0n) {
+      check(
+        "remainderOwnerIsUser",
+        declared[1] && declared[1].ownerIdentifier === userPk && declared[1].identifierType === OWNER_SCHEMES.P2PK && declared[1].amount === remainder.toString(),
+        "remainder returns to the user key"
+      );
+    }
+    const carryIn = BigInt(tokenIns[0].utxo.amount);
+    const carryOut = tokenOuts.reduce((s, o) => s + BigInt(o.value), 0n);
+    check("familyKasConserved", carryIn === carryOut && carryIn.toString() === manifest.accounting.kas.positionKas, "family KAS in == out");
+  }
+  void fee;
+}
+
+module.exports = {
+  CONTROLLER_MANIFEST_VERSION_1,
+  CONTRACT_VERSION_V6,
+  ACTIONS,
+  SWAP_ACTIONS,
+  VERIFIED_STATEMENT,
+  buildControllerIntentManifestV6,
+  verifyControllerIntentManifestV6,
+  canonicalJsonStringify
+};
+  });
+
+  define("core/intent/swap-manifest-v6", function (module, exports, require) {
+"use strict";
+
+/*
+ * policyvault-swap-intent-manifest/1 — the closed-schema, hash-committed
+ * description of ONE frozen v0.6 ATOMIC SWAP transaction (tokenAtomicSell /
+ * tokenAtomicBuy) plus its deterministic LOCAL PRE-SIGN VERIFICATION against
+ * the frozen transaction bytes. Additive beside the v0.5 token manifest.
+ *
+ * What a signer/verifier gets, as SEPARATE sections: controller identity;
+ * token asset identity + issuer trust; VENUE (profile hash + protocol facts,
+ * the exact pool outpoint/state before/after, the owner's swap-policy leaf
+ * and its proof); the exact QUOTE recomputed from the pool's revealed state
+ * (never an API); DESTINATION; the three KAS domains (principal / reserve /
+ * carries) and the token domain; FRESHNESS (both outpoint kill switches +
+ * the pre-sign deadline and the honest post-signature residual);
+ * ECONOMICS (network fee as a fraction of swap value); a deterministic
+ * EXPLANATION. NOTHING here is trusted as stated: verify() recomputes every
+ * financial fact from the frozen transaction + descriptor + profile + the
+ * core's own codecs and refuses on any mismatch.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/intent/test/swap-manifest-v6.test.js);
+ * the same codecs are executed byte-for-byte by tests/vm/tests/v6_sdk_integration.rs.
+ */
+
+const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
+const assets = require("../assets");
+const { kcc20 } = assets;
+const { normalizeTokenAgentPolicyV6, verifyTokenAgentProofV6, foldTokenAgentPolicyV6 } = require("../model/agent-merkle-v6");
+const { normalizeSwapPolicyV6, verifySwapPolicyProofV6, normalizeSwapVenueProfile, computeSwapVenueProfileHash, swapPolicyToJsonV6, swapVenueProfileToJson, DIRECTION, DEST_SCHEME } = require("../model/swap-policy-v6");
+const { normalizeStateV6 } = require("../model/vault-state-v6");
+const { poolSellQuote, poolBuyQuote, SWAP_INPUT_COUNT } = require("../model/vault-transitions-v6");
+const { calcStorageMass, cellsOfFrozenTx, STORAGE_MASS_LIMIT } = require("../model/storage-mass");
+const { OWNER_SCHEMES } = require("../model/token-amounts");
+
+const SWAP_MANIFEST_VERSION_1 = "policyvault-swap-intent-manifest/1";
+const ACTIONS = Object.freeze({ tokenAtomicSell: Object.freeze({ direction: "SELL", role: "agent", terminal: false }), tokenAtomicBuy: Object.freeze({ direction: "BUY", role: "agent", terminal: false }) });
+const VERIFIED_STATEMENT = "AI MAY REQUEST. POLICYVAULT DETERMINISTICALLY DECIDES. THE COVENANT ENFORCES. SIGNERS RETAIN CUSTODY.";
+const RESIDUAL_STATEMENT = "After the pre-sign deadline passes, an already-signed swap remains consensus-valid while both the pool outpoint and the controller outpoint are unspent; Kaspa lockTime supplies no upper bound. Spending either outpoint kills the swap. Sign only to broadcast immediately.";
+
+function refuse(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  throw e;
+}
+function digits(v, where) {
+  if (typeof v !== "string" || !/^(0|[1-9][0-9]*)$/.test(v)) refuse("SCHEMA_INVALID", `${where} must be a non-negative digit string`);
+  return BigInt(v);
+}
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+function p2pkSpk(pk) {
+  return `20${pk}ac`;
+}
+function bps(fee, value) {
+  return value > 0n ? ((fee * 10_000n + value - 1n) / value).toString() : null;
+}
+
+/* Build the manifest from a v0.6 SDK swap build + descriptor + the agent policy the build used. */
+function buildSwapIntentManifest({ build, descriptor, agentPolicy }) {
+  if (!build || build.contractVersion !== "policyvault-0.6" || build.kind !== "transition" || !build.swap) refuse("SCHEMA_INVALID", "a v0.6 swap transition build is required");
+  const info = ownGet(ACTIONS, build.action);
+  if (!info) refuse("UNKNOWN_ACTION", `unknown swap action ${JSON.stringify(build.action)} — failing closed`);
+  const validated = assets.validateAssetDescriptor(descriptor);
+  const descriptorHash = assets.computeDescriptorHash(validated);
+  if (descriptorHash !== build.template.descriptorHash) refuse("DESCRIPTOR_PIN_MISMATCH", "descriptor hash != the controller's pinned descriptorHash");
+  const tpl = validated.acceptedTransferTemplates[build.asset?.templateIndex ?? 0];
+  const policy = normalizeTokenAgentPolicyV6(agentPolicy);
+  const fee = digits(build.requiredFeeSompi, "requiredFeeSompi");
+  const swapValue = info.direction === "SELL" ? digits(build.swap.quote.netProceeds, "quote.netProceeds") : digits(build.swap.quote.kasSpend, "quote.kasSpend");
+  const body = {
+    manifestVersion: SWAP_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    controller: {
+      contractVersion: build.contractVersion,
+      vaultId: build.template.vaultId,
+      owner: build.template.owner,
+      covenantId: build.covenantId,
+      descriptorHash: build.template.descriptorHash,
+      tokenCovenantId: build.template.tokenCovenantId,
+      templateVmHashBlake2b256: build.template.templateVmHash,
+      templateGeometry: { prefixLen: build.template.templatePrefixLen, stateLen: build.template.templateStateLen, suffixLen: build.template.templateSuffixLen }
+    },
+    asset: {
+      descriptorHash,
+      assetId: validated.assetId,
+      displayName: validated.displayName,
+      tokenStandard: validated.tokenStandard,
+      decimalsDisplay: validated.decimalsDisplay,
+      templateIndex: build.asset?.templateIndex ?? 0,
+      templateVmHashBlake2b256: tpl ? tpl.templateVmHashBlake2b256 : null,
+      issuerPowers: { ...validated.issuerPowers },
+      trust: Object.values(validated.issuerPowers).some(Boolean) ? "ISSUER_CONTROLLED" : "NO_DECLARED_ISSUER_POWERS"
+    },
+    venue: {
+      profileHash: build.swap.venueProfileHash,
+      profile: JSON.parse(JSON.stringify(build.swap.venueProfile)),
+      pool: JSON.parse(JSON.stringify(build.swap.pool)),
+      poolNote: JSON.parse(JSON.stringify(build.swap.poolNote)),
+      swapPolicy: { ...build.swap.swapPolicy },
+      swapProof: { ...build.swap.swapProof },
+      endorsement: "NONE — the profile describes a venue; PolicyVault never blesses, runs, or custodies one"
+    },
+    action: { sdkAction: build.action, direction: info.direction, role: info.role, terminal: false },
+    transaction: { txId: build.txId, frozenCanonicalJson: build.frozenCanonicalJson, computeBudget: build.computeBudget, poolComputeBudget: build.poolComputeBudget, requiredFeeSompi: build.requiredFeeSompi, storageMass: build.swap.storageMass },
+    stateBefore: { stateId: build.predecessorStateId, state: build.stateJson, outpoint: build.predecessorOutpoint },
+    stateAfter: { stateId: build.successorStateId, state: build.successorState },
+    accounting: { token: { ...build.accounting.token }, kas: { ...build.accounting.kas } },
+    quote: { ...build.swap.quote },
+    destination: { ...build.swap.destination },
+    policy: {
+      agentPolicy: { ...agentPolicy },
+      agentProof: build.agentProof ? { ...build.agentProof } : null,
+      periodsElapsed: build.callExtra.periodsElapsed,
+      lockTime: build.frozen.lockTime.toString()
+    },
+    freshness: { ...build.swap.freshness, residual: RESIDUAL_STATEMENT, workflow: "verify -> sign -> broadcast immediately; never store a signed swap" },
+    economics: { networkFeeSompi: fee.toString(), swapValueSompi: swapValue.toString(), feeBpsOfSwapValue: bps(fee, swapValue), protocolFeeSompi: build.swap.quote.protocolFee, protocolFeePaddingSompi: (digits(build.swap.quote.protocolFee, "protocolFee") - digits(build.swap.quote.protocolFeeMinimum, "protocolFeeMinimum")).toString() },
+    signatureScripts: { tokenLeader: build.tokenSignatureScriptHex, tokenDelegate: build.poolNoteSignatureScriptHex, pool: build.poolSignatureScriptHex },
+    explanation: explain({ direction: info.direction, build, policy, fee, swapValue })
+  };
+  const manifest = { ...body, manifestHash: computeManifestHashV1(body) };
+  return deepFreeze(manifest);
+}
+
+/* Deterministic human-readable explanation (fixed order, fixed wording; every number from the build). */
+function explain({ direction, build, policy, fee, swapValue }) {
+  const q = build.swap.quote;
+  const lines = [];
+  lines.push(`ACTION ${direction === "SELL" ? "tokenAtomicSell" : "tokenAtomicBuy"} on controller ${build.covenantId} (policyvault-0.6 CANDIDATE) for asset ${build.asset.assetId}.`);
+  if (direction === "SELL") lines.push(`GIVE UP exactly ${q.amountIn} atomic token units to the approved pool ${build.swap.pool.covenantId}; RECEIVE net ${q.netProceeds} sompi (pool pays ${q.kasOut}, venue protocol fee ${q.protocolFee}); minimum accepted ${q.minKasOut}.`);
+  else lines.push(`PAY exactly ${q.kasSpend} sompi of consideration from the protected swap principal (pool receives ${q.kasIn}, venue protocol fee ${q.protocolFee}); RECEIVE exactly ${q.tokensOut} atomic token units into the controller's own position; maximum accepted ${q.maxKasIn}.`);
+  lines.push(`DESTINATION type ${build.swap.destination.type}: ${build.swap.destination.type === "A" ? "PolicyVault-controlled successor (principal / own position)" : `owner-allowlisted P2PK ${build.swap.destination.identity}`}.`);
+  lines.push(`AGENT ${policy.agentPk}: token cap ${policy.tokenMaxPerSpend}/budget ${policy.tokenPeriodBudget} (spent ${policy.tokenPeriodSpent}); KAS cap ${policy.kasMaxPerSwap}/budget ${policy.kasPeriodBudget} (spent ${policy.kasPeriodSpent}); fee cap ${policy.agentMaxFeePerTx}.`);
+  lines.push(`OWNER POLICY: floor ${build.swap.swapPolicy.sellFloorNum}/${build.swap.swapPolicy.sellFloorDen}, ceiling ${build.swap.swapPolicy.buyCeilNum}/${build.swap.swapPolicy.buyCeilDen} sompi per token; protocol fee cap ${build.swap.swapPolicy.maxProtocolFeeKas}; directions ${build.swap.swapPolicy.directionMask}.`);
+  lines.push(`KAS DOMAINS: fee reserve ${build.accounting.kas.predecessorFeeReserve} -> ${build.accounting.kas.successorFeeReserve} (network fee ${fee} paid from the reserve only); swap principal ${build.accounting.kas.predecessorSwapPrincipal} -> ${build.accounting.kas.successorSwapPrincipal}; token-note carries unchanged; no fuel input.`);
+  lines.push(`TOKEN DOMAIN: position ${build.accounting.token.positionBefore} -> ${build.accounting.token.positionAfter}; pool note ${build.swap.poolNote.amountBefore} -> ${build.swap.poolNote.amountAfter}; exact conservation.`);
+  lines.push(`NETWORK FEE ${fee} sompi = ${bps(fee, swapValue)} bps of the swap value ${swapValue} sompi; KIP-9 storage mass ${build.swap.storageMass} (limit ${STORAGE_MASS_LIMIT}).`);
+  lines.push(`FRESHNESS: usable only while pool outpoint ${build.swap.freshness.poolOutpoint.transactionId}:${build.swap.freshness.poolOutpoint.index} AND controller outpoint ${build.swap.freshness.controllerOutpoint.transactionId}:${build.swap.freshness.controllerOutpoint.index} are unspent; pre-sign deadline DAA ${build.swap.freshness.deadlineDaa}; sign only to broadcast immediately.`);
+  lines.push("AUTHORIZATION: SIGHASH_ALL by the agent key only; the covenant enforces every rule above; PolicyVault signs nothing.");
+  return lines;
+}
+
+/*
+ * Deterministic local PRE-SIGN verification: recompute every financial fact
+ * from the frozen transaction + descriptor + venue profile + core codecs.
+ * `currentDaaScore` (optional) enforces the pre-sign deadline.
+ * Returns { verdict: "VERIFIED" | "REFUSED", checks, failures, explanation }.
+ */
+function verifySwapIntentManifest({ manifest, descriptor, currentDaaScore }) {
+  const checks = [];
+  const failures = [];
+  const check = (name, ok, detail) => {
+    checks.push({ name, ok: !!ok, detail: detail ?? null });
+    if (!ok) failures.push({ name, detail: detail ?? null });
+  };
+  try {
+    if (manifest.manifestVersion !== SWAP_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown swap manifest version — failing closed");
+    const { manifestHash, ...body } = manifest;
+    check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+    const info = ownGet(ACTIONS, manifest.action?.sdkAction);
+    if (!info) refuse("UNKNOWN_ACTION", "unknown action");
+    const sell = info.direction === "SELL";
+    check("actionDirection", info.direction === manifest.action.direction && manifest.action.role === "agent" && manifest.action.terminal === false, "direction/role derived from the action table");
+    check("contractVersion", manifest.controller.contractVersion === "policyvault-0.6", "v0.6 lineage only");
+
+    /* asset + descriptor pins */
+    const validated = assets.validateAssetDescriptor(descriptor);
+    const dh = assets.computeDescriptorHash(validated);
+    check("descriptorHashPin", dh === manifest.asset.descriptorHash && dh === manifest.controller.descriptorHash, "descriptor hash == asset.descriptorHash == controller pin");
+    check("descriptorFamily", validated.tokenCovenantId === manifest.controller.tokenCovenantId, "descriptor family == controller pin");
+    const tpl = validated.acceptedTransferTemplates[manifest.asset.templateIndex];
+    check("templatePin", !!tpl && tpl.templateVmHashBlake2b256 === manifest.controller.templateVmHashBlake2b256 && tpl.prefixLen === manifest.controller.templateGeometry.prefixLen && tpl.suffixLen === manifest.controller.templateGeometry.suffixLen, "descriptor template == controller pin (hash + geometry)");
+    check("issuerPowersVerbatim", JSON.stringify(manifest.asset.issuerPowers) === JSON.stringify(validated.issuerPowers), "issuer powers surfaced verbatim");
+
+    /* venue profile (protocol facts) + owner swap policy (authority) */
+    const profile = normalizeSwapVenueProfile(manifest.venue.profile);
+    const profileHash = computeSwapVenueProfileHash(profile);
+    const leaf = normalizeSwapPolicyV6(manifest.venue.swapPolicy);
+    check("profileHashPin", profileHash === manifest.venue.profileHash && profileHash === leaf.profileHash, "venue profile hash == leaf pin");
+    check("profileNetwork", profile.networkId === manifest.network.networkId, "profile network == manifest network");
+    check("profilePair", profile.tokenCovenantId === manifest.controller.tokenCovenantId, "profile token family == controller pin (exact pair)");
+    check("profilePoolPins", profile.poolCovenantId === leaf.poolCovenantId && profile.poolTemplateVmHashBlake2b256 === leaf.poolTemplateVmHash && BigInt(profile.poolTemplateGeometry.prefixLen) === leaf.poolPrefixLen && BigInt(profile.poolTemplateGeometry.suffixLen) === leaf.poolSuffixLen && profile.feeModel.protocolFeePk === leaf.poolFeePk, "profile pool family/template/geometry/fee key == leaf");
+    const before = normalizeStateV6(manifest.stateBefore.state);
+    const after = normalizeStateV6(manifest.stateAfter.state);
+    check("swapPolicyCommitted", verifySwapPolicyProofV6({ root: before.swapRoot, policy: leaf, siblingsHex: manifest.venue.swapProof.siblingsHex, pathBits: BigInt(manifest.venue.swapProof.pathBits) }) && manifest.venue.swapProof.root === before.swapRoot, "swap policy leaf verifies under the live swapRoot");
+    check("directionAllowed", (leaf.directionMask & (sell ? DIRECTION.SELL : DIRECTION.BUY)) !== 0n, "leaf allows this direction");
+    const typeB = leaf.destScheme === DEST_SCHEME.P2PK;
+    check("destinationType", (manifest.destination.type === "B") === typeB && (!typeB || sell) && (typeB ? manifest.destination.identity === leaf.destIdentity : manifest.destination.identity === null), "destination type/identity from the leaf; type B is SELL-only");
+
+    /* agent policy + proof + successor root */
+    const policy = normalizeTokenAgentPolicyV6(manifest.policy.agentPolicy);
+    check("agentPolicyCommitted", verifyTokenAgentProofV6({ root: before.agentRoot, policy, siblingsHex: manifest.policy.agentProof.siblingsHex, pathBits: BigInt(manifest.policy.agentProof.pathBits) }) && manifest.policy.agentProof.root === before.agentRoot, "agent policy leaf verifies under the live agentRoot");
+
+    /* frozen transaction shape */
+    const frozen = JSON.parse(manifest.transaction.frozenCanonicalJson);
+    const inputs = frozen.inputs;
+    const outputs = frozen.outputs;
+    const totalIn = inputs.reduce((s, i) => s + BigInt(i.utxo.amount), 0n);
+    const totalOut = outputs.reduce((s, o) => s + BigInt(o.value), 0n);
+    const fee = totalIn - totalOut;
+    check("feeExact", fee.toString() === manifest.accounting.kas.fee && fee.toString() === manifest.transaction.requiredFeeSompi, `fee ${fee}`);
+    check("inputCount", inputs.length === SWAP_INPUT_COUNT, `exactly ${SWAP_INPUT_COUNT} inputs (no external KAS input)`);
+    check("outputCount", outputs.length === (typeB ? 6 : 5), "exact output count (no hidden outputs)");
+    const family = manifest.controller.tokenCovenantId;
+    const poolId = leaf.poolCovenantId;
+    const ctrlIn = inputs[0];
+    check("controllerInput", ctrlIn.utxo.covenantId === manifest.controller.covenantId && BigInt(ctrlIn.utxo.amount) === before.feeReserve + before.swapPrincipal, "controller input carries feeReserve + swapPrincipal");
+    check("familyInputs", inputs[1].utxo.covenantId === family && inputs[2].utxo.covenantId === family, "inputs 1 and 2 are the pinned token family");
+    check("poolInput", inputs[3].utxo.covenantId === poolId && BigInt(inputs[3].utxo.amount) === digits(manifest.venue.pool.stateBefore.kasReserve, "pool.stateBefore.kasReserve"), "input 3 is the approved pool carrying its declared KAS reserve");
+    check("noForeignCovenantInputs", inputs.every((i, idx) => idx === 0 || i.utxo.covenantId === family || i.utxo.covenantId === poolId), "no third covenant family");
+    check("successorOutput", outputs[0].covenant && outputs[0].covenant.covenantId === manifest.controller.covenantId && BigInt(outputs[0].value) === after.feeReserve + after.swapPrincipal, "output 0 is the successor carrying feeReserve' + swapPrincipal'");
+    check("poolSuccessorOutput", outputs[3].covenant && outputs[3].covenant.covenantId === poolId && outputs[3].value === manifest.venue.pool.stateAfter.kasReserve, "output 3 is the pool successor carrying its new KAS reserve");
+    check("statePreserved", before.paused === 0n && after.paused === 0n && before.policyNonce === after.policyNonce && before.swapRoot === after.swapRoot && before.agentRoot !== after.agentRoot, "unpaused; nonce/swapRoot preserved; agentRoot advanced");
+
+    /* the revealed token redeems: OUR note (leader) and the POOL's note (delegate) */
+    const ourRedeem = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex: assets.redeemFromSignatureScript(manifest.signatureScripts.tokenLeader) });
+    const poolRedeem = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex: assets.redeemFromSignatureScript(manifest.signatureScripts.tokenDelegate) });
+    check("ourNoteRedeem", ourRedeem.p2shSpkHex === inputs[1].utxo.scriptPublicKey.scriptHex.toLowerCase() && ourRedeem.state.ownerIdentifier === manifest.controller.covenantId && ourRedeem.state.identifierType === OWNER_SCHEMES.COVENANT_ID && !ourRedeem.state.isMinter, "input 1 revealed redeem reproduces the UTXO and is owned by the controller");
+    check("poolNoteRedeem", poolRedeem.p2shSpkHex === inputs[2].utxo.scriptPublicKey.scriptHex.toLowerCase() && poolRedeem.state.ownerIdentifier === poolId && poolRedeem.state.identifierType === OWNER_SCHEMES.COVENANT_ID && !poolRedeem.state.isMinter, "input 2 revealed redeem reproduces the UTXO and is owned by the pool");
+    const positionBefore = ourRedeem.state.amount;
+    const poolNoteBefore = poolRedeem.state.amount;
+    check("poolNoteMatchesReserve", poolNoteBefore.toString() === manifest.venue.pool.stateBefore.tokenReserve && poolNoteBefore.toString() === manifest.venue.poolNote.amountBefore, "pool note amount == declared tokenReserve");
+
+    /* the exact quote, recomputed from the pool's revealed state */
+    const poolBefore = { kasReserve: manifest.venue.pool.stateBefore.kasReserve, tokenReserve: manifest.venue.pool.stateBefore.tokenReserve, feeBps: manifest.venue.pool.stateBefore.feeBps, nonce: manifest.venue.pool.stateBefore.nonce };
+    check("poolFeeBps", BigInt(poolBefore.feeBps) === profile.feeModel.poolFeeBps, "pool fee bps == profile");
+    const q = manifest.quote;
+    let amountDelta;
+    let principalDelta;
+    let protoPaid;
+    if (sell) {
+      const quote = poolSellQuote(poolBefore, q.amountIn, profile.feeModel.protocolFeeBps);
+      protoPaid = digits(q.protocolFee, "quote.protocolFee");
+      const net = quote.kasOut - protoPaid;
+      check("quoteRecomputed", quote.newKasReserve.toString() === manifest.venue.pool.stateAfter.kasReserve && quote.newTokenReserve.toString() === manifest.venue.pool.stateAfter.tokenReserve && quote.kasOut.toString() === q.kasOut && quote.protocolFee.toString() === q.protocolFeeMinimum && net.toString() === q.netProceeds, "sell quote == pool state after / kasOut / net proceeds");
+      check("minOut", net >= digits(q.minKasOut, "quote.minKasOut"), "net proceeds >= minKasOut");
+      check("floor", net * leaf.sellFloorDen >= quote.amountIn * leaf.sellFloorNum, "net proceeds respect the owner floor");
+      check("tokenCap", quote.amountIn <= policy.tokenMaxPerSpend && quote.amountIn > 0n, "amountIn <= tokenMaxPerSpend");
+      amountDelta = quote.amountIn;
+      principalDelta = typeB ? 0n : net;
+      check("proceedsOutput", typeB ? outputs[5].covenant === null && outputs[5].scriptPublicKey.scriptHex.toLowerCase() === p2pkSpk(leaf.destIdentity) && BigInt(outputs[5].value) === net : outputs.length === 5, typeB ? "type-B proceeds output exact" : "type A: no proceeds output");
+      check("swapValue", manifest.economics.swapValueSompi === net.toString(), "swap value = net proceeds");
+    } else {
+      const quote = poolBuyQuote(poolBefore, q.tokensOut, profile.feeModel.protocolFeeBps);
+      protoPaid = digits(q.protocolFee, "quote.protocolFee");
+      const kasSpend = quote.kasIn + protoPaid;
+      check("quoteRecomputed", quote.newKasReserve.toString() === manifest.venue.pool.stateAfter.kasReserve && quote.newTokenReserve.toString() === manifest.venue.pool.stateAfter.tokenReserve && quote.kasIn.toString() === q.kasIn && quote.protocolFee.toString() === q.protocolFeeMinimum && kasSpend.toString() === q.kasSpend, "buy quote == pool state after / kasIn / consideration");
+      check("maxIn", kasSpend <= digits(q.maxKasIn, "quote.maxKasIn"), "consideration <= maxKasIn");
+      check("ceiling", kasSpend * leaf.buyCeilDen <= quote.tokensOut * leaf.buyCeilNum, "consideration respects the owner ceiling");
+      check("kasCap", kasSpend <= policy.kasMaxPerSwap, "consideration <= kasMaxPerSwap");
+      check("principalCovers", kasSpend <= before.swapPrincipal, "consideration <= protected principal");
+      amountDelta = -quote.tokensOut;
+      principalDelta = -kasSpend;
+      check("swapValue", manifest.economics.swapValueSompi === kasSpend.toString(), "swap value = consideration");
+    }
+    check("protocolFeeOutput", outputs[4].covenant === null && outputs[4].scriptPublicKey.scriptHex.toLowerCase() === p2pkSpk(leaf.poolFeePk) && BigInt(outputs[4].value) === protoPaid && protoPaid >= digits(q.protocolFeeMinimum, "quote.protocolFeeMinimum") && protoPaid <= leaf.maxProtocolFeeKas, "protocol fee output to the profile key, >= venue minimum, <= owner cap");
+    check("poolValueDelta", BigInt(inputs[3].utxo.amount) - BigInt(outputs[3].value) === (sell ? digits(q.kasOut, "quote.kasOut") : -digits(q.kasIn, "quote.kasIn")), "pool KAS delta == quote");
+    check("principalDelta", after.swapPrincipal - before.swapPrincipal === principalDelta && manifest.accounting.kas.principalDelta === principalDelta.toString(), `principal delta ${principalDelta}`);
+    const consumed = before.feeReserve - after.feeReserve;
+    check("reserveConsumed", consumed === fee && consumed <= policy.agentMaxFeePerTx && manifest.accounting.kas.reserveConsumed === consumed.toString(), `reserve pays exactly the fee ${fee} <= agentMaxFeePerTx`);
+
+    /* token conservation + reconstructed continuation outputs */
+    const positionAfter = positionBefore - amountDelta;
+    const poolNoteAfter = poolNoteBefore + amountDelta;
+    check("tokenConservation", positionAfter >= 0n && poolNoteAfter >= 0n && manifest.accounting.token.positionBefore === positionBefore.toString() && manifest.accounting.token.positionAfter === positionAfter.toString() && manifest.venue.poolNote.amountAfter === poolNoteAfter.toString(), `${positionBefore} -> ${positionAfter}; pool ${poolNoteBefore} -> ${poolNoteAfter}`);
+    const selfState = kcc20.encodeState({ ownerIdentifier: manifest.controller.covenantId, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: positionAfter, isMinter: false });
+    const poolState = kcc20.encodeState({ ownerIdentifier: poolId, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: poolNoteAfter, isMinter: false });
+    check("ourContinuationReconstructed", outputs[1].scriptPublicKey.scriptHex.toLowerCase() === kcc20.p2shSpkHex(kcc20.reconstructRedeem(ourRedeem.prefixHex, selfState, ourRedeem.suffixHex)) && outputs[1].covenant.covenantId === family, "family output 0 == template(our state after)");
+    check("poolContinuationReconstructed", outputs[2].scriptPublicKey.scriptHex.toLowerCase() === kcc20.p2shSpkHex(kcc20.reconstructRedeem(ourRedeem.prefixHex, poolState, ourRedeem.suffixHex)) && outputs[2].covenant.covenantId === family, "family output 1 == template(pool state after)");
+    check("carriesPreserved", outputs[1].value === inputs[1].utxo.amount && outputs[2].value === inputs[2].utxo.amount, "token-note KAS carries unchanged (never consideration, never fee)");
+
+    /* successor agent root = the advanced leaf folded up the same co-path */
+    const periods = digits(manifest.policy.periodsElapsed, "policy.periodsElapsed");
+    let newStart = policy.periodStartDaa;
+    let newTok = policy.tokenPeriodSpent + (sell ? amountDelta : 0n);
+    let newKas = policy.kasPeriodSpent + (sell ? 0n : -principalDelta);
+    if (periods >= 1n) {
+      newStart = policy.periodStartDaa + periods * policy.periodLengthDaa;
+      newTok = sell ? amountDelta : 0n;
+      newKas = sell ? 0n : -principalDelta;
+    }
+    check("budgets", newTok <= policy.tokenPeriodBudget && newKas <= policy.kasPeriodBudget, "period budgets respected");
+    const newPolicy = { ...manifest.policy.agentPolicy, periodStartDaa: newStart.toString(), tokenPeriodSpent: newTok.toString(), kasPeriodSpent: newKas.toString() };
+    check("successorAgentRoot", foldTokenAgentPolicyV6(newPolicy, manifest.policy.agentProof.siblingsHex, BigInt(manifest.policy.agentProof.pathBits)) === after.agentRoot, "successor agentRoot == fold(advanced leaf)");
+    check("lockTime", BigInt(frozen.lockTime) === (periods >= 1n ? newStart : 0n) && manifest.policy.lockTime === frozen.lockTime, "lockTime == rollover start (or 0)");
+
+    /* freshness + economics + storage */
+    const f = manifest.freshness;
+    check("freshnessOutpoints", f.poolOutpoint.transactionId === inputs[3].previousOutpoint.transactionId && Number(f.poolOutpoint.index) === Number(inputs[3].previousOutpoint.index) && f.controllerOutpoint.transactionId === inputs[0].previousOutpoint.transactionId && Number(f.controllerOutpoint.index) === Number(inputs[0].previousOutpoint.index), "both kill-switch outpoints are the transaction's own inputs");
+    check("freshnessResidualStated", typeof f.residual === "string" && f.residual.length > 0 && typeof f.statement === "string" && /kill switch/.test(f.statement), "residual + kill switches stated");
+    if (currentDaaScore !== undefined && currentDaaScore !== null) {
+      const now = BigInt(currentDaaScore);
+      check("deadlineNotPassed", now <= digits(f.deadlineDaa, "freshness.deadlineDaa"), `current DAA ${now} <= deadline ${f.deadlineDaa}`);
+    }
+    const swapValue = digits(manifest.economics.swapValueSompi, "economics.swapValueSompi");
+    check("economicsFeeBps", manifest.economics.networkFeeSompi === fee.toString() && manifest.economics.feeBpsOfSwapValue === bps(fee, swapValue), "fee-as-bps recomputed");
+    const storage = (() => { const c = cellsOfFrozenTx({ inputs, outputs }); return calcStorageMass(c.inputCells, c.outputCells); })();
+    check("storageMass", storage <= STORAGE_MASS_LIMIT && storage.toString() === manifest.transaction.storageMass, `KIP-9 storage mass ${storage} <= ${STORAGE_MASS_LIMIT}`);
+  } catch (e) {
+    failures.push({ name: "exception", detail: `${e.code ?? "ERROR"}: ${e.message}` });
+  }
+  const verdict = failures.length === 0 ? "VERIFIED" : "REFUSED";
+  return deepFreeze({ verdict, statement: verdict === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest.manifestHash ?? null, explanation: manifest.explanation ?? null });
+}
+
+module.exports = { SWAP_MANIFEST_VERSION_1, ACTIONS, VERIFIED_STATEMENT, RESIDUAL_STATEMENT, buildSwapIntentManifest, verifySwapIntentManifest, canonicalJsonStringify };
+  });
+
+  define("core/intent/router", function (module, exports, require) {
+"use strict";
+
+/*
+ * VERSION-AWARE, FAIL-CLOSED INTENT-MANIFEST ROUTER (core/intent).
+ *
+ * ONE dispatch point from a frozen SDK build — or from a manifest that
+ * arrived over a wire — to the manifest family that actually describes it.
+ * Written because the alternative (each consumer deciding for itself which
+ * manifest module to call) is exactly how a build silently reaches the
+ * WRONG verifier, or no verifier at all: before this router,
+ * `buildTokenDepositV6` produced a v0.6-labelled build that the v0.5 token
+ * manifest refuses and no other module accepted, and every non-swap v0.6
+ * operation had no manifest at all
+ * (`docs/postlaunch/v0.6-byte-freeze-readiness.md` limitation 8).
+ *
+ * A signer-visible manifest is only trustworthy if the code that produced
+ * and verified it belongs to the SAME covenant generation as the
+ * transaction. The project rule is absolute: unknown versions FAIL CLOSED
+ * and are NEVER routed to a default. This module is the one place that
+ * mapping lives, so a new generation is a deliberate, reviewable table
+ * entry rather than an implicit fallthrough somewhere in the SDK.
+ *
+ * FAIL-CLOSED RULES (CLAUDE.md "unknown versions FAIL CLOSED"):
+ *   - build dispatch is keyed on the EXACT (contractVersion, kind, action)
+ *     tuple of a build; manifest dispatch on the EXACT manifestVersion;
+ *   - an unknown covenant version, kind, action, or manifest version is
+ *     REFUSED with a specific code — never routed to a default;
+ *   - a KNOWN version whose handler lives outside the portable core
+ *     (the v0.4 family, whose derivation bridge depends on sdk/src) is
+ *     refused with `HANDLER_NOT_PORTABLE` and the exact module to call,
+ *     so a caller can never mistake "not routed here" for "unsupported";
+ *   - a generation whose operation is only meaningful INSIDE a parent
+ *     manifest (a v0.7 rooted-vault operation, whose authority is the
+ *     organizational-root input that carries it) has NO standalone
+ *     verifier: asking for one is refused with `VERIFY_WITHIN_PARENT`
+ *     rather than handing back a verifier that would prove half of the
+ *     authority model.
+ *
+ * Registered manifest families (keyed by manifestVersion):
+ *   policyvault-token-intent-manifest/1       v0.5 token controller (frozen)
+ *   policyvault-controller-intent-manifest/1  v0.6 controller ops (frozen)
+ *   policyvault-swap-intent-manifest/1        v0.6 atomic swaps (frozen)
+ *   policyvault-org-root-manifest/1           v0.7 organizational M-of-N root
+ *   policyvault-rooted-vault-manifest/1       v0.7 rooted payment vault
+ *                                             (verified INSIDE the root
+ *                                             manifest that carries it)
+ *   policyvault-org-root-kas-manifest/1       v0.7-kas org root + rooted KAS
+ *                                             vault owner ops, embedded
+ *                                             (CANDIDATE, not byte-frozen)
+ *   policyvault-rooted-kas-vault-manifest/1   v0.7-kas rooted KAS vault op
+ *                                             (verified INSIDE the org-root-
+ *                                             kas manifest for owner ops;
+ *                                             standalone for agentSpend)
+ *
+ * Two dispatch surfaces share these tables and are kept deliberately
+ * consistent by the tests: `routeBuild` / `routeManifest` (keyed on the
+ * build tuple / manifestVersion — the surface the v0.5/v0.6 consumers and
+ * the browser use) and `resolveIntentRoute` (keyed on contractVersion — the
+ * surface the v0.7 SDK tooling and hostile matrix use for generations with
+ * exactly one manifest family per version).
+ *
+ * PORTABILITY: this module requires only sibling core/intent manifest
+ * modules, so it loads unchanged in the browser/mobile runtimes.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/intent/test/router.test.js) +
+ * cross-runtime (core/crossruntime/test/v5-v6-portability.test.js).
+ */
+
+const tokenV5 = require("./token-manifest-v5");
+const controllerV6 = require("./token-manifest-v6");
+const swapV6 = require("./swap-manifest-v6");
+const orgRootV7 = require("./org-root-manifest-v7");
+const orgRootHdV7 = require("./org-root-manifest-v7-hd");
+const orgRootKasV7 = require("./org-root-manifest-v7-kas");
+
+/* Covenant versions whose manifests live in the portable core. */
+const CONTRACT_VERSION_V5 = "policyvault-0.5";
+const CONTRACT_VERSION_V6 = "policyvault-0.6";
+const CONTRACT_VERSION_V7_ROOT = "policyvault-0.7-root";
+const CONTRACT_VERSION_V7_PAYMENT = "policyvault-0.7-payment";
+/* Wave 2 Track D (hierarchical delegation) — additive, never mutates any
+ * v0.7-payment/v0.7-root routing above. */
+const CONTRACT_VERSION_V7_PAYMENT_HD = "policyvault-0.7-payment-hd";
+const HD_SPEND_ACTIONS = new Set(["hdSpend", "childSpendL2", "childSpendL3"]);
+const HD_DELEGATION_ACTIONS = new Set(["delegateSetChildRoot1", "delegateSetChildRoot2"]);
+const HD_OWNER_ACTIONS = new Set(["ownerSetAgentRoot", "ownerTopUpReserve", "ownerPause", "ownerUnpause", "ownerEmergencyPause", "ownerRecover"]);
+const CONTRACT_VERSION_V7_KAS = "policyvault-0.7-kas";
+
+/* Known-but-not-routed-here: the v0.4 family's manifest derivation lives in
+ * core/intent/bridge/derive.js, which imports sdk/src (the single core↔sdk
+ * seam) and is therefore Node-only. Named explicitly so the refusal is
+ * informative instead of a generic "unknown". */
+const NON_PORTABLE_VERSIONS = Object.freeze({
+  "policyvault-0.4": "core/intent/bridge/derive.js (deriveManifestFromV4Build / deriveAndVerify)",
+  "policyvault-0.4.1": "core/intent/bridge/derive.js (deriveManifestFromV4Build / deriveAndVerify)"
+});
+
+const MANIFEST_FAMILIES = Object.freeze({
+  [tokenV5.TOKEN_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: tokenV5.TOKEN_MANIFEST_VERSION_1,
+    contractVersion: CONTRACT_VERSION_V5,
+    module: "core/intent/token-manifest-v5.js",
+    build: tokenV5.buildTokenIntentManifest,
+    verify: tokenV5.verifyTokenIntentManifest
+  }),
+  [controllerV6.CONTROLLER_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: controllerV6.CONTROLLER_MANIFEST_VERSION_1,
+    contractVersion: CONTRACT_VERSION_V6,
+    module: "core/intent/token-manifest-v6.js",
+    build: controllerV6.buildControllerIntentManifestV6,
+    verify: controllerV6.verifyControllerIntentManifestV6
+  }),
+  [swapV6.SWAP_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: swapV6.SWAP_MANIFEST_VERSION_1,
+    contractVersion: CONTRACT_VERSION_V6,
+    module: "core/intent/swap-manifest-v6.js",
+    build: swapV6.buildSwapIntentManifest,
+    verify: swapV6.verifySwapIntentManifest
+  }),
+  [orgRootV7.ORG_ROOT_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: orgRootV7.ORG_ROOT_MANIFEST_VERSION_1,
+    contractVersion: CONTRACT_VERSION_V7_ROOT,
+    module: "core/intent/org-root-manifest-v7.js",
+    build: orgRootV7.buildOrgRootIntentManifest,
+    verify: orgRootV7.verifyOrgRootIntentManifest
+  }),
+  [orgRootV7.ROOTED_VAULT_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: orgRootV7.ROOTED_VAULT_MANIFEST_VERSION_1,
+    contractVersion: CONTRACT_VERSION_V7_PAYMENT,
+    module: "core/intent/org-root-manifest-v7.js",
+    build: orgRootV7.buildRootedVaultManifestV7,
+    /* a rooted-vault operation is verified INSIDE the organizational-root
+     * manifest that carries it, because its authority is that root input —
+     * verifying it alone would be verifying half of the security property */
+    verify: null,
+    verifyWithin: orgRootV7.ORG_ROOT_MANIFEST_VERSION_1
+  }),
+  /* Wave 2 Track D — the HD vault's five spend/delegation entrypoints never
+   * touch the root, so unlike ROOTED_VAULT_MANIFEST_VERSION_1 this family
+   * carries a REAL standalone verifier. */
+  [orgRootHdV7.ROOTED_HD_VAULT_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: orgRootHdV7.ROOTED_HD_VAULT_MANIFEST_VERSION_1,
+    contractVersion: CONTRACT_VERSION_V7_PAYMENT_HD,
+    module: "core/intent/org-root-manifest-v7-hd.js",
+    build: orgRootHdV7.buildRootedHdVaultManifestV7,
+    verify: orgRootHdV7.verifyRootedHdVaultManifestV7
+  }),
+  [orgRootKasV7.ORG_ROOT_KAS_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: orgRootKasV7.ORG_ROOT_KAS_MANIFEST_VERSION_1,
+    /* contractVersion is the ROOT's, exactly like ORG_ROOT_MANIFEST_VERSION_1
+     * above — an org-root(-kas) manifest primarily represents the ROOT
+     * transaction/authority, regardless of which vault profile's ops ride
+     * along; ROOTED_KAS_VAULT_MANIFEST_VERSION_1 below carries the KAS
+     * vault's own contractVersion. */
+    contractVersion: CONTRACT_VERSION_V7_ROOT,
+    module: "core/intent/org-root-manifest-v7-kas.js",
+    build: orgRootKasV7.buildOrgRootIntentManifestV7Kas,
+    verify: orgRootKasV7.verifyOrgRootIntentManifestV7Kas
+  }),
+  [orgRootKasV7.ROOTED_KAS_VAULT_MANIFEST_VERSION_1]: Object.freeze({
+    manifestVersion: orgRootKasV7.ROOTED_KAS_VAULT_MANIFEST_VERSION_1,
+    contractVersion: CONTRACT_VERSION_V7_KAS,
+    module: "core/intent/org-root-manifest-v7-kas.js",
+    build: orgRootKasV7.buildRootedKasVaultManifestV7,
+    /* an owner operation is verified INSIDE the org-root-kas manifest that
+     * carries it, because its authority is that root input — verifying it
+     * alone would be verifying half of the security property. A delegate
+     * spend (agentSpend) never touches the root and never NEEDS the
+     * org-root wrapper, but the per-op verifier's signature
+     * (verifyRootedKasVaultManifestV7({ manifest, frozen, check })) takes
+     * the frozen transaction and an accumulating check() callback — it is
+     * the SAME shape the payment profile's own verifyRootedVaultManifestV7
+     * uses (also NOT exposed as a router-callable standalone verifier);
+     * call it directly (not through this router) when verifying a
+     * standalone agentSpend manifest. */
+    verify: null,
+    verifyWithin: orgRootKasV7.ORG_ROOT_KAS_MANIFEST_VERSION_1
+  })
+});
+
+const SUPPORTED_MANIFEST_VERSIONS = Object.freeze(Object.keys(MANIFEST_FAMILIES).sort());
+
+/* Every covenant generation the shared core KNOWS how to describe — the
+ * portable families above plus the Node-only v0.4 bridge. This is the ONE
+ * list a discovery document may advertise FROM (a server may advertise a
+ * subset it actually routes, never a superset): an unknown version can never
+ * be advertised because it is not here. */
+const KNOWN_COVENANT_VERSIONS = Object.freeze([...new Set([
+  ...Object.keys(NON_PORTABLE_VERSIONS),
+  ...Object.values(MANIFEST_FAMILIES).map((f) => f.contractVersion)
+])].sort());
+
+/* Per-contractVersion routes: ONLY for generations with exactly one manifest
+ * family per version (v0.6 has two, selected by build.action, so it is
+ * deliberately absent here and named in UNSUPPORTED with the reason). */
+const ROUTES = Object.freeze({
+  [CONTRACT_VERSION_V5]: Object.freeze({
+    contractVersion: CONTRACT_VERSION_V5,
+    manifestVersion: tokenV5.TOKEN_MANIFEST_VERSION_1,
+    module: "core/intent/token-manifest-v5",
+    build: tokenV5.buildTokenIntentManifest,
+    verify: tokenV5.verifyTokenIntentManifest
+  }),
+  [CONTRACT_VERSION_V7_ROOT]: Object.freeze({
+    contractVersion: CONTRACT_VERSION_V7_ROOT,
+    manifestVersion: orgRootV7.ORG_ROOT_MANIFEST_VERSION_1,
+    module: "core/intent/org-root-manifest-v7",
+    build: orgRootV7.buildOrgRootIntentManifest,
+    verify: orgRootV7.verifyOrgRootIntentManifest
+  }),
+  [CONTRACT_VERSION_V7_PAYMENT]: Object.freeze({
+    contractVersion: CONTRACT_VERSION_V7_PAYMENT,
+    manifestVersion: orgRootV7.ROOTED_VAULT_MANIFEST_VERSION_1,
+    module: "core/intent/org-root-manifest-v7",
+    build: orgRootV7.buildRootedVaultManifestV7,
+    verify: null,
+    verifyWithin: orgRootV7.ORG_ROOT_MANIFEST_VERSION_1
+  }),
+  [CONTRACT_VERSION_V7_KAS]: Object.freeze({
+    contractVersion: CONTRACT_VERSION_V7_KAS,
+    manifestVersion: orgRootKasV7.ROOTED_KAS_VAULT_MANIFEST_VERSION_1,
+    module: "core/intent/org-root-manifest-v7-kas",
+    build: orgRootKasV7.buildRootedKasVaultManifestV7,
+    verify: null,
+    verifyWithin: orgRootKasV7.ORG_ROOT_KAS_MANIFEST_VERSION_1
+  })
+});
+
+/* Known covenant generations that deliberately have no per-version route. */
+const UNSUPPORTED = Object.freeze({
+  [CONTRACT_VERSION_V6]: "v0.6 has TWO manifest families selected by build.action — core/intent/token-manifest-v6 (controller operations) and core/intent/swap-manifest-v6 (atomic swaps); use routeBuild(build) / routeManifest(manifest), there is no single per-version route",
+  [CONTRACT_VERSION_V7_PAYMENT_HD]: 'policyvault-0.7-payment-hd has TWO manifest families selected by build.kind — the STANDALONE-verifiable core/intent/org-root-manifest-v7-hd.js ("hdTransition": hdSpend/childSpendL2/childSpendL3/delegateSetChildRoot1/delegateSetChildRoot2) and, for owner ops ("hdOwnerTransition"), the SAME family v0.7-payment uses (core/intent/org-root-manifest-v7.js, verified within its org-root manifest); use routeBuild(build) / routeManifest(manifest), there is no single per-version route',
+  "policyvault-0.4": `the v0.4 family is described by ${NON_PORTABLE_VERSIONS["policyvault-0.4"]}, which is not part of the portable router`,
+  "policyvault-0.4.1": `the v0.4.1 family is described by ${NON_PORTABLE_VERSIONS["policyvault-0.4.1"]}, which is not part of the portable router`
+});
+
+function refuse(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  throw e;
+}
+
+/*
+ * PROTOTYPE-POLLUTION-SHAPED KEY GUARD. Every table in this module
+ * (MANIFEST_FAMILIES, ROUTES, NON_PORTABLE_VERSIONS, UNSUPPORTED, and the
+ * imported ACTIONS tables) is a plain object literal, so a caller-supplied
+ * string like "constructor", "toString", "hasOwnProperty", "valueOf",
+ * "__proto__", "isPrototypeOf" or "propertyIsEnumerable" resolves through
+ * Object.prototype to a truthy built-in function INSTEAD of `undefined` on
+ * a bare `TABLE[key]` lookup — which is exactly the "silently routed to a
+ * default" outcome CLAUDE.md's fail-closed rule forbids, from an ordinary
+ * bracket lookup with no explicit prototype-pollution attempt at all.
+ * `ownGet` returns the table's OWN property only (or undefined), never a
+ * prototype-chain hit, so every version/action/manifestVersion lookup in
+ * this file fails closed on such a key exactly like any other unknown one.
+ */
+const { ownGet, describeKey } = require("../model/own-get"); // shared implementation (rc11 review F-05)
+
+/*
+ * Which manifest family describes this build? Returns the frozen family
+ * descriptor; throws (never guesses) otherwise.
+ */
+function routeBuild(build) {
+  if (!build || typeof build !== "object") refuse("SCHEMA_INVALID", "a build object is required");
+  const version = build.contractVersion;
+  if (typeof version !== "string" || version.length === 0) refuse("SCHEMA_INVALID", "build.contractVersion is required");
+  const nonPortableWhy = ownGet(NON_PORTABLE_VERSIONS, version);
+  if (nonPortableWhy) {
+    refuse("HANDLER_NOT_PORTABLE", `${version} builds are described by ${nonPortableWhy}, which is not part of the portable manifest router — call it directly`);
+  }
+  const kind = build.kind;
+  if (version === CONTRACT_VERSION_V7_ROOT) {
+    /* the organizational root has exactly one manifest-bearing build kind */
+    if (kind !== "orgRootTransition") {
+      refuse("UNROUTABLE_BUILD_KIND", `build.kind ${describeKey(kind)} has no intent manifest for ${version} (only "orgRootTransition" does) — failing closed`);
+    }
+    return MANIFEST_FAMILIES[orgRootV7.ORG_ROOT_MANIFEST_VERSION_1];
+  }
+  if (version === CONTRACT_VERSION_V7_PAYMENT_HD) {
+    /* HD spend/delegation builds carry kind "hdTransition" (never "transition"
+     * — a distinct build kind, so a v0.7-payment build can never be
+     * mis-routed here and vice versa) and route to the STANDALONE-verifiable
+     * HD family; HD owner-op builds carry kind "hdOwnerTransition" and
+     * (byte-identical field shapes to the payment profile) route to the SAME
+     * ROOTED_VAULT_MANIFEST_VERSION_1 family, verified within the org-root
+     * manifest exactly like the payment profile's owner ops. Checked BEFORE
+     * the generic "transition"/"tokenDeposit" kind gate below, since neither
+     * HD build kind is "transition". */
+    if (kind === "hdTransition") {
+      if (!HD_SPEND_ACTIONS.has(build.action) && !HD_DELEGATION_ACTIONS.has(build.action)) {
+        refuse("UNKNOWN_ACTION", `unknown ${version} HD action ${describeKey(build.action)} — failing closed`);
+      }
+      return MANIFEST_FAMILIES[orgRootHdV7.ROOTED_HD_VAULT_MANIFEST_VERSION_1];
+    }
+    if (kind === "hdOwnerTransition") {
+      if (!HD_OWNER_ACTIONS.has(build.action)) refuse("UNKNOWN_ACTION", `unknown ${version} owner action ${describeKey(build.action)} — failing closed`);
+      return MANIFEST_FAMILIES[orgRootV7.ROOTED_VAULT_MANIFEST_VERSION_1];
+    }
+    refuse("UNROUTABLE_BUILD_KIND", `build.kind ${describeKey(kind)} has no intent manifest for ${version} (only "hdTransition" and "hdOwnerTransition" do) — failing closed`);
+  }
+  if (kind !== "transition" && kind !== "tokenDeposit") {
+    refuse("UNROUTABLE_BUILD_KIND", `build.kind ${describeKey(kind)} has no intent manifest (only "transition" and "tokenDeposit" do) — failing closed`);
+  }
+  if (version === CONTRACT_VERSION_V5) {
+    if (kind === "tokenDeposit") return MANIFEST_FAMILIES[tokenV5.TOKEN_MANIFEST_VERSION_1];
+    if (!ownGet(tokenV5.ACTIONS, build.action)) refuse("UNKNOWN_ACTION", `unknown ${version} action ${describeKey(build.action)} — failing closed`);
+    return MANIFEST_FAMILIES[tokenV5.TOKEN_MANIFEST_VERSION_1];
+  }
+  if (version === CONTRACT_VERSION_V6) {
+    if (kind === "tokenDeposit") return MANIFEST_FAMILIES[controllerV6.CONTROLLER_MANIFEST_VERSION_1];
+    if (typeof build.action === "string" && controllerV6.SWAP_ACTIONS.includes(build.action)) {
+      if (!build.swap) refuse("SCHEMA_INVALID", `${build.action} is a swap action but the build carries no swap section — failing closed`);
+      return MANIFEST_FAMILIES[swapV6.SWAP_MANIFEST_VERSION_1];
+    }
+    if (build.swap) refuse("SCHEMA_INVALID", `build.action ${describeKey(build.action)} is not a swap action but the build carries a swap section — failing closed`);
+    if (!ownGet(controllerV6.ACTIONS, build.action)) refuse("UNKNOWN_ACTION", `unknown ${version} action ${describeKey(build.action)} — failing closed`);
+    return MANIFEST_FAMILIES[controllerV6.CONTROLLER_MANIFEST_VERSION_1];
+  }
+  if (version === CONTRACT_VERSION_V7_PAYMENT) {
+    /* the rooted vault's own manifest module owns the action table; the
+     * router only decides the family (verified within the root manifest) */
+    return MANIFEST_FAMILIES[orgRootV7.ROOTED_VAULT_MANIFEST_VERSION_1];
+  }
+  if (version === CONTRACT_VERSION_V7_KAS) {
+    /* CANDIDATE, not byte-frozen. Same shape as the payment profile: the
+     * rooted-KAS-vault manifest module owns the action table (agentSpend +
+     * all 7 ownerControl selectors + ownerRecover); the router only
+     * decides the family (verified within the org-root-kas manifest). */
+    return MANIFEST_FAMILIES[orgRootKasV7.ROOTED_KAS_VAULT_MANIFEST_VERSION_1];
+  }
+  refuse("UNKNOWN_COVENANT_VERSION", `build.contractVersion ${describeKey(version)} has no known manifest family — failing closed (never routed to a default)`);
+  return null; /* unreachable; keeps the control flow explicit */
+}
+
+/* Which manifest family owns this manifest? Keyed on manifestVersion only. */
+function routeManifest(manifest) {
+  if (!manifest || typeof manifest !== "object") refuse("SCHEMA_INVALID", "a manifest object is required");
+  const family = ownGet(MANIFEST_FAMILIES, manifest.manifestVersion);
+  if (!family) {
+    refuse("UNKNOWN_MANIFEST_VERSION", `manifestVersion ${describeKey(manifest.manifestVersion)} is not one of ${SUPPORTED_MANIFEST_VERSIONS.join(", ")} — failing closed`);
+  }
+  return family;
+}
+
+/*
+ * Build the correct manifest for `build`. Extra per-family arguments
+ * (agentPolicy, recipients, descriptor, vaultOperations, …) are passed
+ * through unchanged; each family validates its own required set.
+ */
+function buildManifestForBuild(args) {
+  const family = routeBuild(args && args.build);
+  return family.build(args);
+}
+
+/*
+ * Verify a manifest with the verifier that owns its version. `descriptor`
+ * (and, for swaps, `currentDaaScore`) pass through unchanged. A family
+ * without a standalone verifier is refused, never silently "verified".
+ */
+function verifyManifest(args) {
+  const family = routeManifest(args && args.manifest);
+  if (!family.verify) {
+    refuse("VERIFY_WITHIN_PARENT", `${family.manifestVersion} manifests are verified inside a ${family.verifyWithin} manifest — verifying one in isolation would prove only half of the authority model; failing closed`);
+  }
+  return family.verify(args);
+}
+
+/* ---- per-contractVersion surface (v0.7 tooling + hostile matrix) ---- */
+
+function resolveIntentRoute(contractVersion) {
+  if (typeof contractVersion !== "string" || contractVersion.length === 0) {
+    refuse("UNKNOWN_VERSION", "intent-router: a contractVersion string is required — failing closed");
+  }
+  const route = ownGet(ROUTES, contractVersion);
+  if (!route) {
+    const why = ownGet(UNSUPPORTED, contractVersion);
+    refuse("UNKNOWN_VERSION", why ? `intent-router: ${contractVersion} has no intent-manifest route: ${why} — failing closed` : `intent-router: unknown contractVersion ${JSON.stringify(contractVersion)} — failing closed (no default route)`);
+  }
+  return route;
+}
+
+function routeIntentManifestBuilder(contractVersion) {
+  return resolveIntentRoute(contractVersion).build;
+}
+
+function routeIntentManifestVerifier(contractVersion) {
+  const route = resolveIntentRoute(contractVersion);
+  if (!route.verify) {
+    refuse("VERIFY_WITHIN_PARENT", `intent-router: ${contractVersion} operations are verified inside a ${route.verifyWithin} manifest — verifying one in isolation would prove only half of the authority model; failing closed`);
+  }
+  return route.verify;
+}
+
+function supportedIntentVersions() {
+  return Object.freeze(Object.keys(ROUTES).sort());
+}
+
+module.exports = {
+  SUPPORTED_MANIFEST_VERSIONS,
+  KNOWN_COVENANT_VERSIONS,
+  MANIFEST_FAMILIES,
+  NON_PORTABLE_VERSIONS,
+  routeBuild,
+  routeManifest,
+  buildManifestForBuild,
+  verifyManifest,
+  ROUTES,
+  UNSUPPORTED,
+  resolveIntentRoute,
+  routeIntentManifestBuilder,
+  routeIntentManifestVerifier,
+  supportedIntentVersions
+};
+  });
+
+  define("core/model/owner-set-v7", function (module, exports, require) {
+"use strict";
+const { ownGet, describeKey } = require("./own-get");
+
+/*
+ * PolicyVault v0.7 ORGANIZATIONAL OWNER SET — the deterministic core's
+ * single source of truth for what an organization's M-of-N owner set IS,
+ * what makes it WELL-FORMED, how the 780-byte owner signature blob is
+ * assembled, and which authority CLASS each root action carries.
+ *
+ * Every rule below mirrors `contracts/PolicyVault.v0.7-root.sil`
+ * (contract `PolicyVaultOrgRoot`) EXACTLY, so the core refuses locally what
+ * consensus would refuse. The covenant remains the authority: nothing here
+ * is a security boundary, and nothing here may ever be relaxed to "help" a
+ * caller.
+ *
+ * WELL-FORMEDNESS WF(S) — checked by the covenant on the PREDECESSOR of
+ * every root spend and on every NEW set:
+ *   - ownerM >= 1
+ *   - ownerM <= active(S)
+ *   - active slots are CONTIGUOUS from slot 1 (no active slot after an
+ *     inactive one)
+ *   - all active keys are pairwise distinct (the covenant's 11 guards
+ *     imply all C(12,2) = 66 inequalities under contiguity)
+ *   - 1 <= emergencyK <= ownerM
+ *   - 0 <= recoveryM <= ownerM   (0 = the owner-recovery path is DISABLED)
+ *   - frozen in {0, 1}
+ *
+ * SIGNATURE BLOB — exactly 12 x 65 = 780 bytes. Slot i (0-based) is bytes
+ * [65i, 65i+65). An ACTIVE slot carries a 64-byte Schnorr signature plus the
+ * trailing 0x01 SIGHASH_ALL gate byte; the canonical abstention placeholder
+ * is 64 zero bytes + 0x01 (it passes the gate, fails verification, counts 0).
+ * Inactive slots are never inspected by the covenant and always carry the
+ * placeholder here so the blob length — and therefore the exact transaction
+ * byte shape and fee — is CONSTANT for every threshold.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/owner-set-v7.test.js).
+ */
+
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+
+const OWNER_SLOTS_V7 = 12;
+const SIG_SLOT_LEN_V7 = 65;
+const SIG_BLOB_LEN_V7 = OWNER_SLOTS_V7 * SIG_SLOT_LEN_V7; // 780
+const SIGHASH_ALL_GATE_BYTE = "01";
+const INACTIVE_SLOT_KEY = "00".repeat(32);
+const PLACEHOLDER_SLOT_HEX_V7 = "00".repeat(64) + SIGHASH_ALL_GATE_BYTE;
+
+/* The four governance classes the design records for manifests (§2.4). */
+const AUTHORITY_CLASSES_V7 = Object.freeze({
+  REDUCING: "AUTHORITY-REDUCING",
+  NEUTRAL: "AUTHORITY-NEUTRAL",
+  EXPANDING: "AUTHORITY-EXPANDING",
+  TERMINAL: "TERMINAL"
+});
+
+/*
+ * Root action vocabulary. `quorumSource` names the state field the covenant
+ * reads for `required`; `setMayChange` mirrors the covenant's own branch;
+ * `requiresAge` marks the two relative-input-age (dead-man's switch) paths.
+ *
+ * SUCCESSION has no numeric action code — it is a separate covenant
+ * entrypoint (`rootSuccession`) — and it is TERMINAL for the outgoing owner
+ * set while being AUTHORITY-EXPANDING for the successor, so both labels are
+ * carried explicitly rather than collapsed.
+ */
+const ROOT_ACTIONS_V7 = Object.freeze({
+  authorize: Object.freeze({
+    name: "authorize",
+    action: 0,
+    entrypoint: "rootAction",
+    class: AUTHORITY_CLASSES_V7.NEUTRAL,
+    quorumSource: "ownerM",
+    setMayChange: false,
+    requiresAge: false,
+    requiresUnfrozen: true,
+    landsFrozen: null /* preserved */
+  }),
+  rotate: Object.freeze({
+    name: "rotate",
+    action: 1,
+    entrypoint: "rootAction",
+    class: AUTHORITY_CLASSES_V7.EXPANDING,
+    quorumSource: "ownerM",
+    setMayChange: true,
+    requiresAge: false,
+    requiresUnfrozen: false,
+    landsFrozen: null /* preserved — rotation is allowed while frozen */
+  }),
+  freeze: Object.freeze({
+    name: "freeze",
+    action: 2,
+    entrypoint: "rootAction",
+    class: AUTHORITY_CLASSES_V7.REDUCING,
+    quorumSource: "emergencyK",
+    setMayChange: false,
+    requiresAge: false,
+    requiresUnfrozen: true,
+    landsFrozen: 1n
+  }),
+  unfreeze: Object.freeze({
+    name: "unfreeze",
+    action: 3,
+    entrypoint: "rootAction",
+    class: AUTHORITY_CLASSES_V7.EXPANDING,
+    quorumSource: "ownerM",
+    setMayChange: false,
+    requiresAge: false,
+    requiresUnfrozen: false,
+    landsFrozen: 0n
+  }),
+  ownerRecover: Object.freeze({
+    name: "ownerRecover",
+    action: 4,
+    entrypoint: "rootAction",
+    class: AUTHORITY_CLASSES_V7.EXPANDING,
+    quorumSource: "recoveryM",
+    setMayChange: true,
+    requiresAge: true,
+    /* coordinator decision D6: a recovery MUST land frozen */
+    requiresUnfrozen: false,
+    landsFrozen: 1n
+  }),
+  succession: Object.freeze({
+    name: "succession",
+    action: null,
+    entrypoint: "rootSuccession",
+    class: AUTHORITY_CLASSES_V7.EXPANDING,
+    classForPreviousSet: AUTHORITY_CLASSES_V7.TERMINAL,
+    quorumSource: "successorPk",
+    setMayChange: true,
+    requiresAge: true,
+    requiresUnfrozen: false,
+    landsFrozen: 1n
+  })
+});
+
+const ROOT_ACTION_BY_CODE = Object.freeze(
+  Object.fromEntries(
+    Object.values(ROOT_ACTIONS_V7)
+      .filter((a) => a.action !== null)
+      .map((a) => [a.action, a])
+  )
+);
+
+function fail(message, code) {
+  const e = new Error(`owner-set-v7: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function resolveRootActionV7(name) {
+  const info = ownGet(ROOT_ACTIONS_V7, name); // own-property only (F-05)
+  if (!info) {
+    fail(`unknown v0.7 root action ${describeKey(name)} — failing closed (no default route)`, "UNKNOWN_ROOT_ACTION");
+  }
+  return info;
+}
+
+function resolveRootActionCodeV7(code) {
+  const info = ROOT_ACTION_BY_CODE[typeof code === "bigint" ? Number(code) : code];
+  if (!info) {
+    fail(`unknown v0.7 root action code ${JSON.stringify(code)} — failing closed`, "UNKNOWN_ROOT_ACTION");
+  }
+  return info;
+}
+
+function smallInt(value, field, { min, max }) {
+  let n;
+  if (typeof value === "bigint") n = value;
+  else if (typeof value === "number") {
+    if (!Number.isInteger(value)) fail(`${field} must be an integer`);
+    n = BigInt(value);
+  } else if (typeof value === "string") {
+    if (!/^(0|[1-9][0-9]*)$/.test(value)) fail(`${field} must be a non-negative digit string`);
+    n = BigInt(value);
+  } else {
+    fail(`${field} is required (BigInt, integer or digit string)`);
+  }
+  if (n < min || n > max) fail(`${field} out of range [${min}, ${max}]`);
+  return n;
+}
+
+/*
+ * Normalize + WF-check an owner set. `owners` is exactly 12 entries; an
+ * inactive slot is the 32-byte sentinel zero. Every failure carries a code
+ * so callers (and tamper tests) can attribute a refusal to its rule.
+ */
+function normalizeOwnerSetV7(input) {
+  if (!input || typeof input !== "object") fail("owner set object is required");
+  const raw = input.owners;
+  if (!Array.isArray(raw) || raw.length !== OWNER_SLOTS_V7) {
+    fail(`owners must be an array of exactly ${OWNER_SLOTS_V7} slots (the sentinel zero marks an inactive slot)`, "SLOT_COUNT");
+  }
+  const owners = raw.map((k, i) => normalizeXOnlyPubkey(k, `owners[${i}]`));
+
+  /* active(S) + CONTIGUITY: no active slot may follow an inactive one. */
+  let active = 0;
+  let seenInactive = false;
+  for (let i = 0; i < OWNER_SLOTS_V7; i += 1) {
+    const isActive = owners[i] !== INACTIVE_SLOT_KEY;
+    if (isActive) {
+      if (seenInactive) {
+        fail(`owner slot ${i + 1} is active after an inactive slot — active slots must be contiguous from slot 1`, "NOT_CONTIGUOUS");
+      }
+      active += 1;
+    } else {
+      seenInactive = true;
+    }
+  }
+  if (active === 0) fail("an owner set must have at least one active slot", "NO_ACTIVE_SLOTS");
+
+  /* pairwise distinctness over the ACTIVE slots (the covenant's 11 guards) */
+  const seen = new Set();
+  for (let i = 0; i < active; i += 1) {
+    if (seen.has(owners[i])) {
+      fail(`owner slot ${i + 1} repeats a key already held by an earlier slot — active keys must be pairwise distinct`, "DUPLICATE_OWNER_KEY");
+    }
+    seen.add(owners[i]);
+  }
+
+  const ownerM = smallInt(input.ownerM, "ownerM", { min: 1n, max: BigInt(OWNER_SLOTS_V7) });
+  if (ownerM > BigInt(active)) fail(`ownerM ${ownerM} exceeds the ${active} active owner slots — the set could never reach quorum`, "M_ABOVE_ACTIVE");
+  const emergencyK = smallInt(input.emergencyK, "emergencyK", { min: 1n, max: BigInt(OWNER_SLOTS_V7) });
+  if (emergencyK > ownerM) fail(`emergencyK ${emergencyK} exceeds ownerM ${ownerM} — the emergency quorum may never be heavier than the full quorum`, "K_ABOVE_M");
+  const recoveryM = smallInt(input.recoveryM, "recoveryM", { min: 0n, max: BigInt(OWNER_SLOTS_V7) });
+  if (recoveryM > ownerM) fail(`recoveryM ${recoveryM} exceeds ownerM ${ownerM}`, "R_ABOVE_M");
+
+  return Object.freeze({
+    owners: Object.freeze(owners),
+    activeCount: active,
+    ownerM,
+    emergencyK,
+    recoveryM
+  });
+}
+
+/* The active slots as { slot (1-based), index (0-based), publicKey }. */
+function activeOwnerSlotsV7(ownerSet) {
+  const out = [];
+  for (let i = 0; i < ownerSet.activeCount; i += 1) {
+    out.push(Object.freeze({ slot: i + 1, index: i, publicKey: ownerSet.owners[i] }));
+  }
+  return Object.freeze(out);
+}
+
+/* The quorum the covenant will require for one action, from the PREDECESSOR set. */
+function requiredApprovalsV7(ownerSet, actionName) {
+  const info = resolveRootActionV7(actionName);
+  switch (info.quorumSource) {
+    case "ownerM":
+      return ownerSet.ownerM;
+    case "emergencyK":
+      return ownerSet.emergencyK;
+    case "recoveryM":
+      if (ownerSet.recoveryM < 1n) {
+        fail("the owner-recovery path is DISABLED for this root (recoveryM = 0) — failing closed", "RECOVERY_DISABLED");
+      }
+      return ownerSet.recoveryM;
+    case "successorPk":
+      return 1n;
+    default:
+      fail(`internal: unknown quorum source ${info.quorumSource}`);
+  }
+  return 0n;
+}
+
+function normalizeSlotSignatureHex(value, label) {
+  if (typeof value !== "string") fail(`${label} must be lowercase hex`, "SIGNATURE_INVALID");
+  let sig = value.trim().toLowerCase();
+  /* tolerate the wallet convention of a leading 0x41 push opcode */
+  if (sig.length === (SIG_SLOT_LEN_V7 + 1) * 2 && sig.startsWith("41")) sig = sig.slice(2);
+  if (!/^[0-9a-f]+$/.test(sig) || sig.length !== SIG_SLOT_LEN_V7 * 2) {
+    fail(`${label} must be exactly ${SIG_SLOT_LEN_V7} bytes (64-byte Schnorr signature + the sighash-type byte)`, "SIGNATURE_INVALID");
+  }
+  if (!sig.endsWith(SIGHASH_ALL_GATE_BYTE)) {
+    fail(`${label} sighash byte 0x${sig.slice(-2)} != 0x01 — the root covenant gates every counted slot on SIGHASH_ALL`, "SIGHASH_NOT_ALL");
+  }
+  if (sig === PLACEHOLDER_SLOT_HEX_V7) {
+    fail(`${label} is the canonical abstention placeholder, not a signature — it can never count toward a quorum`, "PLACEHOLDER_AS_SIGNATURE");
+  }
+  return sig;
+}
+
+/*
+ * Assemble the 780-byte owner signature blob from OUT-OF-BAND signatures.
+ *
+ * `approvals` is a list of { slot | publicKey, signatureHex }. Every entry
+ * must name an ACTIVE slot of THIS set; absent slots carry the canonical
+ * placeholder. Refusals (all pre-consensus, all fail-closed):
+ *   DUPLICATE_SLOT           the same slot supplied twice
+ *   SIGNATURE_REUSED         one signature offered for two different slots
+ *   SLOT_INACTIVE            an approval aimed at a sentinel-zero slot
+ *   OWNER_NOT_IN_SET         a public key that is not an active owner
+ *   SIGHASH_NOT_ALL          a slot whose trailing byte is not 0x01
+ *   SIGNATURE_INVALID        wrong length / not hex
+ *   UNDER_QUORUM             fewer approvals than the action requires
+ *
+ * The blob's LENGTH is constant (780 B) regardless of how many slots signed,
+ * which is exactly why the exact-fee freeze survives signature collection.
+ */
+function assembleOwnerSigsBlobV7({ ownerSet, actionName, approvals, requireQuorum = true }) {
+  const set = ownerSet && ownerSet.activeCount !== undefined ? ownerSet : normalizeOwnerSetV7(ownerSet);
+  if (!Array.isArray(approvals)) fail("approvals must be an array of { slot | publicKey, signatureHex }");
+  const slots = new Array(OWNER_SLOTS_V7).fill(PLACEHOLDER_SLOT_HEX_V7);
+  const usedSlots = new Set();
+  const usedSignatures = new Set();
+  const signedSlots = [];
+
+  for (const [i, approval] of approvals.entries()) {
+    if (!approval || typeof approval !== "object") fail(`approvals[${i}] must be an object`);
+    let index;
+    if (approval.slot !== undefined && approval.slot !== null) {
+      const slot = Number(approval.slot);
+      if (!Number.isInteger(slot) || slot < 1 || slot > OWNER_SLOTS_V7) fail(`approvals[${i}].slot must be 1..${OWNER_SLOTS_V7}`, "SLOT_OUT_OF_RANGE");
+      index = slot - 1;
+      if (approval.publicKey !== undefined && approval.publicKey !== null) {
+        const pk = normalizeXOnlyPubkey(approval.publicKey, `approvals[${i}].publicKey`);
+        if (pk !== set.owners[index]) fail(`approvals[${i}] names slot ${slot} but carries a different public key — refusing to place a signature under a key the covenant will not check it against`, "SLOT_KEY_MISMATCH");
+      }
+    } else if (approval.publicKey !== undefined && approval.publicKey !== null) {
+      const pk = normalizeXOnlyPubkey(approval.publicKey, `approvals[${i}].publicKey`);
+      index = set.owners.indexOf(pk);
+      if (index < 0 || index >= set.activeCount) {
+        fail(`approvals[${i}].publicKey is not an active owner of this root — a signature under a key outside the set can never count`, "OWNER_NOT_IN_SET");
+      }
+    } else {
+      fail(`approvals[${i}] must carry a slot or a publicKey`);
+    }
+    if (index >= set.activeCount) fail(`approvals[${i}] targets inactive slot ${index + 1} — inactive slots are never inspected by the covenant`, "SLOT_INACTIVE");
+    if (usedSlots.has(index)) fail(`approvals[${i}] repeats slot ${index + 1} — one slot, one signature`, "DUPLICATE_SLOT");
+    const sig = normalizeSlotSignatureHex(approval.signatureHex, `approvals[${i}].signatureHex`);
+    if (usedSignatures.has(sig)) {
+      fail(`approvals[${i}] reuses a signature already placed in another slot — a single approval can never satisfy two slots`, "SIGNATURE_REUSED");
+    }
+    usedSlots.add(index);
+    usedSignatures.add(sig);
+    slots[index] = sig;
+    signedSlots.push(index + 1);
+  }
+
+  signedSlots.sort((a, b) => a - b);
+  const required = requiredApprovalsV7(set, actionName);
+  const satisfied = BigInt(signedSlots.length);
+  if (requireQuorum && satisfied < required) {
+    fail(`the blob carries ${satisfied} owner approval(s) but ${actionName} requires ${required} — refusing to finalize an under-quorum root transaction`, "UNDER_QUORUM");
+  }
+  const blobHex = slots.join("");
+  if (blobHex.length !== SIG_BLOB_LEN_V7 * 2) fail("internal: assembled blob is not 780 bytes");
+  return Object.freeze({
+    blobHex,
+    signedSlots: Object.freeze(signedSlots),
+    requiredApprovals: required,
+    satisfiedApprovals: satisfied,
+    actionName
+  });
+}
+
+/* The all-placeholder blob: the exact byte shape a build freezes against. */
+function placeholderOwnerSigsBlobV7() {
+  return PLACEHOLDER_SLOT_HEX_V7.repeat(OWNER_SLOTS_V7);
+}
+
+/* Read a blob back: which slots carry a non-placeholder 65-byte slot. */
+function inspectOwnerSigsBlobV7(blobHex) {
+  const hex = normalizeHex(blobHex, SIG_BLOB_LEN_V7, "ownerSigs");
+  const slots = [];
+  for (let i = 0; i < OWNER_SLOTS_V7; i += 1) {
+    const slot = hex.slice(i * SIG_SLOT_LEN_V7 * 2, (i + 1) * SIG_SLOT_LEN_V7 * 2);
+    slots.push(Object.freeze({ slot: i + 1, index: i, hex: slot, placeholder: slot === PLACEHOLDER_SLOT_HEX_V7, sighashAll: slot.endsWith(SIGHASH_ALL_GATE_BYTE) }));
+  }
+  return Object.freeze({
+    slots: Object.freeze(slots),
+    signedSlots: Object.freeze(slots.filter((s) => !s.placeholder).map((s) => s.slot))
+  });
+}
+
+module.exports = {
+  OWNER_SLOTS_V7,
+  SIG_SLOT_LEN_V7,
+  SIG_BLOB_LEN_V7,
+  INACTIVE_SLOT_KEY,
+  PLACEHOLDER_SLOT_HEX_V7,
+  AUTHORITY_CLASSES_V7,
+  ROOT_ACTIONS_V7,
+  ROOT_ACTION_BY_CODE,
+  resolveRootActionV7,
+  resolveRootActionCodeV7,
+  normalizeOwnerSetV7,
+  activeOwnerSlotsV7,
+  requiredApprovalsV7,
+  assembleOwnerSigsBlobV7,
+  placeholderOwnerSigsBlobV7,
+  inspectOwnerSigsBlobV7,
+  normalizeSlotSignatureHex
+};
+  });
+
+  define("core/model/vault-state-v7-root", function (module, exports, require) {
+"use strict";
+const { ownGet, describeKey } = require("./own-get");
+
+/*
+ * Exact live-state model for a PolicyVault v0.7 ORGANIZATIONAL ROOT
+ * instance (docs/postlaunch/v0.7-organizational-root-design.md §2, §9.1;
+ * contracts/PolicyVault.v0.7-root.sil, contract `PolicyVaultOrgRoot`).
+ *
+ * A root instance is:
+ *   TEMPLATE (immutable; changing any of it is a ROOT MIGRATION, i.e. a new
+ *   covenant id): orgId, recoveryDelayDaa, successorPk (zero = succession
+ *   DISABLED), successionDelayDaa, rootMaxFeePerTx.
+ *   STATE (18 fields): boundOrgId (= orgId), owner1..owner12, ownerM,
+ *   emergencyK, recoveryM, frozen, rootNonce.
+ *
+ * BYTE LAYOUT — the state region length is a CONSTANT (467 B) precisely so a
+ * ROOTED VAULT can slice HEAD and TAIL by fixed offsets instead of decoding
+ * 18 fields (§9.1). Each field is `data_prefix(fixed_type_size) || payload`
+ * (~/silverscript/silverscript-lang/src/compiler/compile.rs `data_prefix`):
+ *
+ *   boundOrgId   0x20 || 32 B                         33 B   ┐
+ *   owner1..12   0x20 || 32 B  each                  396 B   │ HEAD 456 B
+ *   ownerM       0x08 || serialize_i64(n, 8)           9 B   │
+ *   emergencyK   0x08 || serialize_i64(n, 8)           9 B   │
+ *   recoveryM    0x08 || serialize_i64(n, 8)           9 B   ┘
+ *   frozen       0x01 || <0x00|0x01>                   2 B   ┐ TAIL 11 B
+ *   rootNonce    0x08 || 8 unsigned little-endian B    9 B   ┘
+ *                                                     ---
+ *                                       rootStateLen  467 B
+ *
+ * `serialize_i64(n, Some(8))` (rusty-kaspa crypto/txscript/src/data_stack.rs)
+ * is a fixed 8-byte SIGN-MAGNITUDE little-endian encoding, zero-padded and
+ * never minimal, so for the non-negative values this state can hold it is
+ * exactly the 8-byte unsigned little-endian encoding — which is also what the
+ * covenant's `OpNum2Bin(prev + 1, 8)` produces for the nonce.
+ *
+ * NOTHING here is a security boundary: Kaspa consensus is. These bytes exist
+ * so the SDK, the signer-visible manifest and the tests can rebuild — and
+ * therefore CHECK — exactly what the covenant will see.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-state-v7-root.test.js);
+ * the byte layout is pinned against the real compiler/engine by
+ * tests/vm/tests/v7_root_production.rs and tests/vm/tests/v7_sdk_integration.rs.
+ */
+
+const crypto = require("crypto");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { OWNER_SLOTS_V7, INACTIVE_SLOT_KEY, normalizeOwnerSetV7 } = require("./owner-set-v7");
+
+const CONTRACT_VERSION_V7_ROOT = "policyvault-0.7-root";
+
+/* Measured on the production candidate (design §12.3) and asserted by the
+ * SDK compiler against the compiler's OWN state_layout on every compile. */
+const ROOT_STATE_LEN_V7 = 467;
+const ROOT_TAIL_LEN_V7 = 11;
+const ROOT_HEAD_LEN_V7 = ROOT_STATE_LEN_V7 - ROOT_TAIL_LEN_V7; // 456
+const ROOT_FROZEN_PUSH_LEN_V7 = 2;
+const ROOT_NONCE_PUSH_LEN_V7 = 9;
+
+/* The nonce is `byte[8]`; `int(bytes)` reads it as a sign-magnitude i64, so a
+ * value with bit 63 set would read back NEGATIVE. The predecessor is bounded
+ * one below the maximum so `prev + 1` always round-trips as positive. */
+const MAX_ROOT_NONCE_V7 = (1n << 63n) - 2n;
+
+const V7_ROOT_ABIS = Object.freeze({
+  [CONTRACT_VERSION_V7_ROOT]: Object.freeze({
+    version: CONTRACT_VERSION_V7_ROOT,
+    contractName: "PolicyVaultOrgRoot",
+    contractRelPath: "contracts/PolicyVault.v0.7-root.sil",
+    buildSubdir: "build-v7-root",
+    ownerSlots: OWNER_SLOTS_V7
+  })
+});
+
+function fail(message, code) {
+  const e = new Error(`vault-state-v7-root: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function resolveV7RootAbi(contractVersion) {
+  const abi = ownGet(V7_ROOT_ABIS, contractVersion); // own-property only (F-05)
+  if (!abi) {
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.7 root lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
+  }
+  return abi;
+}
+
+function bigIntField(value, field, { min, max }) {
+  let n;
+  if (typeof value === "bigint") n = value;
+  else if (typeof value === "number") {
+    if (!Number.isInteger(value)) fail(`${field} must be an integer`);
+    n = BigInt(value);
+  } else if (typeof value === "string") {
+    if (!/^(0|[1-9][0-9]*)$/.test(value)) fail(`${field} must be a non-negative digit string`);
+    n = BigInt(value);
+  } else {
+    fail(`${field} is required (BigInt, integer or digit string)`);
+  }
+  if (n < min || n > max) fail(`${field} out of range [${min}, ${max}]`);
+  return n;
+}
+
+/*
+ * The immutable root template. `successorPk` zero means the succession path
+ * is DISABLED; `recoveryDelayDaa`/`successionDelayDaa` are RELATIVE input
+ * ages (the covenant's `this.age >= D`, compiled to OpCheckSequenceVerify)
+ * and must be >= 1 so a dead-man's-switch path can never be taken instantly.
+ */
+function normalizeRootTemplateV7(input) {
+  if (!input || typeof input !== "object") fail("root template object is required");
+  const successorPk = normalizeXOnlyPubkey(input.successorPk, "template.successorPk");
+  const successionEnabled = successorPk !== INACTIVE_SLOT_KEY;
+  return Object.freeze({
+    orgId: normalizeHex(input.orgId, 32, "template.orgId"),
+    recoveryDelayDaa: bigIntField(input.recoveryDelayDaa, "template.recoveryDelayDaa", { min: 1n, max: 0xffffffffn }),
+    successorPk,
+    successionEnabled,
+    successionDelayDaa: bigIntField(input.successionDelayDaa, "template.successionDelayDaa", { min: 1n, max: 0xffffffffn }),
+    rootMaxFeePerTx: bigIntField(input.rootMaxFeePerTx, "template.rootMaxFeePerTx", { min: 0n, max: 100_000_000_000n })
+  });
+}
+
+/*
+ * The 18-field mutable root state. WF(S) is enforced here through
+ * normalizeOwnerSetV7 exactly as the covenant enforces it on the predecessor
+ * of every spend and on every new set.
+ */
+function normalizeRootStateV7(input) {
+  if (!input || typeof input !== "object") fail("root state object is required");
+  const ownerSet = normalizeOwnerSetV7(input);
+  const frozen = bigIntField(input.frozen, "state.frozen", { min: 0n, max: 1n });
+  const rootNonce = bigIntField(input.rootNonce, "state.rootNonce", { min: 0n, max: MAX_ROOT_NONCE_V7 });
+  return Object.freeze({
+    boundOrgId: normalizeHex(input.boundOrgId, 32, "state.boundOrgId"),
+    owners: ownerSet.owners,
+    activeCount: ownerSet.activeCount,
+    ownerM: ownerSet.ownerM,
+    emergencyK: ownerSet.emergencyK,
+    recoveryM: ownerSet.recoveryM,
+    frozen,
+    rootNonce
+  });
+}
+
+/* The genesis state a template implies, given an owner set. */
+function genesisRootStateV7({ template, ownerSet, frozen = 0n, rootNonce = 0n }) {
+  const t = normalizeRootTemplateV7(template);
+  const set = normalizeOwnerSetV7(ownerSet);
+  return normalizeRootStateV7({
+    boundOrgId: t.orgId,
+    owners: [...set.owners],
+    ownerM: set.ownerM,
+    emergencyK: set.emergencyK,
+    recoveryM: set.recoveryM,
+    frozen,
+    rootNonce
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* exact byte layout                                                    */
+/* ------------------------------------------------------------------ */
+
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i += 1) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function bytesToHex(bytes) {
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out;
+}
+
+/* `serialize_i64(n, Some(8))` for the non-negative values this state holds. */
+function encodeInt8LE(value, field) {
+  if (typeof value !== "bigint" || value < 0n || value > MAX_ROOT_NONCE_V7 + 1n) {
+    fail(`${field} must be a non-negative BigInt below 2^63 to encode as a fixed 8-byte silverscript int`);
+  }
+  const out = new Uint8Array(8);
+  let v = value;
+  for (let i = 0; i < 8; i += 1) {
+    out[i] = Number(v & 0xffn);
+    v >>= 8n;
+  }
+  return out;
+}
+function decodeInt8LE(bytes, field) {
+  if (bytes.length !== 8) fail(`${field} must be 8 bytes`);
+  if ((bytes[7] & 0x80) !== 0) fail(`${field} has the sign bit set — a v0.7 root state never holds a negative field`, "NEGATIVE_FIELD");
+  let v = 0n;
+  for (let i = 7; i >= 0; i -= 1) v = (v << 8n) | BigInt(bytes[i]);
+  return v;
+}
+
+/*
+ * The EXACT state-region bytes the compiler bakes into the root's redeem
+ * script. Rebuilding them here is what lets the SDK and the manifest verify
+ * a root successor byte-for-byte (which is precisely what the rooted vault's
+ * covenant does in-VM).
+ */
+function serializeRootStateV7(state) {
+  const s = state && state.activeCount !== undefined ? state : normalizeRootStateV7(state);
+  const parts = [];
+  const pushBytes32 = (hex) => {
+    parts.push(new Uint8Array([0x20]));
+    parts.push(hexToBytes(hex));
+  };
+  const pushInt = (value, field) => {
+    parts.push(new Uint8Array([0x08]));
+    parts.push(encodeInt8LE(value, field));
+  };
+  pushBytes32(s.boundOrgId);
+  for (let i = 0; i < OWNER_SLOTS_V7; i += 1) pushBytes32(s.owners[i]);
+  pushInt(s.ownerM, "ownerM");
+  pushInt(s.emergencyK, "emergencyK");
+  pushInt(s.recoveryM, "recoveryM");
+  /* TAIL */
+  parts.push(new Uint8Array([0x01, Number(s.frozen)]));
+  parts.push(new Uint8Array([0x08]));
+  parts.push(encodeInt8LE(s.rootNonce, "rootNonce"));
+
+  let total = 0;
+  for (const p of parts) total += p.length;
+  if (total !== ROOT_STATE_LEN_V7) fail(`internal: serialized root state is ${total} B, expected ${ROOT_STATE_LEN_V7}`);
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+function serializeRootStateHexV7(state) {
+  return bytesToHex(serializeRootStateV7(state));
+}
+
+/* The 11-byte fixed-width TAIL: 0x01 || frozen || 0x08 || nonce(8 LE). */
+function rootStateTailV7({ frozen, rootNonce }) {
+  const f = bigIntField(frozen, "frozen", { min: 0n, max: 1n });
+  const n = bigIntField(rootNonce, "rootNonce", { min: 0n, max: MAX_ROOT_NONCE_V7 + 1n });
+  const out = new Uint8Array(ROOT_TAIL_LEN_V7);
+  out[0] = 0x01;
+  out[1] = Number(f);
+  out[2] = 0x08;
+  out.set(encodeInt8LE(n, "rootNonce"), 3);
+  return out;
+}
+function rootStateTailHexV7(input) {
+  return bytesToHex(rootStateTailV7(input));
+}
+
+/* The exact successor tail a rooted vault's covenant rebuilds and pins. */
+function expectedRootSuccessorTailHexV7({ prevRootNonce, expectFrozenAfter }) {
+  const prev = bigIntField(prevRootNonce, "prevRootNonce", { min: 0n, max: MAX_ROOT_NONCE_V7 });
+  return rootStateTailHexV7({ frozen: expectFrozenAfter, rootNonce: prev + 1n });
+}
+
+/* Inverse of serializeRootStateV7 — used to READ a root successor's bytes. */
+function parseRootStateV7(bytes) {
+  let b = bytes;
+  if (typeof b === "string") {
+    const hex = b.trim().toLowerCase();
+    if (!/^[0-9a-f]*$/.test(hex) || hex.length !== ROOT_STATE_LEN_V7 * 2) {
+      fail(`a v0.7 root state region is exactly ${ROOT_STATE_LEN_V7} bytes of lowercase hex — refusing to parse ${hex.length / 2} bytes`, "BAD_STATE_LENGTH");
+    }
+    b = hexToBytes(normalizeHex(hex, ROOT_STATE_LEN_V7, "rootState"));
+  }
+  if (!(b instanceof Uint8Array) || b.length !== ROOT_STATE_LEN_V7) {
+    fail(`a v0.7 root state region is exactly ${ROOT_STATE_LEN_V7} bytes — refusing to parse ${b && b.length} bytes`, "BAD_STATE_LENGTH");
+  }
+  let at = 0;
+  const take32 = (field) => {
+    if (b[at] !== 0x20) fail(`${field}: expected a 32-byte data prefix 0x20 at offset ${at}, found 0x${b[at].toString(16)}`, "BAD_STATE_ENCODING");
+    const hex = bytesToHex(b.subarray(at + 1, at + 33));
+    at += 33;
+    return hex;
+  };
+  const takeInt = (field) => {
+    if (b[at] !== 0x08) fail(`${field}: expected an 8-byte int prefix 0x08 at offset ${at}, found 0x${b[at].toString(16)}`, "BAD_STATE_ENCODING");
+    const v = decodeInt8LE(b.subarray(at + 1, at + 9), field);
+    at += 9;
+    return v;
+  };
+  const boundOrgId = take32("boundOrgId");
+  const owners = [];
+  for (let i = 0; i < OWNER_SLOTS_V7; i += 1) owners.push(take32(`owner${i + 1}`));
+  const ownerM = takeInt("ownerM");
+  const emergencyK = takeInt("emergencyK");
+  const recoveryM = takeInt("recoveryM");
+  if (b[at] !== 0x01) fail(`frozen: expected a 1-byte data prefix 0x01 at offset ${at}`, "BAD_STATE_ENCODING");
+  const frozenByte = b[at + 1];
+  if (frozenByte !== 0x00 && frozenByte !== 0x01) fail(`frozen byte 0x${frozenByte.toString(16)} is outside {0x00, 0x01}`, "BAD_FROZEN_DOMAIN");
+  at += 2;
+  const rootNonce = takeInt("rootNonce");
+  if (at !== ROOT_STATE_LEN_V7) fail("internal: root state parse did not consume the whole region");
+  return normalizeRootStateV7({ boundOrgId, owners, ownerM, emergencyK, recoveryM, frozen: BigInt(frozenByte), rootNonce });
+}
+
+/* ------------------------------------------------------------------ */
+/* identity                                                            */
+/* ------------------------------------------------------------------ */
+
+function sha256Hex(text) {
+  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+/*
+ * Deterministic root state DIGEST — a representation-independent hash of the
+ * EXACT consensus-visible state bytes. It is what the signer-visible
+ * manifest carries for "prev root state" and "new root state": two parties
+ * comparing digests are comparing the bytes consensus will compare.
+ */
+function computeRootStateDigestV7(state) {
+  /* BYTE-NATIVE on purpose: `update(<Uint8Array>)` is exactly the surface the
+   * browser crypto shim supports (the F1 browser-portability wave), so this
+   * digest is computable in a browser or a mobile signer, not only in Node.
+   * An ambient `Buffer` here would have made the module Node-only — which is
+   * precisely what core/crossruntime/test/v7-org-root-portability.test.js
+   * catches. */
+  return crypto.createHash("sha256").update(serializeRootStateV7(state)).digest("hex");
+}
+
+/* Deterministic root state ID (application identity; never a consensus value). */
+function computeRootStateIdV7({ networkId, template, state, contractVersion }) {
+  if (typeof networkId !== "string" || networkId.length === 0) fail("networkId is required for the root state ID");
+  const abi = resolveV7RootAbi(contractVersion ?? CONTRACT_VERSION_V7_ROOT);
+  const t = normalizeRootTemplateV7(template);
+  const s = normalizeRootStateV7(state);
+  const canonical = [
+    "policyvault-root-state/v7",
+    `network:${networkId}`,
+    `contract:${abi.version}`,
+    `orgId:${t.orgId}`,
+    `recoveryDelayDaa:${t.recoveryDelayDaa}`,
+    `successorPk:${t.successorPk}`,
+    `successionDelayDaa:${t.successionDelayDaa}`,
+    `rootMaxFeePerTx:${t.rootMaxFeePerTx}`,
+    `stateDigest:${computeRootStateDigestV7(s)}`
+  ].join("\n");
+  return sha256Hex(canonical);
+}
+
+function rootStateToJsonV7(state) {
+  const s = state && state.activeCount !== undefined ? state : normalizeRootStateV7(state);
+  return {
+    boundOrgId: s.boundOrgId,
+    owners: [...s.owners],
+    ownerM: s.ownerM.toString(),
+    emergencyK: s.emergencyK.toString(),
+    recoveryM: s.recoveryM.toString(),
+    frozen: s.frozen.toString(),
+    rootNonce: s.rootNonce.toString()
+  };
+}
+
+function rootTemplateToJsonV7(template) {
+  const t = normalizeRootTemplateV7(template);
+  return {
+    orgId: t.orgId,
+    recoveryDelayDaa: t.recoveryDelayDaa.toString(),
+    successorPk: t.successorPk,
+    successionEnabled: t.successionEnabled,
+    successionDelayDaa: t.successionDelayDaa.toString(),
+    rootMaxFeePerTx: t.rootMaxFeePerTx.toString()
+  };
+}
+
+module.exports = {
+  CONTRACT_VERSION_V7_ROOT,
+  V7_ROOT_ABIS,
+  ROOT_STATE_LEN_V7,
+  ROOT_TAIL_LEN_V7,
+  ROOT_HEAD_LEN_V7,
+  ROOT_FROZEN_PUSH_LEN_V7,
+  ROOT_NONCE_PUSH_LEN_V7,
+  MAX_ROOT_NONCE_V7,
+  resolveV7RootAbi,
+  normalizeRootTemplateV7,
+  normalizeRootStateV7,
+  genesisRootStateV7,
+  serializeRootStateV7,
+  serializeRootStateHexV7,
+  parseRootStateV7,
+  rootStateTailV7,
+  rootStateTailHexV7,
+  expectedRootSuccessorTailHexV7,
+  computeRootStateDigestV7,
+  computeRootStateIdV7,
+  rootStateToJsonV7,
+  rootTemplateToJsonV7
+};
+  });
+
+  define("core/model/vault-state-v7", function (module, exports, require) {
+"use strict";
+const { ownGet, describeKey } = require("./own-get");
+
+/*
+ * Exact live-state model for a PolicyVault v0.7 ROOTED PAYMENT VAULT
+ * (docs/postlaunch/v0.7-organizational-root-design.md §3, §9.2;
+ * contracts/PolicyVault.v0.7-payment.sil, contract `PolicyVaultRootedToken`,
+ * derived from the FROZEN v0.5 controller by a deterministic delta).
+ *
+ * The MUTABLE STATE is byte-for-byte the frozen v0.5 state — feeReserve,
+ * paused, agentRoot, policyNonce, with boundVaultId pinned to the template's
+ * vaultId — so this module deliberately reuses the v0.5 normalizers rather
+ * than restating them. What changes is the TEMPLATE:
+ *
+ *   REMOVED  pubkey owner           — a rooted vault has NO owner key at all
+ *   ADDED    orgRootCovenantId      — the organizational root that authorizes
+ *            rootTemplateVmHash       every owner operation, pinned by its
+ *            rootPrefixLen            covenant id AND its exact template
+ *            rootStateLen             identity + geometry, so the vault can
+ *            rootSuffixLen            tell WHICH root path ran
+ *            recoveryPk             — the COLD recovery destination, fixed at
+ *                                     genesis so a hijacked quorum-signing
+ *                                     session can never redirect recovery
+ *
+ * The owner AUTHORITY is therefore an INPUT, not a key: an owner operation
+ * is valid only when the same transaction also spends the pinned root, whose
+ * own covenant proved M-of-N (or the lighter emergency quorum for FREEZE).
+ * `rootStateLen` is checked against the measured constant (467 B) and the
+ * geometry is checked for self-consistency, because a wrong pin would make
+ * the vault slice the wrong bytes and self-lock.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-state-v7.test.js).
+ */
+
+const crypto = require("crypto");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { KCC20_STATE_LEN } = require("./token-amounts");
+const { normalizeStateV5, normalizeStateV5ForRecovery, stateToJsonV5 } = require("./vault-state-v5");
+const { ROOT_STATE_LEN_V7, ROOT_TAIL_LEN_V7 } = require("./vault-state-v7-root");
+
+const CONTRACT_VERSION_V7 = "policyvault-0.7-payment";
+
+const V7_ABIS = Object.freeze({
+  [CONTRACT_VERSION_V7]: Object.freeze({
+    version: CONTRACT_VERSION_V7,
+    contractName: "PolicyVaultRootedToken",
+    contractRelPath: "contracts/PolicyVault.v0.7-payment.sil",
+    buildSubdir: "build-v7-payment",
+    rootAuthorized: true
+  })
+});
+
+/*
+ * ownerControl opSelector. Selectors 0..3 are the frozen v0.5 owner branches
+ * and require the root to run AUTHORIZE (full quorum); selector 4 is the
+ * EMERGENCY pause and is the ONLY vault effect reachable from the root's
+ * lighter emergency quorum, so it requires the root to run FREEZE.
+ * `expectFrozenAfter` is the byte the covenant pins in the root's successor
+ * TAIL for that selector.
+ */
+const OWNER_OP_SELECTOR_V7 = Object.freeze({
+  ownerSetAgentRoot: 0,
+  ownerTopUpReserve: 1,
+  ownerPause: 2,
+  ownerUnpause: 3,
+  ownerEmergencyPause: 4
+});
+
+const OWNER_OP_ROOT_AUTHORITY_V7 = Object.freeze({
+  ownerSetAgentRoot: Object.freeze({ opSelector: 0, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerTopUpReserve: Object.freeze({ opSelector: 1, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerPause: Object.freeze({ opSelector: 2, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerUnpause: Object.freeze({ opSelector: 3, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerEmergencyPause: Object.freeze({ opSelector: 4, rootActionName: "freeze", expectFrozenAfter: 1n }),
+  ownerRecover: Object.freeze({ opSelector: null, rootActionName: "authorize", expectFrozenAfter: 0n })
+});
+
+function fail(message, code) {
+  const e = new Error(`vault-state-v7: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function resolveV7Abi(contractVersion) {
+  const abi = ownGet(V7_ABIS, contractVersion); // own-property only (F-05)
+  if (!abi) {
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.7 rooted-vault lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
+  }
+  return abi;
+}
+
+function resolveOwnerOpAuthorityV7(action) {
+  const info = ownGet(OWNER_OP_ROOT_AUTHORITY_V7, action); // own-property only (F-05)
+  if (!info) fail(`unknown v0.7 rooted-vault owner action ${describeKey(action)} — failing closed`, "UNKNOWN_ACTION");
+  return info;
+}
+
+function normalizeLen(value, field) {
+  if (!Number.isInteger(value) || value < 0 || value > 1_000_000) fail(`${field} must be an integer 0..1000000`);
+  return value;
+}
+
+/*
+ * v0.7 immutable template constants — the token pins the frozen v0.5 already
+ * had, plus the organizational-root pins and the cold recovery destination.
+ */
+function normalizeTemplateV7(input) {
+  if (!input || typeof input !== "object") fail("template object is required");
+  const stateLen = normalizeLen(input.templateStateLen, "template.templateStateLen");
+  if (stateLen !== KCC20_STATE_LEN) fail(`template.templateStateLen must be ${KCC20_STATE_LEN} for kcc20-state/1 — failing closed`);
+
+  const rootStateLen = normalizeLen(input.rootStateLen, "template.rootStateLen");
+  if (rootStateLen !== ROOT_STATE_LEN_V7) {
+    fail(`template.rootStateLen must be ${ROOT_STATE_LEN_V7} for the v0.7 root state layout (measured, §12.3) — a wrong pin would slice the wrong bytes and self-lock the vault; failing closed`, "ROOT_GEOMETRY_MISMATCH");
+  }
+  if (rootStateLen <= ROOT_TAIL_LEN_V7) fail("template.rootStateLen must exceed the fixed-width TAIL", "ROOT_GEOMETRY_MISMATCH");
+  const rootPrefixLen = normalizeLen(input.rootPrefixLen, "template.rootPrefixLen");
+  const rootSuffixLen = normalizeLen(input.rootSuffixLen, "template.rootSuffixLen");
+  if (rootPrefixLen < 1 || rootSuffixLen < 1) fail("template.rootPrefixLen/rootSuffixLen must be >= 1", "ROOT_GEOMETRY_MISMATCH");
+
+  const orgRootCovenantId = normalizeHex(input.orgRootCovenantId, 32, "template.orgRootCovenantId");
+  if (orgRootCovenantId === "00".repeat(32)) {
+    fail("template.orgRootCovenantId must not be the sentinel zero — a rooted vault with no root has no owner authority at all", "ROOT_PIN_MISSING");
+  }
+
+  return Object.freeze({
+    vaultId: normalizeHex(input.vaultId, 32, "template.vaultId"),
+    descriptorHash: normalizeHex(input.descriptorHash, 32, "template.descriptorHash"),
+    tokenCovenantId: normalizeHex(input.tokenCovenantId, 32, "template.tokenCovenantId"),
+    templateVmHash: normalizeHex(input.templateVmHash, 32, "template.templateVmHash"),
+    templatePrefixLen: normalizeLen(input.templatePrefixLen, "template.templatePrefixLen"),
+    templateStateLen: stateLen,
+    templateSuffixLen: normalizeLen(input.templateSuffixLen, "template.templateSuffixLen"),
+    orgRootCovenantId,
+    rootTemplateVmHash: normalizeHex(input.rootTemplateVmHash, 32, "template.rootTemplateVmHash"),
+    rootPrefixLen,
+    rootStateLen,
+    rootSuffixLen,
+    recoveryPk: normalizeXOnlyPubkey(input.recoveryPk, "template.recoveryPk")
+  });
+}
+
+/* The mutable state is the frozen v0.5 state, verbatim. */
+function normalizeStateV7(input) {
+  return normalizeStateV5(input);
+}
+function normalizeStateV7ForRecovery(input) {
+  return normalizeStateV5ForRecovery(input);
+}
+function stateToJsonV7(state) {
+  return stateToJsonV5(state);
+}
+
+function requireNonce(state) {
+  if (typeof state.policyNonce !== "bigint") {
+    fail("state.policyNonce is required (BigInt) — refusing an implicit default for a consensus-visible value");
+  }
+  return state.policyNonce;
+}
+
+/* Deterministic v0.7 rooted-vault state ID (application identity only). */
+function computeStateIdV7({ networkId, template, state, contractVersion }) {
+  if (typeof networkId !== "string" || networkId.length === 0) fail("networkId is required for the state ID");
+  const abi = resolveV7Abi(contractVersion ?? CONTRACT_VERSION_V7);
+  const t = template && t2Frozen(template) ? template : normalizeTemplateV7(template);
+  const canonical = [
+    "policyvault-state/v7",
+    `network:${networkId}`,
+    `contract:${abi.version}`,
+    `vaultId:${t.vaultId}`,
+    `descriptorHash:${t.descriptorHash}`,
+    `tokenCovenantId:${t.tokenCovenantId}`,
+    `templateVmHash:${t.templateVmHash}`,
+    `templateGeometry:${t.templatePrefixLen}/${t.templateStateLen}/${t.templateSuffixLen}`,
+    `orgRootCovenantId:${t.orgRootCovenantId}`,
+    `rootTemplateVmHash:${t.rootTemplateVmHash}`,
+    `rootGeometry:${t.rootPrefixLen}/${t.rootStateLen}/${t.rootSuffixLen}`,
+    `recoveryPk:${t.recoveryPk}`,
+    `feeReserve:${state.feeReserve}`,
+    `paused:${state.paused}`,
+    `agentRoot:${state.agentRoot}`,
+    `policyNonce:${requireNonce(state)}`
+  ].join("\n");
+  return crypto.createHash("sha256").update(canonical, "utf8").digest("hex");
+}
+
+/* A already-normalized template is frozen and carries every v0.7 pin. */
+function t2Frozen(t) {
+  return Object.isFrozen(t) && typeof t.orgRootCovenantId === "string" && typeof t.recoveryPk === "string" && typeof t.rootStateLen === "number";
+}
+
+function templateToJsonV7(template) {
+  return { ...normalizeTemplateV7(template) };
+}
+
+module.exports = {
+  CONTRACT_VERSION_V7,
+  V7_ABIS,
+  OWNER_OP_SELECTOR_V7,
+  OWNER_OP_ROOT_AUTHORITY_V7,
+  ROOT_STATE_LEN_V7,
+  ROOT_TAIL_LEN_V7,
+  resolveV7Abi,
+  resolveOwnerOpAuthorityV7,
+  normalizeTemplateV7,
+  normalizeStateV7,
+  normalizeStateV7ForRecovery,
+  computeStateIdV7,
+  stateToJsonV7,
+  templateToJsonV7
+};
+  });
+
+  define("core/model/vault-transitions-v7-root", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.7 ORGANIZATIONAL ROOT transition planner — the deterministic successor
+ * for EVERY root path, mirroring `contracts/PolicyVault.v0.7-root.sil`
+ * exactly so the core refuses locally what consensus would refuse.
+ * LOCAL PRE-CHECK ONLY: the covenant remains the authority.
+ *
+ * Rules carried verbatim from the covenant (design §2.4 as amended by
+ * coordinator decision D6, §11):
+ *
+ *   common       WF(prev); new.boundOrgId == prev.boundOrgId;
+ *                new.rootNonce == prev.rootNonce + 1 (as the exact 8-byte
+ *                little-endian bytes OpNum2Bin(prev + 1, 8) produces);
+ *                successorValue >= inputValue - rootMaxFeePerTx.
+ *   0 AUTHORIZE  prev.frozen == 0; new == prev except the nonce.  NEUTRAL.
+ *   1 ROTATE     new set as supplied; WF(new); frozen preserved (allowed
+ *                while frozen, so a compromised key can be rotated out
+ *                before unfreezing).                        EXPANDING.
+ *   2 FREEZE     prev.frozen == 0; new.frozen == 1; set preserved. The ONLY
+ *                effect the lighter emergency quorum can reach.  REDUCING.
+ *   3 UNFREEZE   prev.frozen == 1; new.frozen == 0; set preserved. EXPANDING.
+ *   4 OWNER-REC  recoveryM >= 1; this.age >= recoveryDelayDaa; WF(new);
+ *                D6: the recovered set MUST LAND FROZEN.       EXPANDING.
+ *   SUCCESSION   successorPk != 0; this.age >= successionDelayDaa; WF(prev);
+ *                WF(new); lands frozen; D1: new.owner1 != prev.owner1 so a
+ *                succession is never byte-identical to a FREEZE.
+ *                EXPANDING for the successor, TERMINAL for the old set.
+ *
+ * FRESHNESS is outpoint binding + SIGHASH_ALL + a strictly increasing nonce,
+ * NEVER an expiry: Kaspa lockTime is a lower bound only, so a "valid until"
+ * field would be security theatre. Spending the root's outpoint is the kill
+ * switch that invalidates every collected approval at once.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-transitions-v7-root.test.js).
+ */
+
+const { parseSompi } = require("./amounts");
+const {
+  normalizeRootStateV7,
+  normalizeRootTemplateV7,
+  rootStateTailHexV7,
+  computeRootStateDigestV7,
+  MAX_ROOT_NONCE_V7
+} = require("./vault-state-v7-root");
+const { normalizeOwnerSetV7, resolveRootActionV7, requiredApprovalsV7, activeOwnerSlotsV7, INACTIVE_SLOT_KEY } = require("./owner-set-v7");
+
+function fail(message, code) {
+  const e = new Error(`vault-transitions-v7-root: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function advanceNonce(prev) {
+  if (prev.rootNonce >= MAX_ROOT_NONCE_V7) {
+    fail("the root nonce has reached its 8-byte domain limit — a further transition could not encode; failing closed", "NONCE_EXHAUSTED");
+  }
+  return prev.rootNonce + 1n;
+}
+
+function sameSet(a, b) {
+  for (let i = 0; i < a.owners.length; i += 1) if (a.owners[i] !== b.owners[i]) return false;
+  return a.ownerM === b.ownerM && a.emergencyK === b.emergencyK && a.recoveryM === b.recoveryM;
+}
+
+/*
+ * Plan shape shared by every root path. `nonceBytesHex` and `tailHex` are the
+ * EXACT consensus-visible bytes the covenant will compare, so a caller (and a
+ * manifest verifier) can check the successor byte-for-byte rather than by
+ * field equality.
+ */
+function plan({ prev, successor, actionName, template, minSequence = 0n }) {
+  const info = resolveRootActionV7(actionName);
+  const required = requiredApprovalsV7(prev, actionName);
+  return Object.freeze({
+    actionName,
+    action: info.action,
+    entrypoint: info.entrypoint,
+    class: info.class,
+    classForPreviousSet: info.classForPreviousSet ?? null,
+    quorumSource: info.quorumSource,
+    requiredApprovals: required,
+    expectedSignerSlots: actionName === "succession" ? Object.freeze([]) : activeOwnerSlotsV7(prev),
+    setMayChange: info.setMayChange,
+    requiresAge: info.requiresAge,
+    minSequence,
+    prev,
+    successor,
+    prevStateDigest: computeRootStateDigestV7(prev),
+    newStateDigest: computeRootStateDigestV7(successor),
+    tailHex: rootStateTailHexV7({ frozen: successor.frozen, rootNonce: successor.rootNonce }),
+    rootMaxFeePerTx: template ? normalizeRootTemplateV7(template).rootMaxFeePerTx : null
+  });
+}
+
+function withSet(prev, ownerSetInput, { frozen }) {
+  const set = normalizeOwnerSetV7(ownerSetInput);
+  return normalizeRootStateV7({
+    boundOrgId: prev.boundOrgId,
+    owners: [...set.owners],
+    ownerM: set.ownerM,
+    emergencyK: set.emergencyK,
+    recoveryM: set.recoveryM,
+    frozen,
+    rootNonce: advanceNonce(prev)
+  });
+}
+
+function preserved(prev, { frozen }) {
+  return normalizeRootStateV7({
+    boundOrgId: prev.boundOrgId,
+    owners: [...prev.owners],
+    ownerM: prev.ownerM,
+    emergencyK: prev.emergencyK,
+    recoveryM: prev.recoveryM,
+    frozen,
+    rootNonce: advanceNonce(prev)
+  });
+}
+
+/* action 0 AUTHORIZE — the ONLY root shape a rooted vault accepts for a
+ * GENERAL owner operation, and the organization's cheap heartbeat (it also
+ * refreshes the freshness of every stale approval by consuming the outpoint). */
+function authorizeSuccessorV7Root(prevInput, { template } = {}) {
+  const prev = normalizeRootStateV7(prevInput);
+  if (prev.frozen !== 0n) fail("authorize: the root is FROZEN — unfreeze under the full quorum first", "ROOT_FROZEN");
+  return plan({ prev, successor: preserved(prev, { frozen: 0n }), actionName: "authorize", template });
+}
+
+/* action 1 ROTATE — install a new owner set / thresholds; allowed while frozen. */
+function rotateSuccessorV7Root(prevInput, newOwnerSet, { template } = {}) {
+  const prev = normalizeRootStateV7(prevInput);
+  const successor = withSet(prev, newOwnerSet, { frozen: prev.frozen });
+  if (sameSet(prev, successor)) {
+    fail("rotate: the supplied set is identical to the live set — a rotation that changes nothing burns a fee and hides its intent; failing closed", "ROTATE_NO_CHANGE");
+  }
+  return plan({ prev, successor, actionName: "rotate", template });
+}
+
+/* action 2 FREEZE — the lighter emergency quorum's ONLY reachable effect. */
+function freezeSuccessorV7Root(prevInput, { template } = {}) {
+  const prev = normalizeRootStateV7(prevInput);
+  if (prev.frozen !== 0n) fail("freeze: the root is already frozen", "ALREADY_FROZEN");
+  return plan({ prev, successor: preserved(prev, { frozen: 1n }), actionName: "freeze", template });
+}
+
+/* action 3 UNFREEZE — full quorum. */
+function unfreezeSuccessorV7Root(prevInput, { template } = {}) {
+  const prev = normalizeRootStateV7(prevInput);
+  if (prev.frozen !== 1n) fail("unfreeze: the root is not frozen", "NOT_FROZEN");
+  return plan({ prev, successor: preserved(prev, { frozen: 0n }), actionName: "unfreeze", template });
+}
+
+/*
+ * action 4 OWNER-RECOVER — a recovery-quorum subset installs a new set after
+ * the root has been idle for recoveryDelayDaa. D6: it LANDS FROZEN, so a
+ * recovery transition is never byte-identical to an AUTHORIZE one and can
+ * never satisfy a rooted vault's GENERAL owner path.
+ */
+function ownerRecoverSuccessorV7Root(prevInput, newOwnerSet, { template } = {}) {
+  const prev = normalizeRootStateV7(prevInput);
+  if (prev.recoveryM < 1n) {
+    fail("ownerRecover: this root opted OUT of owner recovery (recoveryM = 0) — the path is permanently unavailable; failing closed", "RECOVERY_DISABLED");
+  }
+  const t = normalizeRootTemplateV7(template ?? fail("ownerRecover: the root template is required (recoveryDelayDaa is the idle gate)"));
+  const successor = withSet(prev, newOwnerSet, { frozen: 1n });
+  return plan({ prev, successor, actionName: "ownerRecover", template: t, minSequence: t.recoveryDelayDaa });
+}
+
+/*
+ * SUCCESSION — the genesis-pinned successor key installs a new (frozen) set
+ * after successionDelayDaa of idleness. D1: the primary key MUST change, so a
+ * succession's successor bytes can never be mistaken for a FREEZE's.
+ */
+function successionSuccessorV7Root(prevInput, newOwnerSet, { template } = {}) {
+  const prev = normalizeRootStateV7(prevInput);
+  const t = normalizeRootTemplateV7(template ?? fail("succession: the root template is required (successorPk and successionDelayDaa)"));
+  if (!t.successionEnabled || t.successorPk === INACTIVE_SLOT_KEY) {
+    fail("succession: this root opted OUT of succession (successorPk = 0) — the path is permanently unavailable; failing closed", "SUCCESSION_DISABLED");
+  }
+  const successor = withSet(prev, newOwnerSet, { frozen: 1n });
+  if (successor.owners[0] === prev.owners[0]) {
+    fail("succession: the installed set must change owner slot 1 (deviation D1) — otherwise the successor bytes are indistinguishable from a FREEZE and a rooted vault could not tell the two root paths apart", "D1_PRIMARY_KEY_UNCHANGED");
+  }
+  return plan({ prev, successor, actionName: "succession", template: t, minSequence: t.successionDelayDaa });
+}
+
+/* Dispatch by action name; unknown names fail closed (never a default route). */
+function rootTransitionV7(actionName, prev, params = {}) {
+  switch (actionName) {
+    case "authorize":
+      return authorizeSuccessorV7Root(prev, params);
+    case "rotate":
+      return rotateSuccessorV7Root(prev, params.newOwnerSet, params);
+    case "freeze":
+      return freezeSuccessorV7Root(prev, params);
+    case "unfreeze":
+      return unfreezeSuccessorV7Root(prev, params);
+    case "ownerRecover":
+      return ownerRecoverSuccessorV7Root(prev, params.newOwnerSet, params);
+    case "succession":
+      return successionSuccessorV7Root(prev, params.newOwnerSet, params);
+    default:
+      return fail(`unknown v0.7 root action ${JSON.stringify(actionName)} — failing closed`, "UNKNOWN_ROOT_ACTION");
+  }
+}
+
+/*
+ * The covenant's value rule: the root may lose at most rootMaxFeePerTx per
+ * transition and can never pay anyone (its single authorized continuation
+ * output carries the value). Checked here so a build refuses before bytes
+ * exist rather than after a node rejects.
+ */
+function assertRootValueRuleV7({ inputValue, successorValue, rootMaxFeePerTx }) {
+  const inV = parseSompi(inputValue, "inputValue");
+  const outV = parseSompi(successorValue, "successorValue");
+  const maxFee = parseSompi(rootMaxFeePerTx, "rootMaxFeePerTx");
+  const floor = inV > maxFee ? inV - maxFee : 0n;
+  if (outV < floor) {
+    fail(`the root successor would carry ${outV} sompi but the covenant requires >= ${floor} (input ${inV} - rootMaxFeePerTx ${maxFee})`, "ROOT_VALUE_RULE");
+  }
+  return Object.freeze({ inputValue: inV, successorValue: outV, rootMaxFeePerTx: maxFee, maxLoss: inV - outV });
+}
+
+module.exports = {
+  authorizeSuccessorV7Root,
+  rotateSuccessorV7Root,
+  freezeSuccessorV7Root,
+  unfreezeSuccessorV7Root,
+  ownerRecoverSuccessorV7Root,
+  successionSuccessorV7Root,
+  rootTransitionV7,
+  assertRootValueRuleV7
+};
+  });
+
+  define("core/model/vault-transitions-v7", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.7 ROOTED PAYMENT VAULT transition planner
+ * (contracts/PolicyVault.v0.7-payment.sil, derived from the FROZEN v0.5).
+ *
+ * The vault's STATE MATH is the frozen v0.5 math, so this module DELEGATES to
+ * core/model/vault-transitions-v5.js rather than restating rules that are
+ * already VM-proven and byte-frozen. What v0.7 adds is the AUTHORITY:
+ *
+ *   - there is no owner key and no owner signature; an owner operation is
+ *     valid only when the same transaction ALSO spends the pinned
+ *     organizational root, and the vault pins that root's EXACT successor
+ *     bytes so it can tell WHICH root path ran;
+ *   - `ownerControl` and the phase-1 `emergencyPause` are MERGED behind one
+ *     entrypoint with selectors 0..4 — selectors 0-3 pin an AUTHORIZE root
+ *     successor (full quorum), selector 4 pins a FREEZE one (the lighter
+ *     emergency quorum), so the emergency quorum can reach NOTHING but the
+ *     AUTHORITY-REDUCING pause;
+ *   - `ownerRecover` pays the fee reserve and the whole token position to the
+ *     GENESIS-PINNED cold destination `recoveryPk` — never to an address a
+ *     quorum-signing session can choose;
+ *   - the DELEGATE path (`tokenAgentSpend`) never touches the root at all and
+ *     is byte-for-byte the frozen v0.5 logic.
+ *
+ * Every plan therefore carries `rootAuthority` — the root action the
+ * transaction MUST also run, and the frozen byte the vault will pin — so a
+ * builder can never assemble a vault operation without the matching root
+ * path, and a manifest can state the required organizational authority.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-transitions-v7.test.js).
+ */
+
+const { parseSompi, parsePositiveSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { normalizeStateV7, resolveOwnerOpAuthorityV7, OWNER_OP_SELECTOR_V7 } = require("./vault-state-v7");
+const {
+  tokenAgentSpendSuccessorV5,
+  tokenContinuationStatesV5,
+  setAgentRootSuccessorV5,
+  topUpReserveSuccessorV5,
+  pauseSuccessorV5,
+  MAX_PERIODS_ELAPSED
+} = require("./vault-transitions-v5");
+const { parseAtomicAmount, OWNER_SCHEMES } = require("./token-amounts");
+
+function fail(message, code) {
+  const e = new Error(`vault-transitions-v7: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function authority(action) {
+  const info = resolveOwnerOpAuthorityV7(action);
+  return Object.freeze({
+    action,
+    opSelector: info.opSelector,
+    rootActionName: info.rootActionName,
+    expectFrozenAfter: info.expectFrozenAfter,
+    quorum: info.rootActionName === "freeze" ? "emergencyK" : "ownerM"
+  });
+}
+
+/* DELEGATE spend — the frozen v0.5 rules verbatim; NO root input exists. */
+function tokenAgentSpendSuccessorV7(state, params) {
+  const plan = tokenAgentSpendSuccessorV5(state, params);
+  return Object.freeze({ ...plan, rootAuthority: null, requiresRootInput: false });
+}
+
+/* The two token continuation states the covenant template-verifies. */
+function tokenContinuationStatesV7(args) {
+  return tokenContinuationStatesV5(args);
+}
+
+function setAgentRootSuccessorV7(state, newAgentRoot) {
+  const base = setAgentRootSuccessorV5(state, newAgentRoot);
+  return Object.freeze({ successor: base.successor, opSelector: OWNER_OP_SELECTOR_V7.ownerSetAgentRoot, rootAuthority: authority("ownerSetAgentRoot"), requiresRootInput: true });
+}
+
+function topUpReserveSuccessorV7(state, topUpAmount) {
+  const base = topUpReserveSuccessorV5(state, topUpAmount);
+  return Object.freeze({ successor: base.successor, topUpAmount: base.topUpAmount, opSelector: OWNER_OP_SELECTOR_V7.ownerTopUpReserve, rootAuthority: authority("ownerTopUpReserve"), requiresRootInput: true });
+}
+
+function pauseSuccessorV7(state, pause) {
+  const base = pauseSuccessorV5(state, pause);
+  const action = pause ? "ownerPause" : "ownerUnpause";
+  return Object.freeze({ successor: base.successor, opSelector: pause ? OWNER_OP_SELECTOR_V7.ownerPause : OWNER_OP_SELECTOR_V7.ownerUnpause, rootAuthority: authority(action), requiresRootInput: true });
+}
+
+/*
+ * EMERGENCY pause (selector 4): the identical state effect to selector 2 but
+ * a strictly LIGHTER root authority (the root runs FREEZE under emergencyK).
+ * AUTHORITY-REDUCING and monotone — paused 0 -> 1, every other field
+ * preserved, policyNonce included, no value movement. Unpausing is selector 3
+ * and needs the FULL quorum.
+ */
+function emergencyPauseSuccessorV7(state) {
+  const base = pauseSuccessorV5(state, true);
+  return Object.freeze({ successor: base.successor, opSelector: OWNER_OP_SELECTOR_V7.ownerEmergencyPause, rootAuthority: authority("ownerEmergencyPause"), requiresRootInput: true });
+}
+
+/*
+ * ownerRecover (TERMINAL): the reserve pays out to the GENESIS-PINNED
+ * recoveryPk and, if a token position exists, its ENTIRE amount moves to
+ * recoveryPk under the p2pk owner scheme. The destination is a template
+ * constant, so it is NOT a parameter of the signing session.
+ */
+function recoverPlanV7(state, template, tokenPositionAmount) {
+  if (!state || typeof state !== "object") fail("recover: state is required");
+  if (!template || typeof template !== "object") fail("recover: the vault template is required (recoveryPk is pinned at genesis)");
+  const recoveryPk = normalizeXOnlyPubkey(template.recoveryPk, "template.recoveryPk");
+  const payout = parseSompi(state.feeReserve, "state.feeReserve");
+  let tokenRecipient = null;
+  if (tokenPositionAmount !== null && tokenPositionAmount !== undefined) {
+    const amount = parseAtomicAmount(tokenPositionAmount, "tokenPositionAmount");
+    tokenRecipient = Object.freeze({ ownerIdentifier: recoveryPk, identifierType: OWNER_SCHEMES.P2PK, amount, isMinter: false });
+  }
+  return Object.freeze({
+    terminal: true,
+    payout,
+    payoutTo: recoveryPk,
+    tokenRecipient,
+    opSelector: null,
+    rootAuthority: authority("ownerRecover"),
+    requiresRootInput: true
+  });
+}
+
+/* Dispatch by SDK action; unknown actions fail closed. */
+function ownerOpSuccessorV7(action, state, params = {}) {
+  const s = normalizeStateV7(state);
+  switch (action) {
+    case "ownerSetAgentRoot": {
+      if (params.newAgentRoot === undefined) fail("ownerSetAgentRoot requires params.newAgentRoot");
+      return { ...setAgentRootSuccessorV7(s, normalizeHex(params.newAgentRoot, 32, "params.newAgentRoot")), externalFunding: 0n };
+    }
+    case "ownerTopUpReserve": {
+      const amount = parsePositiveSompi(params.topUpReserveAmountSompi, "topUpReserveAmountSompi");
+      return { ...topUpReserveSuccessorV7(s, amount), externalFunding: amount };
+    }
+    case "ownerPause":
+      return { ...pauseSuccessorV7(s, true), externalFunding: 0n };
+    case "ownerUnpause":
+      return { ...pauseSuccessorV7(s, false), externalFunding: 0n };
+    case "ownerEmergencyPause":
+      return { ...emergencyPauseSuccessorV7(s), externalFunding: 0n };
+    default:
+      return fail(`unknown v0.7 rooted-vault owner action ${JSON.stringify(action)} — failing closed`, "UNKNOWN_ACTION");
+  }
+}
+
+module.exports = {
+  MAX_PERIODS_ELAPSED,
+  tokenAgentSpendSuccessorV7,
+  tokenContinuationStatesV7,
+  setAgentRootSuccessorV7,
+  topUpReserveSuccessorV7,
+  pauseSuccessorV7,
+  emergencyPauseSuccessorV7,
+  recoverPlanV7,
+  ownerOpSuccessorV7
+};
+  });
+
+  define("core/model/compute-budget-v7", function (module, exports, require) {
+"use strict";
+
+/*
+ * Centralized v0.7 ORGANIZATIONAL ROOT / ROOTED VAULT compute-budget
+ * selection.
+ *
+ * The committed budget is CONSENSUS-CRITICAL for usability: an
+ * under-committed budget makes an otherwise-valid transaction fail script
+ * execution on a live node, and a builder can never lower it after the fact
+ * because the exact-fee freeze depends on it. Every constant below is an
+ * ENGINE MEASUREMENT from the production candidates
+ * (docs/postlaunch/v0.7-organizational-root-design.md §12.3,
+ * tests/vm/tests/v7_root_production.rs + v7_payment_production.rs,
+ * 2026-09-03); nothing here is estimated.
+ *
+ * BUDGET ARITHMETIC. rusty-kaspa charges
+ *   required_budget = ceil((units - (10_000 - 1)) / 10_000)
+ * (ComputeBudget::checked_covering_script_units, consensus/core/src/mass/
+ * units.rs), i.e. ordinary floor division for the current constants. Every
+ * model below therefore over-approximates with ceil(units / 10_000) after
+ * adding headroom, so the committed budget is ALWAYS >= the required one.
+ * tests/vm/tests/v7_sdk_integration.rs asserts exactly that on SDK-built
+ * bytes for every input of every accept vector.
+ *
+ * SIG-OP PRICING. Priced units include 100,000 units per EXECUTED Schnorr
+ * sig-op. The root runs `checkSig` once per ACTIVE owner slot (inactive
+ * sentinel slots are never inspected), so the root's priced cost scales with
+ * activeCount, NOT with the threshold — which is also why the sweep's
+ * sigscript length is constant at 12,776 B for every threshold.
+ *
+ * MEASURED (priced units -> required budget):
+ *   root ROTATE 12-of-12          1,339,272 -> 133   (script 139,272, 12 sig-ops)
+ *   root AUTHORIZE 2-of-3           397,182 ->  39   (script  97,182,  3 sig-ops)
+ *   root FREEZE (K = 1)             397,184 ->  39   (script  97,184,  3 sig-ops)
+ *   root OWNER-RECOVER (4 active)   502,295 ->  50   (script 102,295,  4 sig-ops)
+ *   root SUCCESSION                 177,665 ->  17   (script  77,665,  1 sig-op)
+ *   threshold sweep script units     87,532 (1-of-1) .. 134,217 (12-of-12)
+ *   rooted vault ownerControl 0..4   299,534 .. 299,607 script units, 0 sig-ops
+ *   rooted vault ownerRecover        284,373 script units, 0 sig-ops
+ *   root input inside a vault op      97,192 script units, active-slot sig-ops
+ *   delegate spend (depths 0/0)      100,390 script units + 1 sig-op
+ *   delegate spend (depths 12/16)    152,713 script units + 1 sig-op
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/compute-budget-v7.test.js);
+ * sufficiency is PROVEN on real engine execution by the SDK integration suite.
+ */
+
+const { OWNER_SLOTS_V7 } = require("./owner-set-v7");
+
+const UNITS_PER_BUDGET = 10_000;
+const SIGOP_UNITS = 100_000;
+const HEADROOM = 20_000;
+
+/* ---- root covenant ---- */
+
+/*
+ * Root script units as a function of ACTIVE owner slots. The measured sweep
+ * is concave (deltas 4,889 down to 3,594), so a straight line through the
+ * FIRST measured point with the LARGEST measured delta is a strict upper
+ * bound at every n in [1, 12]:
+ *     87,532 + 4,889 * (n - 1)   >=   measured(n)
+ * (checked at n = 1, 3 and 12 in core/model/test/compute-budget-v7.test.js).
+ */
+const ROOT_BASE_1_ACTIVE = 87_532;
+const ROOT_PER_ACTIVE_SLOT = 4_889;
+/* WF(new) (+ the age check on recovery) measured at +5,113 (recover, 4 active)
+ * and +5,055 (rotate, 12 active); 5,300 covers both with margin. */
+const ROOT_WF_NEW_ALLOWANCE = 5_300;
+/* rootSuccession runs WF(prev) + WF(new) and exactly one checkSig. */
+const ROOT_SUCCESSION_SCRIPT_UNITS = 78_400;
+
+/* ---- rooted payment vault ---- */
+
+/*
+ * A rooted vault's owner path slices the root's revealed redeem, hashes its
+ * template identity, rebuilds the successor redeem and P2SH-compares it, so
+ * its cost scales with the ROOT TEMPLATE SIZE. The reference is the measured
+ * production root (prefix 1 B + suffix 11,077 B = 11,078 B); the slope is the
+ * v0.5-measured template slope of 24 units/byte rounded up to 26.
+ */
+const ROOT_TEMPLATE_REFERENCE_BYTES = 11_078;
+const ROOT_TEMPLATE_SLOPE = 26;
+const VAULT_OWNER_CONTROL_UNITS = 299_700; /* max measured selector 0..4 */
+const VAULT_OWNER_RECOVER_UNITS = 284_500;
+
+/*
+ * Delegate spend: the frozen v0.5 model plus the measured v0.7 delta of
+ * +2,182 script units (the generalised family closure), with the v0.5
+ * token-template slope, depth allowance and headroom carried unchanged.
+ */
+const SPEND_BASE = 199_252 + 2_182; /* v0.5 measured base + the v0.7 delta */
+const RECOVER_TOKEN_TEMPLATE_SLOPE = 24;
+const TOKEN_TEMPLATE_REFERENCE_BYTES = 1_522; /* prefix 1 + suffix 1,521 (bound 2) */
+const DEPTH_ALLOWANCE = 51_261; /* agent depth 12 + recipient depth 16, measured */
+
+const V7_BUDGET = Object.freeze({
+  ORDINARY_INPUT: 10
+});
+
+function fail(message) {
+  throw new Error(`compute-budget-v7: ${message}`);
+}
+
+function ceilBudget(units) {
+  const n = Math.ceil(units / UNITS_PER_BUDGET);
+  if (!Number.isInteger(n) || n < 1 || n > 65_535) fail(`computed compute budget ${n} is outside the u16 domain`);
+  return n;
+}
+
+/* The budget rusty-kaspa would actually REQUIRE for `units` priced units. */
+function requiredBudgetForUnits(units) {
+  if (!Number.isInteger(units) || units < 0) fail("units must be a non-negative integer");
+  const charged = Math.max(0, units - (UNITS_PER_BUDGET - 1));
+  return Math.ceil(charged / UNITS_PER_BUDGET);
+}
+
+function activeSlots(value) {
+  const n = typeof value === "bigint" ? Number(value) : value;
+  if (!Number.isInteger(n) || n < 1 || n > OWNER_SLOTS_V7) {
+    fail(`activeOwnerSlots must be an integer 1..${OWNER_SLOTS_V7} — the root's priced cost scales with the ACTIVE slots it inspects`);
+  }
+  return n;
+}
+
+function rootScriptUnits({ activeOwnerSlots, wfNew }) {
+  const n = activeSlots(activeOwnerSlots);
+  return ROOT_BASE_1_ACTIVE + ROOT_PER_ACTIVE_SLOT * (n - 1) + (wfNew ? ROOT_WF_NEW_ALLOWANCE : 0);
+}
+
+/*
+ * The committed budget for a ROOT covenant input, for either a root-only
+ * transaction or the root input that authorizes a rooted vault operation.
+ */
+function selectRootComputeBudgetV7({ actionName, activeOwnerSlots }) {
+  switch (actionName) {
+    case "authorize":
+    case "freeze":
+    case "unfreeze": {
+      const n = activeSlots(activeOwnerSlots);
+      return ceilBudget(rootScriptUnits({ activeOwnerSlots: n, wfNew: false }) + SIGOP_UNITS * n + HEADROOM);
+    }
+    case "rotate":
+    case "ownerRecover": {
+      const n = activeSlots(activeOwnerSlots);
+      return ceilBudget(rootScriptUnits({ activeOwnerSlots: n, wfNew: true }) + SIGOP_UNITS * n + HEADROOM);
+    }
+    case "succession":
+      return ceilBudget(ROOT_SUCCESSION_SCRIPT_UNITS + SIGOP_UNITS + HEADROOM);
+    default:
+      return fail(`unknown v0.7 root action ${JSON.stringify(actionName)} — failing closed`);
+  }
+}
+
+function rootTemplateBytes({ rootPrefixLen, rootSuffixLen }) {
+  if (!Number.isInteger(rootPrefixLen) || !Number.isInteger(rootSuffixLen) || rootPrefixLen < 0 || rootSuffixLen < 0) {
+    fail("root template geometry (rootPrefixLen/rootSuffixLen) is required to size a rooted-vault owner budget");
+  }
+  return rootPrefixLen + rootSuffixLen;
+}
+
+function tokenTemplateBytes({ templatePrefixLen, templateSuffixLen }) {
+  if (!Number.isInteger(templatePrefixLen) || !Number.isInteger(templateSuffixLen) || templatePrefixLen < 0 || templateSuffixLen < 0) {
+    fail("token template geometry (templatePrefixLen/templateSuffixLen) is required to size a template-scaled budget");
+  }
+  return templatePrefixLen + templateSuffixLen;
+}
+
+/* The committed budget for the ROOTED VAULT covenant input. */
+function selectComputeBudgetV7({ operation, templatePrefixLen, templateSuffixLen, rootPrefixLen, rootSuffixLen }) {
+  switch (operation) {
+    case "tokenAgentSpend": {
+      const extra = Math.max(0, tokenTemplateBytes({ templatePrefixLen, templateSuffixLen }) - TOKEN_TEMPLATE_REFERENCE_BYTES) * RECOVER_TOKEN_TEMPLATE_SLOPE;
+      return ceilBudget(SPEND_BASE + extra + DEPTH_ALLOWANCE + HEADROOM);
+    }
+    case "ownerSetAgentRoot":
+    case "ownerTopUpReserve":
+    case "ownerPause":
+    case "ownerUnpause":
+    case "ownerEmergencyPause": {
+      const rootExtra = Math.max(0, rootTemplateBytes({ rootPrefixLen, rootSuffixLen }) - ROOT_TEMPLATE_REFERENCE_BYTES) * ROOT_TEMPLATE_SLOPE;
+      return ceilBudget(VAULT_OWNER_CONTROL_UNITS + rootExtra + HEADROOM);
+    }
+    case "ownerRecover": {
+      const rootExtra = Math.max(0, rootTemplateBytes({ rootPrefixLen, rootSuffixLen }) - ROOT_TEMPLATE_REFERENCE_BYTES) * ROOT_TEMPLATE_SLOPE;
+      const tokenExtra = Math.max(0, tokenTemplateBytes({ templatePrefixLen, templateSuffixLen }) - TOKEN_TEMPLATE_REFERENCE_BYTES) * RECOVER_TOKEN_TEMPLATE_SLOPE;
+      return ceilBudget(VAULT_OWNER_RECOVER_UNITS + rootExtra + tokenExtra + HEADROOM);
+    }
+    default:
+      return fail(`unknown v0.7 rooted-vault operation ${JSON.stringify(operation)} — failing closed`);
+  }
+}
+
+/*
+ * Committed budget for a TOKEN-FAMILY input executing the reference KCC20
+ * program — identical arithmetic to the frozen v0.5 model (the agent path is
+ * byte-for-byte v0.5 and the token family never sees the root).
+ */
+function selectTokenInputBudgetV7({ templatePrefixLen, templateSuffixLen, signerOwned = false }) {
+  const base = 20_000 + RECOVER_TOKEN_TEMPLATE_SLOPE * tokenTemplateBytes({ templatePrefixLen, templateSuffixLen });
+  return Math.max(4, ceilBudget(base + (signerOwned ? SIGOP_UNITS : 0)));
+}
+
+function assertBudgetSufficientV7({ operation, committed, ...geometry }) {
+  const required = selectComputeBudgetV7({ operation, ...geometry });
+  if (!Number.isInteger(committed) || committed < required) {
+    fail(`committed compute budget ${committed} is below the proven-safe minimum ${required} for ${operation}`);
+  }
+  return committed;
+}
+
+function assertRootBudgetSufficientV7({ actionName, activeOwnerSlots, committed }) {
+  const required = selectRootComputeBudgetV7({ actionName, activeOwnerSlots });
+  if (!Number.isInteger(committed) || committed < required) {
+    fail(`committed compute budget ${committed} is below the proven-safe minimum ${required} for root ${actionName}`);
+  }
+  return committed;
+}
+
+module.exports = {
+  V7_BUDGET,
+  UNITS_PER_BUDGET,
+  SIGOP_UNITS,
+  ROOT_TEMPLATE_REFERENCE_BYTES,
+  requiredBudgetForUnits,
+  rootScriptUnits,
+  selectRootComputeBudgetV7,
+  selectComputeBudgetV7,
+  selectTokenInputBudgetV7,
+  assertBudgetSufficientV7,
+  assertRootBudgetSufficientV7
+};
+  });
+
+  define("core/intent/vault-script-v7", function (module, exports, require) {
+"use strict";
+/*
+ * PolicyVault v0.7 ROOTED PAYMENT VAULT — exact successor locking-script
+ * reconstruction from the vault's own revealed redeem script
+ * (Codex checkpoint 6, UX-02 / UX-13: "derive and validate ... and
+ * reconstruct/bind the declared vault continuation script").
+ *
+ * The frozen payment covenant (contracts/PolicyVault.v0.7-payment.sil,
+ * sha256 09cdbb6c…) compiles, for ANY template + state, to
+ *
+ *     prefix (1 byte) || STATE REGION (93 bytes) || suffix (template code)
+ *
+ * where the STATE REGION is silverc's field prolog for the five mutable
+ * contract fields, in declaration order, each as a fixed-width push:
+ *
+ *     0x20 boundVaultId[32]   0x08 feeReserve[8 LE]   0x08 paused[8 LE]
+ *     0x20 agentRoot[32]      0x08 policyNonce[8 LE]
+ *
+ * and the prefix + suffix are the vault's TEMPLATE: constant across every
+ * state of one vault (the covenant itself rebuilds its successor in-VM from
+ * exactly these bytes — validateOutputStateWithTemplate). The template is
+ * vault-specific (its constructor pins are compiled into the suffix), so
+ * the portable core cannot synthesize it without the compiler; what it CAN
+ * do — and what this module does — is take the PREDECESSOR redeem script
+ * the SDK captured at build time, bind it to the transaction (P2SH of the
+ * redeem == the vault input's locking script, which the signature hash
+ * covers) and to the reviewed predecessor state (the region decodes to
+ * exactly stateBefore), and rebuild the ONE successor script the reviewed
+ * stateAfter can produce: prefix || region(stateAfter) || suffix. The
+ * successor output must carry the P2SH of that script, or nothing is
+ * signed.
+ *
+ * The layout constant and the region encoding are PROVEN against the real
+ * vendored compiler by sdk/test/vault-script-v7-reconstruction.test.js
+ * (compiles a state matrix with silverc and compares byte for byte). Pure
+ * data + pure functions: runs unchanged in the browser bundle and the
+ * mobile vendor copy. No covenant bytes change here; nothing is recompiled.
+ *
+ * Codex checkpoint 7 (UX-02 / UX-13, "bind relevant geometry and immutable
+ * operation pins to verified predecessor/root/token evidence"): the suffix is
+ * NOT opaque to the core after all. Like the root's (root-script-v7.js), it is
+ * a generation-constant SKELETON with holes — the vault's TEMPLATE CONSTANTS
+ * (tokenCovenantId, descriptorHash, templateVmHash, templatePrefixLen /
+ * templateSuffixLen, orgRootCovenantId, rootTemplateVmHash, rootPrefixLen /
+ * rootSuffixLen, recoveryPk) pushed as minimal script numbers / 32-byte
+ * pushes wherever the covenant uses them (142 holes), plus the script's own
+ * TOTAL LENGTH (6 holes). templateStateLen (46, kcc20-state/1) and
+ * rootStateLen (467) are fixed by the frozen generation and folded into the
+ * constant chunks; vaultId lives only in the state region. So the core can
+ * REBUILD THE WHOLE PREDECESSOR SCRIPT from the DECLARED pins + the reviewed
+ * predecessor state (reconstructVaultScriptHexV7) and require it to be the
+ * carried redeem byte for byte AND to hash to the vault input's P2SH (which
+ * every signature covers): a declared geometry, recovery key, template hash
+ * or predecessor state that is not the one compiled into the vault the
+ * transaction actually spends rebuilds a DIFFERENT script and is refused
+ * before any wallet is asked to sign. The skeleton was extracted
+ * mechanically from real silverc output (three templates whose constants all
+ * differ, token-aligned) and is proven byte for byte across a constant-
+ * encoding matrix by sdk/test/vault-script-v7-reconstruction.test.js.
+ */
+const { normalizeStateV7, normalizeTemplateV7 } = require("../model/vault-state-v7");
+const { blake2bHex } = require("../assets/blake2b");
+
+/* silverc's state_layout for the frozen v0.7-payment generation (start = the
+ * 1-byte selector prefix, len = 33 + 9 + 9 + 33 + 9). */
+const VAULT_SCRIPT_PREFIX_LEN_V7 = 1;
+const VAULT_STATE_REGION_LEN_V7 = 93;
+const HEX64 = /^[0-9a-f]{64}$/;
+
+/* ---- the frozen v0.7-payment TEMPLATE skeleton (Codex checkpoint 7) ---- */
+const VAULT_SCRIPT_PREFIX_HEX_V7 = "6b";
+const VAULT_SCRIPT_HOLES_V7 = Object.freeze(["tokenCovenantId","tokenCovenantId","tokenCovenantId","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templateVmHash","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templateVmHash","tokenCovenantId","templateVmHash","tokenCovenantId","tokenCovenantId","tokenCovenantId","descriptorHash","scriptLen","scriptLen","orgRootCovenantId","orgRootCovenantId","orgRootCovenantId","rootPrefixLen","rootSuffixLen","rootPrefixLen","rootPrefixLen","rootTemplateVmHash","orgRootCovenantId","orgRootCovenantId","descriptorHash","scriptLen","scriptLen","orgRootCovenantId","orgRootCovenantId","orgRootCovenantId","rootPrefixLen","rootSuffixLen","rootPrefixLen","rootPrefixLen","rootTemplateVmHash","orgRootCovenantId","recoveryPk","descriptorHash","tokenCovenantId","tokenCovenantId","tokenCovenantId","orgRootCovenantId","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templateSuffixLen","templateVmHash","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","templatePrefixLen","templatePrefixLen","templateSuffixLen","recoveryPk","templatePrefixLen","templateSuffixLen","templateVmHash","templatePrefixLen","templateSuffixLen","tokenCovenantId","orgRootCovenantId","scriptLen","scriptLen"]);
+/* generation-constant suffix chunks between the holes (hex), extracted from real silverc output of the frozen v0.7-payment covenant */
+const VAULT_SCRIPT_CHUNKS_V7 = Object.freeze([
+  "6c76009c637554795479547954795479012679012679012679012679012679012679012679012679012679012679012679012679012679012679012179012179012179011e79011479009c69011c795579ac69",
+  "d0519c69",
+  "d2529c69",
+  "00d176b37651a2697658a1690078009458a1697652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577687652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577687652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577687652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577687652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577687652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577687652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577687652799f637676b99e637654799e6376cf200000000000000000000000000000000000000000000000000000000000000000876968687651937b7577685379bf54795579c9",
+  "012e93",
+  "93945679c9",
+  "012e93",
+  "9394",
+  "012e93",
+  "9393bcaa02000001aa7e01207e7c7e01877e876953795479c9",
+  "012e93",
+  "93945579c9",
+  "012e93",
+  "9394",
+  "93bc54795579c9",
+  "012e93",
+  "9394",
+  "93012e935679c9",
+  "012e93",
+  "9394",
+  "93012e93",
+  "93bc7e",
+  "7caa876953795479c9",
+  "012e93",
+  "9394",
+  "5193935579c9",
+  "012e93",
+  "9394",
+  "519393012093bc54795579c9",
+  "012e93",
+  "9394",
+  "012293935679c9",
+  "012e93",
+  "9394",
+  "012293935193bc55795679c9",
+  "012e93",
+  "9394",
+  "012493935779c9",
+  "012e93",
+  "9394",
+  "012493935893bc56795779c9",
+  "012e93",
+  "9394",
+  "012d93935879c9",
+  "012e93",
+  "9394",
+  "012d93935193bc5779c976",
+  "012e93",
+  "93945979785279",
+  "93bc5a795379",
+  "945479bcb9cf5879788769577901028769557991690119797887690118790102876901167991690119795e798791690115795e7987690114790100876901127991690113797600a06901187900a26901187958795279949c6976011379013a79013a79013a79013a79013a79011879011879011879013a79013a79013a79587900a0695c795b79a1697600a2697602e803a169577957795e7993527951a263597953795c7995937b7576b05e797b7568765c79a1695479547978827c755196012097009c6978827c755196028001a16978827c7551960120967800a269780200109f6904505635010111797e607958cd7e5f7958cd7e5e7958cd7e5d7958cd7e5c7958cd7e5b7958cd7e5a7958cd7e59797e01007ea85379537900547900945ca1697655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c6878009c695379760139798769597959795e795e7978827c755196012097009c6978827c755196028001a16978827c7551960120967800a269780200109f690450563501011b797e011a7958cd7e01197958cd7e01187958cd7e557958cd7e547958cd7e01157958cd7e01147958cd7e0113797e01007ea85379537900547900945ca1697655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c6878009c695379013d79788769014d79014d7978827c755196012097009c6978827c755196020002a16978827c7551960120967800a26978030000019f6904505633010133797ea853795379005479009460a1697655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c687655799f637653790120007c7f54798201207c7f76567a7555795297519c63527957797ea8577a7567567953797ea8577a756856795296577a7555795193577a75547a75547a75547a756b6b7c6b6c6c6c6878009c6953790138798769012b79012b797e",
+  "7caa876901427901207c7e01427901017c7e01427958cd01087c7e01427951cd01017c7e7e7e7e012c797c7e012b797eaa02000001aa7e01207e7c7e01877e",
+  "00d3c38769012b79012b797e",
+  "7caa8769013e7901207c7e013e7901017c7e013e7958cd01087c7e013e7951cd01017c7e7e7e7e012c797c7e012b797eaa02000001aa7e01207e7c7e01877e",
+  "51d3c38769014679",
+  "51d3",
+  "00d3c278c293013879bea26976c2013b79a1697800a269014d795279947600a26976013d79a169b37651a2697658a169b47651a2697658a16900005379009458a1697654799f6376527978be93537a75785193537a757b75687654799f6376527978be93537a75785193537a757b75687654799f6376527978be93537a75785193537a757b75687654799f6376527978be93537a75785193537a757b75687654799f6376527978be93537a75785193537a757b75687654799f6376527978be93537a75785193537a757b75687654799f6376527978be93537a75785193537a757b75687654799f6376527978be93537a75785193537a757b756800005479009458a1697655799f6376527978c293537a75785193537a757b75687655799f6376527978c293537a75785193537a757b75687655799f6376527978c293537a75785193537a757b75687655799f6376527978c293537a75785193537a757b75687655799f6376527978c293537a75785193537a757b75687655799f6376527978c293537a75785193537a757b75687655799f6376527978c293537a75785193537a757b75687655799f6376527978c293537a75785193537a757b7568785479a1695379527994577978a169b900ccc25a799c690151790157798769014f790155799c69014d790153799c69",
+  "200000000000000000000000000000000000000000000000000000000000000000879169b9cb519c6901787901207c7e01787958cd01087c7e01787958cd01087c7e01787901207c7e01787958cd01087c7e7e7e7e7eb976c9",
+  "94765193bc7c7eb976c976",
+  "94015e937cbc7eaa02000001aa7e01207e7c7e01877eb900ccc38769007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a7575757575757575757575757575757575757575757575757575757575757575757575516776519c637553795379537953795d795d795d795d795d797600a2697654a16902010078549c63020101776876",
+  "d0519c69",
+  "d2519c69",
+  "00d176c97878",
+  "02d30193",
+  "93945279bc5279bf78aa02000001aa7e01207e7c7e01877e876976",
+  "007c7f7882",
+  "7c7f7602d3015b94007c7f788202d3015b947c7f765b007c7f78825b7c7f5579787eaa",
+  "87697852007c7f527982527c7f7802010087697651007c7f7882517c7f7801088769",
+  "00d3c35a7959797e5f7901087e5379519358cd7e7e56797eaa02000001aa7e01207e7c7e01877e8769b37651a2697658a169",
+  "200000000000000000000000000000000000000000000000000000000000000000005379009458a1697654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577680126790121798769",
+  "200000000000000000000000000000000000000000000000000000000000000000879169011379009c63011779011c799c69011679011b799c6901147901197951939c6967011379519c63011779011c79a069011679011b799c69011579011a7987690114790119799c6967011379529c63011a79009c69011679519c69011779011c799c69011579011a7987690114790119799c6967011379539c63011a79519c69011679009c69011779011c799c69011579011a7987690114790119799c6967011a79009c69011679519c69011779011c799c69011579011a7987690114790119799c6968686868b900ccc20118799c69b9cb519c6901267901207c7e01267958cd01087c7e01267958cd01087c7e01267901207c7e01267958cd01087c7e7e7e7e7eb976c9",
+  "94765193bc7c7eb976c976",
+  "94015e937cbc7eaa02000001aa7e01207e7c7e01877eb900ccc38769007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a757575757575757575757575516776529c6375b9cb5e795a795a795a795a79",
+  "d0519c69",
+  "d2519c69",
+  "00d176c97878",
+  "02d30193",
+  "93945279bc5279bf78aa02000001aa7e01207e7c7e01877e876976",
+  "007c7f7882",
+  "7c7f7602d3015b94007c7f788202d3015b947c7f765b007c7f78825b7c7f5579787eaa",
+  "87697852007c7f527982527c7f7802010087697651007c7f7882517c7f7801088769",
+  "00d3c35a7959797e02010001087e5379519358cd7e7e56797eaa02000001aa7e01207e7c7e01877e8769011179827c75012096009c6900c3",
+  "030000207c7e01ac7e876900c20117799c69",
+  "200000000000000000000000000000000000000000000000000000000000000000879169",
+  "d07651a16976519c63",
+  "d2519c69",
+  "00d176b37651a2697658a169",
+  "200000000000000000000000000000000000000000000000000000000000000000005379009458a1697654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577687654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577687654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577687654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577687654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577687654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577687654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577687654799f637676b99e637656799e6376cf7655798791637654798769687568687651937b7577685579bf56795779c9",
+  "012e93",
+  "93945879c9",
+  "012e93",
+  "9394",
+  "012e93",
+  "9393bcaa02000001aa7e01207e7c7e01877e876955795679c9",
+  "012e93",
+  "93945779c9",
+  "012e93",
+  "9394",
+  "93bc56795779c9",
+  "012e93",
+  "9394",
+  "93012e935879c9",
+  "012e93",
+  "9394",
+  "93012e93",
+  "93bc7e",
+  "7caa876955795679c9",
+  "012e93",
+  "9394",
+  "5193935779c9",
+  "012e93",
+  "9394",
+  "519393012093bc56795779c9",
+  "012e93",
+  "9394",
+  "012293935879c9",
+  "012e93",
+  "9394",
+  "012293935193bc57795879c9",
+  "012e93",
+  "9394",
+  "012493935979c9",
+  "012e93",
+  "9394",
+  "012493935893bc58795979c9",
+  "012e93",
+  "9394",
+  "012d93935a79c9",
+  "012e93",
+  "9394",
+  "012d93935193bc5979c976",
+  "012e93",
+  "93945579b9cf8769547901028769011d79",
+  "8769011c7901008769011a799169011b7954799c695b79785279",
+  "93bc5c795379",
+  "945479bc7e",
+  "7caa8769011d7901207c7e011d7901017c7e011d7958cd01087c7e011d7951cd01017c7e7e7e7e5c7952795379",
+  "93bc7c7e5c795379",
+  "945479bc7eaa02000001aa7e01207e7c7e01877e",
+  "00d3c3876975757575757575757575757567b37651a2697658a169",
+  "200000000000000000000000000000000000000000000000000000000000000000005379009458a1697654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b7577687654799f637676b99e6376cf76557987916376547987696875687651937b757768757575756801127901147951a16901147978827c750120969c6900011579009451a169760116799f6376527978012095760120937f01207c7e012479527958957658937f58cd01087c7e012479537958957658937f58cd01087c7e0124795479012095760120937f01207c7e012479557958957658937f58cd01087c7e7e7e7e7eb976c9",
+  "94765193bc7c7eb976c976",
+  "94015e937cbc7eaa02000001aa7e01207e7c7e01877eb95279ccc387697651937b757768007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a75007a7575757575757575757575757575755167750069686868",
+]);
+const VAULT_SCRIPT_SKELETON_SHA256_V7 = "b67f8ce8a4e6459dc6b62bc3afa0ddcee25b9f4c93b91543021818a81a3d64fc"; // sha256(chunks.join("|") + "#" + holes.join(","))
+
+const VAULT_SCRIPT_PIN_HOLES_V7 = Object.freeze(["tokenCovenantId", "descriptorHash", "templateVmHash", "templatePrefixLen", "templateSuffixLen", "orgRootCovenantId", "rootTemplateVmHash", "rootPrefixLen", "rootSuffixLen", "recoveryPk"]);
+const VAULT_SCRIPT_INT_HOLES_V7 = new Set(["templatePrefixLen", "templateSuffixLen", "rootPrefixLen", "rootSuffixLen"]);
+
+function fail(message, code) {
+  const e = new Error(`vault-script-v7: ${message}`);
+  e.code = code || "VAULT_SCRIPT_INVALID";
+  throw e;
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+function le8Hex(value, field) {
+  const v = BigInt(value);
+  if (v < 0n || v > 0xffffffffffffffffn) fail(`${field} outside the 8-byte domain`);
+  let out = "";
+  let x = v;
+  for (let i = 0; i < 8; i++) { out += Number(x & 0xffn).toString(16).padStart(2, "0"); x >>= 8n; }
+  return out;
+}
+function hex64(value, field) {
+  const h = String(value || "").toLowerCase();
+  if (!HEX64.test(h)) fail(`${field} must be 32 bytes of hex`);
+  return h;
+}
+
+/* The exact 93-byte state region (hex) for a vault id + mutable state. */
+function serializeVaultStateRegionHexV7({ vaultId, state }) {
+  const s = normalizeStateV7(state);
+  return "20" + hex64(vaultId, "vaultId") + "08" + le8Hex(s.feeReserve, "feeReserve") + "08" + le8Hex(s.paused, "paused") + "20" + s.agentRoot + "08" + le8Hex(s.policyNonce, "policyNonce");
+}
+
+/* Strict inverse: decode a 93-byte region (hex) or fail closed. */
+function parseVaultStateRegionHexV7(regionHex) {
+  const r = String(regionHex || "").toLowerCase();
+  if (!/^[0-9a-f]+$/.test(r) || r.length !== VAULT_STATE_REGION_LEN_V7 * 2) fail("state region must be exactly 93 bytes of hex");
+  let p = 0;
+  const take = (n) => { const out = r.slice(p, p + n * 2); p += n * 2; return out; };
+  const opcode = (expected, what) => { if (take(1) !== expected) fail(`${what}: unexpected push opcode`); };
+  const le8 = (what) => { const h = take(8); let v = 0n; for (let i = 7; i >= 0; i--) v = (v << 8n) | BigInt(parseInt(h.substr(i * 2, 2), 16)); return v; };
+  opcode("20", "boundVaultId"); const vaultId = take(32);
+  opcode("08", "feeReserve"); const feeReserve = le8("feeReserve");
+  opcode("08", "paused"); const paused = le8("paused");
+  opcode("20", "agentRoot"); const agentRoot = take(32);
+  opcode("08", "policyNonce"); const policyNonce = le8("policyNonce");
+  return Object.freeze({ vaultId, state: Object.freeze({ feeReserve: feeReserve.toString(), paused: paused.toString(), agentRoot, policyNonce: policyNonce.toString() }) });
+}
+
+/* Split a revealed v0.7-payment redeem script into prefix / region / suffix. */
+function splitVaultRedeemHexV7(redeemHex) {
+  const h = String(redeemHex || "").toLowerCase();
+  if (!/^[0-9a-f]+$/.test(h) || h.length % 2 !== 0) fail("redeem script must be hex", "VAULT_SCRIPT_INVALID");
+  const minLen = VAULT_SCRIPT_PREFIX_LEN_V7 + VAULT_STATE_REGION_LEN_V7 + 1;
+  if (h.length / 2 < minLen) fail("redeem script is shorter than prefix + state region + suffix", "VAULT_SCRIPT_INVALID");
+  const prefixHex = h.slice(0, VAULT_SCRIPT_PREFIX_LEN_V7 * 2);
+  const regionHex = h.slice(VAULT_SCRIPT_PREFIX_LEN_V7 * 2, (VAULT_SCRIPT_PREFIX_LEN_V7 + VAULT_STATE_REGION_LEN_V7) * 2);
+  const suffixHex = h.slice((VAULT_SCRIPT_PREFIX_LEN_V7 + VAULT_STATE_REGION_LEN_V7) * 2);
+  return Object.freeze({ prefixHex, regionHex, suffixHex, decoded: parseVaultStateRegionHexV7(regionHex) });
+}
+
+/* Version-0 P2SH scriptPublicKey (script hex, no wire version prefix). */
+function p2shSpkHexOf(redeemHex) { return "aa20" + blake2bHex(hexToBytes(String(redeemHex).toLowerCase()), 32) + "87"; }
+
+/* The successor redeem script: the predecessor's template around the successor state. */
+function reconstructVaultSuccessorHexV7({ redeemHex, vaultId, state }) {
+  const parts = splitVaultRedeemHexV7(redeemHex);
+  return parts.prefixHex + serializeVaultStateRegionHexV7({ vaultId, state }) + parts.suffixHex;
+}
+function reconstructVaultSuccessorSpkHexV7(args) { return p2shSpkHexOf(reconstructVaultSuccessorHexV7(args)); }
+
+/* Minimal script-number push (the encoding silverc emits for integer
+ * constants): 0 -> OP_0 (0x00), 1..16 -> OP_1..OP_16, otherwise
+ * OP_DATA_n + little-endian magnitude with a sign-bit pad byte. */
+function pushScriptNumHex(value) {
+  let v = BigInt(value);
+  if (v < 0n) fail("negative constants are not used by the rooted vault covenant");
+  if (v === 0n) return "00";
+  if (v <= 16n) return (0x50 + Number(v)).toString(16);
+  const bytes = [];
+  while (v > 0n) { bytes.push(Number(v & 0xffn)); v >>= 8n; }
+  if (bytes[bytes.length - 1] & 0x80) bytes.push(0x00);
+  if (bytes.length > 75) fail("constant too large for a direct push");
+  return bytes.length.toString(16).padStart(2, "0") + bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/*
+ * The exact frozen v0.7-payment SUFFIX (template code) for a set of template
+ * pins. `template` is normalized by the model (well-formed pins only). The
+ * script's own length is pushed inside the suffix, so the length is solved as
+ * a fixed point (the push width can change the length it encodes).
+ */
+function reconstructVaultSuffixHexV7(template) {
+  const t = normalizeTemplateV7(template);
+  const constants = {};
+  for (const name of VAULT_SCRIPT_PIN_HOLES_V7) constants[name] = VAULT_SCRIPT_INT_HOLES_V7.has(name) ? pushScriptNumHex(t[name]) : "20" + hex64(t[name], name);
+  const assemble = (lenPush) => {
+    let out = "";
+    for (let i = 0; i < VAULT_SCRIPT_HOLES_V7.length; i++) {
+      out += VAULT_SCRIPT_CHUNKS_V7[i];
+      const h = VAULT_SCRIPT_HOLES_V7[i];
+      out += h === "scriptLen" ? lenPush : constants[h];
+    }
+    return out + VAULT_SCRIPT_CHUNKS_V7[VAULT_SCRIPT_CHUNKS_V7.length - 1];
+  };
+  let lenPush = pushScriptNumHex(VAULT_SCRIPT_PREFIX_LEN_V7 + VAULT_STATE_REGION_LEN_V7 + assemble("020000").length / 2);
+  for (let round = 0; round < 4; round++) {
+    const suffix = assemble(lenPush);
+    const next = pushScriptNumHex(VAULT_SCRIPT_PREFIX_LEN_V7 + VAULT_STATE_REGION_LEN_V7 + suffix.length / 2);
+    if (next === lenPush) return suffix;
+    lenPush = next;
+  }
+  return fail("the script length did not converge");
+}
+
+/* The exact redeem script (hex) for template pins + a vault state:
+ * prefix || region(vaultId, state) || suffix(pins). */
+function reconstructVaultScriptHexV7({ template, state }) {
+  const t = normalizeTemplateV7(template);
+  return VAULT_SCRIPT_PREFIX_HEX_V7 + serializeVaultStateRegionHexV7({ vaultId: t.vaultId, state }) + reconstructVaultSuffixHexV7(t);
+}
+function reconstructVaultScriptSpkHexV7(args) { return p2shSpkHexOf(reconstructVaultScriptHexV7(args)); }
+
+/*
+ * Read the template pins OUT OF a revealed redeem script by walking the
+ * frozen skeleton: every constant chunk must appear verbatim at its place and
+ * every hole must hold a well-formed push of the expected kind; all holes of
+ * one constant must agree and the six length holes must be the script's own
+ * length. Returns { vaultId, state, pins } or throws — so a script of ANOTHER
+ * generation (an HD candidate, a KAS profile, a foreign covenant) is never
+ * mistaken for a v0.7-payment vault, and a v0.7-payment vault can never be
+ * presented under another generation label.
+ */
+function decodeVaultTemplatePinsV7(redeemHex) {
+  const parts = splitVaultRedeemHexV7(redeemHex);
+  const s = parts.suffixHex;
+  let p = 0;
+  const holes = {}; // decoded hole contents (script geometry lengths + 32-byte pins) — NOT amounts
+  const readIntPush = (what) => {
+    const op = parseInt(s.slice(p, p + 2), 16);
+    if (Number.isNaN(op)) fail(`${what}: truncated push`, "VAULT_GENERATION_MISMATCH");
+    if (op === 0x00) { p += 2; return 0n; }
+    if (op >= 0x51 && op <= 0x60) { p += 2; return BigInt(op - 0x50); }
+    if (op >= 0x01 && op <= 0x4b) {
+      const data = s.slice(p + 2, p + 2 + op * 2);
+      if (data.length !== op * 2) fail(`${what}: truncated push`, "VAULT_GENERATION_MISMATCH");
+      let v = 0n;
+      for (let i = op - 1; i >= 0; i--) v = (v << 8n) | BigInt(parseInt(data.substr(i * 2, 2), 16));
+      if (pushScriptNumHex(v) !== s.slice(p, p + 2 + op * 2)) fail(`${what}: non-minimal integer push`, "VAULT_GENERATION_MISMATCH");
+      p += 2 + op * 2;
+      return v;
+    }
+    return fail(`${what}: not an integer push`, "VAULT_GENERATION_MISMATCH");
+  };
+  const readBytes32Push = (what) => {
+    if (s.slice(p, p + 2) !== "20") fail(`${what}: not a 32-byte push`, "VAULT_GENERATION_MISMATCH");
+    const v = s.slice(p + 2, p + 66);
+    if (!HEX64.test(v)) fail(`${what}: truncated 32-byte push`, "VAULT_GENERATION_MISMATCH");
+    p += 66;
+    return v;
+  };
+  for (let i = 0; i < VAULT_SCRIPT_HOLES_V7.length; i++) {
+    const chunk = VAULT_SCRIPT_CHUNKS_V7[i];
+    if (s.slice(p, p + chunk.length) !== chunk) fail(`the script is not the frozen v0.7-payment generation (chunk ${i} differs)`, "VAULT_GENERATION_MISMATCH");
+    p += chunk.length;
+    const h = VAULT_SCRIPT_HOLES_V7[i];
+    const v = h === "scriptLen" || VAULT_SCRIPT_INT_HOLES_V7.has(h) ? readIntPush(h) : readBytes32Push(h);
+    if (Object.prototype.hasOwnProperty.call(holes, h)) { if (holes[h] !== v) fail(`the script's ${h} constants disagree`, "VAULT_GENERATION_MISMATCH"); } else holes[h] = v;
+  }
+  const last = VAULT_SCRIPT_CHUNKS_V7[VAULT_SCRIPT_CHUNKS_V7.length - 1];
+  if (s.slice(p) !== last) fail("the script is not the frozen v0.7-payment generation (tail differs)", "VAULT_GENERATION_MISMATCH");
+  if (holes.scriptLen !== BigInt(String(redeemHex).length / 2)) fail("the script's own length constant is not its length", "VAULT_GENERATION_MISMATCH");
+  const pins = {
+    vaultId: parts.decoded.vaultId,
+    descriptorHash: holes.descriptorHash,
+    tokenCovenantId: holes.tokenCovenantId,
+    templateVmHash: holes.templateVmHash,
+    templatePrefixLen: Number(holes.templatePrefixLen),
+    templateStateLen: 46,
+    templateSuffixLen: Number(holes.templateSuffixLen),
+    orgRootCovenantId: holes.orgRootCovenantId,
+    rootTemplateVmHash: holes.rootTemplateVmHash,
+    rootPrefixLen: Number(holes.rootPrefixLen),
+    rootStateLen: 467,
+    rootSuffixLen: Number(holes.rootSuffixLen),
+    recoveryPk: holes.recoveryPk
+  };
+  return Object.freeze({ vaultId: parts.decoded.vaultId, state: parts.decoded.state, pins: Object.freeze(pins) });
+}
+function isPaymentGenerationScriptV7(redeemHex) {
+  try { decodeVaultTemplatePinsV7(redeemHex); return true; } catch { return false; }
+}
+
+/* The template pins a rooted-vault manifest declares, in the model's shape
+ * (the verifier hands its declared `vault` block here; nothing is trusted
+ * until the rebuilt script is the one the transaction spends). */
+function templatePinsFromManifestVault(vault) {
+  return {
+    vaultId: vault.vaultId,
+    descriptorHash: vault.descriptorHash,
+    tokenCovenantId: vault.tokenCovenantId,
+    templateVmHash: vault.templateVmHashBlake2b256,
+    templatePrefixLen: vault.templateGeometry.prefixLen,
+    templateStateLen: vault.templateGeometry.stateLen,
+    templateSuffixLen: vault.templateGeometry.suffixLen,
+    orgRootCovenantId: vault.orgRootCovenantId,
+    rootTemplateVmHash: vault.rootTemplateVmHash,
+    rootPrefixLen: vault.rootGeometry.prefixLen,
+    rootStateLen: vault.rootGeometry.stateLen,
+    rootSuffixLen: vault.rootGeometry.suffixLen,
+    recoveryPk: vault.recoveryPk
+  };
+}
+
+module.exports = Object.freeze({
+  VAULT_SCRIPT_PREFIX_LEN_V7,
+  VAULT_STATE_REGION_LEN_V7,
+  VAULT_SCRIPT_PREFIX_HEX_V7,
+  VAULT_SCRIPT_HOLES_V7,
+  VAULT_SCRIPT_CHUNKS_V7,
+  VAULT_SCRIPT_SKELETON_SHA256_V7,
+  VAULT_SCRIPT_PIN_HOLES_V7,
+  serializeVaultStateRegionHexV7,
+  parseVaultStateRegionHexV7,
+  splitVaultRedeemHexV7,
+  p2shSpkHexOf,
+  reconstructVaultSuccessorHexV7,
+  reconstructVaultSuccessorSpkHexV7,
+  pushScriptNumHex,
+  reconstructVaultSuffixHexV7,
+  reconstructVaultScriptHexV7,
+  reconstructVaultScriptSpkHexV7,
+  decodeVaultTemplatePinsV7,
+  isPaymentGenerationScriptV7,
+  templatePinsFromManifestVault
+});
+  });
+
+  define("core/intent/org-root-manifest-v7", function (module, exports, require) {
+"use strict";
+
+/*
+ * policyvault-org-root-manifest/1 — the closed-schema, hash-committed
+ * description of ONE frozen v0.7 ORGANIZATIONAL ROOT transaction, plus its
+ * deterministic LOCAL VERIFICATION against the frozen transaction bytes.
+ * Additive beside the v0.4 intent manifest (core/intent/manifest.js) and the
+ * v0.5 token manifest (core/intent/token-manifest-v5.js), both untouched.
+ *
+ * WHAT A SIGNING OWNER MUST BE ABLE TO SEE, and therefore what this manifest
+ * states — and RE-DERIVES rather than trusting:
+ *
+ *   - WHICH root is being spent (covenant id + the exact outpoint);
+ *   - the prev and new root state DIGESTS over the exact consensus-visible
+ *     467-byte state regions, so two parties comparing digests are comparing
+ *     the bytes consensus compares;
+ *   - the ACTION and its authority CLASS (AUTHORITY-REDUCING / -NEUTRAL /
+ *     -EXPANDING / TERMINAL-for-the-previous-set);
+ *   - the THRESHOLD required and satisfied, and exactly which owner slots are
+ *     expected to sign;
+ *   - EVERY vault operation riding in the same transaction, each with its own
+ *     controller manifest — and a transaction carrying a covenant family that
+ *     no declared operation accounts for is REFUSED, so a hidden extra vault
+ *     operation cannot be smuggled past a signer;
+ *   - the FEE and the bound on how much value the root may lose;
+ *   - FRESHNESS: the root's outpoint is the kill switch. There is NO expiry
+ *     field, deliberately — Kaspa lockTime is a lower bound only, so a
+ *     "valid until" value would be security theatre. Spending the root's
+ *     outpoint invalidates every collected approval at once, and the nonce
+ *     strictly increases.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/intent/test/org-root-manifest-v7.test.js
+ * and sdk/test/org-root-manifest-v7.test.js); the same core codecs the
+ * real-engine suites pin are used for every derivation.
+ */
+
+const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
+const assets = require("../assets");
+const { kcc20 } = assets;
+const {
+  normalizeRootStateV7,
+  normalizeRootTemplateV7,
+  serializeRootStateHexV7,
+  computeRootStateDigestV7,
+  rootStateToJsonV7,
+  rootStateTailHexV7
+} = require("../model/vault-state-v7-root");
+const { resolveRootActionV7, requiredApprovalsV7, activeOwnerSlotsV7, normalizeOwnerSetV7, OWNER_SLOTS_V7 } = require("../model/owner-set-v7");
+const { normalizeStateV7, normalizeTemplateV7, resolveOwnerOpAuthorityV7, OWNER_OP_SELECTOR_V7 } = require("../model/vault-state-v7");
+const { normalizeTokenAgentPolicyV5, verifyTokenAgentProofV5, foldTokenAgentPolicyV5, buildTokenAgentTreeV5 } = require("../model/agent-merkle-v5");
+const { verifyRecipientProof, buildRecipientTree } = require("../model/recipient-merkle-v3");
+const { OWNER_SCHEMES } = require("../model/token-amounts");
+const { ROOT_STATE_LEN_V7 } = require("../model/vault-state-v7-root"); // Codex checkpoint 7: the root's real geometry, read off the rebuilt root script
+const { blake2bHex } = require("../assets/blake2b"); // Codex checkpoint 7: the root's real in-VM template identity, read off the rebuilt root script
+const rootScriptV7 = require("./root-script-v7"); // rc20 review R5-04 / R4-07: the frozen v0.7 root script is REBUILT from the reviewed template + state
+const vaultScriptV7 = require("./vault-script-v7"); // Codex checkpoint 6 UX-02/13: the rooted VAULT successor script is rebuilt from the vault's own revealed redeem + the reviewed successor state
+const { V7_BUDGET, selectRootComputeBudgetV7, selectComputeBudgetV7, selectTokenInputBudgetV7 } = require("../model/compute-budget-v7"); // Codex checkpoint 6 UX-02/13: every input's committed compute budget is DERIVED from the reviewed operation, never merely compared
+
+const ORG_ROOT_MANIFEST_VERSION_1 = "policyvault-org-root-manifest/1";
+const ROOTED_VAULT_MANIFEST_VERSION_1 = "policyvault-rooted-vault-manifest/1";
+const VERIFIED_STATEMENT = "AI MAY REQUEST. POLICYVAULT DETERMINISTICALLY DECIDES. THE COVENANT ENFORCES. SIGNERS RETAIN CUSTODY.";
+
+/* The fixed human explanation. It never varies with the transaction, so a
+ * reader can learn it once and a tampered manifest cannot reword it. */
+const ORG_ROOT_EXPLANATION =
+  "This transaction spends your organization's PolicyVault root. The root holds the owner set, " +
+  "the approval thresholds, the freeze flag and a strictly increasing nonce; it never pays anyone " +
+  "and it can never be dissolved. Approving means: the named action runs, the named owner slots " +
+  "must sign, and every vault operation listed below happens in the SAME transaction or none of " +
+  "them do. Your approval is bound to this exact transaction and to this exact root outpoint — " +
+  "there is no expiry, because spending the root outpoint is what invalidates every collected " +
+  "approval at once. A rooted vault has no owner key: this root input IS the owner authority.";
+
+const ROOTED_VAULT_ACTIONS = Object.freeze({
+  ownerSetAgentRoot: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-EXPANDING" }),
+  ownerTopUpReserve: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-NEUTRAL" }),
+  ownerPause: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-REDUCING" }),
+  ownerUnpause: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-EXPANDING" }),
+  ownerEmergencyPause: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-REDUCING" }),
+  ownerRecover: Object.freeze({ role: "owners", terminal: true, mutationClass: "TERMINAL" }),
+  tokenAgentSpend: Object.freeze({ role: "agent", terminal: false, mutationClass: "AUTHORITY-NEUTRAL" })
+});
+
+function refuse(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  throw e;
+}
+function hex(v, bytes, where) {
+  if (typeof v !== "string" || !new RegExp(`^[0-9a-f]{${bytes * 2}}$`).test(v)) refuse("SCHEMA_INVALID", `${where} must be ${bytes}-byte lowercase hex`);
+  return v;
+}
+function digits(v, where) {
+  if (typeof v !== "string" || !/^(0|[1-9][0-9]*)$/.test(v)) refuse("SCHEMA_INVALID", `${where} must be a non-negative digit string`);
+  return BigInt(v);
+}
+function hexToBytes(hex) { const out = new Uint8Array(hex.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16); return out; }
+
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+
+/* ------------------------------------------------------------------ */
+/* the ROOTED VAULT controller manifest (one vault operation)          */
+/* ------------------------------------------------------------------ */
+
+/* Wave 2 Track D (hierarchical delegation): the HD vault's OWNER operations
+ * (ownerControl 0-4 / ownerRecover) are byte-identical in substance to
+ * v0.7-payment's — same field shapes, same ROOTED_VAULT_ACTIONS entries, no
+ * tokenAgentSpend equivalent — so they are presented and verified through
+ * THIS SAME manifest family "like the payment profile" (Wave 2 Track D task
+ * packet), rather than duplicating ~150 lines of security-critical
+ * verification logic. The HD vault's five HD-specific entrypoints
+ * (hdSpend/childSpendL2/childSpendL3/delegateSetChildRoot1/2) have their OWN
+ * STANDALONE-verifiable manifest family,
+ * core/intent/org-root-manifest-v7-hd.js's
+ * "policyvault-rooted-hd-vault-manifest/1" — they never ride inside an
+ * org-root manifest because they never touch the root. */
+const HD_CONTRACT_VERSION = "policyvault-0.7-payment-hd";
+
+function buildRootedVaultManifestV7({ build, descriptor = null }) {
+  const isHd = build && build.contractVersion === HD_CONTRACT_VERSION;
+  const expectedKind = isHd ? "hdOwnerTransition" : "transition"; /* an HD owner-op build carries a DISTINCT kind from its payment-profile sibling — never "transition" — so the two can never be cross-routed here by accident */
+  if (!build || (build.contractVersion !== "policyvault-0.7-payment" && !isHd) || build.kind !== expectedKind) {
+    refuse("SCHEMA_INVALID", "a v0.7-payment transition build or a v0.7-payment-hd hdOwnerTransition build is required");
+  }
+  if (isHd && build.action === "tokenAgentSpend") {
+    refuse("SCHEMA_INVALID", "the HD vault has no tokenAgentSpend entrypoint — only owner operations ride inside the org-root manifest; failing closed");
+  }
+  const info = ownGet(ROOTED_VAULT_ACTIONS, build.action);
+  if (!info) refuse("UNKNOWN_ACTION", `unknown v0.7 rooted-vault action ${JSON.stringify(build.action)} — failing closed`);
+  let validated = null;
+  if (descriptor) {
+    validated = assets.validateAssetDescriptor(descriptor);
+    if (assets.computeDescriptorHash(validated) !== build.template.descriptorHash) refuse("DESCRIPTOR_PIN_MISMATCH", "descriptor hash != the vault's pinned descriptorHash");
+  }
+  const authority = build.action === "tokenAgentSpend" ? null : resolveOwnerOpAuthorityV7(build.action);
+  const body = {
+    manifestVersion: ROOTED_VAULT_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    vault: {
+      contractVersion: build.contractVersion,
+      vaultId: build.template.vaultId,
+      covenantId: build.covenantId,
+      descriptorHash: build.template.descriptorHash,
+      tokenCovenantId: build.template.tokenCovenantId,
+      templateVmHashBlake2b256: build.template.templateVmHash,
+      templateGeometry: { prefixLen: build.template.templatePrefixLen, stateLen: build.template.templateStateLen, suffixLen: build.template.templateSuffixLen },
+      orgRootCovenantId: build.template.orgRootCovenantId,
+      rootTemplateVmHash: build.template.rootTemplateVmHash,
+      rootGeometry: { prefixLen: build.template.rootPrefixLen, stateLen: build.template.rootStateLen, suffixLen: build.template.rootSuffixLen },
+      recoveryPk: build.template.recoveryPk
+    },
+    asset: validated
+      ? {
+          descriptorHash: assets.computeDescriptorHash(validated),
+          assetId: validated.assetId,
+          displayName: validated.displayName,
+          tokenStandard: validated.tokenStandard,
+          decimalsDisplay: validated.decimalsDisplay,
+          issuerPowers: { ...validated.issuerPowers },
+          trust: Object.values(validated.issuerPowers).some(Boolean) ? "ISSUER_CONTROLLED" : "NO_DECLARED_ISSUER_POWERS"
+        }
+      : null,
+    action: {
+      sdkAction: build.action,
+      role: info.role,
+      terminal: info.terminal,
+      mutationClass: info.mutationClass,
+      opSelector: build.callExtra.opSelector ?? null,
+      requiresRootInput: build.hasRootInput,
+      requiredRootAction: authority ? authority.rootActionName : null,
+      expectFrozenAfter: authority ? authority.expectFrozenAfter.toString() : null
+    },
+    stateBefore: { stateId: build.predecessorStateId, state: build.stateJson, outpoint: build.predecessorOutpoint },
+    stateAfter: info.terminal ? null : { stateId: build.successorStateId, state: build.successorState },
+    accounting: { token: { ...build.accounting.token }, kas: { ...build.accounting.kas } },
+    policy:
+      build.action === "tokenAgentSpend"
+        ? {
+            agentPolicy: build.callExtra
+              ? {
+                  agentPk: build.callExtra.agentPk,
+                  tokenMaxPerSpend: build.callExtra.tokenMaxPerSpend,
+                  tokenPeriodBudget: build.callExtra.tokenPeriodBudget,
+                  periodLengthDaa: build.callExtra.periodLengthDaa,
+                  periodStartDaa: build.callExtra.periodStartDaa,
+                  tokenPeriodSpent: build.callExtra.tokenPeriodSpent,
+                  agentMaxFeePerTx: build.callExtra.agentMaxFeePerTx,
+                  agentMaxCarryKas: build.callExtra.agentMaxCarryKas,
+                  agentRecipientRoot: build.callExtra.agentRecipientRoot
+                }
+              : null,
+            agentProof: build.agentProof ? { ...build.agentProof } : null,
+            recipient: build.payment.recipient,
+            recipientProof: build.recipientProof ? { ...build.recipientProof } : null,
+            periodsElapsed: build.callExtra.periodsElapsed,
+            lockTime: build.frozen.lockTime.toString()
+          }
+        : build.action === "ownerSetAgentRoot"
+          ? {
+              /* rc26 round-7 review R7-02: the owners approve the RULES being installed, never a bare root — the full new
+               * delegate policy set travels in the manifest and the verifier binds stateAfter.agentRoot to its fold. */
+              recoveryPk: null,
+              agentSet: Array.isArray(build.agentSet) ? build.agentSet.map((policy) => ({ ...policy })) : null
+            }
+          : { recoveryPk: build.action === "ownerRecover" ? build.template.recoveryPk : null },
+    transaction: { txId: build.txId, computeBudget: build.computeBudget, requiredFeeSompi: build.requiredFeeSompi },
+    tokenSignatureScriptHex: build.tokenSignatureScriptHex
+  };
+  return deepFreeze({ ...body, manifestHash: computeManifestHashV1(body) });
+}
+
+/*
+ * Verify ONE rooted-vault operation against the frozen transaction it rides
+ * in. `frozen` is the parsed canonical transaction shared by every operation
+ * in the manifest, so a vault op can never be verified against a different
+ * transaction than the root it claims to ride.
+ */
+function verifyRootedVaultManifestV7({ manifest, frozen, descriptor = null, redeemHex = null, check }) {
+  if (manifest.manifestVersion !== ROOTED_VAULT_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown rooted-vault manifest version — failing closed");
+  const { manifestHash, ...body } = manifest;
+  const tag = `vault[${manifest.vault.covenantId.slice(0, 8)}].`;
+  check(`${tag}manifestHash`, computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+  const info = ownGet(ROOTED_VAULT_ACTIONS, manifest.action.sdkAction);
+  check(`${tag}action`, !!info && info.role === manifest.action.role && info.terminal === manifest.action.terminal && info.mutationClass === manifest.action.mutationClass, "role/terminal/class derived from the action table");
+  if (!info) return;
+
+  /*
+   * THE DECLARED TEMPLATE PINS MUST BE A WELL-FORMED v0.7 ROOTED VAULT
+   * (gate I3c finding I3C-F2). The vault's template constants are what the
+   * compiled covenant slices the root's state region by; the core knows the
+   * v0.7 root layout exactly (467-byte region, non-empty prefix/suffix, a
+   * non-sentinel root covenant id, the kcc20-state/1 token state length), so
+   * a manifest declaring a geometry that no v0.7 root can have is refused
+   * here instead of merely being displayed. Well-formed is not BOUND: Codex
+   * checkpoint 7 (UX-02 / UX-13) binds every declared pin below — the frozen
+   * v0.7-payment script rebuilt from the DECLARED pins around the reviewed
+   * predecessor state must be byte for byte the vault's revealed redeem, whose
+   * P2SH is the vault input's locking script (templatePinsBound); the root
+   * pins must also agree with the root script the org-root verifier rebuilt
+   * (rootEvidenceAgrees) and the token pins with the revealed token redeem
+   * (tokenTemplateBound).
+   */
+  let templatePinFailure = null;
+  try {
+    normalizeTemplateV7({
+      vaultId: manifest.vault.vaultId,
+      descriptorHash: manifest.vault.descriptorHash,
+      tokenCovenantId: manifest.vault.tokenCovenantId,
+      templateVmHash: manifest.vault.templateVmHashBlake2b256,
+      templatePrefixLen: manifest.vault.templateGeometry.prefixLen,
+      templateStateLen: manifest.vault.templateGeometry.stateLen,
+      templateSuffixLen: manifest.vault.templateGeometry.suffixLen,
+      orgRootCovenantId: manifest.vault.orgRootCovenantId,
+      rootTemplateVmHash: manifest.vault.rootTemplateVmHash,
+      rootPrefixLen: manifest.vault.rootGeometry.prefixLen,
+      rootStateLen: manifest.vault.rootGeometry.stateLen,
+      rootSuffixLen: manifest.vault.rootGeometry.suffixLen,
+      recoveryPk: manifest.vault.recoveryPk
+    });
+  } catch (e) {
+    templatePinFailure = `${e.code ?? "TEMPLATE_INVALID"}: ${e.message}`;
+  }
+  check(`${tag}templatePins`, templatePinFailure === null, templatePinFailure ?? "the declared template pins are a well-formed v0.7 rooted vault");
+
+  const inputs = frozen.inputs;
+  const outputs = frozen.outputs;
+  const vaultIns = inputs.filter((i) => i.utxo.covenantId === manifest.vault.covenantId);
+  check(`${tag}vaultInput`, vaultIns.length === 1 && vaultIns[0].utxo.amount === manifest.accounting.kas.predecessorFeeReserve, "exactly one vault input carrying the fee reserve");
+  /* rc26 round-7 review R7-01: every input this operation spends — the vault, a token position, the fee input — is
+   * spendable NOW. A non-zero `sequence` is a hidden RELATIVE LOCK (rusty-kaspa check_sequence_lock: without the DISABLE
+   * bit the input is spendable only after `sequence & 0xffffffff` DAA of UTXO age); a lockTime on an owner operation is a
+   * hidden waiting condition the review would never name. Only the organizational ROOT input may carry a sequence, and
+   * only the covenant's own relative-age gate, bound by the OUTER manifest (rootInputSequence / rootInputSequenceZero).
+   * The delegate spend's lockTime is bound exactly to its period rule below (lockTimeBound); every other action carries 0. */
+  check(`${tag}inputSequencesZero`, inputs.every((i) => i.utxo.covenantId === manifest.vault.orgRootCovenantId || String(i.sequence) === "0"), "every non-root input carries sequence 0 — no hidden relative lock");
+  if (manifest.action.sdkAction !== "tokenAgentSpend") check(`${tag}lockTimeZero`, String(frozen.lockTime) === "0", `an owner operation never carries a lock time (frozen lockTime ${frozen.lockTime})`);
+  const before = normalizeStateV7(manifest.stateBefore.state);
+  check(`${tag}predecessorReserve`, before.feeReserve.toString() === manifest.accounting.kas.predecessorFeeReserve, "stateBefore.feeReserve == accounting");
+
+  /* Codex checkpoint 6 (UX-02 / UX-13): the committed COMPUTE BUDGETS are DERIVED from the reviewed operation and
+   * the vault's pinned geometry through the one shared selector the SDK builds with (core/model/compute-budget-v7),
+   * and both the frozen input and the manifest's declared budget must equal that derivation. A comparison between
+   * two attacker-authored representations (frozen vs payload) is not a binding; this is. */
+  {
+    let expectedVaultBudget = null, budgetError = null;
+    try {
+      expectedVaultBudget = selectComputeBudgetV7({
+        operation: manifest.action.sdkAction,
+        templatePrefixLen: manifest.vault.templateGeometry.prefixLen,
+        templateSuffixLen: manifest.vault.templateGeometry.suffixLen,
+        rootPrefixLen: manifest.vault.rootGeometry.prefixLen,
+        rootSuffixLen: manifest.vault.rootGeometry.suffixLen
+      });
+    } catch (e) { budgetError = e && e.message ? e.message : String(e); }
+    check(
+      `${tag}vaultComputeBudgetBound`,
+      budgetError === null && vaultIns.length === 1 && Number.isInteger(vaultIns[0].computeBudget) && vaultIns[0].computeBudget === expectedVaultBudget && String(manifest.transaction.computeBudget) === String(expectedVaultBudget),
+      budgetError ? `the vault input's compute budget could not be derived from the reviewed operation: ${budgetError}` : `the vault input commits exactly the derived compute budget ${expectedVaultBudget} for ${manifest.action.sdkAction} (frozen ${vaultIns.length === 1 ? vaultIns[0].computeBudget : "?"}, declared ${manifest.transaction.computeBudget})`
+    );
+  }
+
+  /* AUTHORITY: an owner path must carry exactly one input of the pinned root
+   * family, and must name the root path whose successor the covenant pins. */
+  const rootIns = inputs.filter((i) => i.utxo.covenantId === manifest.vault.orgRootCovenantId);
+  const rootOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.orgRootCovenantId);
+  if (manifest.action.sdkAction === "tokenAgentSpend") {
+    check(`${tag}agentPathHasNoRoot`, rootIns.length === 0 && rootOuts.length === 0 && manifest.action.requiresRootInput === false, "a delegate spend never touches the organizational root");
+  } else {
+    const authority = ownGet(ROOTED_VAULT_ACTIONS, manifest.action.sdkAction) ? resolveOwnerOpAuthorityV7(manifest.action.sdkAction) : null;
+    check(`${tag}rootAuthorityPresent`, rootIns.length === 1 && rootOuts.length === 1 && manifest.action.requiresRootInput === true, "exactly one pinned root input and continuation output");
+    check(
+      `${tag}rootAuthorityPath`,
+      !!authority && authority.rootActionName === manifest.action.requiredRootAction && authority.expectFrozenAfter.toString() === manifest.action.expectFrozenAfter && (authority.opSelector === null || authority.opSelector === manifest.action.opSelector),
+      `${manifest.action.sdkAction} requires the root to run ${authority ? authority.rootActionName : "?"}`
+    );
+  }
+
+  /* Codex checkpoint 7 (UX-02 / UX-13): THE DECLARED PINS AND THE REVIEWED PREDECESSOR STATE ARE BOUND TO THE VAULT THE
+   * TRANSACTION ACTUALLY SPENDS — for EVERY operation, terminal ones included (the checkpoint-6 code bound the redeem
+   * only on continuations and only to the input's P2SH + state; the pins the budgets and the recovery destination were
+   * derived from stayed declared). The vault's predecessor redeem script is REQUIRED; its P2SH must be the vault input's
+   * locking script (covered by every signature hash); its state region must decode to the reviewed predecessor state;
+   * and — for the frozen v0.7-payment generation — the whole script rebuilt from the DECLARED template pins around that
+   * state must be byte for byte this redeem (core/intent/vault-script-v7.js skeleton, proven against silverc). A declared
+   * root/token geometry, template hash, descriptor hash, recovery key or predecessor state that is not the one compiled
+   * into the spent vault therefore fails here, before any budget is derived from it and before any wallet is invoked. */
+  const redeemPresent = typeof redeemHex === "string" && /^[0-9a-f]+$/i.test(redeemHex) && redeemHex.length % 2 === 0;
+  check(`${tag}vaultRedeemPresent`, redeemPresent, "the vault's predecessor redeem script must be supplied for every operation (terminal included): it is the evidence the declared pins and predecessor state are bound to");
+  let parts = null;
+  let pinsBound = false;
+  const isPaymentGeneration = manifest.vault.contractVersion === "policyvault-0.7-payment";
+  if (redeemPresent) {
+    let parseError = null;
+    try { parts = vaultScriptV7.splitVaultRedeemHexV7(redeemHex); } catch (e) { parseError = e && e.message ? e.message : String(e); }
+    check(`${tag}vaultRedeemWellFormed`, parseError === null, parseError ?? "the carried redeem script splits into prefix / 93-byte state region / suffix");
+    if (parts) {
+      const inSpk = vaultIns.length === 1 && vaultIns[0].utxo && vaultIns[0].utxo.scriptPublicKey ? vaultIns[0].utxo.scriptPublicKey : {};
+      check(`${tag}vaultRedeemMatchesUtxo`, Number(inSpk.version || 0) === 0 && String(inSpk.scriptHex || "").toLowerCase() === vaultScriptV7.p2shSpkHexOf(redeemHex), "P2SH of the carried redeem == the vault input's locking script (covered by every signature hash)");
+      const dec = parts.decoded;
+      const beforeJson = { feeReserve: before.feeReserve.toString(), paused: before.paused.toString(), agentRoot: before.agentRoot, policyNonce: before.policyNonce.toString() };
+      check(`${tag}vaultRedeemStateAgrees`, dec.vaultId === String(manifest.vault.vaultId).toLowerCase() && JSON.stringify(dec.state) === JSON.stringify(beforeJson), "the redeem's state region decodes to exactly the reviewed predecessor state under the reviewed vault id (terminal operations included)");
+      const paymentScript = vaultScriptV7.isPaymentGenerationScriptV7(redeemHex);
+      if (isPaymentGeneration) {
+        let rebuilt = null, rebuildError = null;
+        try { rebuilt = vaultScriptV7.reconstructVaultScriptHexV7({ template: vaultScriptV7.templatePinsFromManifestVault(manifest.vault), state: manifest.stateBefore.state }); } catch (e) { rebuildError = e && e.message ? e.message : String(e); }
+        pinsBound = rebuildError === null && rebuilt === String(redeemHex).toLowerCase();
+        check(
+          `${tag}templatePinsBound`,
+          pinsBound,
+          rebuildError
+            ? `the frozen v0.7-payment script could not be rebuilt from the declared template pins: ${rebuildError}`
+            : pinsBound
+              ? "the frozen v0.7-payment script rebuilt from the DECLARED template pins (token template hash + geometry, root covenant id + template hash + geometry, descriptor hash, recovery key) around the reviewed predecessor state is byte for byte the vault's revealed redeem — the pins are the ones compiled into the vault this transaction spends"
+              : `the declared template pins / predecessor state do not rebuild the vault's revealed redeem script (${paymentScript ? "a substituted geometry, recovery key, template hash, descriptor hash or predecessor state" : "the revealed script is not a frozen v0.7-payment vault"})`
+        );
+      } else {
+        check(`${tag}vaultGenerationAgrees`, !paymentScript, paymentScript ? `the vault input's script IS a frozen v0.7-payment vault but the manifest declares ${manifest.vault.contractVersion}` : `the declared generation ${manifest.vault.contractVersion} has no shared-core pin reconstruction yet — its template pins remain DECLARED (candidate profile; never mainnet)`);
+      }
+    }
+  }
+
+  if (info.terminal) {
+    // rc20 review R5-04: a terminal operation continues NOTHING of its own family (the frozen ownerRecover branch requires nextStates.length == 0)
+    const selfOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.covenantId);
+    check(`${tag}terminalNoContinuation`, selfOuts.length === 0, "a terminal operation leaves no continuation of its own covenant");
+  }
+  if (!info.terminal) {
+    const after = normalizeStateV7(manifest.stateAfter.state);
+    const succ = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.covenantId);
+    check(`${tag}successorOutput`, succ.length === 1 && succ[0].value === after.feeReserve.toString() && after.feeReserve.toString() === manifest.accounting.kas.successorFeeReserve, "exactly one successor carrying feeReserve");
+    /* Codex checkpoint 6 (UX-02 / UX-13; closes the pre-sign gap recorded at rc20 review R5-04): the vault's SUCCESSOR
+     * LOCKING SCRIPT is REBUILT from the vault's own revealed predecessor redeem script (prefix || state region ||
+     * suffix — the frozen generation's template carriage) around the reviewed successor state, and the successor
+     * output must carry exactly its P2SH. The redeem itself was bound above (P2SH == the vault input's locking script;
+     * region == the reviewed predecessor state; Codex checkpoint 7: byte-equal to the script the declared pins rebuild). */
+    const outSpk = succ.length === 1 && succ[0].scriptPublicKey ? succ[0].scriptPublicKey : {};
+    if (parts) {
+      let expectedSuccessorSpk = null, rebuildError = null;
+      try { expectedSuccessorSpk = vaultScriptV7.reconstructVaultSuccessorSpkHexV7({ redeemHex, vaultId: manifest.vault.vaultId, state: manifest.stateAfter.state }); } catch (e) { rebuildError = e && e.message ? e.message : String(e); }
+      check(`${tag}successorScriptReconstructed`, rebuildError === null && Number(outSpk.version || 0) === 0 && String(outSpk.scriptHex || "").toLowerCase() === expectedSuccessorSpk, rebuildError ? `the successor script could not be rebuilt from the reviewed successor state: ${rebuildError}` : "the successor output carries exactly the P2SH of the predecessor's template rebuilt around the reviewed successor state");
+    }
+    if (pinsBound) { // Codex checkpoint 7: the successor is ALSO the frozen generation's script rebuilt from the DECLARED pins around the reviewed successor state
+      let fromPins = null, pinError = null;
+      try { fromPins = vaultScriptV7.reconstructVaultScriptSpkHexV7({ template: vaultScriptV7.templatePinsFromManifestVault(manifest.vault), state: manifest.stateAfter.state }); } catch (e) { pinError = e && e.message ? e.message : String(e); }
+      check(`${tag}successorScriptFromPins`, pinError === null && Number(outSpk.version || 0) === 0 && String(outSpk.scriptHex || "").toLowerCase() === fromPins, pinError ? `the successor script could not be rebuilt from the declared pins: ${pinError}` : "the successor output is exactly the frozen v0.7-payment script rebuilt from the declared pins around the reviewed successor state");
+    }
+    const consumed = before.feeReserve > after.feeReserve ? before.feeReserve - after.feeReserve : 0n;
+    check(`${tag}reserveConsumed`, consumed.toString() === manifest.accounting.kas.reserveConsumed, `reserve consumed ${consumed}`);
+    if (manifest.action.sdkAction !== "tokenAgentSpend") {
+      const sel = manifest.action.opSelector;
+      check(`${tag}selectorEffect`, selectorEffectHolds(sel, before, after), `selector ${sel} moves exactly the fields its covenant branch allows`);
+    }
+  }
+
+  /* TOKEN domain */
+  const family = manifest.vault.tokenCovenantId;
+  const tokenIns = inputs.filter((i) => i.utxo.covenantId === family);
+  const tokenOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === family);
+  if (tokenIns.length > 0) { // Codex checkpoint 6 (UX-02 / UX-13): the token position's committed budget is the derived one too
+    let expectedTokenBudget = null, tokenBudgetError = null;
+    try { expectedTokenBudget = selectTokenInputBudgetV7({ templatePrefixLen: manifest.vault.templateGeometry.prefixLen, templateSuffixLen: manifest.vault.templateGeometry.suffixLen }); } catch (e) { tokenBudgetError = e && e.message ? e.message : String(e); }
+    check(`${tag}tokenInputBudgetBound`, tokenBudgetError === null && tokenIns.every((i) => Number.isInteger(i.computeBudget) && i.computeBudget === expectedTokenBudget), tokenBudgetError ?? `every token input commits exactly the derived compute budget ${expectedTokenBudget}`);
+  }
+  const validated = descriptor ? assets.validateAssetDescriptor(descriptor) : null;
+  if (validated) check(`${tag}descriptorPin`, assets.computeDescriptorHash(validated) === manifest.vault.descriptorHash, "descriptor hash == the vault's pin");
+
+  /* rc21 review R6-02: when the transaction spends a token position, the token-side checks are REQUIRED — a missing
+   * descriptor or a missing revealed redeem script fails closed instead of silently skipping the checks. */
+  const tokenSigOk = typeof manifest.tokenSignatureScriptHex === "string" && /^[0-9a-f]+$/i.test(manifest.tokenSignatureScriptHex);
+  if (tokenIns.length > 0) {
+    check(`${tag}tokenDescriptorPresent`, !!validated, "a token position is spent: the vault's asset descriptor must be supplied and valid");
+    check(`${tag}tokenSignaturePresent`, tokenSigOk, "a token position is spent: the revealed token redeem script must be present");
+  }
+  if (manifest.action.sdkAction === "tokenAgentSpend") {
+    check(`${tag}familyShape`, tokenIns.length === 1 && tokenOuts.length === 2, "exactly 1 token input, 2 token outputs (self + recipient)");
+    if (validated && tokenSigOk) {
+      const redeemHex = assets.redeemFromSignatureScript(manifest.tokenSignatureScriptHex);
+      const verified = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex });
+      check(`${tag}tokenInputRedeemMatchesUtxo`, verified.p2shSpkHex === tokenIns[0].utxo.scriptPublicKey.scriptHex.toLowerCase(), "revealed redeem reproduces the token UTXO's P2SH");
+      check(`${tag}tokenTemplateBound`, verified.geometry.prefixLen === manifest.vault.templateGeometry.prefixLen && verified.geometry.stateLen === manifest.vault.templateGeometry.stateLen && verified.geometry.suffixLen === manifest.vault.templateGeometry.suffixLen && verified.templateVmHashBlake2b256 === manifest.vault.templateVmHashBlake2b256, `the revealed token redeem's template (prefix ${verified.geometry.prefixLen} / state ${verified.geometry.stateLen} / suffix ${verified.geometry.suffixLen} bytes, in-VM hash ${String(verified.templateVmHashBlake2b256).slice(0, 8)}…) is exactly the template the vault pins — Codex checkpoint 7: the token budget is derived from bound geometry, never a declared one`);
+      check(`${tag}tokenInputOwnedByVault`, verified.state.ownerIdentifier === manifest.vault.covenantId && verified.state.identifierType === OWNER_SCHEMES.COVENANT_ID && !verified.state.isMinter, "position owned via covenant-id/v1");
+      const positionBefore = verified.state.amount;
+      const spend = digits(manifest.accounting.token.spendAmount, "accounting.token.spendAmount");
+      const positionAfter = digits(manifest.accounting.token.positionAfter, "accounting.token.positionAfter");
+      check(`${tag}tokenConservation`, positionBefore.toString() === manifest.accounting.token.positionBefore && positionBefore === spend + positionAfter && spend > 0n, `${positionBefore} == ${spend} + ${positionAfter}`);
+      const selfState = kcc20.encodeState({ ownerIdentifier: manifest.vault.covenantId, identifierType: OWNER_SCHEMES.COVENANT_ID, amount: positionAfter, isMinter: false });
+      const recipState = kcc20.encodeState({ ownerIdentifier: manifest.policy.recipient, identifierType: OWNER_SCHEMES.P2PK, amount: spend, isMinter: false });
+      check(`${tag}selfContinuationReconstructed`, tokenOuts[0].scriptPublicKey.scriptHex.toLowerCase() === kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, selfState, verified.suffixHex)), "family output 0 == template(self state)");
+      check(`${tag}recipientContinuationReconstructed`, tokenOuts[1].scriptPublicKey.scriptHex.toLowerCase() === kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, recipState, verified.suffixHex)), "family output 1 == template(recipient state)");
+      const carryIn = BigInt(tokenIns[0].utxo.amount);
+      const selfCarry = BigInt(tokenOuts[0].value);
+      const recipCarry = BigInt(tokenOuts[1].value);
+      check(`${tag}tokenFamilyKasNoLeak`, selfCarry + recipCarry >= carryIn, "self + recipient carry >= token input KAS");
+      const policy = manifest.policy.agentPolicy ? normalizeTokenAgentPolicyV5(manifest.policy.agentPolicy) : null;
+      check(`${tag}agentPolicyPresent`, !!policy, "agent policy carried");
+      if (policy) {
+        const proof = manifest.policy.agentProof;
+        check(`${tag}agentProof`, verifyTokenAgentProofV5({ root: before.agentRoot, policy, siblingsHex: proof.siblingsHex, pathBits: BigInt(proof.pathBits) }), "leaf proven under the predecessor agentRoot");
+        check(`${tag}spendWithinCap`, spend <= policy.tokenMaxPerSpend, `spend ${spend} <= cap ${policy.tokenMaxPerSpend}`);
+        const periods = digits(manifest.policy.periodsElapsed, "policy.periodsElapsed");
+        const newStart = periods >= 1n ? policy.periodStartDaa + periods * policy.periodLengthDaa : policy.periodStartDaa;
+        const newSpent = periods >= 1n ? spend : policy.tokenPeriodSpent + spend;
+        check(`${tag}spendWithinBudget`, newSpent <= policy.tokenPeriodBudget, `period spent ${newSpent} <= budget ${policy.tokenPeriodBudget}`);
+        /*
+         * THE ROLLOVER LOCKTIME, BOUND BOTH WAYS (gate I3c finding I3C-F1).
+         * A period rollover is only honest if the transaction cannot enter the
+         * DAG before the new period actually starts, and the builder pins
+         * EQUALITY: lockTime = periodStartDaa + periodsElapsed x periodLengthDaa
+         * on a rollover, and 0 otherwise. Two things are checked here, and both
+         * must hold:
+         *   1. the manifest's DECLARED lockTime is the frozen transaction's —
+         *      otherwise the manifest could show one deadline while the bytes
+         *      carry another;
+         *   2. that value is EXACTLY the rule's value — a lockTime forged
+         *      upward is refused by consensus (production-byte reject vector
+         *      `neg_delegate_locktime_forged`), so the core refuses it too.
+         * Before this check the v0.7 verifier bound neither, and a forged
+         * lockTime passed local verification while consensus rejected it.
+         */
+        const expectedLockTime = periods >= 1n ? newStart : 0n;
+        check(
+          `${tag}lockTimeBound`,
+          digits(manifest.policy.lockTime, "policy.lockTime") === BigInt(frozen.lockTime) && BigInt(frozen.lockTime) === expectedLockTime,
+          `lockTime must be exactly ${expectedLockTime} for periodsElapsed ${periods} (declared ${manifest.policy.lockTime}, frozen ${frozen.lockTime})`
+        );
+        const after = normalizeStateV7(manifest.stateAfter.state);
+        check(`${tag}successorRootDerived`, foldTokenAgentPolicyV5({ ...policy, periodStartDaa: newStart, tokenPeriodSpent: newSpent }, proof.siblingsHex, BigInt(proof.pathBits)) === after.agentRoot, "successor agentRoot == single-leaf fold of the advanced leaf");
+        check(`${tag}carryWithinAgentCap`, recipCarry <= policy.agentMaxCarryKas, "recipient carry <= agentMaxCarryKas");
+        check(`${tag}reserveWithinAgentCap`, BigInt(manifest.accounting.kas.reserveConsumed) <= policy.agentMaxFeePerTx, "reserve consumed <= agentMaxFeePerTx");
+        const rp = manifest.policy.recipientProof;
+        check(`${tag}recipientAllowlisted`, !!rp && rp.root === policy.agentRecipientRoot && verifyRecipientProof({ root: rp.root, recipient: manifest.policy.recipient, siblingsHex: rp.siblingsHex, pathBits: BigInt(rp.pathBits) }), "recipient proven under the agent's recipient root");
+      }
+    }
+  } else if (manifest.action.sdkAction === "ownerRecover") {
+    check(`${tag}payoutToPinnedRecoveryPk`, outputs[0].scriptPublicKey.scriptHex.toLowerCase() === `20${manifest.vault.recoveryPk}ac` && outputs[0].value === before.feeReserve.toString() && outputs[0].value === manifest.accounting.kas.terminalPayout, "output 0 pays the full reserve to the GENESIS-PINNED recoveryPk");
+    check(`${tag}familyShape`, tokenIns.length <= 1 && tokenOuts.length === tokenIns.length, "0 or 1 token input with a matching continuation");
+    // rc21 review R6-01: the token continuation carries EXACTLY the KAS the token input carried — the fee payer's change can never hide in it
+    if (tokenIns.length === 1) check(`${tag}tokenCarryPreserved`, tokenOuts.length === 1 && tokenOuts[0].value === tokenIns[0].utxo.amount && tokenOuts[0].value === manifest.accounting.kas.tokenRecipientCarryKas && manifest.accounting.kas.tokenInputKas === tokenIns[0].utxo.amount, "the token continuation carries exactly the token input's KAS (accounting agrees)");
+    if (tokenIns.length === 1 && validated && tokenSigOk) {
+      const redeemHex = assets.redeemFromSignatureScript(manifest.tokenSignatureScriptHex);
+      const verified = assets.verifyTokenInputRedeem({ descriptor: validated, redeemHex });
+      check(`${tag}tokenInputRedeemMatchesUtxo`, verified.p2shSpkHex === tokenIns[0].utxo.scriptPublicKey.scriptHex.toLowerCase(), "revealed redeem reproduces the token UTXO's P2SH");
+      check(`${tag}tokenTemplateBound`, verified.geometry.prefixLen === manifest.vault.templateGeometry.prefixLen && verified.geometry.stateLen === manifest.vault.templateGeometry.stateLen && verified.geometry.suffixLen === manifest.vault.templateGeometry.suffixLen && verified.templateVmHashBlake2b256 === manifest.vault.templateVmHashBlake2b256, `the revealed token redeem's template (prefix ${verified.geometry.prefixLen} / state ${verified.geometry.stateLen} / suffix ${verified.geometry.suffixLen} bytes, in-VM hash ${String(verified.templateVmHashBlake2b256).slice(0, 8)}…) is exactly the template the vault pins — Codex checkpoint 7: the token budget is derived from bound geometry, never a declared one`);
+      const recoveryState = kcc20.encodeState({ ownerIdentifier: manifest.vault.recoveryPk, identifierType: OWNER_SCHEMES.P2PK, amount: verified.state.amount, isMinter: false });
+      check(`${tag}tokensReturnToRecoveryPk`, tokenOuts[0].scriptPublicKey.scriptHex.toLowerCase() === kcc20.p2shSpkHex(kcc20.reconstructRedeem(verified.prefixHex, recoveryState, verified.suffixHex)) && verified.state.amount.toString() === manifest.accounting.token.recoveredToRecoveryPk, "the entire token amount moves to the pinned recoveryPk");
+    }
+  } else {
+    check(`${tag}noTokenMovement`, tokenIns.length === 0 && tokenOuts.length === 0, "owner control ops never move tokens");
+    if (manifest.action.sdkAction === "ownerSetAgentRoot") {
+      /* rc26 round-7 review R7-02: `selectorEffect` deliberately leaves agentRoot free for this selector — so the root the
+       * owners install MUST be derived from the policy set they are shown. The set travels in the manifest (agentSet);
+       * its Merkle fold (core/model/agent-merkle-v5, the same fold the SDK builds with) must equal stateAfter.agentRoot.
+       * A withheld, substituted, extended or emptied set, or a substituted root, refuses here. */
+      const set = manifest.policy && Array.isArray(manifest.policy.agentSet) ? manifest.policy.agentSet : null;
+      check(`${tag}agentSetPresent`, set !== null, "the new delegate policy set is carried by the manifest — the owners approve the RULES, never a bare root");
+      if (set !== null) {
+        let foldError = null;
+        let foldRoot = null;
+        /* Codex checkpoint 11 (R7-02, recipients): every carried policy lists its COMPLETE recipient set and its
+         * agentRecipientRoot must be exactly the fold of those recipients — withheld, emptied, substituted or extended
+         * recipients, or a root that does not match them, refuse here. The agent tree folds from the POLICY fields. */
+        let recipientsError = null;
+        set.forEach((p, i) => {
+          if (recipientsError !== null) return;
+          if (!p || typeof p !== "object") { recipientsError = `agentSet[${i}] is not an object`; return; }
+          if (!Array.isArray(p.recipients) || p.recipients.length === 0) { recipientsError = `agentSet[${i}] carries no recipient set — the owners must see every destination this delegate may pay`; return; }
+          let root = null;
+          try { root = buildRecipientTree(p.recipients).root; } catch (e) { recipientsError = `agentSet[${i}].recipients: ${e.message}`; return; }
+          if (typeof p.agentRecipientRoot !== "string" || p.agentRecipientRoot.toLowerCase() !== root) recipientsError = `agentSet[${i}].agentRecipientRoot ${String(p.agentRecipientRoot).slice(0, 16)}… is not the Merkle root of its ${p.recipients.length} recipient(s) (${root.slice(0, 16)}…)`;
+        });
+        check(`${tag}agentRecipientsBound`, recipientsError === null, recipientsError ?? "every carried policy's agentRecipientRoot is the Merkle root of its listed recipients");
+        try { foldRoot = buildTokenAgentTreeV5(set.map((p) => { const { recipients, ...policy } = p || {}; void recipients; return policy; })).root; } catch (e) { foldError = e.message; }
+        const afterState = manifest.stateAfter && manifest.stateAfter.state ? normalizeStateV7(manifest.stateAfter.state) : null;
+        check(`${tag}agentSetBound`, foldError === null && afterState !== null && foldRoot === afterState.agentRoot, foldError ? `the carried policy set is malformed: ${foldError}` : `stateAfter.agentRoot ${afterState ? afterState.agentRoot : "(none)"} must be the Merkle root of the carried policy set (${foldRoot})`);
+      }
+    }
+  }
+}
+
+/* The per-selector state effect the covenant's mutually exclusive branches allow. */
+function selectorEffectHolds(sel, before, after) {
+  switch (sel) {
+    case OWNER_OP_SELECTOR_V7.ownerSetAgentRoot:
+      return after.feeReserve === before.feeReserve && after.paused === before.paused && after.policyNonce === before.policyNonce + 1n;
+    case OWNER_OP_SELECTOR_V7.ownerTopUpReserve:
+      return after.feeReserve > before.feeReserve && after.paused === before.paused && after.agentRoot === before.agentRoot && after.policyNonce === before.policyNonce;
+    case OWNER_OP_SELECTOR_V7.ownerPause:
+    case OWNER_OP_SELECTOR_V7.ownerEmergencyPause:
+      return before.paused === 0n && after.paused === 1n && after.feeReserve === before.feeReserve && after.agentRoot === before.agentRoot && after.policyNonce === before.policyNonce;
+    case OWNER_OP_SELECTOR_V7.ownerUnpause:
+      return before.paused === 1n && after.paused === 0n && after.feeReserve === before.feeReserve && after.agentRoot === before.agentRoot && after.policyNonce === before.policyNonce;
+    default:
+      return false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* the ORGANIZATIONAL ROOT manifest                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * `build` is either a root-only build (kind "orgRootTransition") or a
+ * rooted-vault build whose `rootAuthority` describes the root side. Either
+ * way the root facts come from ONE place and the transaction is shared.
+ */
+function rootFactsFrom(build) {
+  if (build.kind === "orgRootTransition") {
+    const action = resolveRootActionV7(build.action);
+    return {
+      covenantId: build.covenantId,
+      outpoint: build.predecessorOutpoint,
+      template: build.template,
+      prevState: build.stateJson,
+      newState: build.successorState,
+      prevDigest: build.predecessorStateDigest,
+      newDigest: build.successorStateDigest,
+      tailHex: build.successorTailHex,
+      actionName: build.action,
+      actionCode: action.action,
+      entrypoint: action.entrypoint,
+      class: action.class,
+      classForPreviousSet: action.classForPreviousSet ?? null,
+      quorumSource: build.quorumSource,
+      requiredApprovals: build.requiredApprovals,
+      expectedSignerSlots: build.expectedSignerSlots,
+      minSequence: build.minSequence,
+      valueBefore: build.accounting.kas.rootValueBefore,
+      valueAfter: build.accounting.kas.rootValueAfter,
+      rootMaxFeePerTx: build.accounting.kas.rootMaxFeePerTx,
+      computeBudget: build.computeBudget
+    };
+  }
+  const ra = build.rootAuthority;
+  if (!ra) refuse("SCHEMA_INVALID", "a rooted-vault build without a root input cannot carry an organizational-root manifest");
+  const action = resolveRootActionV7(ra.rootActionName);
+  return {
+    covenantId: ra.covenantId,
+    outpoint: ra.outpoint,
+    template: ra.template,
+    prevState: ra.prevState,
+    newState: ra.newState,
+    prevDigest: ra.prevStateDigest,
+    newDigest: ra.newStateDigest,
+    tailHex: ra.successorTailHex,
+    actionName: ra.rootActionName,
+    actionCode: action.action,
+    entrypoint: action.entrypoint,
+    class: action.class,
+    classForPreviousSet: action.classForPreviousSet ?? null,
+    quorumSource: ra.quorumSource,
+    requiredApprovals: ra.requiredApprovals,
+    expectedSignerSlots: ra.expectedSignerSlots,
+    minSequence: "0",
+    valueBefore: ra.value,
+    valueAfter: ra.value,
+    rootMaxFeePerTx: normalizeRootTemplateV7(ra.template).rootMaxFeePerTx.toString(),
+    computeBudget: ra.computeBudget
+  };
+}
+
+function setSummary(stateJson) {
+  const s = normalizeRootStateV7(stateJson);
+  return {
+    activeCount: s.activeCount,
+    ownerM: s.ownerM.toString(),
+    emergencyK: s.emergencyK.toString(),
+    recoveryM: s.recoveryM.toString(),
+    slots: activeOwnerSlotsV7(s).map((x) => ({ slot: x.slot, publicKey: x.publicKey }))
+  };
+}
+
+function buildOrgRootIntentManifest({ build, vaultOperations = [], satisfiedApprovals = null }) {
+  if (!build || typeof build !== "object") refuse("SCHEMA_INVALID", "a v0.7 build is required");
+  const facts = rootFactsFrom(build);
+  const before = setSummary(facts.prevState);
+  const after = setSummary(facts.newState);
+  const beforeKeys = new Set(before.slots.map((s) => s.publicKey));
+  const afterKeys = new Set(after.slots.map((s) => s.publicKey));
+
+  const ops = vaultOperations.map((op) => {
+    const m = buildRootedVaultManifestV7({ build: op.build, descriptor: op.descriptor ?? null });
+    return {
+      covenantId: op.build.covenantId,
+      vaultId: op.build.template.vaultId,
+      tokenCovenantId: op.build.template.tokenCovenantId,
+      sdkAction: op.build.action,
+      opSelector: op.build.callExtra.opSelector ?? null,
+      terminal: ownGet(ROOTED_VAULT_ACTIONS, op.build.action).terminal,
+      manifest: m
+    };
+  });
+
+  const body = {
+    manifestVersion: ORG_ROOT_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    root: {
+      contractVersion: "policyvault-0.7-root",
+      orgId: normalizeRootStateV7(facts.prevState).boundOrgId,
+      covenantId: facts.covenantId,
+      outpoint: facts.outpoint,
+      template: {
+        recoveryDelayDaa: normalizeRootTemplateV7(facts.template).recoveryDelayDaa.toString(),
+        successorPk: normalizeRootTemplateV7(facts.template).successorPk,
+        successionEnabled: normalizeRootTemplateV7(facts.template).successionEnabled,
+        successionDelayDaa: normalizeRootTemplateV7(facts.template).successionDelayDaa.toString(),
+        rootMaxFeePerTx: facts.rootMaxFeePerTx
+      },
+      valueBefore: facts.valueBefore,
+      valueAfter: facts.valueAfter,
+      computeBudget: facts.computeBudget
+    },
+    action: {
+      name: facts.actionName,
+      code: facts.actionCode,
+      entrypoint: facts.entrypoint,
+      authorityClass: facts.class,
+      authorityClassForPreviousSet: facts.classForPreviousSet,
+      quorumSource: facts.quorumSource,
+      requiredApprovals: facts.requiredApprovals,
+      satisfiedApprovals: satisfiedApprovals === null ? null : String(satisfiedApprovals),
+      expectedSignerSlots: facts.expectedSignerSlots.map((s) => ({ slot: s.slot, publicKey: s.publicKey })),
+      minSequence: facts.minSequence
+    },
+    ownerSet: {
+      before,
+      after,
+      changes: {
+        added: after.slots.filter((s) => !beforeKeys.has(s.publicKey)).map((s) => s.publicKey),
+        removed: before.slots.filter((s) => !afterKeys.has(s.publicKey)).map((s) => s.publicKey),
+        thresholdsChanged: before.ownerM !== after.ownerM || before.emergencyK !== after.emergencyK || before.recoveryM !== after.recoveryM,
+        frozenChanged: normalizeRootStateV7(facts.prevState).frozen !== normalizeRootStateV7(facts.newState).frozen
+      }
+    },
+    rootState: {
+      before: { digest: facts.prevDigest, state: rootStateToJsonV7(normalizeRootStateV7(facts.prevState)) },
+      after: { digest: facts.newDigest, state: rootStateToJsonV7(normalizeRootStateV7(facts.newState)), tailHex: facts.tailHex }
+    },
+    vaultOperations: ops,
+    fee: {
+      requiredFeeSompi: build.requiredFeeSompi,
+      rootMaxFeePerTx: facts.rootMaxFeePerTx,
+      rootValueLoss: (BigInt(facts.valueBefore) - BigInt(facts.valueAfter)).toString()
+    },
+    freshness: {
+      kind: "ROOT_OUTPOINT_KILL_SWITCH",
+      rootOutpoint: facts.outpoint,
+      expiry: null,
+      note: "Approvals are bound to this root outpoint and to this exact transaction (SIGHASH_ALL). Spending the outpoint invalidates every collected approval; the root nonce strictly increases. There is deliberately no expiry: Kaspa lockTime is a lower bound only."
+    },
+    transaction: { txId: build.txId, frozenCanonicalJson: build.frozenCanonicalJson },
+    explanation: ORG_ROOT_EXPLANATION
+  };
+  return deepFreeze({ ...body, manifestHash: computeManifestHashV1(body) });
+}
+
+/*
+ * Deterministic local verification: recompute every organizational fact from
+ * the frozen transaction + the core codecs. Returns
+ * { verdict: "VERIFIED" | "REFUSED", checks, failures }.
+ */
+function verifyOrgRootIntentManifest({ manifest, descriptors = {}, redeemScripts = {} }) {
+  const checks = [];
+  const failures = [];
+  const check = (name, ok, detail) => {
+    checks.push({ name, ok: !!ok, detail: detail ?? null });
+    if (!ok) failures.push({ name, detail: detail ?? null });
+  };
+  try {
+    if (manifest.manifestVersion !== ORG_ROOT_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown org-root manifest version — failing closed");
+    const { manifestHash, ...body } = manifest;
+    check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+    check("explanationVerbatim", manifest.explanation === ORG_ROOT_EXPLANATION, "the fixed human explanation is carried verbatim");
+    check("freshnessIsOutpointKillSwitch", manifest.freshness.kind === "ROOT_OUTPOINT_KILL_SWITCH" && manifest.freshness.expiry === null, "freshness is the root outpoint, never an expiry");
+
+    const action = resolveRootActionV7(manifest.action.name);
+    check("actionTable", action.action === manifest.action.code && action.entrypoint === manifest.action.entrypoint && action.class === manifest.action.authorityClass && action.quorumSource === manifest.action.quorumSource, "action / class / entrypoint / quorum source come from the action table");
+
+    /* ---- root state derivation from the DECLARED states ---- */
+    const before = normalizeRootStateV7(manifest.rootState.before.state);
+    const after = normalizeRootStateV7(manifest.rootState.after.state);
+    check("stateDigests", computeRootStateDigestV7(before) === manifest.rootState.before.digest && computeRootStateDigestV7(after) === manifest.rootState.after.digest, "both digests recomputed from the exact 467-byte state regions");
+    check("orgIdBound", before.boundOrgId === after.boundOrgId && before.boundOrgId === manifest.root.orgId, "the bound organization id is immutable");
+    check("nonceAdvancesByOne", after.rootNonce === before.rootNonce + 1n, `nonce ${before.rootNonce} -> ${after.rootNonce}`);
+    check("successorTailBytes", manifest.rootState.after.tailHex === rootStateTailHexV7({ frozen: after.frozen, rootNonce: after.rootNonce }), "the pinned successor TAIL equals 0x01||frozen||0x08||nonce8");
+    if (action.landsFrozen !== null) check("frozenOutcome", after.frozen === action.landsFrozen, `${manifest.action.name} must land frozen=${action.landsFrozen}`);
+    else check("frozenPreserved", after.frozen === before.frozen, `${manifest.action.name} preserves the frozen flag`);
+    if (action.requiresUnfrozen) check("rootNotFrozen", before.frozen === 0n, "the predecessor must be unfrozen for this action");
+    const setPreserved = before.owners.every((k, i) => k === after.owners[i]) && before.ownerM === after.ownerM && before.emergencyK === after.emergencyK && before.recoveryM === after.recoveryM;
+    if (action.setMayChange) check("setChangeDeclared", true, "this action may install a new set");
+    else check("setPreserved", setPreserved, `${manifest.action.name} must carry the owner set across verbatim`);
+    check("ownerSetSummaries", manifest.ownerSet.before.ownerM === before.ownerM.toString() && manifest.ownerSet.after.ownerM === after.ownerM.toString() && manifest.ownerSet.before.activeCount === before.activeCount && manifest.ownerSet.after.activeCount === after.activeCount, "the declared summaries match the declared states");
+    const declaredAdded = new Set(manifest.ownerSet.changes.added);
+    const actualAdded = activeOwnerSlotsV7(after).map((s) => s.publicKey).filter((k) => !activeOwnerSlotsV7(before).some((b) => b.publicKey === k));
+    check("ownerSetDiff", actualAdded.length === declaredAdded.size && actualAdded.every((k) => declaredAdded.has(k)), "the declared owner-set diff is the real one");
+
+    /* ---- threshold ---- */
+    const required = requiredApprovalsV7(before, manifest.action.name);
+    check("requiredApprovals", required.toString() === manifest.action.requiredApprovals, `${manifest.action.name} requires ${required} from the PREDECESSOR set`);
+    const expected = manifest.action.name === "succession" ? [] : activeOwnerSlotsV7(before).map((s) => `${s.slot}:${s.publicKey}`);
+    check("expectedSignerSlots", JSON.stringify(manifest.action.expectedSignerSlots.map((s) => `${s.slot}:${s.publicKey}`)) === JSON.stringify(expected), "the expected signer slots are exactly the predecessor's active slots");
+    if (manifest.action.satisfiedApprovals !== null) {
+      check("quorumSatisfied", digits(manifest.action.satisfiedApprovals, "action.satisfiedApprovals") >= required, "the collected approvals reach the required threshold");
+    }
+    if (action.requiresAge) {
+      const t = normalizeRootTemplateV7({ ...manifest.root.template, orgId: manifest.root.orgId });
+      const expectedSeq = manifest.action.name === "succession" ? t.successionDelayDaa : t.recoveryDelayDaa;
+      check("relativeAgeGate", digits(manifest.action.minSequence, "action.minSequence") === expectedSeq, `the input sequence must carry the ${manifest.action.name} idle delay`);
+    }
+
+    /* ---- the frozen transaction ---- */
+    const frozen = JSON.parse(manifest.transaction.frozenCanonicalJson);
+    const inputs = frozen.inputs;
+    const outputs = frozen.outputs;
+    const totalIn = inputs.reduce((s, i) => s + BigInt(i.utxo.amount), 0n);
+    const totalOut = outputs.reduce((s, o) => s + BigInt(o.value), 0n);
+    const fee = totalIn - totalOut;
+    check("feeExact", fee.toString() === manifest.fee.requiredFeeSompi, `fee ${fee}`);
+
+    const rootIns = inputs.filter((i) => i.utxo.covenantId === manifest.root.covenantId);
+    const rootOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.root.covenantId);
+    check("rootInputSingleton", rootIns.length === 1 && rootOuts.length === 1, "exactly one root input and one root continuation output");
+    /* Codex checkpoint 6 (UX-02 / UX-13): the ROOT input's compute budget is DERIVED from the reviewed action and the
+     * predecessor's active owner slots through the one shared selector the SDK builds with; the frozen input AND the
+     * manifest's declared budget must both equal it. Every plain (non-covenant) input — the fee payer's — commits the
+     * fixed ordinary budget. Nothing here trusts a value merely because two representations agree on it. */
+    {
+      let expectedRootBudget = null, rootBudgetError = null;
+      try { expectedRootBudget = selectRootComputeBudgetV7({ actionName: manifest.action.name, activeOwnerSlots: before.activeCount }); } catch (e) { rootBudgetError = e && e.message ? e.message : String(e); }
+      check(
+        "rootComputeBudgetBound",
+        rootBudgetError === null && rootIns.length === 1 && Number.isInteger(rootIns[0].computeBudget) && rootIns[0].computeBudget === expectedRootBudget && String(manifest.root.computeBudget) === String(expectedRootBudget),
+        rootBudgetError ? `the root input's compute budget could not be derived: ${rootBudgetError}` : `the root input commits exactly the derived compute budget ${expectedRootBudget} for ${manifest.action.name} with ${before.activeCount} active slot(s) (frozen ${rootIns.length === 1 ? rootIns[0].computeBudget : "?"}, declared ${manifest.root.computeBudget})`
+      );
+      const plain = inputs.filter((i) => i.utxo.covenantId === null || i.utxo.covenantId === undefined);
+      check("ordinaryInputBudgets", plain.every((i) => Number.isInteger(i.computeBudget) && i.computeBudget === V7_BUDGET.ORDINARY_INPUT), `every plain input commits the ordinary compute budget ${V7_BUDGET.ORDINARY_INPUT}`);
+    }
+    /* rc20 review R5-04 / rc19 review R4-07: the root's predecessor and successor LOCKING SCRIPTS are rebuilt from the
+     * reviewed template + the before/after states through the exact frozen-generation reconstruction and must be the
+     * scripts the transaction spends and creates (P2SH of the rebuilt script). */
+    let rootEvidence = null; // Codex checkpoint 7: the rebuilt root script's REAL geometry + in-VM template identity, for the vault ops' root pins
+    if (rootIns.length === 1 && rootOuts.length === 1) {
+      let expectBefore = null, expectAfter = null, rebuildError = null;
+      try {
+        const tpl = { ...manifest.root.template, orgId: manifest.root.orgId };
+        const rootBeforeHex = rootScriptV7.reconstructRootScriptHexV7({ template: tpl, state: manifest.rootState.before.state });
+        expectBefore = rootScriptV7.p2shSpkHexOf(rootBeforeHex);
+        expectAfter = rootScriptV7.p2shSpkHexOf(rootScriptV7.reconstructRootScriptHexV7({ template: tpl, state: manifest.rootState.after.state }));
+        const prefixHex = rootBeforeHex.slice(0, rootScriptV7.ROOT_SCRIPT_PREFIX_HEX_V7.length);
+        const suffixHex = rootBeforeHex.slice(rootScriptV7.ROOT_SCRIPT_PREFIX_HEX_V7.length + ROOT_STATE_LEN_V7 * 2);
+        rootEvidence = { prefixLen: prefixHex.length / 2, stateLen: ROOT_STATE_LEN_V7, suffixLen: suffixHex.length / 2, templateVmHash: blake2bHex([hexToBytes(prefixHex), hexToBytes(suffixHex)], 32) };
+      } catch (e) { rebuildError = e && e.message ? e.message : String(e); }
+      const inSpk = rootIns[0].utxo.scriptPublicKey || {};
+      const outSpk = rootOuts[0].scriptPublicKey || {};
+      check("rootScriptsBound", rebuildError === null && Number(inSpk.version || 0) === 0 && String(inSpk.scriptHex || "").toLowerCase() === expectBefore && Number(outSpk.version || 0) === 0 && String(outSpk.scriptHex || "").toLowerCase() === expectAfter, rebuildError ? `the root script could not be rebuilt from the reviewed template and state: ${rebuildError}` : "the root input spends, and the root output creates, exactly the P2SH of the frozen v0.7 root script rebuilt from the reviewed template and states");
+    }
+    /* rc20 review R5-01: a root action never CREATES a covenant — every covenant-metadata output must continue the
+     * covenant carried by the input it names, and an input continues at most once. (A genesis-shaped output whose
+     * authorizing input is a plain P2PK input would be a valid NEW covenant under the upstream derivation rule and is
+     * exactly how a hostile manifest would move the fee payer's change into an attacker script.) */
+    const continuations = new Map();
+    let genesisShaped = 0;
+    for (const o of outputs) {
+      if (!o.covenant) continue;
+      const ai = Number(o.covenant.authorizingInput);
+      const src = Number.isInteger(ai) && inputs[ai] ? inputs[ai].utxo.covenantId : null;
+      if (src === null || src === undefined || String(src).toLowerCase() !== String(o.covenant.covenantId).toLowerCase()) genesisShaped += 1;
+      else continuations.set(ai, (continuations.get(ai) || 0) + 1);
+    }
+    check("noCovenantGenesisInRootAction", genesisShaped === 0, genesisShaped ? `${genesisShaped} covenant output(s) do not continue the covenant of the input they name (a root action never creates a covenant)` : "every covenant output continues the covenant of the input it names");
+    check("oneContinuationPerCovenantInput", [...continuations.values()].every((n) => n === 1), "each covenant input continues at most once");
+    /* rc21 review R6-04: the human-facing succession flag is DERIVED from the pinned successor key, never free-standing. */
+    {
+      const spk = String(manifest.root.template.successorPk || "").toLowerCase();
+      const on = /^[0-9a-f]{64}$/.test(spk) && spk !== "00".repeat(32);
+      check("successionFlag", manifest.root.template.successionEnabled === on, `template.successionEnabled must be ${on} for successorPk ${spk.slice(0, 8)}…`);
+    }
+    /* rc21 review R6-06: the FEE PAYER's change is bound here too (not only in the browser boundary): every output without
+     * covenant metadata is either the ONE terminal payout (index 0, P2PK of the closing vault's pinned recovery key — its
+     * value is bound by the rooted-vault verifier) or the fee payer's own P2PK change (at most one); a bare P2SH output
+     * (no covenant metadata) is never legitimate. The fee payer is the owner of the LAST input's P2PK script. */
+    {
+      const fuelSpk = inputs.length ? String(inputs[inputs.length - 1].utxo.scriptPublicKey.scriptHex || "").toLowerCase() : "";
+      const fuelOk = /^20[0-9a-f]{64}ac$/.test(fuelSpk) && inputs[inputs.length - 1].utxo.covenantId === null;
+      const terminalOps = manifest.vaultOperations.filter((op) => op.manifest && op.manifest.action && op.manifest.action.terminal === true);
+      const payoutSpks = new Set(terminalOps.map((op) => `20${String(op.manifest.vault.recoveryPk || "").toLowerCase()}ac`));
+      let change = 0, payouts = 0, bad = 0;
+      outputs.forEach((o, n) => {
+        if (o.covenant) return;
+        const spk = String(o.scriptPublicKey.scriptHex || "").toLowerCase();
+        if (n === 0 && terminalOps.length === 1 && payoutSpks.has(spk)) { payouts += 1; return; }
+        if (fuelOk && spk === fuelSpk) { change += 1; return; }
+        bad += 1;
+      });
+      check("feePayerChangeBound", fuelOk && bad === 0 && change <= 1 && terminalOps.length <= 1 && payouts === terminalOps.length, `non-covenant outputs: ${payouts} payout(s) for ${terminalOps.length} terminal operation(s), ${change} change output(s) to the fee payer, ${bad} other destination(s)`);
+    }
+    if (rootIns.length === 1) {
+      check("rootOutpointBinding", rootIns[0].previousOutpoint.transactionId === manifest.root.outpoint.transactionId && Number(rootIns[0].previousOutpoint.index) === Number(manifest.root.outpoint.index) && rootIns[0].previousOutpoint.transactionId === manifest.freshness.rootOutpoint.transactionId, "the declared root outpoint IS the spent one (the freshness kill switch)");
+      check("rootValueBefore", rootIns[0].utxo.amount === manifest.root.valueBefore, "the declared root value is the input's");
+      if (action.requiresAge) check("rootInputSequence", String(rootIns[0].sequence) === manifest.action.minSequence, "the root input carries the relative-age sequence");
+      else check("rootInputSequenceZero", String(rootIns[0].sequence) === "0", `${manifest.action.name} is not age-gated: the root input must carry sequence 0 (a non-zero sequence is a hidden relative lock)`); // rc26 round-7 review R7-01
+    }
+    /* rc26 round-7 review R7-01: no input other than the (age-gated) root may carry a sequence, and a root transaction
+     * never carries a lockTime — a hostile server could otherwise attach a hidden waiting condition to an approved
+     * owner action (an emergency pause that never lands) that the review would not name. */
+    check("inputSequencesZero", inputs.every((i) => i.utxo.covenantId === manifest.root.covenantId || String(i.sequence) === "0"), "every non-root input carries sequence 0 — no hidden relative lock");
+    check("lockTimeZero", String(frozen.lockTime) === "0", `a root transaction never carries a lock time (frozen lockTime ${frozen.lockTime})`);
+    if (rootOuts.length === 1) {
+      check("rootValueAfter", rootOuts[0].value === manifest.root.valueAfter, "the declared successor value is the output's");
+      const loss = BigInt(manifest.root.valueBefore) - BigInt(rootOuts[0].value);
+      check("rootValueRule", loss <= digits(manifest.root.template.rootMaxFeePerTx, "root.template.rootMaxFeePerTx") && loss.toString() === manifest.fee.rootValueLoss, `the root loses ${loss} <= rootMaxFeePerTx ${manifest.root.template.rootMaxFeePerTx}`);
+    }
+
+    /* ---- vault operations: every covenant family must be ACCOUNTED FOR ---- */
+    const accounted = new Set([manifest.root.covenantId]);
+    for (const op of manifest.vaultOperations) {
+      /* rc20 review R5-01: the OUTER declaration is bound to the INNER (hash-checked, byte-verified) manifest — the
+       * accounted families are the ones the inner manifest actually proves, never a free-standing outer string. */
+      check(`vaultOp[${String(op.covenantId).slice(0, 8)}]idsBound`, op.manifest && op.manifest.vault && op.covenantId === op.manifest.vault.covenantId && (op.tokenCovenantId ?? null) === (op.manifest.vault.tokenCovenantId ?? null), "the declared vault covenant id and token covenant id are the inner manifest's");
+      accounted.add(op.covenantId);
+      accounted.add(op.tokenCovenantId);
+      check(`vaultOp[${op.covenantId.slice(0, 8)}]declared`, inputs.some((i) => i.utxo.covenantId === op.covenantId), "the declared vault operation has an input in this transaction");
+      check(`vaultOp[${op.covenantId.slice(0, 8)}]rootPin`, op.manifest.vault.orgRootCovenantId === manifest.root.covenantId, "the vault is pinned to THIS root");
+      /* Codex checkpoint 7 (UX-02 / UX-13): the vault's declared ROOT pins — the geometry its covenant slices the root's
+       * revealed redeem by and the root template identity it hashes — must be the REAL ones of the root script this
+       * transaction spends (rebuilt above from the reviewed template + state and bound to the root input's P2SH), not a
+       * free-standing declaration the budget selector would otherwise trust. */
+      {
+        const g = op.manifest.vault && op.manifest.vault.rootGeometry ? op.manifest.vault.rootGeometry : {};
+        const agrees = !!rootEvidence && Number(g.prefixLen) === rootEvidence.prefixLen && Number(g.stateLen) === rootEvidence.stateLen && Number(g.suffixLen) === rootEvidence.suffixLen && String(op.manifest.vault.rootTemplateVmHash || "").toLowerCase() === rootEvidence.templateVmHash;
+        check(`vaultOp[${op.covenantId.slice(0, 8)}]rootEvidenceAgrees`, agrees, rootEvidence ? `the vault's declared root geometry (${g.prefixLen} / ${g.stateLen} / ${g.suffixLen}) and root template hash must be the rebuilt root script's (${rootEvidence.prefixLen} / ${rootEvidence.stateLen} / ${rootEvidence.suffixLen}, ${rootEvidence.templateVmHash.slice(0, 8)}…)` : "the root script could not be rebuilt, so the vault's root pins cannot be bound");
+      }
+      /* The vault op's REQUIRED root path must be the path this manifest says
+       * the root is taking. Without this, a manifest could show the owners a
+       * full-quorum AUTHORIZE at the top while a vault operation underneath
+       * declared it needs only the lighter FREEZE — the two halves of the
+       * authority model must be checked against each other, not each against
+       * itself. (Consensus refuses the mismatch either way; this is what makes
+       * the mismatch VISIBLE before anyone signs.) */
+      if (op.manifest.action.requiresRootInput) {
+        check(
+          `vaultOp[${op.covenantId.slice(0, 8)}]rootPathAgreesWithThisManifest`,
+          op.manifest.action.requiredRootAction === manifest.action.name,
+          `${op.manifest.action.sdkAction} requires the root to run ${op.manifest.action.requiredRootAction}, and this manifest runs ${manifest.action.name}`
+        );
+        const landsFrozen = action.landsFrozen === null ? before.frozen : action.landsFrozen;
+        check(
+          `vaultOp[${op.covenantId.slice(0, 8)}]frozenByteAgrees`,
+          digits(op.manifest.action.expectFrozenAfter, "expectFrozenAfter") === landsFrozen,
+          "the frozen byte the vault pins in the root's successor is the one this action produces"
+        );
+      }
+      verifyRootedVaultManifestV7({ manifest: op.manifest, frozen, descriptor: descriptors[op.covenantId] ?? null, redeemHex: redeemScripts && typeof redeemScripts === "object" && !Array.isArray(redeemScripts) && Object.prototype.hasOwnProperty.call(redeemScripts, op.covenantId) ? redeemScripts[op.covenantId] : null, check });
+    }
+    const unaccounted = inputs.map((i) => i.utxo.covenantId).filter((c) => c !== null && !accounted.has(c));
+    check("noHiddenCovenantOperations", unaccounted.length === 0, unaccounted.length ? `undeclared covenant families among the inputs: ${[...new Set(unaccounted)].join(", ")}` : "every covenant input is accounted for by a declared operation");
+    const unaccountedOut = outputs.filter((o) => o.covenant && !accounted.has(o.covenant.covenantId));
+    check("noHiddenCovenantOutputs", unaccountedOut.length === 0, "every covenant output is accounted for by a declared operation");
+    check("txIdDeclared", typeof manifest.transaction.txId === "string" && /^[0-9a-f]{64}$/.test(manifest.transaction.txId), "the transaction id is well-formed");
+  } catch (e) {
+    failures.push({ name: "exception", detail: `${e.code ?? "ERROR"}: ${e.message}` });
+    checks.push({ name: "exception", ok: false, detail: `${e.code ?? "ERROR"}: ${e.message}` });
+  }
+  const verdict = failures.length === 0 ? "VERIFIED" : "REFUSED";
+  return deepFreeze({ verdict, statement: verdict === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest.manifestHash ?? null });
+}
+
+module.exports = {
+  ORG_ROOT_MANIFEST_VERSION_1,
+  ROOTED_VAULT_MANIFEST_VERSION_1,
+  ORG_ROOT_EXPLANATION,
+  ROOTED_VAULT_ACTIONS,
+  VERIFIED_STATEMENT,
+  buildOrgRootIntentManifest,
+  verifyOrgRootIntentManifest,
+  buildRootedVaultManifestV7,
+  verifyRootedVaultManifestV7,
+  canonicalJsonStringify,
+  OWNER_SLOTS_V7,
+  normalizeOwnerSetV7,
+  normalizeTemplateV7,
+  serializeRootStateHexV7
+};
+  });
+
+  define("core/explain/org-root-explain", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault v0.7 ORGANIZATIONAL ROOT — SIGNER-VISIBLE EXPLANATIONS (v1).
+ *
+ * Turns a `policyvault-org-root-manifest/1` (core/intent/org-root-manifest-v7)
+ * into:
+ *
+ *   structured({ manifest, descriptors })
+ *     -> a stable, versioned, JSON-safe explanation document
+ *        ("policyvault-org-root-explanation/1") for APIs and agent workflows;
+ *
+ *   humanReadable({ manifest, descriptors })
+ *     -> deterministic FIXED lines an owner reads BEFORE adding their slot
+ *        signature to the 780-byte owner blob.
+ *
+ * WHAT THIS LAYER EXISTS TO SHOW (§5 / §11.1 I3 of
+ * docs/postlaunch/v0.7-organizational-root-design.md):
+ *   - WHAT the quorum is being asked to authorize: the action AND its
+ *     AUTHORITY CLASS (AUTHORITY-REDUCING / -NEUTRAL / -EXPANDING /
+ *     TERMINAL-for-the-previous-set);
+ *   - the THRESHOLD required and how many approvals are collected;
+ *   - exactly WHICH owner slots are expected to sign, in full;
+ *   - the ROOT OUTPOINT KILL SWITCH: valid only while this root UTXO is
+ *     unspent; no expiry;
+ *   - EVERY vault operation riding in the SAME transaction, each with its
+ *     own explanation;
+ *   - the FEE and the bound on what the root itself may lose;
+ *   - the RECOVERY / SUCCESSION warnings: both land FROZEN, the installed
+ *     set must unfreeze with its FULL quorum, and both are gated by a
+ *     RELATIVE input age (a dead-man's switch that ANY root transaction
+ *     resets), not by a wall clock.
+ *
+ * BINDING RULES (fail closed, no default route):
+ *   - The manifest is INDEPENDENTLY RE-VERIFIED here through
+ *     verifyOrgRootIntentManifest. No caller-supplied verdict is accepted,
+ *     so a fabricated "VERIFIED" cannot make an unverified manifest render
+ *     as a normal approval screen.
+ *   - Any manifest that is not a full verification pass produces a
+ *     prominent REFUSAL that NAMES every failing check — never a normal
+ *     rendering, and never any owner-set, amount or destination block.
+ *   - Unknown manifest versions refuse. A STANDALONE
+ *     `policyvault-rooted-vault-manifest/1` refuses with
+ *     VERIFY_WITHIN_PARENT: a rooted vault's authority IS its root input,
+ *     so rendering the vault half alone would present half of the security
+ *     property as if it were the whole one (the same rule the intent router
+ *     enforces). Rooted-vault operations are rendered as children of a
+ *     VERIFIED org-root manifest.
+ *   - NO truncation of keys, ids, outpoints or amounts: a shortened value
+ *     can hide a substitution. Every identity renders in full.
+ *   - Every amount is rendered through core/explain/kas.js — BigInt integer
+ *     math only, never a JS number, never a float.
+ *   - No network is named beyond the manifest's own `network.networkId`.
+ *
+ * Both entry points are TOTAL: they never throw. Malformed input and
+ * internal errors produce a REFUSAL document (an error is never a pass).
+ *
+ * Portable shared core: pure CommonJS, zero external dependencies, no SDK
+ * or server imports.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/explain/test/org-root-explain.test.js).
+ * Explanations RENDER; they never authorize. Covenant authority moves only
+ * through owner signatures over frozen transaction bytes, enforced by Kaspa
+ * consensus.
+ */
+
+const {
+  ORG_ROOT_MANIFEST_VERSION_1,
+  ROOTED_VAULT_MANIFEST_VERSION_1,
+  ORG_ROOT_EXPLANATION,
+  verifyOrgRootIntentManifest
+} = require("../intent/org-root-manifest-v7");
+const { kasAmount } = require("./kas");
+const { scaled } = require("./token-explain");
+
+const ORG_ROOT_EXPLANATION_VERSION_1 = "policyvault-org-root-explanation/1";
+
+const EXPLANATION_VERDICTS = Object.freeze({
+  VERIFIED_EXACT: "VERIFIED_EXACT",
+  REFUSED: "REFUSED"
+});
+
+/* The one-line kill-switch statement. Fixed text: a reader learns it once,
+ * and a tampered manifest cannot reword it (the manifest's own fixed
+ * explanation is separately asserted verbatim by the verifier). */
+const ROOT_OUTPOINT_KILL_SWITCH_LINE =
+  "Freshness: valid only while this root UTXO is unspent; no expiry. Spending the root outpoint invalidates every collected approval at once.";
+
+/* ------------------------------------------------------------------ */
+/* helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+
+function isPlainObject(v) {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
+/*
+ * Failure/warning DETAILS originate from manifest- or server-supplied
+ * strings and are therefore untrusted when interpolated into a rendered
+ * line: a crafted detail carrying newlines could otherwise inject a fake
+ * "Verification: PASSED" into a DO-NOT-SIGN rendering, and bidi overrides
+ * could visually reorder a key. Collapse every control and bidi character
+ * to a single space and cap the length. The STRUCTURED document keeps the
+ * raw detail (it is data, not a rendered line). Same rule as
+ * core/explain/intent-explain.js sanitizeDetail (hostile review H-1).
+ */
+function sanitizeDetail(value) {
+  const s = String(value == null ? "" : value);
+  let out = "";
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    const isControl = c <= 0x1f || (c >= 0x7f && c <= 0x9f);
+    const isBidi = (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
+    out += isControl || isBidi ? " " : ch;
+  }
+  out = out.replace(/ +/g, " ").trim();
+  return out.length > 500 ? `${out.slice(0, 497)}...` : out;
+}
+
+function outpointText(op) {
+  return `${op.transactionId}:${op.index}`;
+}
+
+/* The closed top-level key set of every explanation document — identical
+ * for both verdicts (refusals carry null rendering blocks), so an API
+ * consumer gets ONE stable shape. */
+function baseDocument() {
+  return {
+    explanationVersion: ORG_ROOT_EXPLANATION_VERSION_1,
+    verdict: null,
+    statement: null,
+    refusal: null,
+    context: null,
+    manifestHash: null,
+    txId: null,
+    network: null,
+    organization: null,
+    authorization: null,
+    quorum: null,
+    ownerSet: null,
+    rootState: null,
+    timeLock: null,
+    freshness: null,
+    fee: null,
+    vaultOperations: null,
+    warnings: null,
+    verification: null
+  };
+}
+
+function refusalDocument({ reason, failures, context = null, manifestHash = null, txId = null, verification = null }) {
+  const names = [...new Set(failures.map((f) => f.name))].sort();
+  const doc = baseDocument();
+  doc.verdict = EXPLANATION_VERDICTS.REFUSED;
+  doc.refusal = {
+    reason: String(reason),
+    failingChecks: names,
+    failures: failures.map((f) => ({ name: String(f.name), detail: f.detail == null ? null : String(f.detail) }))
+  };
+  doc.context = context;
+  doc.manifestHash = manifestHash;
+  doc.txId = txId;
+  doc.verification = verification;
+  return deepFreeze(doc);
+}
+
+/* The minimal identity block a REFUSAL may carry, explicitly labeled
+ * unverified. No owner keys, no amounts, no destinations: unverified values
+ * are never rendered as facts. */
+function refusalContext(manifest) {
+  if (!isPlainObject(manifest)) return null;
+  const ctx = { unverified: true, manifestVersion: null, actionName: null, networkId: null, rootCovenantId: null, rootOutpoint: null };
+  if (typeof manifest.manifestVersion === "string") ctx.manifestVersion = manifest.manifestVersion;
+  if (isPlainObject(manifest.action) && typeof manifest.action.name === "string") ctx.actionName = manifest.action.name;
+  if (isPlainObject(manifest.network) && typeof manifest.network.networkId === "string") ctx.networkId = manifest.network.networkId;
+  if (isPlainObject(manifest.root)) {
+    if (typeof manifest.root.covenantId === "string") ctx.rootCovenantId = manifest.root.covenantId;
+    if (isPlainObject(manifest.root.outpoint) && typeof manifest.root.outpoint.transactionId === "string") {
+      ctx.rootOutpoint = { transactionId: manifest.root.outpoint.transactionId, index: manifest.root.outpoint.index };
+    }
+  }
+  return ctx;
+}
+
+/* ------------------------------------------------------------------ */
+/* action narration (fixed, table-driven — never model-generated)      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * One fixed sentence per root action. The text depends ONLY on the action
+ * name, so two parties reading two renderings of the same action read the
+ * same sentence.
+ */
+const ACTION_SUMMARY = Object.freeze({
+  authorize:
+    "AUTHORIZE — the owner quorum authorizes the vault operations listed in this transaction. The owner set, the thresholds and the freeze flag are all carried across unchanged; only the root nonce advances.",
+  rotate:
+    "ROTATE THE OWNER SET — the owner quorum installs a new set of owner keys and/or new thresholds on this organization's root.",
+  freeze:
+    "EMERGENCY FREEZE — the root is frozen. While it is frozen, no general owner operation on any vault of this organization can be authorized, and the root itself accepts only ROTATE, UNFREEZE, owner recovery and succession.",
+  unfreeze: "UNFREEZE — the root returns to normal operation and general owner operations become possible again.",
+  ownerRecover:
+    "OWNER RECOVERY — the recovery quorum installs a NEW owner set after the root has been idle for the configured relative delay. This is the stranded-key path.",
+  succession:
+    "SUCCESSION — the pinned successor key replaces the entire owner set after the root has been idle for the configured relative delay. The previous owner set loses all authority."
+});
+
+/* One fixed sentence per rooted-vault operation. */
+const VAULT_ACTION_SUMMARY = Object.freeze({
+  ownerSetAgentRoot: "Replace this vault's delegate (agent) registry commitment.",
+  ownerTopUpReserve: "Add KAS to this vault's fee reserve.",
+  ownerPause: "Pause this vault — delegate spending stops until the owners unpause it.",
+  ownerUnpause: "Unpause this vault — delegate spending resumes under the existing policy.",
+  ownerEmergencyPause: "EMERGENCY-pause this vault on the lighter emergency quorum — delegate spending stops.",
+  ownerRecover: "CLOSE this vault and pay everything it holds to the recovery key pinned when the vault was created. This is terminal.",
+  tokenAgentSpend: "A delegate (agent) spend under the vault's existing policy."
+});
+
+/* ------------------------------------------------------------------ */
+/* warnings (fixed codes + fixed text)                                 */
+/* ------------------------------------------------------------------ */
+
+const WARNING_TEXT = Object.freeze({
+  LANDS_FROZEN:
+    "This action lands the root FROZEN. The installed owners must deliberately UNFREEZE with their own approval quorum (M of N of the new set) before any general owner operation on any vault of this organization can be authorized again.",
+  RELATIVE_AGE_GATE:
+    "This path is gated by a RELATIVE input age, not by a wall clock: the root UTXO must have been unspent for at least the configured delay in DAA score. ANY root transaction resets that clock. While the root is unfrozen, routine authorization by its approval quorum can keep this path out of reach.",
+  RECOVERY_INSTALLS_NEW_SET:
+    "OWNER RECOVERY installs a NEW owner set on the RECOVERY quorum, which is smaller than or equal to the normal approval quorum. Every key it installs gains full authority once the set unfreezes.",
+  SUCCESSION_TERMINAL_FOR_PREVIOUS_SET:
+    "SUCCESSION installs a new owner set. A previous owner keeps authority only if that key is listed again; omitted keys lose authority. Owner 1 must change.",
+  AUTHORITY_EXPANDING: "AUTHORITY-EXPANDING: a key or a path gains authority through this transaction.",
+  AUTHORITY_REDUCING: "AUTHORITY-REDUCING: this transaction only removes authority; it cannot move funds and it cannot change the owner set.",
+  EMERGENCY_QUORUM:
+    "This transaction runs on the EMERGENCY quorum, which is lighter than the full owner quorum. The emergency quorum can only freeze the root and emergency-pause a vault; it can never change the owner set, unfreeze, or move funds.",
+  OWNER_SET_CHANGES: "The owner set of this organization CHANGES in this transaction. Check every added and removed key below against your own records.",
+  THRESHOLDS_CHANGE: "The approval thresholds of this organization CHANGE in this transaction.",
+  RECOVERY_DISABLED: "Owner recovery is DISABLED for this root (the recovery quorum is 0). If the owner keys are lost below the quorum, no owner path can be recovered.",
+  SUCCESSION_DISABLED: "Succession is DISABLED for this root (no successor key is pinned).",
+  TERMINAL_VAULT_OPERATION:
+    "A vault is CLOSED by this transaction. Its fee reserve and its entire token position pay to the recovery key pinned when that vault was created; this destination cannot be changed by this transaction.",
+  APPROVALS_NOT_YET_COUNTED:
+    "No collected-approval count is declared yet. This is the description an owner reads BEFORE the quorum is assembled; the finalizer refuses to build the transaction until the required number of slots have signed.",
+  ROOT_VALUE_LOSS: "This transaction reduces the value held by the root itself. The covenant caps that loss per transition; the exact numbers are shown above."
+});
+
+function warning(code) {
+  return { code, detail: WARNING_TEXT[code] };
+}
+
+/* ------------------------------------------------------------------ */
+/* rooted-vault operation rendering (children of a VERIFIED parent)    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A rooted-vault operation's own explanation. Rendered ONLY as a child of a
+ * verified org-root manifest (see the module header): the vault's authority
+ * IS the root input, so its verdict is the parent's.
+ *
+ * Token quantities render in ATOMIC units with a clearly-labeled display
+ * form scaled by the descriptor's DISPLAY-ONLY decimals — reusing
+ * core/explain/token-explain.js `scaled`, the same renderer the v0.5 token
+ * explanation uses, so an operator reads one number format across
+ * generations.
+ */
+function vaultOperationDocument(op) {
+  const m = op.manifest;
+  const a = m.action;
+  const k = m.accounting.kas;
+  const t = m.accounting.token;
+  const dec = m.asset ? m.asset.decimalsDisplay : null;
+  const tokenAmount = (atomic) => {
+    if (atomic === null || atomic === undefined) return null;
+    return { atomic: String(atomic), display: dec === null ? null : scaled(atomic, dec) };
+  };
+
+  const doc = {
+    covenantId: op.covenantId,
+    vaultId: op.vaultId,
+    tokenCovenantId: op.tokenCovenantId,
+    sdkAction: a.sdkAction,
+    summary: VAULT_ACTION_SUMMARY[a.sdkAction] ?? null,
+    role: a.role,
+    terminal: a.terminal,
+    mutationClass: a.mutationClass,
+    opSelector: a.opSelector,
+    requiresRootInput: a.requiresRootInput,
+    requiredRootAction: a.requiredRootAction,
+    expectFrozenAfter: a.expectFrozenAfter,
+    orgRootCovenantId: m.vault.orgRootCovenantId,
+    recoveryPk: m.vault.recoveryPk,
+    asset: m.asset
+      ? {
+          assetId: m.asset.assetId,
+          displayName: m.asset.displayName,
+          descriptorHash: m.asset.descriptorHash,
+          decimalsDisplay: m.asset.decimalsDisplay,
+          trust: m.asset.trust,
+          declaredIssuerPowers: Object.entries(m.asset.issuerPowers)
+            .filter(([, on]) => on)
+            .map(([name]) => name)
+            .sort()
+        }
+      : null,
+    token: {
+      positionBefore: tokenAmount(t.positionBefore),
+      spendAmount: tokenAmount(t.spendAmount),
+      positionAfter: tokenAmount(t.positionAfter),
+      recipient: t.recipient ?? null,
+      recoveredToRecoveryPk: tokenAmount(t.recoveredToRecoveryPk)
+    },
+    kas: {
+      feeReserveBefore: kasAmount(k.predecessorFeeReserve, "vault.predecessorFeeReserve"),
+      feeReserveAfter: kasAmount(k.successorFeeReserve, "vault.successorFeeReserve"),
+      reserveConsumed: kasAmount(k.reserveConsumed, "vault.reserveConsumed"),
+      terminalPayout: kasAmount(k.terminalPayout, "vault.terminalPayout")
+    },
+    stateBefore: m.stateBefore ? { stateId: m.stateBefore.stateId, outpoint: m.stateBefore.outpoint } : null,
+    stateAfter: m.stateAfter ? { stateId: m.stateAfter.stateId } : null,
+    policyNonce:
+      m.stateBefore && m.stateAfter && m.stateBefore.state && m.stateAfter.state
+        ? { before: String(m.stateBefore.state.policyNonce), after: String(m.stateAfter.state.policyNonce) }
+        : null,
+    /* rc26 round-7 review R7-02: an ownerSetAgentRoot shows the RULES being installed — every policy of the new
+     * delegate set the verifier bound stateAfter.agentRoot to (null for every other operation). */
+    agentSet:
+      a.sdkAction === "ownerSetAgentRoot" && m.policy && Array.isArray(m.policy.agentSet)
+        ? m.policy.agentSet.map((p) => ({
+            agentPk: p.agentPk,
+            tokenMaxPerSpend: tokenAmount(p.tokenMaxPerSpend),
+            tokenPeriodBudget: tokenAmount(p.tokenPeriodBudget),
+            tokenPeriodSpent: tokenAmount(p.tokenPeriodSpent),
+            periodLengthDaa: String(p.periodLengthDaa),
+            periodStartDaa: String(p.periodStartDaa),
+            agentMaxFeePerTx: kasAmount(p.agentMaxFeePerTx, "agentSet.agentMaxFeePerTx"),
+            agentMaxCarryKas: kasAmount(p.agentMaxCarryKas, "agentSet.agentMaxCarryKas"),
+            agentRecipientRoot: p.agentRecipientRoot,
+            /* Codex checkpoint 11 (R7-02): the DESTINATIONS the owners are authorizing, never only their commitment */
+            recipients: Array.isArray(p.recipients) ? p.recipients.map((r) => String(r)) : []
+          }))
+        : null,
+    agentPolicy:
+      m.policy && m.policy.agentPolicy
+        ? {
+            agentPk: m.policy.agentPolicy.agentPk,
+            tokenMaxPerSpend: tokenAmount(m.policy.agentPolicy.tokenMaxPerSpend),
+            tokenPeriodBudget: tokenAmount(m.policy.agentPolicy.tokenPeriodBudget),
+            tokenPeriodSpent: tokenAmount(m.policy.agentPolicy.tokenPeriodSpent),
+            periodLengthDaa: String(m.policy.agentPolicy.periodLengthDaa),
+            periodsElapsed: String(m.policy.periodsElapsed),
+            agentMaxFeePerTx: kasAmount(m.policy.agentPolicy.agentMaxFeePerTx, "agentPolicy.agentMaxFeePerTx"),
+            agentRecipientRoot: m.policy.agentPolicy.agentRecipientRoot
+          }
+        : null,
+    manifestHash: m.manifestHash
+  };
+  return doc;
+}
+
+/* Fixed lines for ONE vault operation. `index` is 1-based for display. */
+function vaultOperationLines(v, index) {
+  const lines = [];
+  lines.push(`Vault operation ${index}: ${v.sdkAction} on vault ${v.vaultId} (covenant ${v.covenantId}).`);
+  if (v.summary !== null) lines.push(`  ${v.summary}`);
+  lines.push(`  Authority: ${v.mutationClass}; this operation requires the root to run ${v.requiredRootAction === null ? "no root action" : v.requiredRootAction}.`);
+  lines.push(`  This vault is pinned to root covenant ${v.orgRootCovenantId}.`);
+  if (v.asset !== null) {
+    lines.push(`  Asset: ${v.asset.displayName} (assetId ${v.asset.assetId}, descriptor ${v.asset.descriptorHash}).`);
+    lines.push(
+      v.asset.declaredIssuerPowers.length
+        ? `  Declared issuer powers (declared by the asset, not guaranteed by PolicyVault): ${v.asset.declaredIssuerPowers.join(", ")}.`
+        : "  No declared issuer powers (declared-only; PolicyVault cannot discover undeclared powers)."
+    );
+  }
+  if (v.token.spendAmount !== null && v.token.spendAmount.atomic !== "0") {
+    const disp = v.token.spendAmount.display === null ? "" : ` (display: ${v.token.spendAmount.display})`;
+    lines.push(`  Token spend: ${v.token.spendAmount.atomic} atomic units${disp}${v.token.recipient ? ` to ${v.token.recipient}` : ""}.`);
+  }
+  if (v.token.positionBefore !== null && v.token.positionAfter !== null) {
+    lines.push(`  Token position: ${v.token.positionBefore.atomic} -> ${v.token.positionAfter.atomic} atomic units.`);
+  }
+  lines.push(`  Fee reserve: ${v.kas.feeReserveBefore.kas} KAS -> ${v.kas.feeReserveAfter.kas} KAS (consumed ${v.kas.reserveConsumed.kas} KAS).`);
+  if (v.terminal) {
+    lines.push(`  TERMINAL: this vault is CLOSED. Payout ${v.kas.terminalPayout.kas} KAS to the genesis-pinned recovery key ${v.recoveryPk}.`);
+    if (v.token.recoveredToRecoveryPk !== null && v.token.recoveredToRecoveryPk.atomic !== "0") {
+      lines.push(`  TERMINAL: the entire token position of ${v.token.recoveredToRecoveryPk.atomic} atomic units goes to the same recovery key.`);
+    }
+  }
+  if (v.agentPolicy !== null) {
+    lines.push(
+      `  Delegate policy: agent ${v.agentPolicy.agentPk}, per-spend cap ${v.agentPolicy.tokenMaxPerSpend.atomic}, period budget ${v.agentPolicy.tokenPeriodBudget.atomic}, spent this period ${v.agentPolicy.tokenPeriodSpent.atomic}.`
+    );
+  }
+  if (v.agentSet !== null) {
+    if (v.agentSet.length === 0) lines.push("  New delegate policy set: EMPTY — after this operation no delegate can spend from this vault until a new set is installed.");
+    else lines.push(`  New delegate policy set (${v.agentSet.length} ${v.agentSet.length === 1 ? "policy" : "policies"}) — these are the RULES being installed; the successor agentRoot is their Merkle root:`);
+    for (const p of v.agentSet) {
+      lines.push(
+        `    agent ${p.agentPk}: per-spend cap ${p.tokenMaxPerSpend.atomic}, period budget ${p.tokenPeriodBudget.atomic} per ${p.periodLengthDaa} DAA (period starts ${p.periodStartDaa}, spent so far ${p.tokenPeriodSpent.atomic}), fee cap ${p.agentMaxFeePerTx.kas} KAS per transaction, KAS carry cap ${p.agentMaxCarryKas.kas} KAS.`
+      );
+      lines.push(`      may pay ONLY these ${p.recipients.length} recipient(s): ${p.recipients.join(", ")}`);
+    }
+  }
+  if (v.policyNonce !== null) lines.push(`  Vault policy nonce advances ${v.policyNonce.before} -> ${v.policyNonce.after}.`);
+  return lines;
+}
+
+/* ------------------------------------------------------------------ */
+/* structured()                                                        */
+/* ------------------------------------------------------------------ */
+
+function structured(input) {
+  const { manifest, descriptors, redeemScripts } = input && typeof input === "object" ? input : {};
+  try {
+    if (!isPlainObject(manifest)) {
+      return refusalDocument({
+        reason: "No organizational-root manifest was supplied — failing closed.",
+        failures: [{ name: "manifestSupplied", detail: "an org-root manifest object is required" }]
+      });
+    }
+    if (manifest.manifestVersion === ROOTED_VAULT_MANIFEST_VERSION_1) {
+      return refusalDocument({
+        reason:
+          "A rooted-vault manifest is never explained on its own: a rooted vault has NO owner key, its authority IS the organizational root input, and rendering the vault half alone would present half of the security property as the whole one.",
+        failures: [
+          {
+            name: "verifyWithinParent",
+            detail: `${ROOTED_VAULT_MANIFEST_VERSION_1} is explained inside its parent ${ORG_ROOT_MANIFEST_VERSION_1} — supply the parent manifest`
+          }
+        ],
+        context: refusalContext(manifest),
+        manifestHash: typeof manifest.manifestHash === "string" ? manifest.manifestHash : null
+      });
+    }
+    if (manifest.manifestVersion !== ORG_ROOT_MANIFEST_VERSION_1) {
+      return refusalDocument({
+        reason: "Unknown manifest version — failing closed (no default route).",
+        failures: [
+          {
+            name: "manifestVersion",
+            detail: `expected ${ORG_ROOT_MANIFEST_VERSION_1}, got ${JSON.stringify(manifest.manifestVersion)}`
+          }
+        ],
+        context: refusalContext(manifest)
+      });
+    }
+
+    /* INDEPENDENT re-verification — never a caller-supplied verdict. */
+    const verification = verifyOrgRootIntentManifest({ manifest, descriptors: descriptors || {}, redeemScripts: redeemScripts || {} });
+    const verificationSummary = {
+      verdict: verification.verdict,
+      checks: verification.checks.map((c) => ({ name: c.name, ok: c.ok })),
+      failingChecks: [...new Set(verification.failures.map((f) => f.name))].sort()
+    };
+    if (verification.verdict !== "VERIFIED") {
+      return refusalDocument({
+        reason: "This organizational-root approval FAILED local verification against the frozen transaction it describes and must not be signed.",
+        failures: verification.failures.map((f) => ({ name: f.name, detail: f.detail })),
+        context: refusalContext(manifest),
+        manifestHash: manifest.manifestHash ?? null,
+        txId: manifest.transaction && typeof manifest.transaction.txId === "string" ? manifest.transaction.txId : null,
+        verification: verificationSummary
+      });
+    }
+
+    /* ---- VERIFIED: render ---- */
+    const doc = baseDocument();
+    const a = manifest.action;
+    const before = manifest.ownerSet.before;
+    const after = manifest.ownerSet.after;
+    const changes = manifest.ownerSet.changes;
+
+    doc.verdict = EXPLANATION_VERDICTS.VERIFIED_EXACT;
+    doc.statement = verification.statement;
+    doc.manifestHash = manifest.manifestHash;
+    doc.txId = manifest.transaction.txId;
+    doc.network = { networkId: manifest.network.networkId };
+
+    doc.organization = {
+      orgId: manifest.root.orgId,
+      rootCovenantId: manifest.root.covenantId,
+      rootOutpoint: { transactionId: manifest.root.outpoint.transactionId, index: manifest.root.outpoint.index },
+      contractVersion: manifest.root.contractVersion,
+      recoveryEnabled: BigInt(before.recoveryM) > 0n,
+      successionEnabled: manifest.root.template.successionEnabled === true,
+      successorPk: manifest.root.template.successorPk,
+      recoveryDelayDaa: manifest.root.template.recoveryDelayDaa,
+      successionDelayDaa: manifest.root.template.successionDelayDaa
+    };
+
+    doc.authorization = {
+      actionName: a.name,
+      actionCode: a.code === null ? null : String(a.code),
+      entrypoint: a.entrypoint,
+      authorityClass: a.authorityClass,
+      authorityClassForPreviousSet: a.authorityClassForPreviousSet,
+      summary: ACTION_SUMMARY[a.name] ?? null
+    };
+
+    const required = BigInt(a.requiredApprovals);
+    const satisfied = a.satisfiedApprovals === null ? null : BigInt(a.satisfiedApprovals);
+    doc.quorum = {
+      quorumSource: a.quorumSource,
+      requiredApprovals: required.toString(),
+      satisfiedApprovals: satisfied === null ? null : satisfied.toString(),
+      quorumSatisfied: satisfied === null ? null : satisfied >= required,
+      activeOwnerSlots: String(before.activeCount),
+      ownerM: before.ownerM,
+      emergencyK: before.emergencyK,
+      recoveryM: before.recoveryM,
+      expectedSignerSlots: a.expectedSignerSlots.map((s) => ({ slot: s.slot, publicKey: s.publicKey }))
+    };
+
+    doc.ownerSet = {
+      before: { activeCount: String(before.activeCount), ownerM: before.ownerM, emergencyK: before.emergencyK, recoveryM: before.recoveryM, slots: before.slots.map((s) => ({ slot: s.slot, publicKey: s.publicKey })) },
+      after: { activeCount: String(after.activeCount), ownerM: after.ownerM, emergencyK: after.emergencyK, recoveryM: after.recoveryM, slots: after.slots.map((s) => ({ slot: s.slot, publicKey: s.publicKey })) },
+      added: changes.added.slice(),
+      removed: changes.removed.slice(),
+      thresholdsChanged: changes.thresholdsChanged === true,
+      frozenChanged: changes.frozenChanged === true
+    };
+
+    doc.rootState = {
+      beforeDigest: manifest.rootState.before.digest,
+      afterDigest: manifest.rootState.after.digest,
+      successorTailHex: manifest.rootState.after.tailHex,
+      frozenBefore: String(manifest.rootState.before.state.frozen),
+      frozenAfter: String(manifest.rootState.after.state.frozen),
+      nonceBefore: String(manifest.rootState.before.state.rootNonce),
+      nonceAfter: String(manifest.rootState.after.state.rootNonce)
+    };
+
+    const minSequence = BigInt(a.minSequence);
+    doc.timeLock =
+      minSequence > 0n
+        ? {
+            kind: "RELATIVE_INPUT_AGE",
+            minSequence: minSequence.toString(),
+            delayDaa: a.name === "succession" ? manifest.root.template.successionDelayDaa : manifest.root.template.recoveryDelayDaa,
+            resetByAnyRootTransaction: true
+          }
+        : null;
+
+    doc.freshness = {
+      kind: manifest.freshness.kind,
+      rootOutpoint: { transactionId: manifest.freshness.rootOutpoint.transactionId, index: manifest.freshness.rootOutpoint.index },
+      expiry: null,
+      statement: ROOT_OUTPOINT_KILL_SWITCH_LINE
+    };
+
+    doc.fee = {
+      networkFee: kasAmount(manifest.fee.requiredFeeSompi, "fee.requiredFeeSompi"),
+      rootMaxFeePerTx: kasAmount(manifest.fee.rootMaxFeePerTx, "fee.rootMaxFeePerTx"),
+      rootValueLoss: kasAmount(manifest.fee.rootValueLoss, "fee.rootValueLoss"),
+      rootValueBefore: kasAmount(manifest.root.valueBefore, "root.valueBefore"),
+      rootValueAfter: kasAmount(manifest.root.valueAfter, "root.valueAfter")
+    };
+
+    doc.vaultOperations = manifest.vaultOperations.map((op) => vaultOperationDocument(op));
+
+    /* ---- warnings: fixed codes, fixed text, deterministic order ---- */
+    const warnings = [];
+    if (a.authorityClass === "AUTHORITY-EXPANDING") warnings.push(warning("AUTHORITY_EXPANDING"));
+    if (a.authorityClass === "AUTHORITY-REDUCING") warnings.push(warning("AUTHORITY_REDUCING"));
+    if (a.quorumSource === "emergencyK") warnings.push(warning("EMERGENCY_QUORUM"));
+    if (a.name === "ownerRecover") warnings.push(warning("RECOVERY_INSTALLS_NEW_SET"));
+    if (a.authorityClassForPreviousSet === "TERMINAL") warnings.push(warning("SUCCESSION_TERMINAL_FOR_PREVIOUS_SET"));
+    if (doc.rootState.frozenAfter === "1") warnings.push(warning("LANDS_FROZEN"));
+    if (doc.timeLock !== null) warnings.push(warning("RELATIVE_AGE_GATE"));
+    if (doc.ownerSet.added.length > 0 || doc.ownerSet.removed.length > 0) warnings.push(warning("OWNER_SET_CHANGES"));
+    if (doc.ownerSet.thresholdsChanged) warnings.push(warning("THRESHOLDS_CHANGE"));
+    if (!doc.organization.recoveryEnabled) warnings.push(warning("RECOVERY_DISABLED"));
+    if (!doc.organization.successionEnabled) warnings.push(warning("SUCCESSION_DISABLED"));
+    if (doc.vaultOperations.some((v) => v.terminal)) warnings.push(warning("TERMINAL_VAULT_OPERATION"));
+    if (doc.quorum.satisfiedApprovals === null) warnings.push(warning("APPROVALS_NOT_YET_COUNTED"));
+    if (BigInt(manifest.fee.rootValueLoss) > 0n) warnings.push(warning("ROOT_VALUE_LOSS"));
+    doc.warnings = warnings;
+
+    doc.verification = verificationSummary;
+    return deepFreeze(doc);
+  } catch (e) {
+    /* An internal error is never a pass. */
+    return refusalDocument({
+      reason: "The explanation engine failed internally — failing closed.",
+      failures: [{ name: "explainInternal", detail: `${e && e.message ? e.message : String(e)}` }]
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* humanReadable()                                                     */
+/* ------------------------------------------------------------------ */
+
+function refusalLines(doc) {
+  const lines = [];
+  lines.push("!! DO NOT SIGN !!");
+  lines.push("ORGANIZATION ROOT APPROVAL REFUSED — this description FAILED verification and must not be signed.");
+  lines.push(`Reason: ${sanitizeDetail(doc.refusal.reason)}`);
+  lines.push(`Failing checks: ${doc.refusal.failingChecks.join(", ")}.`);
+  for (const f of doc.refusal.failures) {
+    lines.push(`- ${f.name}: ${sanitizeDetail(f.detail)}`);
+  }
+  if (doc.context !== null) {
+    lines.push(
+      `Context (from the manifest, NOT verified): manifest ${doc.context.manifestVersion === null ? "unknown" : sanitizeDetail(doc.context.manifestVersion)}, action ${doc.context.actionName === null ? "unknown" : sanitizeDetail(doc.context.actionName)}, network ${doc.context.networkId === null ? "unknown" : sanitizeDetail(doc.context.networkId)}, root covenant ${doc.context.rootCovenantId === null ? "unknown" : sanitizeDetail(doc.context.rootCovenantId)}.`
+    );
+  }
+  /* txId / manifestHash / context values are echoed from a manifest that did
+   * NOT verify, so they are untrusted TEXT here and are sanitized exactly
+   * like a failure detail — a crafted value must not be able to inject a
+   * structural or verdict line into a DO-NOT-SIGN rendering. */
+  if (doc.txId !== null) lines.push(`Transaction id (NOT verified): ${sanitizeDetail(doc.txId)}.`);
+  if (doc.manifestHash !== null) lines.push(`Manifest hash (NOT verified): ${sanitizeDetail(doc.manifestHash)}.`);
+  lines.push("A refused approval is never rendered as a normal transaction summary. Rebuild the request and verify again.");
+  return lines;
+}
+
+function verifiedLines(doc) {
+  const lines = [];
+  lines.push(`ORGANIZATION ROOT APPROVAL — ${doc.authorization.actionName} (${doc.authorization.authorityClass}).`);
+  lines.push(`You are being asked to authorize: ${doc.authorization.summary}`);
+  if (doc.authorization.authorityClassForPreviousSet !== null) {
+    lines.push(`For the PREVIOUS owner set this action is ${doc.authorization.authorityClassForPreviousSet}.`);
+  }
+  lines.push(`Organization ${doc.organization.orgId}; root covenant ${doc.organization.rootCovenantId}.`);
+  lines.push(`Root outpoint being spent: ${outpointText(doc.organization.rootOutpoint)}.`);
+  lines.push(ROOT_OUTPOINT_KILL_SWITCH_LINE);
+
+  const satisfied = doc.quorum.satisfiedApprovals === null ? "not yet counted" : doc.quorum.satisfiedApprovals;
+  lines.push(
+    `Threshold: ${doc.quorum.requiredApprovals} of ${doc.quorum.activeOwnerSlots} active owner slot(s) must sign (from ${doc.quorum.quorumSource}); collected so far: ${satisfied}.`
+  );
+  for (const s of doc.quorum.expectedSignerSlots) {
+    lines.push(`Expected signer — slot ${s.slot}: ${s.publicKey}`);
+  }
+  if (doc.quorum.expectedSignerSlots.length === 0) {
+    lines.push("Expected signers: none — this path is authorized by the pinned successor key, not by the owner slots.");
+  }
+
+  lines.push(
+    `Owner set before: ${doc.ownerSet.before.ownerM}-of-${doc.ownerSet.before.activeCount} (emergency quorum ${doc.ownerSet.before.emergencyK}, recovery quorum ${doc.ownerSet.before.recoveryM}).`
+  );
+  lines.push(
+    `Owner set after: ${doc.ownerSet.after.ownerM}-of-${doc.ownerSet.after.activeCount} (emergency quorum ${doc.ownerSet.after.emergencyK}, recovery quorum ${doc.ownerSet.after.recoveryM}).`
+  );
+  for (const key of doc.ownerSet.added) lines.push(`Owner ADDED: ${key}`);
+  for (const key of doc.ownerSet.removed) lines.push(`Owner REMOVED: ${key}`);
+  if (doc.ownerSet.added.length === 0 && doc.ownerSet.removed.length === 0) {
+    lines.push("Owner keys: unchanged by this transaction.");
+  }
+  lines.push(`Freeze flag: ${doc.rootState.frozenBefore} -> ${doc.rootState.frozenAfter}. Root nonce advances ${doc.rootState.nonceBefore} -> ${doc.rootState.nonceAfter}.`);
+  lines.push(`Root state digest before: ${doc.rootState.beforeDigest}`);
+  lines.push(`Root state digest after: ${doc.rootState.afterDigest}`);
+
+  if (doc.timeLock !== null) {
+    lines.push(
+      `Relative idle delay: this transaction is only valid once the root UTXO has been unspent for at least ${doc.timeLock.delayDaa} DAA score (input sequence ${doc.timeLock.minSequence}).`
+    );
+  }
+
+  lines.push(
+    `Network fee: ${doc.fee.networkFee.kas} KAS. The root holds ${doc.fee.rootValueBefore.kas} KAS and keeps ${doc.fee.rootValueAfter.kas} KAS (loses ${doc.fee.rootValueLoss.kas} KAS; the covenant caps this at ${doc.fee.rootMaxFeePerTx.kas} KAS per transition).`
+  );
+
+  if (doc.vaultOperations.length === 0) {
+    lines.push("Vault operations in this transaction: none — this transaction only moves the root.");
+  } else {
+    lines.push(`Vault operations in this transaction: ${doc.vaultOperations.length}. All of them happen together, or none of them do.`);
+    doc.vaultOperations.forEach((v, i) => {
+      for (const line of vaultOperationLines(v, i + 1)) lines.push(line);
+    });
+  }
+
+  for (const w of doc.warnings) lines.push(`Warning ${w.code}: ${w.detail}`);
+
+  lines.push(`Network: ${doc.network.networkId}. Contract: ${doc.organization.contractVersion}.`);
+  lines.push(`Transaction id: ${doc.txId}. Manifest hash: ${doc.manifestHash}.`);
+  lines.push(`Verification: PASSED — ${doc.statement}`);
+  return lines;
+}
+
+/*
+ * Deterministic fixed lines for a signing owner. TOTAL: never throws;
+ * refusals render as prominent DO-NOT-SIGN lines naming every failing
+ * check. Same input -> byte-identical output.
+ */
+function humanReadable(input) {
+  const doc = structured(input);
+  const lines = doc.verdict === EXPLANATION_VERDICTS.VERIFIED_EXACT ? verifiedLines(doc) : refusalLines(doc);
+  return deepFreeze(lines);
+}
+
+module.exports = {
+  ORG_ROOT_EXPLANATION_VERSION_1,
+  EXPLANATION_VERDICTS,
+  ROOT_OUTPOINT_KILL_SWITCH_LINE,
+  ACTION_SUMMARY,
+  VAULT_ACTION_SUMMARY,
+  WARNING_TEXT,
+  ORG_ROOT_EXPLANATION,
+  structured,
+  humanReadable
+};
+  });
+
+  define("core/signer/org-root-slot-v7", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault v0.7 ORGANIZATIONAL ROOT — the EXTERNAL-SIGNER SLOT PATH.
+ *
+ * One owner, one slot, one signature. A v0.7 root spend is authorized by an
+ * M-of-N blob of 12 x 65 bytes in which slot i is a SIGHASH_ALL signature
+ * under owner key i (core/model/owner-set-v7). Each owner therefore signs
+ * INDEPENDENTLY, out of band, over the SAME frozen transaction — a browser
+ * extension, a hardware device, an air-gapped machine, an HSM or a policy
+ * engine, each behind the Universal Signer Interface (core/signer/interface).
+ * This module is the request/response envelope that makes that collection
+ * round safe:
+ *
+ *   createRootSlotSigningRequest()   one owner's request, bound to the
+ *                                    manifest hash, the slot, the root
+ *                                    outpoint, the network, the expected
+ *                                    signer identity and a deadline;
+ *   requestRootSlotSignature()       drive that request through ANY
+ *                                    validated USI v1 adapter (CLI /
+ *                                    air-gapped / hardware / extension);
+ *   buildRootSlotSignatureResponse() the response envelope a signer (or an
+ *                                    air-gap shuttle) returns;
+ *   verifyRootSlotSignatureResponse()every binding re-checked, fail closed;
+ *   collectRootSlotApprovals()       fold verified responses into the
+ *                                    780-byte blob through the PINNED core
+ *                                    assembler (quorum, duplicate-slot,
+ *                                    signature-reuse and sighash rules are
+ *                                    the covenant's own, not new ones).
+ *
+ * WHAT THIS PATH REFUSES (each with a named reason; the interface's CLOSED
+ * v1 error vocabulary is never extended):
+ *   WRONG_NETWORK          the request's network is not the signer's
+ *   REQUEST_EXPIRED        the collection round's deadline elapsed
+ *   RESPONSE_REPLAYED      a response reused against a different request
+ *   MANIFEST_HASH_MISMATCH the response describes a different manifest
+ *   TXID_DRIFT             the signer returned different transaction bytes
+ *   FOREIGN_INPUT_SIGNED   the signer touched an input it was not asked to
+ *   SLOT_NOT_HELD          the signer claims a slot it does not hold (or is
+ *                          asked for one whose key it does not report)
+ *   SLOT_KEY_MISMATCH      the declared slot key is not the set's slot key
+ *   SLOT_INACTIVE          a sentinel-zero slot (never inspected in-VM)
+ *   DUPLICATE_SLOT         two responses for one slot
+ *   SIGHASH_NOT_ALL        a slot signature whose gate byte is not 0x01
+ *   PLACEHOLDER_AS_SIGNATURE / SIGNATURE_INVALID  malformed slot material
+ *   UNDER_QUORUM           fewer verified slots than the action requires
+ *
+ * FRESHNESS — READ THIS BEFORE TRUSTING `expiresAtMs`. The request deadline
+ * is a COORDINATION deadline for the collection round only. It is NOT a
+ * consensus expiry and it is NOT what makes a stale approval unusable: the
+ * ONE kill switch is the root OUTPOINT. Every counted slot signature is
+ * SIGHASH_ALL over the whole transaction, which commits to the root's
+ * outpoint (single-use by consensus) and to the successor state whose nonce
+ * strictly increases — so spending the root invalidates every collected
+ * approval at once. Kaspa lockTime is a lower bound only, which is exactly
+ * why the manifest deliberately carries no expiry field.
+ *
+ * IDENTITY BOUNDARY (standing project rule, inherited from
+ * core/signer/interface.js): everything an adapter reports about identity is
+ * a CLAIM, and this module contains NO cryptography and NO address codec. It
+ * binds the transport identity (`expectedSignerAddress`) and the covenant
+ * identity (`slot.publicKey`) into one envelope and refuses any mismatch it
+ * can see structurally; the address <-> key correspondence is established by
+ * the caller that owns the codec. The CRYPTOGRAPHIC slot <-> key binding is
+ * the covenant's own per-slot `checkSig` under consensus — an optional
+ * `verifySlotSignature` hook may be injected by a caller that holds a
+ * verifier, and when it is supplied a failure REFUSES.
+ *
+ * TRANSPORTABLE: a request and a response are both plain JSON-safe objects
+ * with no functions and no ambient state, so an air-gapped flow can write the
+ * request to a file, carry it across, and bring the response back — and every
+ * binding is re-checked on the way in. The OPTIONAL local signature verifier
+ * is a verification-time argument, never a field of the transported request.
+ *
+ * NON-CUSTODY: no field of any request or response can carry a seed phrase,
+ * a private key or a wallet backup. Requests carry frozen public bytes;
+ * responses carry a 65-byte signature. Keys never leave the signer.
+ *
+ * Pure Node CommonJS. Zero external dependencies. No imports from server/ or
+ * sdk/ (node:crypto only, for request-id entropy, through the interface).
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/signer/test/org-root-slot-v7.test.js)
+ * + SDK-TESTED end to end with REAL Schnorr signatures through two independent
+ * offline CLI keyfile signers (sdk/test/org-root-slot-signer-v7.test.js).
+ */
+
+const crypto = require("crypto");
+const { SIGNER_INTERFACE_VERSION, SignerErrorCodes, signerError } = require("./errors");
+const { SIGHASH_ALL, SIGNER_NETWORKS, createTransactionSigningRequest, executeSigning, normalizePublicKeyToXOnly } = require("./interface");
+const {
+  OWNER_SLOTS_V7,
+  SIG_SLOT_LEN_V7,
+  INACTIVE_SLOT_KEY,
+  normalizeOwnerSetV7,
+  assembleOwnerSigsBlobV7,
+  normalizeSlotSignatureHex
+} = require("../model/owner-set-v7");
+const { ORG_ROOT_MANIFEST_VERSION_1, verifyOrgRootIntentManifest } = require("../intent/org-root-manifest-v7");
+/*
+ * v2 addition (Wave 2, Track G): the SAME Universal Signer Interface v2
+ * core (core/signer/v2) every other v2 consumer uses. Imported ADDITIVELY —
+ * nothing above this line, and nothing in the v1 functions below, changes.
+ */
+/* PORTABILITY: require the two portable v2 leaves directly, NOT the v2 index —
+ * the index also pulls the mock adapter and the transport adapters, which are
+ * deliberately not part of the closed browser/mobile bundle. Same names. */
+const v2 = Object.freeze({ ...require("./v2/errors"), ...require("./v2/interface") });
+
+const ORG_ROOT_SLOT_REQUEST_VERSION_1 = "policyvault-org-root-slot-request/1";
+const ORG_ROOT_SLOT_RESPONSE_VERSION_1 = "policyvault-org-root-slot-response/1";
+
+/*
+ * policyvault-org-root-slot-request/2 — the SAME slot-collection round,
+ * carried over the Universal Signer Interface v2 (docs/postlaunch/
+ * signer-interface-v2-spec.md) instead of v1. Additive and parallel: the
+ * v1 request/response versions, and every v1 function above, are
+ * byte-identical and untouched. A v2 collection round differs from v1 in
+ * exactly the ways v2 differs from v1 generally (§2 of the v2 spec):
+ *
+ *   - CAPABILITY PROBING: `requestRootSlotSignatureV2` always drives the
+ *     request through `executeSigningV2`, whose gate 3 cross-checks the
+ *     adapter's DECLARED descriptor against what `probeCapabilities()`
+ *     actually observes — SIGHASH_ALL and the transaction format included
+ *     — and refuses `CAPABILITY_MISMATCH` before any prompt opens. By
+ *     default a signer that cannot be probed at all (`probed: false`) is
+ *     ALSO refused (`requireProbedCapabilities`, overridable for adapters
+ *     — e.g. the air-gap shuttle — whose whole point is that they cannot
+ *     be interrogated before the shuttle).
+ *   - USER PRESENCE: `requestRootSlotSignatureV2` defaults
+ *     `requireUserPresence: true` — an organizational owner's counted
+ *     signature is expected to come from a human at the signer. The
+ *     override exists, and is used, for adapters that are legitimately
+ *     unattended by deliberate operator choice (the CLI keyfile adapter
+ *     declares `userPresence: "not-required"` because running the process
+ *     IS the approval — spec §8); it is never silently defaulted away.
+ *   - BOUND REQUEST + RESPONSE ENVELOPE: the request carries a CSPRNG
+ *     nonce and a `payloadSha256` that commits to the exact unsigned
+ *     transaction bytes AND the manifest hash AND the slot AND the root
+ *     outpoint AND the nonce itself (`computeSlotRequestDigestV2`) — a
+ *     strictly WIDER binding than v1's per-field checks, folded into one
+ *     digest a caller can compare in one step. The response is a bound
+ *     envelope that echoes `requestVersion`/`requestId`/`nonce`; a v1
+ *     envelope presented on this path (or vice versa) is refused with
+ *     `INTERFACE_VERSION_UNSUPPORTED` before any other field is read.
+ *   - EXPIRY + CANCELLATION: `expiresAtMs` is still a COORDINATION
+ *     deadline only (see the header above — the root OUTPOINT remains the
+ *     one freshness kill switch), but v2's own request expiry and
+ *     cancellation-token plumbing are available to
+ *     `requestRootSlotSignatureV2` through `executeSigningV2`.
+ *   - REPLAY GUARD keyed on (root id, root STATE nonce, request id, slot):
+ *     `createOrgRootSlotReplayGuardV2()` is a SEPARATE, coarser guard than
+ *     v2's own session-scoped requestId/nonce guard (which
+ *     `executeSigningV2` already runs internally per signer call) — it
+ *     exists to catch a caller issuing TWO overlapping requests for the
+ *     SAME (root, root-state-nonce, slot), which the per-request guard
+ *     cannot see because each request legitimately gets its own fresh
+ *     requestId/nonce.
+ *
+ * WHAT DID NOT CHANGE: the 65-byte/0x01 SIGHASH_ALL gate is still checked
+ * IN-CORE before a signature is ever stored
+ * (`extractSlotSignatureFromSignedTransaction` / `normalizeSlotSignatureHex`
+ * — REUSED verbatim, not reimplemented); the frozen-byte structural proof
+ * (`extractSlotSignatureFromSignedTransaction`'s TXID-drift / foreign-input
+ * checks) is the SAME function the v1 path calls; `collectRootSlotApprovalsV2`
+ * folds into the SAME pinned `assembleOwnerSigsBlobV7` the v1 path uses —
+ * the covenant's own quorum/duplicate-slot/signature-reuse/sighash rules
+ * are not re-implemented, and a v2-collected blob is byte-identical to a
+ * v1-collected one for the same approvals.
+ *
+ * COMPATIBILITY CLAIMS (stated precisely, not implied): this module is
+ * UNIT-TESTED and ADVERSARIAL-TESTED against the mock v2 adapter, the CLI
+ * keyfile v2 adapter (REAL kaspa-wasm BIP-340 Schnorr — see
+ * sdk/test/org-root-slot-signer-v2.test.js), and the air-gap v2 shuttle's
+ * serialization round trip. It is NOT tested against, and makes NO claim
+ * of compatibility with, any live browser wallet: the KasWare v2 lift is
+ * itself only UNIT-TESTED against the documented provider API (v2 spec
+ * §1/§8), never against a running extension, and that limitation is
+ * inherited unchanged here.
+ */
+const ORG_ROOT_SLOT_REQUEST_VERSION_2 = "policyvault-org-root-slot-request/2";
+const ORG_ROOT_SLOT_RESPONSE_VERSION_2 = "policyvault-org-root-slot-response/2";
+
+const SLOT_REQUEST_DIGEST_DOMAIN_V2 = "policyvault-org-root-slot-request-digest/2";
+
+/* Closed key sets — bounded envelopes, never an open bag of fields. */
+const SLOT_REQUEST_V2_KEYS = Object.freeze([
+  "requestVersion",
+  "interfaceVersion",
+  "requestId",
+  "nonce",
+  "createdAtMs",
+  "expiresAtMs",
+  "expiryIsCoordinationOnly",
+  "network",
+  "manifestHash",
+  "txId",
+  "root",
+  "slot",
+  "action",
+  "expectedSignerAddress",
+  "unsignedSafeJson",
+  "payloadSha256",
+  "requiredCapabilities",
+  "signerRequest"
+]);
+const SLOT_RESPONSE_V2_KEYS = Object.freeze([
+  "responseVersion",
+  "requestVersion",
+  "requestId",
+  "nonce",
+  "network",
+  "manifestHash",
+  "txId",
+  "root",
+  "slot",
+  "signerAddress",
+  "signatureHex",
+  "sighashType",
+  "signedAtMs",
+  "capabilitiesProbed",
+  "txIdVerified",
+  "provider",
+  "transport"
+]);
+const MAX_ROOT_NONCE_DIGITS = 20; /* u64 decimal never exceeds 20 digits */
+const DECIMAL_STRING_RE = /^(0|[1-9][0-9]{0,19})$/;
+
+function assertDecimalString(value, field) {
+  if (typeof value !== "string" || !DECIMAL_STRING_RE.test(value) || value.length > MAX_ROOT_NONCE_DIGITS) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `${field} must be a canonical non-negative decimal string`);
+  }
+  return value;
+}
+
+/*
+ * The v2 slot-request digest: sha256 over a domain tag and the EXACT
+ * unsigned transaction bytes, the manifest hash, the slot number, the
+ * root outpoint, and the request's own nonce — joined unambiguously
+ * (newline-separated, each field already a closed hex/decimal/JSON
+ * string so no field can absorb a neighbour's bytes). This is a STRICTER,
+ * wider binding than v1 ever expressed: v1 checks each of these fields
+ * independently at verification time; v2 additionally lets a caller
+ * confirm all of them at once by recomputing one digest.
+ */
+function computeSlotRequestDigestV2({ unsignedSafeJson, manifestHash, slotNumber, rootOutpoint, nonce }) {
+  const material = [
+    SLOT_REQUEST_DIGEST_DOMAIN_V2,
+    unsignedSafeJson,
+    manifestHash,
+    String(slotNumber),
+    `${rootOutpoint.transactionId}:${rootOutpoint.index}`,
+    nonce
+  ].join("\n");
+  return crypto.createHash("sha256").update(material, "utf8").digest("hex");
+}
+
+/* The named reasons this path can refuse for. They are DETAIL, never a
+ * substitute for the interface's closed error-code vocabulary: every throw
+ * below still carries one of SignerErrorCodes. */
+const SLOT_REFUSALS = Object.freeze({
+  REQUEST_INVALID: "REQUEST_INVALID",
+  REQUEST_EXPIRED: "REQUEST_EXPIRED",
+  MANIFEST_NOT_VERIFIED: "MANIFEST_NOT_VERIFIED",
+  MANIFEST_HASH_MISMATCH: "MANIFEST_HASH_MISMATCH",
+  WRONG_NETWORK: "WRONG_NETWORK",
+  ROOT_OUTPOINT_MISMATCH: "ROOT_OUTPOINT_MISMATCH",
+  ROOT_INPUT_MISMATCH: "ROOT_INPUT_MISMATCH",
+  SLOT_OUT_OF_RANGE: "SLOT_OUT_OF_RANGE",
+  SLOT_INACTIVE: "SLOT_INACTIVE",
+  SLOT_KEY_MISMATCH: "SLOT_KEY_MISMATCH",
+  SLOT_NOT_HELD: "SLOT_NOT_HELD",
+  DUPLICATE_SLOT: "DUPLICATE_SLOT",
+  RESPONSE_REPLAYED: "RESPONSE_REPLAYED",
+  RESPONSE_INVALID: "RESPONSE_INVALID",
+  TXID_DRIFT: "TXID_DRIFT",
+  FOREIGN_INPUT_SIGNED: "FOREIGN_INPUT_SIGNED",
+  SIGNER_IDENTITY_MISMATCH: "SIGNER_IDENTITY_MISMATCH",
+  SIGHASH_NOT_ALL: "SIGHASH_NOT_ALL",
+  SIGNATURE_INVALID: "SIGNATURE_INVALID",
+  SIGNATURE_NOT_VERIFIED: "SIGNATURE_NOT_VERIFIED",
+  SUCCESSION_TAKES_NO_SLOTS: "SUCCESSION_TAKES_NO_SLOTS",
+  /* v2 additions ONLY (Wave 2, Track G) — the v1 reasons above are
+   * unchanged and every v1 refusal still carries exactly the same one. */
+  SLOT_REQUEST_DIGEST_MISMATCH: "SLOT_REQUEST_DIGEST_MISMATCH",
+  NONCE_MISMATCH: "NONCE_MISMATCH",
+  DUPLICATE_SLOT_REQUEST: "DUPLICATE_SLOT_REQUEST"
+});
+
+const MAX_REQUEST_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000; /* 7 days: a collection round, not a security window */
+const HEX64_RE = /^[0-9a-f]{64}$/;
+
+function refuse(code, reason, message, details = {}) {
+  return signerError(code, `org-root-slot-v7 ${reason}: ${message}`, { details: { reason, ...details } });
+}
+
+/*
+ * v2 counterpart of `refuse()`. The v1 helper above constructs its error
+ * through v1's `signerError`, which validates the code against v1's
+ * CLOSED (block-1-only) vocabulary — a v2-ONLY code (PAYLOAD_MUTATED,
+ * RESPONSE_BINDING_MISMATCH, REPLAY_DETECTED, DUPLICATE_SETTLEMENT,
+ * CAPABILITY_MISMATCH, ...) would be silently reclassified to
+ * PROTOCOL_VIOLATION by that constructor. Every v2 function below that
+ * needs to throw one of those codes uses THIS helper instead, which goes
+ * through `v2.signerErrorV2` (the wider v2 vocabulary). Codes v1 and v2
+ * share (e.g. WRONG_NETWORK, ACCOUNT_CHANGED, INTERFACE_VERSION_UNSUPPORTED)
+ * work identically through either helper — same string value, same result.
+ */
+function refuseV2(code, reason, message, details = {}) {
+  return v2.signerErrorV2(code, `org-root-slot-v7 ${reason}: ${message}`, { details: { reason, ...details } });
+}
+
+function invalidRequest(reason, message, details) {
+  return refuse(SignerErrorCodes.REQUEST_INVALID, reason, message, details);
+}
+
+function invalidResponse(reason, message, details) {
+  return refuse(SignerErrorCodes.INVALID_SIGNATURE_RESPONSE, reason, message, details);
+}
+
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+
+function newRequestId() {
+  return crypto.randomBytes(16).toString("hex");
+}
+
+function assertHex64(value, field) {
+  if (typeof value !== "string" || !HEX64_RE.test(value)) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `${field} must be 32-byte lowercase hex`);
+  }
+  return value;
+}
+
+function assertIntegerMs(value, field) {
+  if (!Number.isInteger(value) || value <= 0) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `${field} must be a positive integer epoch-millisecond value`);
+  return value;
+}
+
+function sameOutpoint(a, b) {
+  return isPlainObject(a) && isPlainObject(b) && a.transactionId === b.transactionId && Number(a.index) === Number(b.index);
+}
+
+/* ------------------------------------------------------------------ */
+/* request construction                                                */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Build ONE owner's slot signing request from a VERIFIED org-root manifest.
+ *
+ * The manifest is re-verified here (never trusted by marker), so a request
+ * can never be issued for a description that does not match the transaction
+ * it asks an owner to sign. The request carries, and the response envelope
+ * binds, all of: manifest hash, slot index, root outpoint, network, expected
+ * signer address, and the deadline.
+ *
+ *   manifest              policyvault-org-root-manifest/1
+ *   slot                  1..12 (1-based, as the manifest names slots)
+ *   expectedSignerAddress the address the adapter must report as active
+ *   unsignedSafeJson      the FROZEN transaction serialization to sign
+ *   rootInputIndex        the index of the root covenant input
+ *   expiresAtMs           coordination deadline (see the header: NOT a
+ *                         consensus expiry)
+ */
+function createRootSlotSigningRequest({
+  manifest,
+  descriptors = {},
+  redeemScripts = {}, // Codex checkpoint 6 (UX-02 / UX-13): the vault's predecessor redeem script(s) the verifier rebuilds the successor from
+  slot,
+  expectedSignerAddress,
+  unsignedSafeJson,
+  rootInputIndex,
+  expiresAtMs,
+  nowMs = Date.now()
+} = {}) {
+  if (!isPlainObject(manifest) || manifest.manifestVersion !== ORG_ROOT_MANIFEST_VERSION_1) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `a ${ORG_ROOT_MANIFEST_VERSION_1} is required — failing closed (no default route)`);
+  }
+  const verification = verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
+  if (verification.verdict !== "VERIFIED") {
+    throw invalidRequest(
+      SLOT_REFUSALS.MANIFEST_NOT_VERIFIED,
+      `the manifest does not verify against the transaction it describes — refusing to ask an owner to sign it (failing checks: ${verification.failures.map((f) => f.name).join(", ")})`
+    );
+  }
+  if (manifest.action.name === "succession") {
+    throw invalidRequest(
+      SLOT_REFUSALS.SUCCESSION_TAKES_NO_SLOTS,
+      "a succession is authorized by the pinned successor key through its own entrypoint, not by an owner slot blob — there is no slot to request"
+    );
+  }
+
+  const network = manifest.network.networkId;
+  if (!SIGNER_NETWORKS.includes(network)) {
+    throw refuse(SignerErrorCodes.WRONG_NETWORK, SLOT_REFUSALS.WRONG_NETWORK, `the manifest names network ${JSON.stringify(network)}, which this signer interface version does not express — failing closed`);
+  }
+
+  const slotNumber = Number(slot);
+  if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > OWNER_SLOTS_V7) {
+    throw invalidRequest(SLOT_REFUSALS.SLOT_OUT_OF_RANGE, `slot must be an integer 1..${OWNER_SLOTS_V7}`);
+  }
+  const expected = manifest.action.expectedSignerSlots.find((s) => Number(s.slot) === slotNumber);
+  if (!expected) {
+    throw invalidRequest(
+      SLOT_REFUSALS.SLOT_INACTIVE,
+      `slot ${slotNumber} is not one of the ${manifest.action.expectedSignerSlots.length} active owner slot(s) this action expects — an inactive slot is never inspected by the covenant and can never count`
+    );
+  }
+  if (expected.publicKey === INACTIVE_SLOT_KEY) {
+    throw invalidRequest(SLOT_REFUSALS.SLOT_INACTIVE, `slot ${slotNumber} holds the sentinel-zero key`);
+  }
+
+  if (typeof expectedSignerAddress !== "string" || !expectedSignerAddress.trim()) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "expectedSignerAddress is required — a slot signature is only accepted from the identity it was requested from");
+  }
+  if (typeof unsignedSafeJson !== "string" || !unsignedSafeJson) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "unsignedSafeJson (the FROZEN transaction serialization) is required");
+  }
+  if (!Number.isInteger(rootInputIndex) || rootInputIndex < 0) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "rootInputIndex (the index of the root covenant input) is required");
+  }
+
+  assertIntegerMs(nowMs, "nowMs");
+  const deadline = assertIntegerMs(expiresAtMs, "expiresAtMs");
+  if (deadline <= nowMs) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "expiresAtMs must be in the future");
+  if (deadline - nowMs > MAX_REQUEST_LIFETIME_MS) {
+    throw invalidRequest(
+      SLOT_REFUSALS.REQUEST_INVALID,
+      `expiresAtMs is more than ${MAX_REQUEST_LIFETIME_MS} ms ahead — a collection round that long should be re-issued against a fresh root state rather than left open`
+    );
+  }
+
+  /* the underlying USI v1 request: exactly ONE input, SIGHASH_ALL only */
+  const signerRequest = createTransactionSigningRequest({
+    unsignedSafeJson,
+    signInputs: [{ index: rootInputIndex, sighashType: SIGHASH_ALL }],
+    network,
+    expectedSignerAddress,
+    scheme: "schnorr"
+  });
+
+  return deepFreeze({
+    requestVersion: ORG_ROOT_SLOT_REQUEST_VERSION_1,
+    interfaceVersion: SIGNER_INTERFACE_VERSION,
+    requestId: newRequestId(),
+    createdAtMs: nowMs,
+    expiresAtMs: deadline,
+    expiryIsCoordinationOnly: true,
+    network,
+    manifestHash: assertHex64(manifest.manifestHash, "manifest.manifestHash"),
+    txId: assertHex64(manifest.transaction.txId, "manifest.transaction.txId"),
+    root: {
+      covenantId: assertHex64(manifest.root.covenantId, "manifest.root.covenantId"),
+      outpoint: { transactionId: manifest.root.outpoint.transactionId, index: Number(manifest.root.outpoint.index) },
+      inputIndex: rootInputIndex
+    },
+    slot: { number: slotNumber, index: slotNumber - 1, publicKey: expected.publicKey },
+    action: {
+      name: manifest.action.name,
+      authorityClass: manifest.action.authorityClass,
+      requiredApprovals: manifest.action.requiredApprovals,
+      quorumSource: manifest.action.quorumSource
+    },
+    expectedSignerAddress: expectedSignerAddress.trim(),
+    unsignedSafeJson,
+    signerRequest
+  });
+}
+
+/* Structural re-validation of a slot request (defense in depth — a request
+ * is re-checked, never trusted by marker). */
+function assertRootSlotSigningRequest(request) {
+  if (!isPlainObject(request)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "a slot signing request object is required");
+  if (request.requestVersion !== ORG_ROOT_SLOT_REQUEST_VERSION_1) {
+    throw refuse(
+      SignerErrorCodes.INTERFACE_VERSION_UNSUPPORTED,
+      SLOT_REFUSALS.REQUEST_INVALID,
+      `slot request declares version ${JSON.stringify(request.requestVersion)}; this core implements exactly ${JSON.stringify(ORG_ROOT_SLOT_REQUEST_VERSION_1)} — failing closed`
+    );
+  }
+  if (typeof request.requestId !== "string" || !/^[0-9a-f]{32}$/.test(request.requestId)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "requestId must be 32-hex");
+  assertHex64(request.manifestHash, "manifestHash");
+  assertHex64(request.txId, "txId");
+  assertHex64(request.slot.publicKey, "slot.publicKey");
+  if (!SIGNER_NETWORKS.includes(request.network)) throw refuse(SignerErrorCodes.WRONG_NETWORK, SLOT_REFUSALS.WRONG_NETWORK, `unknown network ${JSON.stringify(request.network)}`);
+  if (!Number.isInteger(request.slot.number) || request.slot.number < 1 || request.slot.number > OWNER_SLOTS_V7) throw invalidRequest(SLOT_REFUSALS.SLOT_OUT_OF_RANGE, "slot.number out of range");
+  if (request.slot.index !== request.slot.number - 1) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "slot.index must be slot.number - 1");
+  assertIntegerMs(request.expiresAtMs, "expiresAtMs");
+  if (typeof request.unsignedSafeJson !== "string" || !request.unsignedSafeJson) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "unsignedSafeJson is required");
+  if (!isPlainObject(request.signerRequest) || request.signerRequest.kind !== "sign-transaction") throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "signerRequest must be the USI sign-transaction request");
+  return request;
+}
+
+function assertNotExpired(request, nowMs) {
+  assertIntegerMs(nowMs, "nowMs");
+  if (nowMs >= request.expiresAtMs) {
+    throw refuse(
+      SignerErrorCodes.SIGNER_TIMEOUT,
+      SLOT_REFUSALS.REQUEST_EXPIRED,
+      `the collection round for slot ${request.slot.number} closed at ${request.expiresAtMs}; re-issue the request against the live root state (the security freshness is the root OUTPOINT, not this deadline)`
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* signed-transaction -> ONE slot signature                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Extract the slot signature a signer produced, and prove structurally that
+ * it signed EXACTLY the transaction it was handed and EXACTLY the one input
+ * it was asked for.
+ *
+ * A USI v1 adapter returns the signed Safe JSON serialization. The frozen
+ * bytes must be otherwise IDENTICAL: any other difference — an output value,
+ * a recipient script, another input's signature script, the lock time — is
+ * TXID DRIFT and refuses. (A different transaction is exactly what "a slot
+ * signature over a different transaction" means, and this catches it without
+ * needing a txid implementation in portable core.)
+ */
+function extractSlotSignatureFromSignedTransaction({ request, signedSafeJson }) {
+  assertRootSlotSigningRequest(request);
+  if (typeof signedSafeJson !== "string" || !signedSafeJson.trim()) {
+    throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "the signer returned no signed transaction serialization");
+  }
+  let signed;
+  let unsigned;
+  try {
+    signed = JSON.parse(signedSafeJson);
+    unsigned = JSON.parse(request.unsignedSafeJson);
+  } catch (e) {
+    throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, `the signed serialization is not JSON: ${e.message}`);
+  }
+  if (!isPlainObject(signed) || !Array.isArray(signed.inputs) || signed.inputs.length !== unsigned.inputs.length) {
+    throw invalidResponse(SLOT_REFUSALS.TXID_DRIFT, "the signed serialization does not have the same input set as the frozen transaction");
+  }
+  const idx = request.root.inputIndex;
+  if (idx >= signed.inputs.length) throw invalidResponse(SLOT_REFUSALS.ROOT_INPUT_MISMATCH, `root input index ${idx} is out of range for a transaction with ${signed.inputs.length} input(s)`);
+
+  /* Every field EXCEPT the one signature script must be byte-identical. The
+   * frozen serialization may carry no `signatureScript` key at all for an
+   * unsigned input, so the comparison restores the ORIGINAL presence/absence
+   * rather than normalizing it — normalizing would hide a real difference. */
+  const strippedSigned = JSON.parse(signedSafeJson);
+  const strippedUnsigned = JSON.parse(request.unsignedSafeJson);
+  const returnedScript = String(strippedSigned.inputs[idx].signatureScript ?? "");
+  if (Object.prototype.hasOwnProperty.call(strippedUnsigned.inputs[idx], "signatureScript")) {
+    strippedSigned.inputs[idx].signatureScript = strippedUnsigned.inputs[idx].signatureScript;
+  } else {
+    delete strippedSigned.inputs[idx].signatureScript;
+  }
+  if (JSON.stringify(strippedSigned) !== JSON.stringify(strippedUnsigned)) {
+    /* attribute the drift: a foreign input touched vs. anything else */
+    for (let i = 0; i < signed.inputs.length; i += 1) {
+      if (i === idx) continue;
+      if (String(signed.inputs[i].signatureScript ?? "") !== String(unsigned.inputs[i].signatureScript ?? "")) {
+        throw invalidResponse(
+          SLOT_REFUSALS.FOREIGN_INPUT_SIGNED,
+          `the signer altered input ${i}, which this request did not ask it to sign — refusing the whole response`
+        );
+      }
+    }
+    throw invalidResponse(
+      SLOT_REFUSALS.TXID_DRIFT,
+      "the signer returned different transaction bytes than the frozen ones it was handed — a slot signature over a different transaction can never be accepted"
+    );
+  }
+
+  /* the returned script is the raw createInputSignature output: a 0x41 push
+   * of 64-byte Schnorr + the sighash-type byte. normalizeSlotSignatureHex
+   * tolerates the push opcode and enforces the 0x01 SIGHASH_ALL gate the
+   * covenant checks on every counted slot. */
+  let signatureHex;
+  try {
+    signatureHex = normalizeSlotSignatureHex(returnedScript, `slot ${request.slot.number} signature`);
+  } catch (e) {
+    const reason = e.code === "SIGHASH_NOT_ALL" ? SLOT_REFUSALS.SIGHASH_NOT_ALL : e.code === "PLACEHOLDER_AS_SIGNATURE" ? SLOT_REFUSALS.SIGNATURE_INVALID : SLOT_REFUSALS.SIGNATURE_INVALID;
+    throw invalidResponse(reason, e.message, { code: e.code ?? null });
+  }
+  return signatureHex;
+}
+
+/* ------------------------------------------------------------------ */
+/* response envelope                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Build the response envelope for ONE slot. It re-states every binding the
+ * request carried, so a response can be shuttled across an air gap as a
+ * standalone file and still be checked against the request it belongs to.
+ *
+ * Exactly one of `signedSafeJson` (an adapter's signed serialization) or
+ * `signatureHex` (a raw 65-byte slot signature, e.g. from a device that
+ * returns only the signature) is supplied.
+ */
+function buildRootSlotSignatureResponse({ request, signedSafeJson, signatureHex, signerAddress, signedAtMs = Date.now() }) {
+  assertRootSlotSigningRequest(request);
+  const haveSigned = signedSafeJson !== undefined && signedSafeJson !== null;
+  const haveRaw = signatureHex !== undefined && signatureHex !== null;
+  if (haveSigned === haveRaw) {
+    throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "exactly one of signedSafeJson or signatureHex must be supplied");
+  }
+  let sig;
+  if (haveSigned) {
+    sig = extractSlotSignatureFromSignedTransaction({ request, signedSafeJson });
+  } else {
+    try {
+      sig = normalizeSlotSignatureHex(signatureHex, `slot ${request.slot.number} signature`);
+    } catch (e) {
+      const reason = e.code === "SIGHASH_NOT_ALL" ? SLOT_REFUSALS.SIGHASH_NOT_ALL : SLOT_REFUSALS.SIGNATURE_INVALID;
+      throw invalidResponse(reason, e.message, { code: e.code ?? null });
+    }
+  }
+  assertIntegerMs(signedAtMs, "signedAtMs");
+  return deepFreeze({
+    responseVersion: ORG_ROOT_SLOT_RESPONSE_VERSION_1,
+    requestVersion: request.requestVersion,
+    requestId: request.requestId,
+    network: request.network,
+    manifestHash: request.manifestHash,
+    txId: request.txId,
+    root: { covenantId: request.root.covenantId, outpoint: { ...request.root.outpoint }, inputIndex: request.root.inputIndex },
+    slot: { number: request.slot.number, index: request.slot.index, publicKey: request.slot.publicKey },
+    signerAddress: typeof signerAddress === "string" && signerAddress.trim() ? signerAddress.trim() : request.expectedSignerAddress,
+    signatureHex: sig,
+    sighashType: SIGHASH_ALL,
+    signedAtMs
+  });
+}
+
+/*
+ * Verify ONE response against the request it claims to answer. EVERY binding
+ * is re-checked: version, requestId (a response replayed into another
+ * request refuses here), network, manifest hash, txid, root covenant id and
+ * outpoint, slot number and key, signer identity, the SIGHASH_ALL gate byte,
+ * and the deadline.
+ *
+ * `ownerSet`, when supplied, is the PREDECESSOR owner set the covenant will
+ * check against: the slot must be ACTIVE in it and hold exactly the declared
+ * key, so a signer claiming a slot it does not hold is refused before the
+ * blob is ever assembled.
+ */
+function verifyRootSlotSignatureResponse({ request, response, ownerSet = null, nowMs = Date.now(), verifySlotSignature = null }) {
+  assertRootSlotSigningRequest(request);
+  if (!isPlainObject(response)) throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "a slot response object is required");
+  if (response.responseVersion !== ORG_ROOT_SLOT_RESPONSE_VERSION_1) {
+    throw refuse(
+      SignerErrorCodes.INTERFACE_VERSION_UNSUPPORTED,
+      SLOT_REFUSALS.RESPONSE_INVALID,
+      `slot response declares version ${JSON.stringify(response.responseVersion)}; this core implements exactly ${JSON.stringify(ORG_ROOT_SLOT_RESPONSE_VERSION_1)} — failing closed`
+    );
+  }
+  assertNotExpired(request, nowMs);
+
+  if (response.requestId !== request.requestId) {
+    throw invalidResponse(
+      SLOT_REFUSALS.RESPONSE_REPLAYED,
+      `this response answers request ${response.requestId}, not ${request.requestId} — a signature collected for one request is never accepted for another`
+    );
+  }
+  if (response.network !== request.network) throw refuse(SignerErrorCodes.WRONG_NETWORK, SLOT_REFUSALS.WRONG_NETWORK, `response network ${JSON.stringify(response.network)} != request network ${JSON.stringify(request.network)}`);
+  if (response.manifestHash !== request.manifestHash) throw invalidResponse(SLOT_REFUSALS.MANIFEST_HASH_MISMATCH, "the response describes a different manifest than the one this request was issued for");
+  if (response.txId !== request.txId) throw invalidResponse(SLOT_REFUSALS.TXID_DRIFT, "the response names a different transaction id than the frozen one");
+  if (!isPlainObject(response.root) || response.root.covenantId !== request.root.covenantId) throw invalidResponse(SLOT_REFUSALS.ROOT_OUTPOINT_MISMATCH, "the response names a different root covenant");
+  if (!sameOutpoint(response.root.outpoint, request.root.outpoint)) {
+    throw invalidResponse(
+      SLOT_REFUSALS.ROOT_OUTPOINT_MISMATCH,
+      "the response names a different root outpoint — the root outpoint IS the freshness kill switch and is never allowed to drift"
+    );
+  }
+  if (!isPlainObject(response.slot) || Number(response.slot.number) !== request.slot.number) throw invalidResponse(SLOT_REFUSALS.SLOT_NOT_HELD, `the response claims slot ${response.slot && response.slot.number}, but this request is for slot ${request.slot.number}`);
+  if (response.slot.publicKey !== request.slot.publicKey) throw invalidResponse(SLOT_REFUSALS.SLOT_KEY_MISMATCH, "the response declares a different key for this slot than the manifest's owner set does");
+  if (response.signerAddress !== request.expectedSignerAddress) {
+    throw refuse(SignerErrorCodes.ACCOUNT_CHANGED, SLOT_REFUSALS.SIGNER_IDENTITY_MISMATCH, "the response was produced by a different signer identity than the request was issued to");
+  }
+  if (response.sighashType !== SIGHASH_ALL) throw invalidResponse(SLOT_REFUSALS.SIGHASH_NOT_ALL, `the response declares sighash type ${JSON.stringify(response.sighashType)}; the root covenant gates every counted slot on SIGHASH_ALL (0x01)`);
+
+  let signatureHex;
+  try {
+    signatureHex = normalizeSlotSignatureHex(response.signatureHex, `slot ${request.slot.number} signature`);
+  } catch (e) {
+    const reason = e.code === "SIGHASH_NOT_ALL" ? SLOT_REFUSALS.SIGHASH_NOT_ALL : SLOT_REFUSALS.SIGNATURE_INVALID;
+    throw invalidResponse(reason, e.message, { code: e.code ?? null });
+  }
+  if (signatureHex.length !== SIG_SLOT_LEN_V7 * 2) throw invalidResponse(SLOT_REFUSALS.SIGNATURE_INVALID, `a slot signature must be exactly ${SIG_SLOT_LEN_V7} bytes`);
+
+  /* the slot must be ACTIVE in the predecessor set and hold this exact key */
+  if (ownerSet !== null) {
+    const set = ownerSet.activeCount !== undefined ? ownerSet : normalizeOwnerSetV7(ownerSet);
+    if (request.slot.index >= set.activeCount) {
+      throw invalidResponse(SLOT_REFUSALS.SLOT_INACTIVE, `slot ${request.slot.number} is inactive in the predecessor owner set — inactive slots are never inspected by the covenant`);
+    }
+    if (set.owners[request.slot.index] !== request.slot.publicKey) {
+      throw invalidResponse(
+        SLOT_REFUSALS.SLOT_NOT_HELD,
+        `slot ${request.slot.number} of the predecessor set holds a different key — refusing to place this signature under a key the covenant will not check it against`
+      );
+    }
+  }
+
+  /* OPTIONAL cryptographic binding. When a caller injects a verifier (it
+   * owns the crypto; portable core deliberately does not), a failure REFUSES
+   * here instead of at consensus. When none is injected the binding remains
+   * the covenant's own per-slot checkSig — recorded honestly. */
+  let signatureVerified = false;
+  if (verifySlotSignature !== null) {
+    if (typeof verifySlotSignature !== "function") throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "verifySlotSignature, when supplied, must be a function");
+    let ok;
+    try {
+      ok = verifySlotSignature({ publicKey: request.slot.publicKey, signatureHex, unsignedSafeJson: request.unsignedSafeJson, inputIndex: request.root.inputIndex });
+    } catch (e) {
+      throw invalidResponse(SLOT_REFUSALS.SIGNATURE_NOT_VERIFIED, `the injected slot-signature verifier failed: ${e.message}`);
+    }
+    if (ok !== true) {
+      throw invalidResponse(SLOT_REFUSALS.SIGNATURE_NOT_VERIFIED, `the slot signature does not verify under the slot's public key ${request.slot.publicKey}`);
+    }
+    signatureVerified = true;
+  }
+
+  return deepFreeze({
+    slot: request.slot.number,
+    index: request.slot.index,
+    publicKey: request.slot.publicKey,
+    signatureHex,
+    signerAddress: response.signerAddress,
+    signatureVerified,
+    cryptographicBinding: signatureVerified
+      ? "verified locally by the injected verifier AND enforced in-VM by the root covenant's per-slot checkSig"
+      : "enforced in-VM by the root covenant's per-slot checkSig (no local verifier was injected)"
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* collection -> the 780-byte blob                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Fold verified slot responses into the approvals list the PINNED core
+ * assembler consumes, and assemble the blob.
+ *
+ * `pairs` is [{ request, response }] — one per owner who signed. The quorum,
+ * duplicate-slot, signature-reuse, inactive-slot and SIGHASH_ALL rules are
+ * NOT re-implemented here: assembleOwnerSigsBlobV7 owns them, because it is
+ * the module the production-byte suites and the covenant agree with.
+ */
+function collectRootSlotApprovals({ ownerSet, actionName, pairs, nowMs = Date.now(), requireQuorum = true, verifySlotSignature = null }) {
+  if (!Array.isArray(pairs) || pairs.length === 0) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "pairs must be a non-empty array of { request, response }");
+  const set = ownerSet && ownerSet.activeCount !== undefined ? ownerSet : normalizeOwnerSetV7(ownerSet);
+  const seenSlots = new Set();
+  const seenRequestIds = new Set();
+  const approvals = [];
+  const verified = [];
+  for (const [i, pair] of pairs.entries()) {
+    if (!isPlainObject(pair) || !isPlainObject(pair.request) || !isPlainObject(pair.response)) {
+      throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `pairs[${i}] must be { request, response }`);
+    }
+    if (pair.request.manifestHash !== pairs[0].request.manifestHash) {
+      throw invalidResponse(SLOT_REFUSALS.MANIFEST_HASH_MISMATCH, `pairs[${i}] was collected for a different manifest — one collection round covers exactly one transaction`);
+    }
+    if (seenRequestIds.has(pair.request.requestId)) {
+      throw invalidResponse(SLOT_REFUSALS.RESPONSE_REPLAYED, `pairs[${i}] reuses request ${pair.request.requestId}`);
+    }
+    seenRequestIds.add(pair.request.requestId);
+    const v = verifyRootSlotSignatureResponse({ request: pair.request, response: pair.response, ownerSet: set, nowMs, verifySlotSignature });
+    if (seenSlots.has(v.slot)) {
+      throw invalidResponse(SLOT_REFUSALS.DUPLICATE_SLOT, `slot ${v.slot} was collected twice — one slot, one signature`);
+    }
+    seenSlots.add(v.slot);
+    approvals.push({ slot: v.slot, publicKey: v.publicKey, signatureHex: v.signatureHex });
+    verified.push(v);
+  }
+
+  let blob;
+  try {
+    blob = assembleOwnerSigsBlobV7({ ownerSet: set, actionName, approvals, requireQuorum });
+  } catch (e) {
+    /* the assembler's codes are the covenant's own rules; surface them
+     * verbatim behind the interface's closed error vocabulary */
+    throw invalidResponse(e.code === "UNDER_QUORUM" ? "UNDER_QUORUM" : e.code || SLOT_REFUSALS.RESPONSE_INVALID, e.message, { code: e.code ?? null });
+  }
+  return deepFreeze({
+    approvals,
+    verified,
+    blobHex: blob.blobHex,
+    signedSlots: blob.signedSlots,
+    requiredApprovals: blob.requiredApprovals.toString(),
+    satisfiedApprovals: blob.satisfiedApprovals.toString(),
+    actionName: blob.actionName
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* driving an external signer                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Drive ONE slot request through a validated USI v1 adapter — a CLI keyfile
+ * signer, an air-gapped shuttle, a hardware device, a browser extension, an
+ * HSM. Every fail-closed gate of executeSigning applies first (capability,
+ * scheme, declared AND live network, identity before and after approval,
+ * bounded asynchronous approval), then this module re-checks the frozen-byte
+ * structure and builds the bound response envelope.
+ */
+async function requestRootSlotSignature({ adapter, request, timeoutMs, onTransition, nowMs = Date.now(), signerAddress }) {
+  assertRootSlotSigningRequest(request);
+  assertNotExpired(request, nowMs);
+
+  /*
+   * THE SLOT-KEY GATE. executeSigning binds the transport identity (the
+   * ADDRESS the adapter reports as active, before and after approval); the
+   * covenant binds the KEY. Those are two different identities, and this
+   * module owns no address codec to relate them — so when the adapter offers
+   * getPublicKey(), its CLAIMED key is compared to the slot's key and a
+   * mismatch refuses BEFORE the signer is ever asked to sign. This is what
+   * stops a request that was (wrongly) issued to a non-owner's address from
+   * producing a real signature that then has to be caught downstream.
+   *
+   * An adapter that offers no key claim (getPublicKey absent, or returning
+   * null) cannot be gated here: the binding then rests entirely on the
+   * covenant's own per-slot checkSig, and the returned response records
+   * `slotKeyClaimChecked: false` so nothing downstream can mistake an
+   * unchecked claim for a checked one.
+   *
+   * TRUST BOUNDARY of that flag: it is LOCAL PROVENANCE recorded by the
+   * runtime that actually drove the adapter, not a verified claim about the
+   * response. A response that crossed an air gap could carry any value, so
+   * `verifyRootSlotSignatureResponse` deliberately NEVER reads it and never
+   * lets it influence a decision — it computes its own `signatureVerified`
+   * from the optional injected verifier instead. Display it as provenance;
+   * never treat it as proof.
+   */
+  let slotKeyClaimChecked = false;
+  if (typeof adapter === "object" && adapter !== null && typeof adapter.getPublicKey === "function") {
+    let claimed = null;
+    try {
+      claimed = await adapter.getPublicKey();
+    } catch {
+      claimed = null; /* a provider that cannot report a key is not gated here */
+    }
+    if (claimed !== null && claimed !== undefined) {
+      const xOnly = normalizePublicKeyToXOnly(claimed, "signer getPublicKey()");
+      if (xOnly !== request.slot.publicKey) {
+        throw refuse(
+          SignerErrorCodes.ACCOUNT_CHANGED,
+          SLOT_REFUSALS.SLOT_NOT_HELD,
+          `the signer reports public key ${xOnly}, but slot ${request.slot.number} of this organization's owner set is ${request.slot.publicKey} — refusing to ask it for a signature that could never count`
+        );
+      }
+      slotKeyClaimChecked = true;
+    }
+  }
+
+  const options = {};
+  if (timeoutMs !== undefined) options.timeoutMs = timeoutMs;
+  if (onTransition !== undefined) options.onTransition = onTransition;
+  const outcome = await executeSigning(adapter, request.signerRequest, options);
+  const response = buildRootSlotSignatureResponse({
+    request,
+    signedSafeJson: outcome.result.signedSafeJson,
+    signerAddress: signerAddress ?? request.expectedSignerAddress,
+    signedAtMs: Date.now()
+  });
+  return deepFreeze({ ...response, slotKeyClaimChecked });
+}
+
+/* ==================================================================== */
+/* policyvault-org-root-slot-request/2 — additive, parallel to v1 above  */
+/* ==================================================================== */
+
+/* Structural re-validation of a v2 slot request (defense in depth — never
+ * trusted by marker). Recomputes the outer payloadSha256 AND delegates to
+ * the embedded USI v2 request's OWN validator, which recomputes ITS
+ * payloadSha256 independently from the SAME unsignedSafeJson. */
+function assertRootSlotSigningRequestV2(request) {
+  if (!isPlainObject(request)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "a v2 slot signing request object is required");
+  if (request.requestVersion !== ORG_ROOT_SLOT_REQUEST_VERSION_2) {
+    throw refuse(
+      v2.SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      SLOT_REFUSALS.REQUEST_INVALID,
+      `slot request declares version ${JSON.stringify(request.requestVersion)}; this v2 path implements exactly ${JSON.stringify(ORG_ROOT_SLOT_REQUEST_VERSION_2)} — failing closed`
+    );
+  }
+  const extraKeys = Object.keys(request).filter((k) => !SLOT_REQUEST_V2_KEYS.includes(k));
+  if (extraKeys.length > 0) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `slot request carries unknown key(s) ${JSON.stringify(extraKeys)} — refusing (closed envelope)`);
+  for (const key of SLOT_REQUEST_V2_KEYS) {
+    if (!(key in request)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `slot request is missing required key ${JSON.stringify(key)}`);
+  }
+  if (request.interfaceVersion !== v2.SIGNER_INTERFACE_VERSION_V2) {
+    throw refuse(
+      v2.SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      SLOT_REFUSALS.REQUEST_INVALID,
+      `slot request declares interface version ${JSON.stringify(request.interfaceVersion)}; expected exactly ${JSON.stringify(v2.SIGNER_INTERFACE_VERSION_V2)}`
+    );
+  }
+  if (typeof request.requestId !== "string" || !/^[0-9a-f]{32}$/.test(request.requestId)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "requestId must be 32-hex");
+  if (typeof request.nonce !== "string" || !/^[0-9a-f]{64}$/.test(request.nonce)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "nonce must be 64-hex (32 CSPRNG bytes)");
+  assertHex64(request.manifestHash, "manifestHash");
+  assertHex64(request.txId, "txId");
+  if (!isPlainObject(request.slot)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "slot is required");
+  assertHex64(request.slot.publicKey, "slot.publicKey");
+  if (!SIGNER_NETWORKS.includes(request.network)) throw refuse(SignerErrorCodes.WRONG_NETWORK, SLOT_REFUSALS.WRONG_NETWORK, `unknown network ${JSON.stringify(request.network)}`);
+  if (!Number.isInteger(request.slot.number) || request.slot.number < 1 || request.slot.number > OWNER_SLOTS_V7) throw invalidRequest(SLOT_REFUSALS.SLOT_OUT_OF_RANGE, "slot.number out of range");
+  if (request.slot.index !== request.slot.number - 1) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "slot.index must be slot.number - 1");
+  assertIntegerMs(request.createdAtMs, "createdAtMs");
+  assertIntegerMs(request.expiresAtMs, "expiresAtMs");
+  if (request.expiresAtMs <= request.createdAtMs) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "expiresAtMs must be after createdAtMs");
+  if (request.expiryIsCoordinationOnly !== true) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "expiryIsCoordinationOnly must be true — the deadline is a collection-round deadline, never a consensus expiry");
+  }
+  if (typeof request.unsignedSafeJson !== "string" || !request.unsignedSafeJson) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "unsignedSafeJson is required");
+  if (!isPlainObject(request.root) || !isPlainObject(request.root.outpoint)) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "root.outpoint is required");
+  assertHex64(request.root.covenantId, "root.covenantId");
+  assertHex64(request.root.outpoint.transactionId, "root.outpoint.transactionId");
+  if (!Number.isInteger(request.root.outpoint.index) || request.root.outpoint.index < 0) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "root.outpoint.index must be a non-negative integer");
+  if (!Number.isInteger(request.root.inputIndex) || request.root.inputIndex < 0) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "root.inputIndex is required");
+  assertDecimalString(request.root.stateNonce, "root.stateNonce");
+
+  /* the outer digest re-binds unsignedSafeJson + manifestHash + slot +
+   * root outpoint + nonce — a request whose digest no longer matches its
+   * own fields was altered after creation and is refused BEFORE any
+   * signer is invoked. */
+  const expectedDigest = computeSlotRequestDigestV2({
+    unsignedSafeJson: request.unsignedSafeJson,
+    manifestHash: request.manifestHash,
+    slotNumber: request.slot.number,
+    rootOutpoint: request.root.outpoint,
+    nonce: request.nonce
+  });
+  if (request.payloadSha256 !== expectedDigest) {
+    throw refuseV2(
+      v2.SignerErrorCodesV2.PAYLOAD_MUTATED,
+      SLOT_REFUSALS.SLOT_REQUEST_DIGEST_MISMATCH,
+      "the slot request's payloadSha256 does not match its own fields (unsigned transaction + manifest hash + slot + root outpoint + nonce) — the request was altered after creation; refusing before the signer is invoked"
+    );
+  }
+
+  if (!isPlainObject(request.signerRequest) || request.signerRequest.kind !== "sign-transaction") {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "signerRequest must be the USI v2 sign-transaction request");
+  }
+  /* defense in depth: the embedded v2 USI request re-validates ITSELF
+   * (interface version, requestId/nonce shape, expiry ordering, its own
+   * payloadSha256 recomputed from the SAME unsignedSafeJson, canonical
+   * sign-inputs, transaction format, sighash.all) through the shared v2
+   * core — never re-implemented here. */
+  v2.assertSigningRequestV2(request.signerRequest);
+  if (request.signerRequest.requestId !== request.requestId || request.signerRequest.nonce !== request.nonce) {
+    throw refuseV2(
+      v2.SignerErrorCodesV2.RESPONSE_BINDING_MISMATCH,
+      SLOT_REFUSALS.NONCE_MISMATCH,
+      "the org-root-slot request envelope is not bound to its own embedded USI request — refusing"
+    );
+  }
+  if (request.signerRequest.unsignedSafeJson !== request.unsignedSafeJson) {
+    throw refuseV2(
+      v2.SignerErrorCodesV2.PAYLOAD_MUTATED,
+      SLOT_REFUSALS.SLOT_REQUEST_DIGEST_MISMATCH,
+      "the embedded USI request carries different transaction bytes than the org-root-slot envelope — refusing"
+    );
+  }
+  if (request.signerRequest.expectedSignerAddress !== request.expectedSignerAddress) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "the embedded USI request names a different expected signer than the envelope");
+  }
+  return request;
+}
+
+/*
+ * Build ONE owner's v2 slot signing request from a VERIFIED org-root
+ * manifest. Same contract as v1's `createRootSlotSigningRequest` (the
+ * manifest is re-verified here, never trusted by marker; every binding
+ * fact the v1 request carries is carried here too), PLUS the v2-only
+ * additions documented at the top of this section: a CSPRNG nonce, an
+ * explicit v2 USI request (`signerRequest`, pinned to SIGHASH_ALL and
+ * kaspa-safe-json/1), the wide `payloadSha256` digest, the predecessor
+ * root STATE nonce (for the domain-level replay guard), and the frozen
+ * `requiredCapabilities` a caller can show a human before issuing the
+ * request.
+ */
+function createRootSlotSigningRequestV2({
+  manifest,
+  descriptors = {},
+  redeemScripts = {}, // Codex checkpoint 6 (UX-02 / UX-13): the vault's predecessor redeem script(s) the verifier rebuilds the successor from
+  slot,
+  expectedSignerAddress,
+  unsignedSafeJson,
+  rootInputIndex,
+  expiresAtMs,
+  nowMs = Date.now()
+} = {}) {
+  if (!isPlainObject(manifest) || manifest.manifestVersion !== ORG_ROOT_MANIFEST_VERSION_1) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `a ${ORG_ROOT_MANIFEST_VERSION_1} is required — failing closed (no default route)`);
+  }
+  const verification = verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
+  if (verification.verdict !== "VERIFIED") {
+    throw invalidRequest(
+      SLOT_REFUSALS.MANIFEST_NOT_VERIFIED,
+      `the manifest does not verify against the transaction it describes — refusing to ask an owner to sign it (failing checks: ${verification.failures.map((f) => f.name).join(", ")})`
+    );
+  }
+  if (manifest.action.name === "succession") {
+    throw invalidRequest(
+      SLOT_REFUSALS.SUCCESSION_TAKES_NO_SLOTS,
+      "a succession is authorized by the pinned successor key through its own entrypoint, not by an owner slot blob — there is no slot to request"
+    );
+  }
+
+  const network = manifest.network.networkId;
+  if (!SIGNER_NETWORKS.includes(network)) {
+    throw refuse(SignerErrorCodes.WRONG_NETWORK, SLOT_REFUSALS.WRONG_NETWORK, `the manifest names network ${JSON.stringify(network)}, which this signer interface version does not express — failing closed`);
+  }
+
+  const slotNumber = Number(slot);
+  if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > OWNER_SLOTS_V7) {
+    throw invalidRequest(SLOT_REFUSALS.SLOT_OUT_OF_RANGE, `slot must be an integer 1..${OWNER_SLOTS_V7}`);
+  }
+  const expected = manifest.action.expectedSignerSlots.find((s) => Number(s.slot) === slotNumber);
+  if (!expected) {
+    throw invalidRequest(
+      SLOT_REFUSALS.SLOT_INACTIVE,
+      `slot ${slotNumber} is not one of the ${manifest.action.expectedSignerSlots.length} active owner slot(s) this action expects — an inactive slot is never inspected by the covenant and can never count`
+    );
+  }
+  if (expected.publicKey === INACTIVE_SLOT_KEY) {
+    throw invalidRequest(SLOT_REFUSALS.SLOT_INACTIVE, `slot ${slotNumber} holds the sentinel-zero key`);
+  }
+
+  if (typeof expectedSignerAddress !== "string" || !expectedSignerAddress.trim()) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "expectedSignerAddress is required — a slot signature is only accepted from the identity it was requested from");
+  }
+  if (typeof unsignedSafeJson !== "string" || !unsignedSafeJson) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "unsignedSafeJson (the FROZEN transaction serialization) is required");
+  }
+  if (!Number.isInteger(rootInputIndex) || rootInputIndex < 0) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "rootInputIndex (the index of the root covenant input) is required");
+  }
+
+  assertIntegerMs(nowMs, "nowMs");
+  const deadline = assertIntegerMs(expiresAtMs, "expiresAtMs");
+  if (deadline <= nowMs) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "expiresAtMs must be in the future");
+  if (deadline - nowMs > MAX_REQUEST_LIFETIME_MS) {
+    throw invalidRequest(
+      SLOT_REFUSALS.REQUEST_INVALID,
+      `expiresAtMs is more than ${MAX_REQUEST_LIFETIME_MS} ms ahead — a collection round that long should be re-issued against a fresh root state rather than left open`
+    );
+  }
+
+  /* the underlying USI v2 request: exactly ONE input, SIGHASH_ALL only,
+   * pinned to kaspa-safe-json/1, with its own CSPRNG nonce and an
+   * explicit ttlMs (every v2 request expires). */
+  const signerRequest = v2.createTransactionSigningRequestV2({
+    unsignedSafeJson,
+    signInputs: [{ index: rootInputIndex, sighashType: SIGHASH_ALL }],
+    network,
+    expectedSignerAddress,
+    scheme: "schnorr",
+    transactionFormat: v2.TRANSACTION_FORMATS[0],
+    ttlMs: deadline - nowMs,
+    nowMs
+  });
+
+  const rootOutpoint = { transactionId: manifest.root.outpoint.transactionId, index: Number(manifest.root.outpoint.index) };
+  const rootStateNonce = assertDecimalString(manifest.rootState.before.state.rootNonce, "manifest.rootState.before.state.rootNonce");
+  const payloadSha256 = computeSlotRequestDigestV2({
+    unsignedSafeJson,
+    manifestHash: manifest.manifestHash,
+    slotNumber,
+    rootOutpoint,
+    nonce: signerRequest.nonce
+  });
+
+  return deepFreeze({
+    requestVersion: ORG_ROOT_SLOT_REQUEST_VERSION_2,
+    interfaceVersion: v2.SIGNER_INTERFACE_VERSION_V2,
+    requestId: signerRequest.requestId,
+    nonce: signerRequest.nonce,
+    createdAtMs: nowMs,
+    expiresAtMs: deadline,
+    expiryIsCoordinationOnly: true,
+    network,
+    manifestHash: assertHex64(manifest.manifestHash, "manifest.manifestHash"),
+    txId: assertHex64(manifest.transaction.txId, "manifest.transaction.txId"),
+    root: {
+      covenantId: assertHex64(manifest.root.covenantId, "manifest.root.covenantId"),
+      outpoint: rootOutpoint,
+      inputIndex: rootInputIndex,
+      stateNonce: rootStateNonce
+    },
+    slot: { number: slotNumber, index: slotNumber - 1, publicKey: expected.publicKey },
+    action: {
+      name: manifest.action.name,
+      authorityClass: manifest.action.authorityClass,
+      requiredApprovals: manifest.action.requiredApprovals,
+      quorumSource: manifest.action.quorumSource
+    },
+    expectedSignerAddress: expectedSignerAddress.trim(),
+    unsignedSafeJson,
+    payloadSha256,
+    requiredCapabilities: {
+      schemes: [...v2.POLICYVAULT_TRANSACTION_REQUIREMENTS.schemes],
+      features: [...v2.POLICYVAULT_TRANSACTION_REQUIREMENTS.features],
+      sighash: [...v2.POLICYVAULT_TRANSACTION_REQUIREMENTS.sighash],
+      transactionFormat: v2.POLICYVAULT_TRANSACTION_REQUIREMENTS.transactionFormat
+    },
+    signerRequest
+  });
+}
+
+/*
+ * v2 counterpart of `extractSlotSignatureFromSignedTransaction`. The
+ * frozen-byte structural proof (TXID drift / foreign-input attribution /
+ * the 0x01 SIGHASH_ALL gate) is IDENTICAL logic to the v1 function; it is
+ * a separate function only because the v1 function hard-validates its
+ * input through `assertRootSlotSigningRequest` (the v1 assert), and the
+ * v1 path must stay byte-identical and untouched — this is the same body
+ * validated through `assertRootSlotSigningRequestV2` instead.
+ */
+function extractSlotSignatureFromSignedTransactionV2({ request, signedSafeJson }) {
+  assertRootSlotSigningRequestV2(request);
+  if (typeof signedSafeJson !== "string" || !signedSafeJson.trim()) {
+    throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "the signer returned no signed transaction serialization");
+  }
+  let signed;
+  let unsigned;
+  try {
+    signed = JSON.parse(signedSafeJson);
+    unsigned = JSON.parse(request.unsignedSafeJson);
+  } catch (e) {
+    throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, `the signed serialization is not JSON: ${e.message}`);
+  }
+  if (!isPlainObject(signed) || !Array.isArray(signed.inputs) || signed.inputs.length !== unsigned.inputs.length) {
+    throw invalidResponse(SLOT_REFUSALS.TXID_DRIFT, "the signed serialization does not have the same input set as the frozen transaction");
+  }
+  const idx = request.root.inputIndex;
+  if (idx >= signed.inputs.length) throw invalidResponse(SLOT_REFUSALS.ROOT_INPUT_MISMATCH, `root input index ${idx} is out of range for a transaction with ${signed.inputs.length} input(s)`);
+
+  const strippedSigned = JSON.parse(signedSafeJson);
+  const strippedUnsigned = JSON.parse(request.unsignedSafeJson);
+  const returnedScript = String(strippedSigned.inputs[idx].signatureScript ?? "");
+  if (Object.prototype.hasOwnProperty.call(strippedUnsigned.inputs[idx], "signatureScript")) {
+    strippedSigned.inputs[idx].signatureScript = strippedUnsigned.inputs[idx].signatureScript;
+  } else {
+    delete strippedSigned.inputs[idx].signatureScript;
+  }
+  if (JSON.stringify(strippedSigned) !== JSON.stringify(strippedUnsigned)) {
+    for (let i = 0; i < signed.inputs.length; i += 1) {
+      if (i === idx) continue;
+      if (String(signed.inputs[i].signatureScript ?? "") !== String(unsigned.inputs[i].signatureScript ?? "")) {
+        throw invalidResponse(
+          SLOT_REFUSALS.FOREIGN_INPUT_SIGNED,
+          `the signer altered input ${i}, which this request did not ask it to sign — refusing the whole response`
+        );
+      }
+    }
+    throw invalidResponse(
+      SLOT_REFUSALS.TXID_DRIFT,
+      "the signer returned different transaction bytes than the frozen ones it was handed — a slot signature over a different transaction can never be accepted"
+    );
+  }
+
+  let signatureHex;
+  try {
+    signatureHex = normalizeSlotSignatureHex(returnedScript, `slot ${request.slot.number} signature`);
+  } catch (e) {
+    const reason = e.code === "SIGHASH_NOT_ALL" ? SLOT_REFUSALS.SIGHASH_NOT_ALL : e.code === "PLACEHOLDER_AS_SIGNATURE" ? SLOT_REFUSALS.SIGNATURE_INVALID : SLOT_REFUSALS.SIGNATURE_INVALID;
+    throw invalidResponse(reason, e.message, { code: e.code ?? null });
+  }
+  return signatureHex;
+}
+
+/*
+ * Build the v2 response envelope for ONE slot. Bound like the v1 response
+ * (every fact the request carried is re-stated) PLUS the v2-only nonce
+ * echo and the PROVENANCE fields `capabilitiesProbed` / `txIdVerified` /
+ * `provider` / `transport`, copied verbatim from the `executeSigningV2`
+ * outcome that produced this response (never re-derived here — this
+ * module holds no cryptography and no capability logic of its own).
+ */
+function buildRootSlotSignatureResponseV2({
+  request,
+  signedSafeJson,
+  signatureHex,
+  signerAddress,
+  signedAtMs = Date.now(),
+  capabilitiesProbed = false,
+  txIdVerified = false,
+  provider = null,
+  transport = null
+}) {
+  assertRootSlotSigningRequestV2(request);
+  const haveSigned = signedSafeJson !== undefined && signedSafeJson !== null;
+  const haveRaw = signatureHex !== undefined && signatureHex !== null;
+  if (haveSigned === haveRaw) {
+    throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "exactly one of signedSafeJson or signatureHex must be supplied");
+  }
+  let sig;
+  if (haveSigned) {
+    sig = extractSlotSignatureFromSignedTransactionV2({ request, signedSafeJson });
+  } else {
+    try {
+      sig = normalizeSlotSignatureHex(signatureHex, `slot ${request.slot.number} signature`);
+    } catch (e) {
+      const reason = e.code === "SIGHASH_NOT_ALL" ? SLOT_REFUSALS.SIGHASH_NOT_ALL : SLOT_REFUSALS.SIGNATURE_INVALID;
+      throw invalidResponse(reason, e.message, { code: e.code ?? null });
+    }
+  }
+  assertIntegerMs(signedAtMs, "signedAtMs");
+  if (typeof capabilitiesProbed !== "boolean") throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "capabilitiesProbed must be a boolean");
+  if (typeof txIdVerified !== "boolean") throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "txIdVerified must be a boolean");
+  return deepFreeze({
+    responseVersion: ORG_ROOT_SLOT_RESPONSE_VERSION_2,
+    requestVersion: request.requestVersion,
+    requestId: request.requestId,
+    nonce: request.nonce,
+    network: request.network,
+    manifestHash: request.manifestHash,
+    txId: request.txId,
+    root: { covenantId: request.root.covenantId, outpoint: { ...request.root.outpoint }, inputIndex: request.root.inputIndex },
+    slot: { number: request.slot.number, index: request.slot.index, publicKey: request.slot.publicKey },
+    signerAddress: typeof signerAddress === "string" && signerAddress.trim() ? signerAddress.trim() : request.expectedSignerAddress,
+    signatureHex: sig,
+    sighashType: SIGHASH_ALL,
+    signedAtMs,
+    capabilitiesProbed,
+    txIdVerified,
+    provider: provider === null || provider === undefined ? null : String(provider),
+    transport: transport === null || transport === undefined ? null : String(transport)
+  });
+}
+
+/*
+ * Verify ONE v2 response against the request it claims to answer. Every
+ * binding the v1 verifier checks is checked here too, PLUS: the response's
+ * OWN requestVersion (a v1 envelope presented on this path is refused with
+ * INTERFACE_VERSION_UNSUPPORTED, not silently accepted) and its nonce
+ * (RESPONSE_BINDING_MISMATCH otherwise — v1 responses were bare of a
+ * nonce, so this is a strictly wider check than v1 could express).
+ */
+function verifyRootSlotSignatureResponseV2({ request, response, ownerSet = null, nowMs = Date.now(), verifySlotSignature = null }) {
+  assertRootSlotSigningRequestV2(request);
+  if (!isPlainObject(response)) throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, "a slot response object is required");
+  if (response.responseVersion !== ORG_ROOT_SLOT_RESPONSE_VERSION_2) {
+    throw refuse(
+      v2.SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      SLOT_REFUSALS.RESPONSE_INVALID,
+      `slot response declares version ${JSON.stringify(response.responseVersion)}; this v2 path implements exactly ${JSON.stringify(ORG_ROOT_SLOT_RESPONSE_VERSION_2)} — failing closed`
+    );
+  }
+  const extraKeys = Object.keys(response).filter((k) => !SLOT_RESPONSE_V2_KEYS.includes(k));
+  if (extraKeys.length > 0) throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, `slot response carries unknown key(s) ${JSON.stringify(extraKeys)} — refusing (closed envelope)`);
+  for (const key of SLOT_RESPONSE_V2_KEYS) {
+    if (!(key in response)) throw invalidResponse(SLOT_REFUSALS.RESPONSE_INVALID, `slot response is missing required key ${JSON.stringify(key)}`);
+  }
+  assertNotExpired(request, nowMs);
+
+  if (response.requestVersion !== request.requestVersion) {
+    throw refuse(
+      v2.SignerErrorCodesV2.INTERFACE_VERSION_UNSUPPORTED,
+      SLOT_REFUSALS.RESPONSE_INVALID,
+      `the response answers a ${JSON.stringify(response.requestVersion)} request; this request is ${JSON.stringify(request.requestVersion)} — refusing`
+    );
+  }
+  if (response.requestId !== request.requestId) {
+    throw invalidResponse(
+      SLOT_REFUSALS.RESPONSE_REPLAYED,
+      `this response answers request ${response.requestId}, not ${request.requestId} — a signature collected for one request is never accepted for another`
+    );
+  }
+  if (response.nonce !== request.nonce) {
+    throw refuseV2(
+      v2.SignerErrorCodesV2.RESPONSE_BINDING_MISMATCH,
+      SLOT_REFUSALS.NONCE_MISMATCH,
+      "the response's nonce does not match the request it claims to answer — v2 responses are bound envelopes; refusing"
+    );
+  }
+  if (response.network !== request.network) throw refuse(SignerErrorCodes.WRONG_NETWORK, SLOT_REFUSALS.WRONG_NETWORK, `response network ${JSON.stringify(response.network)} != request network ${JSON.stringify(request.network)}`);
+  if (response.manifestHash !== request.manifestHash) throw invalidResponse(SLOT_REFUSALS.MANIFEST_HASH_MISMATCH, "the response describes a different manifest than the one this request was issued for");
+  if (response.txId !== request.txId) throw invalidResponse(SLOT_REFUSALS.TXID_DRIFT, "the response names a different transaction id than the frozen one");
+  if (!isPlainObject(response.root) || response.root.covenantId !== request.root.covenantId) throw invalidResponse(SLOT_REFUSALS.ROOT_OUTPOINT_MISMATCH, "the response names a different root covenant");
+  if (!sameOutpoint(response.root.outpoint, request.root.outpoint)) {
+    throw invalidResponse(
+      SLOT_REFUSALS.ROOT_OUTPOINT_MISMATCH,
+      "the response names a different root outpoint — the root outpoint IS the freshness kill switch and is never allowed to drift"
+    );
+  }
+  if (!isPlainObject(response.slot) || Number(response.slot.number) !== request.slot.number) throw invalidResponse(SLOT_REFUSALS.SLOT_NOT_HELD, `the response claims slot ${response.slot && response.slot.number}, but this request is for slot ${request.slot.number}`);
+  if (response.slot.publicKey !== request.slot.publicKey) throw invalidResponse(SLOT_REFUSALS.SLOT_KEY_MISMATCH, "the response declares a different key for this slot than the manifest's owner set does");
+  if (response.signerAddress !== request.expectedSignerAddress) {
+    throw refuse(SignerErrorCodes.ACCOUNT_CHANGED, SLOT_REFUSALS.SIGNER_IDENTITY_MISMATCH, "the response was produced by a different signer identity than the request was issued to");
+  }
+  if (response.sighashType !== SIGHASH_ALL) throw invalidResponse(SLOT_REFUSALS.SIGHASH_NOT_ALL, `the response declares sighash type ${JSON.stringify(response.sighashType)}; the root covenant gates every counted slot on SIGHASH_ALL (0x01)`);
+
+  let signatureHex;
+  try {
+    signatureHex = normalizeSlotSignatureHex(response.signatureHex, `slot ${request.slot.number} signature`);
+  } catch (e) {
+    const reason = e.code === "SIGHASH_NOT_ALL" ? SLOT_REFUSALS.SIGHASH_NOT_ALL : SLOT_REFUSALS.SIGNATURE_INVALID;
+    throw invalidResponse(reason, e.message, { code: e.code ?? null });
+  }
+  if (signatureHex.length !== SIG_SLOT_LEN_V7 * 2) throw invalidResponse(SLOT_REFUSALS.SIGNATURE_INVALID, `a slot signature must be exactly ${SIG_SLOT_LEN_V7} bytes`);
+
+  if (ownerSet !== null) {
+    const set = ownerSet.activeCount !== undefined ? ownerSet : normalizeOwnerSetV7(ownerSet);
+    if (request.slot.index >= set.activeCount) {
+      throw invalidResponse(SLOT_REFUSALS.SLOT_INACTIVE, `slot ${request.slot.number} is inactive in the predecessor owner set — inactive slots are never inspected by the covenant`);
+    }
+    if (set.owners[request.slot.index] !== request.slot.publicKey) {
+      throw invalidResponse(
+        SLOT_REFUSALS.SLOT_NOT_HELD,
+        `slot ${request.slot.number} of the predecessor set holds a different key — refusing to place this signature under a key the covenant will not check it against`
+      );
+    }
+  }
+
+  let signatureVerified = false;
+  if (verifySlotSignature !== null) {
+    if (typeof verifySlotSignature !== "function") throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "verifySlotSignature, when supplied, must be a function");
+    let ok;
+    try {
+      ok = verifySlotSignature({ publicKey: request.slot.publicKey, signatureHex, unsignedSafeJson: request.unsignedSafeJson, inputIndex: request.root.inputIndex });
+    } catch (e) {
+      throw invalidResponse(SLOT_REFUSALS.SIGNATURE_NOT_VERIFIED, `the injected slot-signature verifier failed: ${e.message}`);
+    }
+    if (ok !== true) {
+      throw invalidResponse(SLOT_REFUSALS.SIGNATURE_NOT_VERIFIED, `the slot signature does not verify under the slot's public key ${request.slot.publicKey}`);
+    }
+    signatureVerified = true;
+  }
+
+  return deepFreeze({
+    slot: request.slot.number,
+    index: request.slot.index,
+    publicKey: request.slot.publicKey,
+    signatureHex,
+    signerAddress: response.signerAddress,
+    signatureVerified,
+    capabilitiesProbed: response.capabilitiesProbed === true,
+    txIdVerified: response.txIdVerified === true,
+    cryptographicBinding: signatureVerified
+      ? "verified locally by the injected verifier AND enforced in-VM by the root covenant's per-slot checkSig"
+      : "enforced in-VM by the root covenant's per-slot checkSig (no local verifier was injected)"
+  });
+}
+
+/*
+ * Fold verified v2 slot responses into the 780-byte blob. Identical
+ * contract to v1's `collectRootSlotApprovals`; the quorum, duplicate-slot,
+ * signature-reuse, inactive-slot and SIGHASH_ALL rules are NOT
+ * re-implemented — `assembleOwnerSigsBlobV7` is the SAME pinned assembler
+ * the v1 path and the covenant agree with, so a v2-collected blob is
+ * byte-identical to a v1-collected one for the same approvals.
+ */
+function collectRootSlotApprovalsV2({ ownerSet, actionName, pairs, nowMs = Date.now(), requireQuorum = true, verifySlotSignature = null }) {
+  if (!Array.isArray(pairs) || pairs.length === 0) throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, "pairs must be a non-empty array of { request, response }");
+  const set = ownerSet && ownerSet.activeCount !== undefined ? ownerSet : normalizeOwnerSetV7(ownerSet);
+  const seenSlots = new Set();
+  const seenRequestIds = new Set();
+  const approvals = [];
+  const verified = [];
+  for (const [i, pair] of pairs.entries()) {
+    if (!isPlainObject(pair) || !isPlainObject(pair.request) || !isPlainObject(pair.response)) {
+      throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `pairs[${i}] must be { request, response }`);
+    }
+    if (pair.request.manifestHash !== pairs[0].request.manifestHash) {
+      throw invalidResponse(SLOT_REFUSALS.MANIFEST_HASH_MISMATCH, `pairs[${i}] was collected for a different manifest — one collection round covers exactly one transaction`);
+    }
+    if (seenRequestIds.has(pair.request.requestId)) {
+      throw invalidResponse(SLOT_REFUSALS.RESPONSE_REPLAYED, `pairs[${i}] reuses request ${pair.request.requestId}`);
+    }
+    seenRequestIds.add(pair.request.requestId);
+    const v = verifyRootSlotSignatureResponseV2({ request: pair.request, response: pair.response, ownerSet: set, nowMs, verifySlotSignature });
+    if (seenSlots.has(v.slot)) {
+      throw invalidResponse(SLOT_REFUSALS.DUPLICATE_SLOT, `slot ${v.slot} was collected twice — one slot, one signature`);
+    }
+    seenSlots.add(v.slot);
+    approvals.push({ slot: v.slot, publicKey: v.publicKey, signatureHex: v.signatureHex });
+    verified.push(v);
+  }
+
+  let blob;
+  try {
+    blob = assembleOwnerSigsBlobV7({ ownerSet: set, actionName, approvals, requireQuorum });
+  } catch (e) {
+    throw invalidResponse(e.code === "UNDER_QUORUM" ? "UNDER_QUORUM" : e.code || SLOT_REFUSALS.RESPONSE_INVALID, e.message, { code: e.code ?? null });
+  }
+  return deepFreeze({
+    approvals,
+    verified,
+    blobHex: blob.blobHex,
+    signedSlots: blob.signedSlots,
+    requiredApprovals: blob.requiredApprovals.toString(),
+    satisfiedApprovals: blob.satisfiedApprovals.toString(),
+    actionName: blob.actionName
+  });
+}
+
+/*
+ * A SEPARATE, coarser replay guard than v2's own per-call requestId/nonce
+ * guard (which `executeSigningV2` already runs internally on every
+ * invocation — see `core/signer/v2/interface.js`'s `createReplayGuard`).
+ * This one is keyed on (root covenant id, root STATE nonce, request id,
+ * slot): it exists to catch a CALLER issuing two overlapping requests for
+ * the SAME slot of the SAME root generation, which the per-call guard
+ * cannot see because each request legitimately mints its own fresh
+ * requestId/nonce. Session-scoped, in-memory, single-use per (root,
+ * stateNonce, slot) — a caller that wants this protection across process
+ * restarts persists it durably itself (this module holds no storage).
+ */
+function createOrgRootSlotReplayGuardV2() {
+  const openKeys = new Map(); /* "covenantId|stateNonce|slot" -> requestId */
+  const settled = new Set(); /* requestIds already consumed */
+  const keyOf = (request) => `${request.root.covenantId}|${request.root.stateNonce}|${request.slot.number}`;
+
+  return Object.freeze({
+    open(request) {
+      if (settled.has(request.requestId)) {
+        throw refuseV2(v2.SignerErrorCodesV2.DUPLICATE_SETTLEMENT, SLOT_REFUSALS.DUPLICATE_SLOT_REQUEST, `slot request ${request.requestId} already reached a terminal state — refusing to re-open it`);
+      }
+      const key = keyOf(request);
+      const holder = openKeys.get(key);
+      if (holder !== undefined && holder !== request.requestId) {
+        throw refuseV2(
+          v2.SignerErrorCodesV2.REPLAY_DETECTED,
+          SLOT_REFUSALS.DUPLICATE_SLOT_REQUEST,
+          `a signing request is already open for slot ${request.slot.number} of root ${request.root.covenantId} at root state nonce ${request.root.stateNonce} — one open request per (root, state nonce, slot)`
+        );
+      }
+      openKeys.set(key, request.requestId);
+      return true;
+    },
+    consume(request) {
+      if (settled.has(request.requestId)) {
+        throw refuseV2(v2.SignerErrorCodesV2.DUPLICATE_SETTLEMENT, SLOT_REFUSALS.DUPLICATE_SLOT_REQUEST, `a settlement for slot request ${request.requestId} was already accepted — refusing the duplicate`);
+      }
+      settled.add(request.requestId);
+      openKeys.delete(keyOf(request));
+      return true;
+    },
+    isSettled(requestId) {
+      return settled.has(requestId);
+    }
+  });
+}
+
+/*
+ * Drive ONE v2 slot request through a validated USI v2 adapter — a mock
+ * signer, the CLI keyfile signer (real kaspa-wasm BIP-340 Schnorr), an
+ * air-gap shuttle, or a browser extension lifted onto v2. Every fail-closed
+ * gate of `executeSigningV2` applies first (capability PROBE vs
+ * declaration, scheme, sighash, transaction format, transport, user
+ * presence, bounded async deadline, declared AND live network, identity
+ * before and after approval), then this module re-checks the frozen-byte
+ * structure and builds the bound v2 response envelope.
+ *
+ * `requireUserPresence` defaults to `true`: an organizational owner's
+ * counted signature is expected to come from a human at the signer. The
+ * override is real and tested (the CLI keyfile adapter declares
+ * `userPresence: "not-required"` because running the process IS the
+ * approval — v2 spec §8), never silently defaulted away.
+ *
+ * `requireProbedCapabilities` defaults to `true` for the same reason: a
+ * signer this module cannot interrogate before the shuttle is refused
+ * unless the caller explicitly accepts an honest `probed: false` (the
+ * air-gap shuttle's documented limitation).
+ */
+async function requestRootSlotSignatureV2({
+  adapter,
+  request,
+  timeoutMs,
+  onTransition,
+  nowMs = Date.now(),
+  signerAddress,
+  deriveTransactionId,
+  requireUserPresence = true,
+  requireProbedCapabilities = true,
+  allowedTransports,
+  cancellation,
+  replayGuard
+} = {}) {
+  assertRootSlotSigningRequestV2(request);
+  assertNotExpired(request, nowMs);
+
+  /* THE SLOT-KEY GATE — identical rationale to the v1 path's own comment
+   * above: executeSigningV2 binds the transport ADDRESS the adapter
+   * reports as active; the covenant binds the KEY. When the adapter offers
+   * getPublicKey(), its CLAIMED key is compared to the slot's key BEFORE
+   * the signer is ever asked to sign. */
+  let slotKeyClaimChecked = false;
+  if (typeof adapter === "object" && adapter !== null && typeof adapter.getPublicKey === "function") {
+    let claimed = null;
+    try {
+      claimed = await adapter.getPublicKey();
+    } catch {
+      claimed = null; /* a provider that cannot report a key is not gated here */
+    }
+    if (claimed !== null && claimed !== undefined) {
+      const xOnly = normalizePublicKeyToXOnly(claimed, "signer getPublicKey()");
+      if (xOnly !== request.slot.publicKey) {
+        throw refuse(
+          SignerErrorCodes.ACCOUNT_CHANGED,
+          SLOT_REFUSALS.SLOT_NOT_HELD,
+          `the signer reports public key ${xOnly}, but slot ${request.slot.number} of this organization's owner set is ${request.slot.publicKey} — refusing to ask it for a signature that could never count`
+        );
+      }
+      slotKeyClaimChecked = true;
+    }
+  }
+
+  const options = { requireUserPresence, requireProbedCapabilities };
+  if (timeoutMs !== undefined) options.timeoutMs = timeoutMs;
+  if (onTransition !== undefined) options.onTransition = onTransition;
+  if (deriveTransactionId !== undefined) options.deriveTransactionId = deriveTransactionId;
+  if (allowedTransports !== undefined) options.allowedTransports = allowedTransports;
+  if (cancellation !== undefined) options.cancellation = cancellation;
+  if (replayGuard !== undefined) options.replayGuard = replayGuard;
+  if (Number.isInteger(nowMs)) options.nowMs = nowMs;
+
+  const outcome = await v2.executeSigningV2(adapter, request.signerRequest, options);
+  const response = buildRootSlotSignatureResponseV2({
+    request,
+    signedSafeJson: outcome.result.signedSafeJson,
+    signerAddress: signerAddress ?? request.expectedSignerAddress,
+    signedAtMs: Date.now(),
+    capabilitiesProbed: outcome.capabilitiesProbed === true,
+    txIdVerified: outcome.txIdVerified === true,
+    provider: outcome.provider ?? null,
+    transport: outcome.transport ?? null
+  });
+  return deepFreeze({ ...response, slotKeyClaimChecked });
+}
+
+module.exports = {
+  ORG_ROOT_SLOT_REQUEST_VERSION_1,
+  ORG_ROOT_SLOT_RESPONSE_VERSION_1,
+  SLOT_REFUSALS,
+  MAX_REQUEST_LIFETIME_MS,
+  createRootSlotSigningRequest,
+  assertRootSlotSigningRequest,
+  assertNotExpired,
+  extractSlotSignatureFromSignedTransaction,
+  buildRootSlotSignatureResponse,
+  verifyRootSlotSignatureResponse,
+  collectRootSlotApprovals,
+  requestRootSlotSignature,
+
+  /* v2 (additive; the v1 exports above are byte-identical and untouched) */
+  ORG_ROOT_SLOT_REQUEST_VERSION_2,
+  ORG_ROOT_SLOT_RESPONSE_VERSION_2,
+  SLOT_REQUEST_V2_KEYS,
+  SLOT_RESPONSE_V2_KEYS,
+  computeSlotRequestDigestV2,
+  createRootSlotSigningRequestV2,
+  assertRootSlotSigningRequestV2,
+  extractSlotSignatureFromSignedTransactionV2,
+  buildRootSlotSignatureResponseV2,
+  verifyRootSlotSignatureResponseV2,
+  collectRootSlotApprovalsV2,
+  createOrgRootSlotReplayGuardV2,
+  requestRootSlotSignatureV2
+};
+  });
+
+  define("core/model/hd-leaf-v7", function (module, exports, require) {
+"use strict";
+
+/*
+ * HIERARCHICAL DELEGATION leaf + tree — the shared-core model for
+ * contracts/PolicyVault.v0.7-payment-hd.sil (contract
+ * `PolicyVaultRootedTokenHD`, tools/gen_v7_payment_hd.js), productionizing
+ * the real-engine probe (contracts/experiments/HDProbe.sil) whose DESIGN is
+ * frozen by docs/postlaunch/hierarchical-delegation-design-freeze.md and
+ * docs/postlaunch/hierarchical-delegation-design.md.
+ *
+ * CORE INVARIANT (owner, verbatim): AUTHORITY MAY NEVER INCREASE DESCENDING.
+ * A child or grandchild must never gain a higher per-spend cap, a higher
+ * periodic budget, a broader destination set, a longer expiry, a broader
+ * fee/carry allowance, or an ability to escape revocation.
+ *
+ * NEW HD leaf domain tag 0x50564801 over a 173-byte preimage
+ * (0x50564801 || body(160) || num8(level) || 0x00), disjoint from the v0.5 /
+ * v0.7-payment flat token-agent leaf (0x50563501 / 125 bytes) and from
+ * every other PolicyVault leaf length, in both directions.
+ *
+ * LEAF CARRIAGE (measured, design record §6.2): the leaf is ONE canonical
+ * 160-byte BODY, never 11 separate fields — MAX_STACK_SIZE (244) is the
+ * binding constraint on MAX_LEVEL, and the field-argument layout does not
+ * fit at level 3. `level` is NEVER part of the body or a caller argument at
+ * spend time; each covenant entrypoint substitutes the level CONSTANT of
+ * the position it is checking, so a leaf committed at level k fails
+ * membership anywhere else — this module mirrors that by taking `level`
+ * as an explicit parameter to every hashing function, never inferring it.
+ *
+ * Body layout (little-endian num8 for every integer field):
+ *   [  0,  32) pk
+ *   [ 32,  40) maxPerSpend        [ 40,  48) periodBudget
+ *   [ 48,  56) periodLengthDaa    [ 56,  64) periodStartDaa
+ *   [ 64,  72) periodSpent        [ 72,  80) maxFeePerTx
+ *   [ 80,  88) maxCarryKas        [ 88,  96) expiryDaa
+ *   [ 96, 128) recipientRoot      [128, 160) childRoot
+ *
+ * `expiryDaa` is a CONSISTENCY field only (child <= parent down the chain).
+ * Kaspa `lockTime` is a LOWER bound (`OpCheckLockTimeVerify`), so this is
+ * NEVER a consensus-enforced expiry — the real retirement mechanisms are
+ * REVOCATION (a zeroed/re-policied `childRoot` fails membership at every
+ * descendant) and the periodic budget. Every caller of this module that
+ * surfaces `expiryDaa` MUST say so; see `EXPIRY_IS_NOT_CONSENSUS_ENFORCED`.
+ *
+ * `effectiveAuthority(chain)` is a PURE, READ-ONLY function: it computes
+ * the bounds a spend through the given ancestor chain would need to satisfy
+ * on the real engine, for UI/manifest display and SDK pre-flight refusal.
+ * IT IS NEVER THE SECURITY BOUNDARY — the covenant re-derives and enforces
+ * every one of these bounds independently at spend time from the proven
+ * leaves, never trusting this module's (or any off-chain) computation.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/hd-leaf-v7.test.js).
+ * NOT covenant-byte-frozen, NOT production, NOT authorized for mainnet use
+ * (docs/postlaunch/hierarchical-delegation-design-freeze.md §5 note on this
+ * wave's scope).
+ */
+
+const crypto = require("crypto");
+const { parseSompi } = require("./amounts");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { parseAtomicAmount } = require("./token-amounts");
+const { verifyRecipientProof } = require("./recipient-merkle-v3");
+
+const HD_LEAF_DOMAIN = Uint8Array.of(0x50, 0x56, 0x48, 0x01);
+const HD_LEAF_BODY_LEN = 160;
+const HD_LEAF_PREIMAGE_LEN = 173; // domain(4) + body(160) + num8(level)(8) + trailing(1)
+const MAX_LEVEL = 3; // MEASURED bound (design freeze §2): level-3 spend peaks at 208/244 combined
+// stack items (36 headroom); a level-4 spend extrapolates to 254 — OVER. Never a config flag.
+const MAX_AGENT_DEPTH = 12; // level-1 forest under agentRoot (v0.4 mechanism)
+const MAX_CHILD_DEPTH = 8; // every childRoot subtree (256 children per node)
+const ZERO_ROOT_HEX = "00".repeat(32);
+
+const EXPIRY_IS_NOT_CONSENSUS_ENFORCED =
+  "expiryDaa is enforced by PolicyVault's core (consistency: child <= parent) and by revocation / periodic-budget decay, NOT by Kaspa consensus. Kaspa lockTime is a LOWER bound only; nothing makes a transaction invalid once a DAA score has passed.";
+
+function fail(message, code) {
+  const error = new Error(`hd-leaf-v7: ${message}`);
+  if (code) error.code = code;
+  throw error;
+}
+
+function bytesToHex(bytes) {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+  return hex;
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+function concatBytes(chunks) {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
+}
+function sha256(bytes) {
+  return new Uint8Array(crypto.createHash("sha256").update(bytes).digest());
+}
+function num8(value) {
+  if (typeof value !== "bigint" || value < 0n || value > 0x7fffffffffffffffn) {
+    fail("num8 requires a BigInt in 0..2^63-1");
+  }
+  const out = new Uint8Array(8);
+  new DataView(out.buffer).setBigUint64(0, value, true);
+  return out;
+}
+function bin2num(bytes) {
+  if (bytes.length !== 8) fail("bin2num requires exactly 8 bytes");
+  return new DataView(bytes.buffer, bytes.byteOffset, 8).getBigUint64(0, true);
+}
+function parseDaa(value, field, { positive = false } = {}) {
+  const n = parseSompi(value, field); // integer domain check (0..MAX_SOMPI is ample for DAA scores)
+  if (positive && n <= 0n) fail(`${field} must be > 0`);
+  return n;
+}
+function parseLevel(level, field = "level") {
+  const n = typeof level === "bigint" ? Number(level) : level;
+  if (!Number.isInteger(n) || n < 1 || n > MAX_LEVEL) {
+    fail(`${field} must be an integer in [1, ${MAX_LEVEL}] — MAX_LEVEL is a MEASURED stack bound, never a configuration choice`, "LEVEL_OUT_OF_RANGE");
+  }
+  return n;
+}
+
+const HD_LEAF_FIELDS = Object.freeze([
+  "pk",
+  "maxPerSpend",
+  "periodBudget",
+  "periodLengthDaa",
+  "periodStartDaa",
+  "periodSpent",
+  "maxFeePerTx",
+  "maxCarryKas",
+  "expiryDaa",
+  "recipientRoot",
+  "childRoot"
+]);
+
+/*
+ * Normalize one HD leaf. Strict fail-closed validation; every quantity
+ * BigInt. `childRoot` all-zero means "no children"; `periodLengthDaa` must
+ * be > 0 (D2-style hardening, mirroring v0.7-payment's own agent path — see
+ * tools/gen_v7_payment_hd.js header for why this is NOT re-added inside the
+ * in-covenant HD accounting, and why that is still safe).
+ */
+function normalizeHdLeaf(input) {
+  if (!input || typeof input !== "object") fail("HD leaf object is required");
+  for (const key of Object.keys(input)) {
+    if (!HD_LEAF_FIELDS.includes(key)) fail(`unknown HD leaf field ${JSON.stringify(key)} — closed layout, failing closed`);
+  }
+  const periodLengthDaa = parseDaa(input.periodLengthDaa, "leaf.periodLengthDaa", { positive: true });
+  return Object.freeze({
+    pk: normalizeXOnlyPubkey(input.pk, "leaf.pk"),
+    maxPerSpend: parseAtomicAmount(input.maxPerSpend, "leaf.maxPerSpend"),
+    periodBudget: parseAtomicAmount(input.periodBudget, "leaf.periodBudget"),
+    periodLengthDaa,
+    periodStartDaa: parseDaa(input.periodStartDaa, "leaf.periodStartDaa"),
+    periodSpent: parseAtomicAmount(input.periodSpent, "leaf.periodSpent"),
+    maxFeePerTx: parseSompi(input.maxFeePerTx, "leaf.maxFeePerTx"),
+    maxCarryKas: parseSompi(input.maxCarryKas, "leaf.maxCarryKas"),
+    expiryDaa: parseDaa(input.expiryDaa, "leaf.expiryDaa"),
+    recipientRoot: normalizeHex(input.recipientRoot, 32, "leaf.recipientRoot"),
+    childRoot: normalizeHex(input.childRoot, 32, "leaf.childRoot")
+  });
+}
+
+/* The canonical 160-byte body — the SAME bytes at every level; `level` is
+ * carried nowhere inside it (design record §6.10 item 2). */
+function encodeHdLeafBody(leafInput) {
+  const l = normalizeHdLeaf(leafInput);
+  const body = concatBytes([
+    hexToBytes(l.pk),
+    num8(l.maxPerSpend),
+    num8(l.periodBudget),
+    num8(l.periodLengthDaa),
+    num8(l.periodStartDaa),
+    num8(l.periodSpent),
+    num8(l.maxFeePerTx),
+    num8(l.maxCarryKas),
+    num8(l.expiryDaa),
+    hexToBytes(l.recipientRoot),
+    hexToBytes(l.childRoot)
+  ]);
+  if (body.length !== HD_LEAF_BODY_LEN) fail(`internal: HD leaf body is ${body.length} bytes, not ${HD_LEAF_BODY_LEN}`);
+  return body;
+}
+function encodeHdLeafBodyHex(leafInput) {
+  return bytesToHex(encodeHdLeafBody(leafInput));
+}
+
+/* The inverse of encodeHdLeafBody — used to read a leaf back out of a
+ * revealed sigscript argument or a stored manifest field. */
+function decodeHdLeafBody(bodyBytesOrHex) {
+  const body = typeof bodyBytesOrHex === "string" ? hexToBytes(bodyBytesOrHex) : bodyBytesOrHex;
+  if (!(body instanceof Uint8Array) || body.length !== HD_LEAF_BODY_LEN) {
+    fail(`HD leaf body must be exactly ${HD_LEAF_BODY_LEN} bytes`, "MALFORMED_BODY");
+  }
+  const leaf = {
+    pk: bytesToHex(body.subarray(0, 32)),
+    maxPerSpend: bin2num(body.subarray(32, 40)),
+    periodBudget: bin2num(body.subarray(40, 48)),
+    periodLengthDaa: bin2num(body.subarray(48, 56)),
+    periodStartDaa: bin2num(body.subarray(56, 64)),
+    periodSpent: bin2num(body.subarray(64, 72)),
+    maxFeePerTx: bin2num(body.subarray(72, 80)),
+    maxCarryKas: bin2num(body.subarray(80, 88)),
+    expiryDaa: bin2num(body.subarray(88, 96)),
+    recipientRoot: bytesToHex(body.subarray(96, 128)),
+    childRoot: bytesToHex(body.subarray(128, 160))
+  };
+  return normalizeHdLeaf(leaf);
+}
+
+/* leaf hash = sha256(0x50564801 || body(160) || num8(level) || 0x00) — the
+ * EXACT bytes contracts/PolicyVault.v0.7-payment-hd.sil's `hdLeafHash`
+ * computes. `level` is REQUIRED and is never inferred from the leaf. */
+function hdLeafPreimage(leafInput, level) {
+  const lvl = parseLevel(level);
+  const body = encodeHdLeafBody(leafInput);
+  const preimage = concatBytes([HD_LEAF_DOMAIN, body, num8(BigInt(lvl)), Uint8Array.of(0x00)]);
+  if (preimage.length !== HD_LEAF_PREIMAGE_LEN) fail(`internal: HD leaf preimage is ${preimage.length} bytes, not ${HD_LEAF_PREIMAGE_LEN}`);
+  return preimage;
+}
+function hdLeafHash(leafInput, level) {
+  return sha256(hdLeafPreimage(leafInput, level));
+}
+function hdLeafHashHex(leafInput, level) {
+  return bytesToHex(hdLeafHash(leafInput, level));
+}
+
+/* ---- Merkle fold: byte-identical to the covenant's computeMerkleRoot ---- */
+
+function normalizeSiblings(siblingsHex, maxDepth) {
+  if (typeof siblingsHex !== "string" || !/^[0-9a-f]*$/.test(siblingsHex) || siblingsHex.length % 2 !== 0) {
+    fail("siblingsHex must be lowercase hex");
+  }
+  const siblings = hexToBytes(siblingsHex);
+  if (siblings.length % 32 !== 0) fail("siblings length must be a multiple of 32 bytes");
+  if (siblings.length > 32 * maxDepth) fail(`proof depth ${siblings.length / 32} exceeds the covenant maximum ${maxDepth}`);
+  return siblings;
+}
+function normalizePathBits(pathBits, maxDepth) {
+  const bits = typeof pathBits === "bigint" ? pathBits : BigInt(pathBits);
+  if (bits < 0n || bits >= 1n << BigInt(maxDepth)) fail(`pathBits out of range for depth <= ${maxDepth}`);
+  return bits;
+}
+
+/* leafHashBytes -> root, folding over siblings/pathBits (co-path order
+ * identical to the covenant: bit 1 => sibling-then-node, bit 0 =>
+ * node-then-sibling). Returns null when pathBits is not fully consumed
+ * (mirrors the covenant's `require(bits == 0)` at the end of the loop). */
+function foldHdLeaf(leafHashBytes, siblingsHex, pathBits, maxDepth) {
+  if (!(leafHashBytes instanceof Uint8Array) || leafHashBytes.length !== 32) fail("leaf hash must be a 32-byte Uint8Array");
+  const siblings = normalizeSiblings(siblingsHex, maxDepth);
+  let bits = normalizePathBits(pathBits, maxDepth);
+  const depth = siblings.length / 32;
+  let node = leafHashBytes;
+  for (let level = 0; level < depth; level++) {
+    const sib = siblings.subarray(level * 32, level * 32 + 32);
+    node = bits % 2n === 1n ? sha256(concatBytes([sib, node])) : sha256(concatBytes([node, sib]));
+    bits /= 2n;
+  }
+  if (bits !== 0n) return null;
+  return node;
+}
+function foldHdLeafHex(leafHashBytes, siblingsHex, pathBits, maxDepth) {
+  const r = foldHdLeaf(leafHashBytes, siblingsHex, pathBits, maxDepth);
+  return r === null ? null : bytesToHex(r);
+}
+
+/* ---- tree fold with nested child roots ---- */
+
+/*
+ * Build a canonical Merkle tree from a flat array of 32-byte leaf hashes
+ * (sorted callers' responsibility — this module does not sort, since HD
+ * leaves at different levels compare on different key domains; ordering
+ * policy lives in the SDK builder). UNSPENDABLE padding to the next power
+ * of two, depth-bounded.
+ */
+function buildMerkleLevels(leafHashes, maxDepth, paddingLeaf) {
+  if (!Array.isArray(leafHashes) || leafHashes.length === 0) fail("at least one leaf hash is required");
+  let level = leafHashes.map((h) => (typeof h === "string" ? hexToBytes(h) : h));
+  for (const h of level) {
+    if (!(h instanceof Uint8Array) || h.length !== 32) fail("every leaf hash must be 32 bytes");
+  }
+  while (level.length & (level.length - 1)) level.push(paddingLeaf);
+  const levels = [level];
+  while (level.length > 1) {
+    const next = [];
+    for (let i = 0; i < level.length; i += 2) next.push(sha256(concatBytes([level[i], level[i + 1]])));
+    levels.push(next);
+    level = next;
+  }
+  const depth = levels.length - 1;
+  if (depth > maxDepth) fail(`tree depth ${depth} exceeds the maximum ${maxDepth}`);
+  return levels;
+}
+
+const PADDING_LEAF = sha256(Uint8Array.of(0x50, 0x56, 0x48, 0x00)); // disjoint padding domain
+
+/*
+ * A tree NODE is { leaf, kids: [node, ...] }. `leaf.childRoot` is IGNORED
+ * on input and always RECOMPUTED from `kids` so a caller can never commit a
+ * tree whose childRoot lies about its own children — mirrors
+ * `kids_root`/`resolved` in the VM test harness.
+ */
+function resolvedLeaf(node, level) {
+  const kidsRoot = node.kids.length === 0 ? ZERO_ROOT_HEX : childRootOf(node.kids, level + 1);
+  return { ...normalizeHdLeaf(node.leaf), childRoot: kidsRoot };
+}
+function childRootOf(kids, level) {
+  parseLevel(level);
+  const hashes = kids.map((k) => hdLeafHash(resolvedLeaf(k, level), level));
+  const levels = buildMerkleLevels(hashes, MAX_CHILD_DEPTH, PADDING_LEAF);
+  return bytesToHex(levels[levels.length - 1][0]);
+}
+
+/* The committed forest root (the vault's `agentRoot`) over the level-1
+ * agent tree (depth <= 12). */
+function forestRoot(level1Nodes) {
+  const hashes = level1Nodes.map((n) => hdLeafHash(resolvedLeaf(n, 1), 1));
+  const levels = buildMerkleLevels(hashes, MAX_AGENT_DEPTH, PADDING_LEAF);
+  return bytesToHex(levels[levels.length - 1][0]);
+}
+
+/*
+ * Resolve the ancestor CHAIN along `path` (array of child indices, one per
+ * level, path.length in [1, MAX_LEVEL]), returning per level
+ * { leaf, siblingsHex, pathBits, level } — exactly what a spend or
+ * delegation entrypoint needs to prove membership at that level.
+ */
+function chainProofs(level1Nodes, path) {
+  if (!Array.isArray(path) || path.length < 1 || path.length > MAX_LEVEL) {
+    fail(`path must have length in [1, ${MAX_LEVEL}]`, "LEVEL_OUT_OF_RANGE");
+  }
+  const out = [];
+  let nodes = level1Nodes;
+  let level = 1;
+  for (const step of path) {
+    if (!Number.isInteger(step) || step < 0 || step >= nodes.length) fail(`path step ${step} out of range at level ${level}`);
+    const hashes = nodes.map((n) => hdLeafHash(resolvedLeaf(n, level), level));
+    const maxDepth = level === 1 ? MAX_AGENT_DEPTH : MAX_CHILD_DEPTH;
+    const levels = buildMerkleLevels(hashes, maxDepth, PADDING_LEAF);
+    const { siblingsHex, pathBits } = proofFromLevels(levels, step);
+    out.push({ leaf: resolvedLeaf(nodes[step], level), siblingsHex, pathBits, level });
+    nodes = nodes[step].kids;
+    level += 1;
+  }
+  return out;
+}
+function proofFromLevels(levels, index) {
+  let idx = index;
+  const siblings = [];
+  let pathBits = 0n;
+  for (let levelIdx = 0; levelIdx < levels.length - 1; levelIdx++) {
+    const level = levels[levelIdx];
+    const siblingIdx = idx % 2 === 0 ? idx + 1 : idx - 1;
+    siblings.push(level[siblingIdx]);
+    if (idx % 2 === 1) pathBits |= 1n << BigInt(levelIdx);
+    idx = Math.floor(idx / 2);
+  }
+  return { siblingsHex: bytesToHex(concatBytes(siblings)), pathBits };
+}
+
+/* ---- effective authority (PURE, READ-ONLY — never the security boundary) ---- */
+
+/*
+ * Given the FULL ancestor chain [level-1 leaf, ..., level-k leaf] (as
+ * returned by chainProofs, or any array of normalized HD leaves in
+ * ancestor order), compute the bounds a spend through this chain must
+ * satisfy per design record §1.3: the per-request cap is the MINIMUM over
+ * every ancestor; fee and carry likewise; expiry is the MINIMUM (and MUST
+ * already be monotonically non-increasing down the chain — see
+ * `verifyExpiryMonotone`); the recipient must be a member of EVERY level's
+ * OWN recipientRoot (reported per level, never collapsed into one root,
+ * because recipientRoot is a commitment, not a set the SDK can intersect
+ * off-chain); each level keeps its OWN period-budget clock (siblings never
+ * share a counter except through the shared PARENT counter itself).
+ *
+ * THIS FUNCTION NEVER ENFORCES ANYTHING. It is read-only reporting for
+ * manifests, UI and SDK pre-flight refusal; the covenant independently
+ * re-derives and enforces every one of these bounds at spend time from the
+ * PROVEN leaves, and is the only rule that matters for funds safety.
+ */
+function effectiveAuthority(chainInput) {
+  if (!Array.isArray(chainInput) || chainInput.length < 1 || chainInput.length > MAX_LEVEL) {
+    fail(`chain must have length in [1, ${MAX_LEVEL}]`, "LEVEL_OUT_OF_RANGE");
+  }
+  const chain = chainInput.map((entry) => normalizeHdLeaf(entry.leaf ?? entry));
+  let maxPerSpend = chain[0].maxPerSpend;
+  let maxFeePerTx = chain[0].maxFeePerTx;
+  let maxCarryKas = chain[0].maxCarryKas;
+  let expiryDaa = chain[0].expiryDaa;
+  for (let i = 1; i < chain.length; i++) {
+    if (chain[i].maxPerSpend < maxPerSpend) maxPerSpend = chain[i].maxPerSpend;
+    if (chain[i].maxFeePerTx < maxFeePerTx) maxFeePerTx = chain[i].maxFeePerTx;
+    if (chain[i].maxCarryKas < maxCarryKas) maxCarryKas = chain[i].maxCarryKas;
+    if (chain[i].expiryDaa < expiryDaa) expiryDaa = chain[i].expiryDaa;
+  }
+  return Object.freeze({
+    level: chain.length,
+    maxPerSpend,
+    maxFeePerTx,
+    maxCarryKas,
+    expiryDaa,
+    expiryIsNotConsensusEnforced: EXPIRY_IS_NOT_CONSENSUS_ENFORCED,
+    perLevelBudgets: Object.freeze(
+      chain.map((l, i) => Object.freeze({ level: i + 1, periodBudget: l.periodBudget, periodSpent: l.periodSpent, periodLengthDaa: l.periodLengthDaa, periodStartDaa: l.periodStartDaa, remaining: l.periodBudget - l.periodSpent }))
+    ),
+    recipientRootsByLevel: Object.freeze(chain.map((l, i) => Object.freeze({ level: i + 1, recipientRoot: l.recipientRoot })))
+  });
+}
+
+/*
+ * SDK/UI pre-flight guard (NEVER a substitute for the covenant): refuse to
+ * even BUILD a delegation whose proposed child leaf is not authority-
+ * REDUCING relative to its immediate parent. The covenant enforces the
+ * REAL bound (the full-chain intersection) at every spend regardless of
+ * what this check allows through — a parent that lies to this function
+ * gains nothing on-chain (design record §1.3) — but failing closed here
+ * saves a doomed transaction and gives an honest error before any
+ * signature is spent.
+ */
+function verifyChildNeverExceedsParent(parentLeafInput, childLeafInput) {
+  const parent = normalizeHdLeaf(parentLeafInput);
+  const child = normalizeHdLeaf(childLeafInput);
+  const violations = [];
+  if (child.maxPerSpend > parent.maxPerSpend) violations.push("maxPerSpend");
+  if (child.periodBudget > parent.periodBudget) violations.push("periodBudget");
+  if (child.maxFeePerTx > parent.maxFeePerTx) violations.push("maxFeePerTx");
+  if (child.maxCarryKas > parent.maxCarryKas) violations.push("maxCarryKas");
+  if (child.expiryDaa > parent.expiryDaa) violations.push("expiryDaa");
+  return Object.freeze({ ok: violations.length === 0, violations: Object.freeze(violations) });
+}
+
+/* Expiry consistency across a FULL chain (design record §1.4): every
+ * descendant's expiryDaa must be <= its immediate parent's. */
+function verifyExpiryMonotone(chainInput) {
+  const chain = chainInput.map((entry) => normalizeHdLeaf(entry.leaf ?? entry));
+  for (let i = 1; i < chain.length; i++) {
+    if (chain[i].expiryDaa > chain[i - 1].expiryDaa) {
+      return Object.freeze({ ok: false, level: i + 1, message: `level ${i + 1} expiryDaa exceeds its parent's — ${EXPIRY_IS_NOT_CONSENSUS_ENFORCED}` });
+    }
+  }
+  return Object.freeze({ ok: true });
+}
+
+/* Level/position consistency: a chain entry's OWN `level` marker (when the
+ * caller tracks one alongside the leaf, e.g. from chainProofs output) must
+ * equal its 1-based position — mirrors the covenant substituting the level
+ * CONSTANT of the position it checks. */
+function verifyChainPositions(chainWithLevels) {
+  for (let i = 0; i < chainWithLevels.length; i++) {
+    const expected = i + 1;
+    if (chainWithLevels[i].level !== expected) {
+      return Object.freeze({ ok: false, index: i, expectedLevel: expected, gotLevel: chainWithLevels[i].level });
+    }
+  }
+  return Object.freeze({ ok: true });
+}
+
+/*
+ * SDK/UI pre-flight guard: a delegateSetChildRoot1/2 op is signed by the
+ * parent and MUST change ONLY that parent's own `childRoot` — every other
+ * field (including every KAS/token cap, both period fields, expiryDaa and
+ * recipientRoot) is pinned equal by the covenant's byte-level splice
+ * (`parentLeaf.slice(0,128) + newChildRoot`). This mirrors that rule so a
+ * malformed delegation request is refused before any signature is spent.
+ * NEVER a substitute for the covenant — a caller who bypasses the SDK and
+ * submits a forged op directly is still bound by the in-covenant splice.
+ */
+function verifyDelegationOnlyChangesChildRoot(currentLeafInput, proposedLeafInput) {
+  const current = normalizeHdLeaf(currentLeafInput);
+  const proposed = normalizeHdLeaf(proposedLeafInput);
+  const violations = [];
+  for (const field of HD_LEAF_FIELDS) {
+    if (field === "childRoot") continue;
+    if (String(current[field]) !== String(proposed[field])) violations.push(field);
+  }
+  const childRootChanged = current.childRoot !== proposed.childRoot;
+  return Object.freeze({ ok: violations.length === 0, violations: Object.freeze(violations), childRootChanged });
+}
+
+/*
+ * SDK/UI pre-flight guard: the destination must be a member of EVERY
+ * level's OWN recipientRoot (design record §1.3 item 3) — never only the
+ * spending leaf's. `proofsByLevel[i]` is `{ siblingsHex, pathBits }` for
+ * `chain[i]`. Returns the first level that refuses, or ok:true. NEVER a
+ * substitute for the covenant's own per-level requireRecipientMember call.
+ */
+function verifyRecipientAllowedByEveryLevel(chainInput, recipientXOnlyPk, proofsByLevel) {
+  const chain = chainInput.map((entry) => normalizeHdLeaf(entry.leaf ?? entry));
+  if (!Array.isArray(proofsByLevel) || proofsByLevel.length !== chain.length) {
+    fail("proofsByLevel must carry exactly one entry per chain level");
+  }
+  for (let i = 0; i < chain.length; i++) {
+    const ok = verifyRecipientProof({ root: chain[i].recipientRoot, recipient: recipientXOnlyPk, siblingsHex: proofsByLevel[i].siblingsHex, pathBits: proofsByLevel[i].pathBits });
+    if (!ok) return Object.freeze({ ok: false, level: i + 1 });
+  }
+  return Object.freeze({ ok: true });
+}
+
+/*
+ * SDK/UI pre-flight guard: a proposed spend amount, fee and carry must sit
+ * within the chain's effectiveAuthority (the minimum over every ancestor).
+ * Never the security boundary — the covenant independently re-derives and
+ * enforces the same intersection from the proven leaves.
+ */
+function verifySpendWithinEffectiveAuthority(chainInput, { amount, feeSompi, carrySompi, periodsElapsedByLevel }) {
+  const eff = effectiveAuthority(chainInput);
+  const violations = [];
+  if (amount !== undefined && parseAtomicAmount(amount, "amount") > eff.maxPerSpend) violations.push("maxPerSpend");
+  if (feeSompi !== undefined && parseSompi(feeSompi, "feeSompi") > eff.maxFeePerTx) violations.push("maxFeePerTx");
+  if (carrySompi !== undefined && parseSompi(carrySompi, "carrySompi") > eff.maxCarryKas) violations.push("maxCarryKas");
+  /* EVERY ancestor's PERIOD BUDGET participates (design record §1.3 item 2):
+   * each level's counter advances by the same spend after its own rollover,
+   * so an exhausted ancestor refuses a descendant even when the leaf's own
+   * cap/budget would allow it. Found live (2026-09-03): a level-3 spend of 25
+   * under a level-2 leaf whose 150 budget was already spent was signed by
+   * the builder and refused by consensus — this check makes the SDK refuse
+   * BEFORE signing, exactly as the covenant does. */
+  if (amount !== undefined) {
+    const chain = Array.isArray(chainInput) ? chainInput : [];
+    const spend = parseAtomicAmount(amount, "amount");
+    for (let i = 0; i < chain.length; i++) {
+      const leaf = normalizeHdLeaf(chain[i].leaf ?? chain[i]);
+      const pe = periodsElapsedByLevel ? (typeof periodsElapsedByLevel[i] === "bigint" ? periodsElapsedByLevel[i] : BigInt(periodsElapsedByLevel[i] ?? 0)) : 0n;
+      const adv = advanceHdLeafPeriod(leaf, spend, pe);
+      if (adv.periodSpent > leaf.periodBudget) violations.push(`periodBudget@level${i + 1}`);
+    }
+  }
+  return Object.freeze({ ok: violations.length === 0, violations: Object.freeze(violations), effectiveAuthority: eff });
+}
+
+/*
+ * ---- state advance + nested refold (Wave 2 Track D, gate I2) ----
+ *
+ * These reproduce, byte-for-byte, the covenant's own accounting for a
+ * SPEND (`advance`/`nested_refold` in tests/vm/tests/v7_hd_production.rs)
+ * and a DELEGATION (`dsc_refold`). They are the ONLY place the SDK computes
+ * the new `agentRoot` a spend or delegation must pin — the covenant
+ * independently re-derives the identical fold in-VM from the proven leaves
+ * and is the only rule that matters for funds safety; a builder that gets
+ * this wrong produces a transaction the real engine refuses, never one that
+ * silently succeeds with the wrong bytes.
+ */
+
+/*
+ * One leaf's period-counter advance for a spend of `spendAmount` after
+ * `periodsElapsed` full periods have passed since `periodStartDaa`:
+ *   periodsElapsed >= 1 (rollover): periodStartDaa += periodsElapsed *
+ *     periodLengthDaa; periodSpent resets to exactly `spendAmount`.
+ *   periodsElapsed == 0 (same period): periodStartDaa unchanged; periodSpent
+ *     accumulates += spendAmount.
+ * Returns { periodStartDaa, periodSpent } (BigInt). Every OTHER leaf field
+ * is left to the caller — this function only ever touches the two period
+ * fields, mirroring the covenant's `advance`.
+ */
+function advanceHdLeafPeriod(leafInput, spendAmount, periodsElapsed) {
+  const l = normalizeHdLeaf(leafInput);
+  const spend = parseAtomicAmount(spendAmount, "spendAmount");
+  const pe = typeof periodsElapsed === "bigint" ? periodsElapsed : BigInt(periodsElapsed);
+  if (pe < 0n) fail("periodsElapsed must be >= 0");
+  if (pe >= 1n) {
+    return Object.freeze({ periodStartDaa: l.periodStartDaa + pe * l.periodLengthDaa, periodSpent: spend });
+  }
+  return Object.freeze({ periodStartDaa: l.periodStartDaa, periodSpent: l.periodSpent + spend });
+}
+
+/*
+ * The new `agentRoot` (or, for a shallower composition, the new value that
+ * carries into the NEXT fold up) after a spend through the full ancestor
+ * `chain` (as returned by `chainProofs`, oldest ancestor first, deepest =
+ * the spending leaf itself). `periodsElapsedByLevel[i]` pairs with
+ * `chain[i]`. Every ancestor's OWN period counters advance (design record
+ * §1.3: a child can never outrun a parent budget because the parent counter
+ * also advances; siblings share the parent's counter through this same
+ * fold). The deepest leaf's OWN `childRoot` is carried through UNCHANGED (a
+ * spend never touches children). Returns lowercase hex.
+ */
+function nestedRefoldAfterSpend(chainInput, spendAmount, periodsElapsedByLevel) {
+  if (!Array.isArray(chainInput) || chainInput.length < 1 || chainInput.length > MAX_LEVEL) {
+    fail(`chain must have length in [1, ${MAX_LEVEL}]`, "LEVEL_OUT_OF_RANGE");
+  }
+  const k = chainInput.length;
+  if (!Array.isArray(periodsElapsedByLevel) || periodsElapsedByLevel.length !== k) {
+    fail("periodsElapsedByLevel must carry exactly one entry per chain level");
+  }
+  const deepest = normalizeHdLeaf(chainInput[k - 1].leaf ?? chainInput[k - 1]);
+  let carried = hexToBytes(deepest.childRoot);
+  for (let i = k - 1; i >= 0; i--) {
+    const entry = chainInput[i];
+    const l = normalizeHdLeaf(entry.leaf ?? entry);
+    const level = entry.level ?? i + 1;
+    if (level !== i + 1) fail(`chain[${i}].level ${level} does not match its chain position ${i + 1}`, "LEVEL_OUT_OF_RANGE");
+    const { periodStartDaa, periodSpent } = advanceHdLeafPeriod(l, spendAmount, periodsElapsedByLevel[i]);
+    const nl = { ...l, periodStartDaa, periodSpent, childRoot: bytesToHex(carried) };
+    const maxDepth = level === 1 ? MAX_AGENT_DEPTH : MAX_CHILD_DEPTH;
+    const folded = foldHdLeaf(hdLeafHash(nl, level), entry.siblingsHex, entry.pathBits, maxDepth);
+    if (folded === null) fail(`internal: the fold at level ${level} did not fully consume pathBits`);
+    carried = folded;
+  }
+  return bytesToHex(carried);
+}
+
+/*
+ * The new `agentRoot` after a `delegateSetChildRoot1/2` op: ONLY the
+ * delegating parent's `childRoot` moves to `newChildRootHex` (design record
+ * §1.2: one parent signature can only NAME a key, never create authority —
+ * every OTHER field of every ancestor, including the parent's own policy
+ * fields, is folded through UNCHANGED). `chain` is the ancestor stack
+ * INCLUDING the delegating parent as its deepest (last) entry.
+ */
+function nestedRefoldAfterDelegation(chainInput, newChildRootHex) {
+  if (!Array.isArray(chainInput) || chainInput.length < 1 || chainInput.length > MAX_LEVEL) {
+    fail(`chain must have length in [1, ${MAX_LEVEL}]`, "LEVEL_OUT_OF_RANGE");
+  }
+  const newChildRoot = normalizeHex(newChildRootHex, 32, "newChildRoot");
+  const k = chainInput.length;
+  let carried = hexToBytes(newChildRoot);
+  for (let i = k - 1; i >= 0; i--) {
+    const entry = chainInput[i];
+    const l = normalizeHdLeaf(entry.leaf ?? entry);
+    const level = entry.level ?? i + 1;
+    if (level !== i + 1) fail(`chain[${i}].level ${level} does not match its chain position ${i + 1}`, "LEVEL_OUT_OF_RANGE");
+    const nl = { ...l, childRoot: bytesToHex(carried) };
+    const maxDepth = level === 1 ? MAX_AGENT_DEPTH : MAX_CHILD_DEPTH;
+    const folded = foldHdLeaf(hdLeafHash(nl, level), entry.siblingsHex, entry.pathBits, maxDepth);
+    if (folded === null) fail(`internal: the fold at level ${level} did not fully consume pathBits`);
+    carried = folded;
+  }
+  return bytesToHex(carried);
+}
+
+function hdLeafToJson(leafInput) {
+  const l = normalizeHdLeaf(leafInput);
+  return {
+    pk: l.pk,
+    maxPerSpend: l.maxPerSpend.toString(),
+    periodBudget: l.periodBudget.toString(),
+    periodLengthDaa: l.periodLengthDaa.toString(),
+    periodStartDaa: l.periodStartDaa.toString(),
+    periodSpent: l.periodSpent.toString(),
+    maxFeePerTx: l.maxFeePerTx.toString(),
+    maxCarryKas: l.maxCarryKas.toString(),
+    expiryDaa: l.expiryDaa.toString(),
+    recipientRoot: l.recipientRoot,
+    childRoot: l.childRoot,
+    expiryIsNotConsensusEnforced: EXPIRY_IS_NOT_CONSENSUS_ENFORCED
+  };
+}
+
+module.exports = {
+  HD_LEAF_DOMAIN,
+  HD_LEAF_BODY_LEN,
+  HD_LEAF_PREIMAGE_LEN,
+  MAX_LEVEL,
+  MAX_AGENT_DEPTH,
+  MAX_CHILD_DEPTH,
+  ZERO_ROOT_HEX,
+  EXPIRY_IS_NOT_CONSENSUS_ENFORCED,
+  HD_LEAF_FIELDS,
+  PADDING_LEAF,
+  normalizeHdLeaf,
+  encodeHdLeafBody,
+  encodeHdLeafBodyHex,
+  decodeHdLeafBody,
+  hdLeafPreimage,
+  hdLeafHash,
+  hdLeafHashHex,
+  foldHdLeaf,
+  foldHdLeafHex,
+  resolvedLeaf,
+  childRootOf,
+  forestRoot,
+  chainProofs,
+  effectiveAuthority,
+  verifyChildNeverExceedsParent,
+  verifyExpiryMonotone,
+  verifyChainPositions,
+  verifyDelegationOnlyChangesChildRoot,
+  verifyRecipientAllowedByEveryLevel,
+  verifySpendWithinEffectiveAuthority,
+  advanceHdLeafPeriod,
+  nestedRefoldAfterSpend,
+  nestedRefoldAfterDelegation,
+  hdLeafToJson
+};
+  });
+
+  define("core/model/compute-budget-v7-hd", function (module, exports, require) {
+"use strict";
+
+/*
+ * Compute-budget selection for contracts/PolicyVault.v0.7-payment-hd.sil
+ * (contract `PolicyVaultRootedTokenHD`).
+ *
+ * Every constant below is an ENGINE MEASUREMENT from
+ * tests/vm/tests/v7_hd_production.rs (`hd_rooted_measurement_redeem_units_
+ * mass_sigops_and_stack`, 2026-09-03), run under PRODUCTION sig-op pricing
+ * (Gram(1000) = 100,000 priced units per executed checkSig — every HD
+ * entrypoint here has exactly ONE, so the reported units are ALREADY fully
+ * priced; nothing here re-adds a per-sig-op charge on top):
+ *
+ *   operation                          shallow units   deep units    budget (shallow/deep)
+ *   hdSpend            (level 1)            404,202     (not measured)      41 / --
+ *   childSpendL2        (level 2)            412,177     (not measured)      42 / --
+ *   childSpendL3        (level 3)            419,602        546,575          42 / 55
+ *   delegateSetChildRoot1                    362,987     (not measured)      37 / --
+ *   delegateSetChildRoot2                    367,989        410,141          37 / 42
+ *
+ * "shallow" = agent depth 1, child depth 1, recipient depth 0 per level;
+ * "deep" = agent depth 12, child depth 8 per level, recipient depth 16 per
+ * level (the covenant's maximum proof depths). The owner's rooted paths
+ * (ownerControl / ownerRecover) are BYTE-IDENTICAL to v0.7-payment and use
+ * core/model/compute-budget-v7.js UNCHANGED — this module covers ONLY the
+ * five new HD entrypoints.
+ *
+ * ENGINEERING ESTIMATE, NOT AN INDEPENDENT MEASUREMENT (documented
+ * limitation): a full per-depth sweep exists only for childSpendL3 and
+ * delegateSetChildRoot2 (the deepest spend and the deepest delegation op).
+ * hdSpend / childSpendL2 / delegateSetChildRoot1 were measured shallow only.
+ * This module conservatively applies the LARGEST measured shallow->deep
+ * delta within each family (spend: childSpendL3's +126,973; delegation:
+ * delegateSetChildRoot2's +42,152) to every operation in that family
+ * regardless of its own level, which is SOUND (a shorter chain has fewer
+ * proof components than the one actually measured, so its true delta is
+ * <= the applied one) but NOT as tight as a dedicated sweep would be.
+ * Tighten with real per-level deep measurements before treating the
+ * per-level numbers as anything more than a safe upper bound.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/compute-budget-v7-hd.test.js).
+ * Sufficiency for the SHALLOW and DEEP shapes actually measured is PROVEN by
+ * `with_covering_budgets` in the VM suite (script units do not depend on the
+ * committed budget); the interpolated MID-DEPTH points and the three
+ * not-independently-deep-measured operations are the estimate above, not a
+ * proof — this file is DESIGNED + UNIT-TESTED, not yet independently
+ * VM-VERIFIED across the full depth range.
+ */
+
+const { selectComputeBudgetV7 } = require("./compute-budget-v7");
+
+const HEADROOM = 20_000;
+const UNITS_PER_BUDGET = 10_000;
+
+const SHALLOW_UNITS = Object.freeze({
+  hdSpend: 404_202,
+  childSpendL2: 412_177,
+  childSpendL3: 419_602,
+  delegateSetChildRoot1: 362_987,
+  delegateSetChildRoot2: 367_989
+});
+
+/* measured shallow -> deep deltas, applied conservatively (see header) */
+const SPEND_DEPTH_ALLOWANCE = 546_575 - 419_602; // 126,973 (childSpendL3 shallow -> deep)
+const DELEGATION_DEPTH_ALLOWANCE = 410_141 - 367_989; // 42,152 (delegateSetChildRoot2 shallow -> deep)
+
+const SPEND_OPS = Object.freeze(["hdSpend", "childSpendL2", "childSpendL3"]);
+const DELEGATION_OPS = Object.freeze(["delegateSetChildRoot1", "delegateSetChildRoot2"]);
+
+function fail(message, code) {
+  const e = new Error(`compute-budget-v7-hd: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function ceilBudget(units) {
+  const n = Math.ceil(units / UNITS_PER_BUDGET);
+  if (!Number.isInteger(n) || n < 1 || n > 65_535) fail(`computed compute budget ${n} is outside the u16 domain`);
+  return n;
+}
+
+/*
+ * `atMaxDepth`: true selects the DEEP allowance (agent depth 12 / child
+ * depth 8 per level / recipient depth 16 per level — the covenant maximum);
+ * false selects the shallow measured base with NO depth allowance, which is
+ * ONLY sufficient for genuinely shallow proofs (depth 0/0/0-ish) — callers
+ * that do not know their exact proof depth in advance MUST pass true.
+ */
+function selectHdComputeBudgetV7({ operation, atMaxDepth = true }) {
+  if (SHALLOW_UNITS[operation] === undefined) {
+    fail(`unknown v0.7-hd operation ${JSON.stringify(operation)} — failing closed`, "UNKNOWN_OPERATION");
+  }
+  const base = SHALLOW_UNITS[operation];
+  const allowance = atMaxDepth ? (SPEND_OPS.includes(operation) ? SPEND_DEPTH_ALLOWANCE : DELEGATION_DEPTH_ALLOWANCE) : 0;
+  return ceilBudget(base + allowance + HEADROOM);
+}
+
+function assertHdBudgetSufficientV7({ operation, atMaxDepth = true, committed }) {
+  const required = selectHdComputeBudgetV7({ operation, atMaxDepth });
+  if (!Number.isInteger(committed) || committed < required) {
+    fail(`committed compute budget ${committed} is below the proven-safe minimum ${required} for ${operation} (atMaxDepth=${atMaxDepth})`);
+  }
+  return committed;
+}
+
+/*
+ * OWNER-CONTROL / OWNER-RECOVER on the rooted HD vault (Wave 2 Track D,
+ * gate I2 SDK integration, tests/vm/tests/v7_hd_sdk_integration.rs,
+ * 2026-09-03) — a MEASURED CORRECTION, not the readiness record's original
+ * assumption.
+ *
+ * docs/postlaunch/v0.7-hd-readiness.md originally stated that ownerControl/
+ * ownerRecover are "BYTE-IDENTICAL to v0.7-payment and use
+ * core/model/compute-budget-v7.js UNCHANGED". That is true of the COVENANT
+ * BYTES (the owner-op branches genuinely are byte-identical in substance),
+ * but it is NOT true of the sufficient COMPUTE BUDGET: compute-budget-v7.js's
+ * owner-control/-recover base unit counts were calibrated against the much
+ * SMALLER v0.7-payment redeem script (~9,636 B). The v0.7-payment-hd redeem
+ * is ~42,830 B (+33,194 B, five extra HD entrypoints), and script
+ * interpretation cost scales with total script size even for a branch whose
+ * OWN logic is unchanged — so reusing compute-budget-v7.js's owner-op budget
+ * for the HD vault silently UNDER-COMMITS. Found the hard way: driving
+ * gen-v7-hd-vectors.js's owner-op vectors through the real engine measured
+ *   ownerControl (selectors 0-4, HD script): 498,705 - 498,778 units
+ *     (compute-budget-v7.js alone selects budget 32 = 320,000 raw — SHORT by
+ *     ~179,000 units, i.e. 18 committed budget units short)
+ *   ownerRecover (HD script, with a token position):        350,765 units
+ *     (compute-budget-v7.js alone selects budget 31 = 310,000 raw — SHORT by
+ *     ~41,000 units, i.e. 5 committed budget units short)
+ * measured under the SAME template/root geometry
+ * sdk/tools/gen-v7-hd-vectors.js uses (token template 1+1521 B, root
+ * template 1+11,077 B). This function ADDS a flat, generously-margined
+ * budget-unit delta on top of compute-budget-v7.js's own (already
+ * template-size-scaled) result, so it remains SOUND if the vault's own
+ * token/root template sizes vary, while being tight enough to be a real
+ * measurement-derived correction rather than a guess.
+ *
+ * Status: IMPLEMENTED, MEASURED on one geometry (not yet swept across
+ * template-size extremes the way core/model/compute-budget-v7.js's root
+ * model was) — sufficiency for THIS geometry is PROVEN by
+ * tests/vm/tests/v7_hd_sdk_integration.rs; treat as a safe floor, not a
+ * tight bound, until a dedicated sweep exists.
+ */
+const OWNER_CONTROL_EXTRA_BUDGET_UNITS_HD = 25; // covers the measured ~18-unit shortfall with margin
+const OWNER_RECOVER_EXTRA_BUDGET_UNITS_HD = 15; // covers the measured ~5-unit shortfall with margin
+const HD_OWNER_CONTROL_OPS = Object.freeze(["ownerSetAgentRoot", "ownerTopUpReserve", "ownerPause", "ownerUnpause", "ownerEmergencyPause"]);
+
+function selectHdOwnerComputeBudgetV7({ operation, templatePrefixLen, templateSuffixLen, rootPrefixLen, rootSuffixLen }) {
+  if (!HD_OWNER_CONTROL_OPS.includes(operation) && operation !== "ownerRecover") {
+    fail(`unknown v0.7-payment-hd owner operation ${JSON.stringify(operation)} — failing closed`, "UNKNOWN_OPERATION");
+  }
+  const base = selectComputeBudgetV7({ operation, templatePrefixLen, templateSuffixLen, rootPrefixLen, rootSuffixLen });
+  return base + (operation === "ownerRecover" ? OWNER_RECOVER_EXTRA_BUDGET_UNITS_HD : OWNER_CONTROL_EXTRA_BUDGET_UNITS_HD);
+}
+
+module.exports = {
+  HEADROOM,
+  UNITS_PER_BUDGET,
+  SHALLOW_UNITS,
+  SPEND_DEPTH_ALLOWANCE,
+  DELEGATION_DEPTH_ALLOWANCE,
+  SPEND_OPS,
+  DELEGATION_OPS,
+  selectHdComputeBudgetV7,
+  assertHdBudgetSufficientV7,
+  OWNER_CONTROL_EXTRA_BUDGET_UNITS_HD,
+  OWNER_RECOVER_EXTRA_BUDGET_UNITS_HD,
+  HD_OWNER_CONTROL_OPS,
+  selectHdOwnerComputeBudgetV7
+};
+  });
+
+  define("core/intent/org-root-manifest-v7-hd", function (module, exports, require) {
+"use strict";
+
+/*
+ * policyvault-rooted-hd-vault-manifest/1 — the closed-schema, hash-committed
+ * description of ONE frozen v0.7-payment-hd HIERARCHICAL DELEGATION
+ * transaction (contracts/PolicyVault.v0.7-payment-hd.sil, contract
+ * `PolicyVaultRootedTokenHD`), plus its deterministic LOCAL VERIFICATION
+ * against the frozen transaction bytes. Wave 2 Track D, gate I2
+ * (docs/postlaunch/hierarchical-delegation-design-freeze.md §4).
+ *
+ * SCOPE: this manifest family covers ONLY the five HD spend/delegation
+ * entrypoints (`hdSpend` / `childSpendL2` / `childSpendL3` /
+ * `delegateSetChildRoot1` / `delegateSetChildRoot2`) — every one of which
+ * never touches the organizational root — so, unlike
+ * core/intent/org-root-manifest-v7.js's `policyvault-rooted-vault-manifest/1`
+ * family (which is verified ONLY inside a parent org-root manifest), THIS
+ * family is STANDALONE VERIFIABLE: a signer can verify a delegate spend or
+ * a parent's delegation without any root context at all, because its
+ * authority never depends on one. The HD vault's OWNER operations
+ * (ownerControl 0..4 / ownerRecover) are BYTE-IDENTICAL in substance to the
+ * payment profile's and ride inside the ORG-ROOT manifest via the SAME
+ * `policyvault-rooted-vault-manifest/1` family
+ * (core/intent/org-root-manifest-v7.js's `buildRootedVaultManifestV7`,
+ * widened additively to accept this contract version) — never restated
+ * here.
+ *
+ * WHAT A SIGNER MUST BE ABLE TO SEE, and therefore what this manifest states
+ * — and RE-DERIVES rather than trusts:
+ *   - the FULL ANCESTOR CHAIN (every level's leaf, in ancestor order),
+ *     re-verified to fold to the DECLARED prior agentRoot exactly as the
+ *     covenant's `computeMerkleRoot` does;
+ *   - the EFFECTIVE INTERSECTION (`core/model/hd-leaf-v7.js`'s
+ *     `effectiveAuthority`) over that chain — the real cap/fee/carry/expiry
+ *     bound a spend is limited to, never just the spending leaf's own
+ *     advertised numbers;
+ *   - each level's OWN period-budget counters, before and after;
+ *   - for a delegation: exactly which level delegates and the new
+ *     `childRoot`, with every OTHER field of the parent leaf pinned equal;
+ *   - the HONEST EXPIRY STATEMENT
+ *     (`core/model/hd-leaf-v7.js`'s `EXPIRY_IS_NOT_CONSENSUS_ENFORCED`) —
+ *     `expiryDaa` is never presented as a consensus-enforced deadline;
+ *   - that NO organizational-root input/output is present (the authority
+ *     model in consensus terms: a spend/delegation authority is the
+ *     ancestor chain, never the root).
+ *
+ * Status: IMPLEMENTED. Production-byte proof: sdk/tools/gen-v7-hd-vectors.js
+ * + tests/vm/tests/v7_hd_sdk_integration.rs. NOT covenant-byte-frozen, NOT
+ * production, NOT externally reviewed.
+ */
+
+const { computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
+const assets = require("../assets");
+const { normalizeTemplateV7, normalizeStateV7 } = require("../model/vault-state-v7");
+const hd = require("../model/hd-leaf-v7");
+
+const ROOTED_HD_VAULT_MANIFEST_VERSION_1 = "policyvault-rooted-hd-vault-manifest/1";
+const CONTRACT_VERSION_V7_HD = "policyvault-0.7-payment-hd";
+const VERIFIED_STATEMENT = "AI MAY REQUEST. POLICYVAULT DETERMINISTICALLY DECIDES. THE COVENANT ENFORCES. SIGNERS RETAIN CUSTODY.";
+
+const HD_ACTIONS = Object.freeze({
+  hdSpend: Object.freeze({ kind: "spend", level: 1 }),
+  childSpendL2: Object.freeze({ kind: "spend", level: 2 }),
+  childSpendL3: Object.freeze({ kind: "spend", level: 3 }),
+  delegateSetChildRoot1: Object.freeze({ kind: "delegation", level: 1 }),
+  delegateSetChildRoot2: Object.freeze({ kind: "delegation", level: 2 })
+});
+
+function refuse(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  throw e;
+}
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+
+const HD_EXPLANATION =
+  "This transaction spends a hierarchical-delegation vault leaf at the ancestor chain shown below. Authority is the " +
+  "INTERSECTION of every ancestor's limits — never just this leaf's own advertised numbers — and a delegation can " +
+  "only ever narrow authority, never widen it. This never touches your organization's root: a delegate/child leaf " +
+  "is never an owner. expiryDaa is a consistency check, not a Kaspa-enforced deadline; the real retirement " +
+  "mechanisms are revocation (zeroing a childRoot) and the periodic budget.";
+
+/* build.ancestorChain leaves are stored via hd.hdLeafToJson (a display
+ * convenience), which adds a human-readable `expiryIsNotConsensusEnforced`
+ * disclaimer field on top of the closed HD leaf layout. Strip it before
+ * feeding a leaf back into a function that enforces the closed layout. */
+function bareLeaf(leafJson) {
+  const { expiryIsNotConsensusEnforced, ...leaf } = leafJson;
+  void expiryIsNotConsensusEnforced;
+  return leaf;
+}
+
+function effectiveAuthorityJson(chainForEffective) {
+  const eff = hd.effectiveAuthority(chainForEffective.map((e) => ({ leaf: bareLeaf(e.leaf) })));
+  return {
+    level: eff.level,
+    maxPerSpend: eff.maxPerSpend.toString(),
+    maxFeePerTx: eff.maxFeePerTx.toString(),
+    maxCarryKas: eff.maxCarryKas.toString(),
+    expiryDaa: eff.expiryDaa.toString(),
+    expiryIsNotConsensusEnforced: eff.expiryIsNotConsensusEnforced,
+    perLevelBudgets: eff.perLevelBudgets.map((b) => ({ level: b.level, periodBudget: b.periodBudget.toString(), periodSpent: b.periodSpent.toString(), periodLengthDaa: b.periodLengthDaa.toString(), periodStartDaa: b.periodStartDaa.toString(), remaining: b.remaining.toString() }))
+  };
+}
+
+/*
+ * `build` is the frozen build object from
+ * sdk/src/vault-builders-v7-hd.js's `buildHdSpendTransaction` /
+ * `buildHdDelegationTransaction` (kind "hdTransition").
+ */
+function buildRootedHdVaultManifestV7({ build, descriptor = null }) {
+  if (!build || build.contractVersion !== CONTRACT_VERSION_V7_HD || build.kind !== "hdTransition") {
+    refuse("SCHEMA_INVALID", "a v0.7-payment-hd hdTransition build is required");
+  }
+  const info = ownGet(HD_ACTIONS, build.action);
+  if (!info) refuse("UNKNOWN_ACTION", `unknown v0.7-payment-hd HD action ${JSON.stringify(build.action)} — failing closed`);
+  let validated = null;
+  if (descriptor) {
+    validated = assets.validateAssetDescriptor(descriptor);
+    if (assets.computeDescriptorHash(validated) !== build.template.descriptorHash) refuse("DESCRIPTOR_PIN_MISMATCH", "descriptor hash != the vault's pinned descriptorHash");
+  }
+  const t = build.template;
+  const body = {
+    manifestVersion: ROOTED_HD_VAULT_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    vault: {
+      contractVersion: build.contractVersion,
+      vaultId: t.vaultId,
+      covenantId: build.covenantId,
+      descriptorHash: t.descriptorHash,
+      tokenCovenantId: t.tokenCovenantId,
+      templateVmHashBlake2b256: t.templateVmHash,
+      templateGeometry: { prefixLen: t.templatePrefixLen, stateLen: t.templateStateLen, suffixLen: t.templateSuffixLen },
+      orgRootCovenantId: t.orgRootCovenantId,
+      rootTemplateVmHash: t.rootTemplateVmHash,
+      rootGeometry: { prefixLen: t.rootPrefixLen, stateLen: t.rootStateLen, suffixLen: t.rootSuffixLen },
+      recoveryPk: t.recoveryPk
+    },
+    asset: validated
+      ? { descriptorHash: assets.computeDescriptorHash(validated), assetId: validated.assetId, displayName: validated.displayName, tokenStandard: validated.tokenStandard, decimalsDisplay: validated.decimalsDisplay, issuerPowers: { ...validated.issuerPowers } }
+      : null,
+    action: { sdkAction: build.action, kind: info.kind, level: info.level, requiresRootInput: false },
+    ancestorChain: build.ancestorChain,
+    effectiveAuthority: info.kind === "spend" ? effectiveAuthorityJson(build.ancestorChain.map((e) => ({ leaf: e.leaf }))) : null,
+    delegation: info.kind === "delegation" ? { delegatingParentLevel: build.delegatingParentLevel, newChildRoot: build.newChildRoot } : null,
+    stateBefore: { stateId: build.predecessorStateId, state: build.stateJson, outpoint: build.predecessorOutpoint },
+    stateAfter: { stateId: build.successorStateId, state: build.successorState },
+    accounting: { token: { ...build.accounting.token }, kas: { ...build.accounting.kas } },
+    transaction: { txId: build.txId, computeBudget: build.computeBudget, requiredFeeSompi: build.requiredFeeSompi, frozenCanonicalJson: build.frozenCanonicalJson },
+    expiryStatement: hd.EXPIRY_IS_NOT_CONSENSUS_ENFORCED,
+    explanation: HD_EXPLANATION
+  };
+  return deepFreeze({ ...body, manifestHash: computeManifestHashV1(body) });
+}
+
+/*
+ * Deterministic LOCAL, STANDALONE verification: recompute every fact from
+ * the manifest's OWN declared frozen transaction. Returns
+ * { verdict: "VERIFIED" | "REFUSED", checks, failures, manifestHash }.
+ */
+function verifyRootedHdVaultManifestV7({ manifest }) {
+  const checks = [];
+  const failures = [];
+  const check = (name, ok, detail) => {
+    checks.push({ name, ok: !!ok, detail: detail ?? null });
+    if (!ok) failures.push({ name, detail: detail ?? null });
+  };
+  try {
+    if (manifest.manifestVersion !== ROOTED_HD_VAULT_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown rooted-HD-vault manifest version — failing closed");
+    const { manifestHash, ...body } = manifest;
+    check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+    check("explanationVerbatim", manifest.explanation === HD_EXPLANATION, "the fixed human explanation is carried verbatim");
+    check("expiryStatementVerbatim", manifest.expiryStatement === hd.EXPIRY_IS_NOT_CONSENSUS_ENFORCED, "the honest expiry disclaimer is carried verbatim");
+
+    const info = ownGet(HD_ACTIONS, manifest.action.sdkAction);
+    check("action", !!info && info.kind === manifest.action.kind && info.level === manifest.action.level, "action kind/level derived from the closed action table");
+    check("neverTouchesRoot", manifest.action.requiresRootInput === false, "an HD spend/delegation authority is never the organizational root");
+    if (!info) return deepFreeze({ verdict: "REFUSED", statement: null, checks, failures, manifestHash: manifest.manifestHash ?? null });
+
+    /* ---- template pins are a well-formed v0.7 rooted vault ---- */
+    let templatePinFailure = null;
+    try {
+      normalizeTemplateV7({
+        vaultId: manifest.vault.vaultId,
+        descriptorHash: manifest.vault.descriptorHash,
+        tokenCovenantId: manifest.vault.tokenCovenantId,
+        templateVmHash: manifest.vault.templateVmHashBlake2b256,
+        templatePrefixLen: manifest.vault.templateGeometry.prefixLen,
+        templateStateLen: manifest.vault.templateGeometry.stateLen,
+        templateSuffixLen: manifest.vault.templateGeometry.suffixLen,
+        orgRootCovenantId: manifest.vault.orgRootCovenantId,
+        rootTemplateVmHash: manifest.vault.rootTemplateVmHash,
+        rootPrefixLen: manifest.vault.rootGeometry.prefixLen,
+        rootStateLen: manifest.vault.rootGeometry.stateLen,
+        rootSuffixLen: manifest.vault.rootGeometry.suffixLen,
+        recoveryPk: manifest.vault.recoveryPk
+      });
+    } catch (e) {
+      templatePinFailure = `${e.code ?? "TEMPLATE_INVALID"}: ${e.message}`;
+    }
+    check("templatePins", templatePinFailure === null, templatePinFailure ?? "the declared template pins are a well-formed v0.7 rooted vault");
+
+    /* ---- the declared ancestor chain folds to the DECLARED prior agentRoot ---- */
+    const before = normalizeStateV7(manifest.stateBefore.state);
+    const after = normalizeStateV7(manifest.stateAfter.state);
+    const chain = manifest.ancestorChain.map((entry, i) => {
+      const leaf = hd.normalizeHdLeaf(bareLeaf(entry.leaf));
+      if (entry.level !== i + 1) refuse("SCHEMA_INVALID", `ancestorChain[${i}].level ${entry.level} does not match its position ${i + 1}`);
+      return { leaf, siblingsHex: entry.siblingsHex, pathBits: BigInt(entry.pathBits), level: entry.level };
+    });
+    let carried = null;
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const e = chain[i];
+      const maxDepth = e.level === 1 ? hd.MAX_AGENT_DEPTH : hd.MAX_CHILD_DEPTH;
+      carried = hd.foldHdLeafHex(hd.hdLeafHash(e.leaf, e.level), e.siblingsHex, e.pathBits, maxDepth);
+      if (carried === null) refuse("SCHEMA_INVALID", `ancestorChain[${i}] does not fully consume its pathBits`);
+    }
+    check("ancestorChainFoldsToStateBefore", carried === before.agentRoot, "the declared ancestor chain folds (Merkle) to the declared prior agentRoot, exactly like the covenant's computeMerkleRoot");
+    const expiryCheck = hd.verifyExpiryMonotone(chain);
+    check("expiryMonotoneDescending", expiryCheck.ok, expiryCheck.ok ? "every descendant's expiryDaa <= its parent's" : expiryCheck.message);
+
+    /* ---- the declared successor agentRoot is the correct refold ---- */
+    if (info.kind === "spend") {
+      const spendAmount = BigInt(manifest.accounting.token.spendAmount);
+      const periodsElapsedByLevel = manifest.ancestorChain.map((e) => BigInt(e.periodsElapsed));
+      const newRoot = hd.nestedRefoldAfterSpend(chain, spendAmount, periodsElapsedByLevel);
+      check("successorAgentRootIsCorrectSpendRefold", newRoot === after.agentRoot, "the declared successor agentRoot is the SAME nested refold the covenant computes for this spend");
+      const eff = hd.effectiveAuthority(chain);
+      check("effectiveAuthorityMatchesDeclared", eff.maxPerSpend.toString() === manifest.effectiveAuthority.maxPerSpend && eff.maxFeePerTx.toString() === manifest.effectiveAuthority.maxFeePerTx && eff.maxCarryKas.toString() === manifest.effectiveAuthority.maxCarryKas, "the declared effective authority is the true minimum-over-ancestors intersection");
+      check("spendWithinEffectiveAuthority", spendAmount <= eff.maxPerSpend, `spendAmount ${spendAmount} <= effective maxPerSpend ${eff.maxPerSpend}`);
+    } else {
+      const newChildRoot = manifest.delegation.newChildRoot;
+      const newRoot = hd.nestedRefoldAfterDelegation(chain, newChildRoot);
+      check("successorAgentRootIsCorrectDelegationRefold", newRoot === after.agentRoot, "the declared successor agentRoot is the SAME nested refold the covenant computes for this delegation");
+      const parentIdx = chain.length - 1;
+      const delegCheck = hd.verifyDelegationOnlyChangesChildRoot(chain[parentIdx].leaf, { ...chain[parentIdx].leaf, childRoot: newChildRoot });
+      check("delegationOnlyChangesChildRoot", delegCheck.ok, delegCheck.ok ? "every other field of the delegating parent is preserved" : `unexpectedly touched: ${delegCheck.violations.join(", ")}`);
+      check("delegationActuallyChanges", newChildRoot !== chain[parentIdx].leaf.childRoot, "the covenant refuses a no-op delegation (newChildRoot == current childRoot)");
+    }
+    check("pausedAndNonceAlwaysPreserved", before.paused === after.paused && before.policyNonce === after.policyNonce, "neither a spend nor a delegation ever touches paused or policyNonce");
+    check("reserveConsumedDeclared", (before.feeReserve - after.feeReserve).toString() === manifest.accounting.kas.reserveConsumed, "the declared reserveConsumed matches the state delta");
+    if (info.kind === "delegation") check("delegationNeverMovesReserve", before.feeReserve === after.feeReserve, "a delegation op never moves the fee reserve");
+
+    /* ---- the frozen transaction ---- */
+    const frozen = JSON.parse(manifest.transaction.frozenCanonicalJson);
+    const inputs = frozen.inputs;
+    const outputs = frozen.outputs;
+    const totalIn = inputs.reduce((s, i) => s + BigInt(i.utxo.amount), 0n);
+    const totalOut = outputs.reduce((s, o) => s + BigInt(o.value), 0n);
+    check("feeExact", (totalIn - totalOut).toString() === manifest.transaction.requiredFeeSompi, "fee recomputed from the frozen bytes");
+    const rootIns = inputs.filter((i) => i.utxo.covenantId === manifest.vault.orgRootCovenantId);
+    const rootOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.orgRootCovenantId);
+    check("noRootInputOrOutput", rootIns.length === 0 && rootOuts.length === 0, "an HD spend/delegation never carries the organizational root");
+    const vaultIns = inputs.filter((i) => i.utxo.covenantId === manifest.vault.covenantId);
+    check("vaultInputSingleton", vaultIns.length === 1 && vaultIns[0].utxo.amount === manifest.accounting.kas.predecessorFeeReserve, "exactly one vault input carrying the declared predecessor feeReserve");
+    const succ = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.covenantId);
+    check("successorOutput", succ.length === 1 && succ[0].value === manifest.accounting.kas.successorFeeReserve, "exactly one successor output carrying the declared successor feeReserve");
+    check("txIdDeclared", typeof manifest.transaction.txId === "string" && /^[0-9a-f]{64}$/.test(manifest.transaction.txId), "the transaction id is well-formed");
+  } catch (e) {
+    failures.push({ name: "exception", detail: `${e.code ?? "ERROR"}: ${e.message}` });
+    checks.push({ name: "exception", ok: false, detail: `${e.code ?? "ERROR"}: ${e.message}` });
+  }
+  const verdict = failures.length === 0 ? "VERIFIED" : "REFUSED";
+  return deepFreeze({ verdict, statement: verdict === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest.manifestHash ?? null });
+}
+
+module.exports = {
+  ROOTED_HD_VAULT_MANIFEST_VERSION_1,
+  CONTRACT_VERSION_V7_HD,
+  HD_ACTIONS,
+  VERIFIED_STATEMENT,
+  HD_EXPLANATION,
+  buildRootedHdVaultManifestV7,
+  verifyRootedHdVaultManifestV7
+};
+  });
+
+  define("core/explain/hd-vault-explain", function (module, exports, require) {
+"use strict";
+
+/*
+ * PolicyVault v0.7-payment-hd HIERARCHICAL DELEGATION — SIGNER-VISIBLE
+ * EXPLANATIONS (v1). Wave 2 Track D, gate I2. Sibling of
+ * core/explain/org-root-explain.js, same discipline, scoped to
+ * `policyvault-rooted-hd-vault-manifest/1`
+ * (core/intent/org-root-manifest-v7-hd.js) — the five HD spend/delegation
+ * entrypoints, which are STANDALONE verifiable (they never touch the
+ * organizational root; the HD vault's owner operations are explained by
+ * core/explain/org-root-explain.js, exactly like the payment profile's).
+ *
+ *   structured({ manifest }) -> a stable, versioned, JSON-safe explanation
+ *     document ("policyvault-hd-vault-explanation/1");
+ *   humanReadable({ manifest }) -> deterministic FIXED lines a signer reads
+ *     BEFORE producing the spending/delegating leaf's signature.
+ *
+ * WHAT THIS LAYER EXISTS TO SHOW (design record §1.3, freeze record §2):
+ *   - the FULL ANCESTOR CHAIN, every level, in order — never just the
+ *     leaf's own advertised numbers;
+ *   - the EFFECTIVE (intersected) authority a spend is actually bound by;
+ *   - for a delegation: EXACTLY which level delegates, to what new
+ *     childRoot, and that every other field is pinned equal;
+ *   - the HONEST EXPIRY STATEMENT verbatim — expiryDaa is a consistency
+ *     field, never a consensus deadline;
+ *   - that the organizational root is NEVER involved in this transaction.
+ *
+ * BINDING RULES (same as org-root-explain.js):
+ *   - The manifest is INDEPENDENTLY RE-VERIFIED here
+ *     (verifyRootedHdVaultManifestV7). No caller-supplied verdict is
+ *     accepted.
+ *   - A non-VERIFIED manifest renders ONLY a prominent REFUSAL naming every
+ *     failing check — never a normal approval screen.
+ *   - Unknown manifest versions refuse (no default route).
+ *   - NO truncation of keys/ids/amounts.
+ *   - Every amount renders as an integer sompi string alongside a KAS/atomic
+ *     display value — never a JS float.
+ *
+ * Both entry points are TOTAL: they never throw.
+ *
+ * Portable shared core: pure CommonJS, zero external dependencies.
+ */
+
+const { verifyRootedHdVaultManifestV7, ROOTED_HD_VAULT_MANIFEST_VERSION_1 } = require("../intent/org-root-manifest-v7-hd");
+
+const HD_EXPLANATION_VERSION_1 = "policyvault-hd-vault-explanation/1";
+const EXPLANATION_VERDICTS = Object.freeze({ VERIFIED_EXACT: "VERIFIED_EXACT", REFUSED: "REFUSED" });
+
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+function isPlainObject(v) {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+/* Same untrusted-text sanitization as org-root-explain.js's sanitizeDetail
+ * (hostile review H-1): collapse control/bidi-override characters so a
+ * crafted manifest field can never inject a fake verdict line. */
+function sanitizeDetail(value) {
+  const s = String(value == null ? "" : value);
+  let out = "";
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    const isControl = c <= 0x1f || (c >= 0x7f && c <= 0x9f);
+    const isBidi = (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
+    out += isControl || isBidi ? " " : ch;
+  }
+  out = out.replace(/ +/g, " ").trim();
+  return out.length > 500 ? `${out.slice(0, 497)}...` : out;
+}
+
+function baseDocument() {
+  return {
+    explanationVersion: HD_EXPLANATION_VERSION_1,
+    verdict: null,
+    statement: null,
+    refusal: null,
+    manifestHash: null,
+    txId: null,
+    network: null,
+    vault: null,
+    action: null,
+    ancestorChain: null,
+    effectiveAuthority: null,
+    delegation: null,
+    payment: null,
+    expiryStatement: null,
+    fee: null,
+    verification: null
+  };
+}
+
+function refusalDocument({ reason, failures, manifestHash = null, txId = null, verification = null }) {
+  const names = [...new Set(failures.map((f) => f.name))].sort();
+  const doc = baseDocument();
+  doc.verdict = EXPLANATION_VERDICTS.REFUSED;
+  doc.refusal = { reason: String(reason), failingChecks: names, failures: failures.map((f) => ({ name: String(f.name), detail: f.detail == null ? null : String(f.detail) })) };
+  doc.manifestHash = manifestHash;
+  doc.txId = txId;
+  doc.verification = verification;
+  return deepFreeze(doc);
+}
+
+function leafSummary(entry) {
+  const l = entry.leaf;
+  return {
+    level: entry.level,
+    pk: l.pk,
+    maxPerSpend: l.maxPerSpend,
+    periodBudget: l.periodBudget,
+    periodSpent: l.periodSpent,
+    periodLengthDaa: l.periodLengthDaa,
+    periodStartDaa: l.periodStartDaa,
+    maxFeePerTx: l.maxFeePerTx,
+    maxCarryKas: l.maxCarryKas,
+    expiryDaa: l.expiryDaa,
+    recipientRoot: l.recipientRoot,
+    childRoot: l.childRoot
+  };
+}
+
+function structured(input) {
+  const { manifest } = input && typeof input === "object" ? input : {};
+  try {
+    if (!isPlainObject(manifest)) {
+      return refusalDocument({ reason: "No hierarchical-delegation vault manifest was supplied — failing closed.", failures: [{ name: "manifestSupplied", detail: "an HD vault manifest object is required" }] });
+    }
+    if (manifest.manifestVersion !== ROOTED_HD_VAULT_MANIFEST_VERSION_1) {
+      return refusalDocument({
+        reason: "Unknown manifest version — failing closed (no default route).",
+        failures: [{ name: "manifestVersion", detail: `expected ${ROOTED_HD_VAULT_MANIFEST_VERSION_1}, got ${JSON.stringify(manifest.manifestVersion)}` }],
+        manifestHash: typeof manifest.manifestHash === "string" ? manifest.manifestHash : null
+      });
+    }
+
+    /* INDEPENDENT re-verification — never a caller-supplied verdict. */
+    const verification = verifyRootedHdVaultManifestV7({ manifest });
+    const verificationSummary = { verdict: verification.verdict, checks: verification.checks.map((c) => ({ name: c.name, ok: c.ok })), failingChecks: [...new Set(verification.failures.map((f) => f.name))].sort() };
+    if (verification.verdict !== "VERIFIED") {
+      return refusalDocument({
+        reason: "This hierarchical-delegation approval FAILED local verification against the frozen transaction it describes and must not be signed.",
+        failures: verification.failures.map((f) => ({ name: f.name, detail: f.detail })),
+        manifestHash: typeof manifest.manifestHash === "string" ? manifest.manifestHash : null,
+        txId: manifest.transaction && typeof manifest.transaction.txId === "string" ? manifest.transaction.txId : null,
+        verification: verificationSummary
+      });
+    }
+
+    const doc = baseDocument();
+    doc.verdict = EXPLANATION_VERDICTS.VERIFIED_EXACT;
+    doc.statement = verification.statement;
+    doc.manifestHash = manifest.manifestHash;
+    doc.txId = manifest.transaction.txId;
+    doc.network = { networkId: manifest.network.networkId };
+    doc.vault = { covenantId: manifest.vault.covenantId, vaultId: manifest.vault.vaultId, contractVersion: manifest.vault.contractVersion, orgRootCovenantId: manifest.vault.orgRootCovenantId };
+    doc.action = { sdkAction: manifest.action.sdkAction, kind: manifest.action.kind, level: manifest.action.level, neverTouchesRoot: manifest.action.requiresRootInput === false };
+    doc.ancestorChain = manifest.ancestorChain.map(leafSummary);
+    doc.effectiveAuthority = manifest.effectiveAuthority
+      ? { maxPerSpend: manifest.effectiveAuthority.maxPerSpend, maxFeePerTx: manifest.effectiveAuthority.maxFeePerTx, maxCarryKas: manifest.effectiveAuthority.maxCarryKas, expiryDaa: manifest.effectiveAuthority.expiryDaa, perLevelBudgets: manifest.effectiveAuthority.perLevelBudgets }
+      : null;
+    doc.delegation = manifest.delegation ? { delegatingParentLevel: manifest.delegation.delegatingParentLevel, newChildRoot: manifest.delegation.newChildRoot } : null;
+    doc.payment = manifest.action.kind === "spend" ? { recipient: manifest.accounting.token.recipient, spendAmount: manifest.accounting.token.spendAmount, positionBefore: manifest.accounting.token.positionBefore, positionAfter: manifest.accounting.token.positionAfter } : null;
+    doc.expiryStatement = manifest.expiryStatement;
+    doc.fee = { requiredFeeSompi: manifest.transaction.requiredFeeSompi, computeBudget: manifest.transaction.computeBudget, reserveConsumed: manifest.accounting.kas.reserveConsumed };
+    doc.verification = verificationSummary;
+    return deepFreeze(doc);
+  } catch (e) {
+    return refusalDocument({ reason: "An internal error occurred while explaining this manifest — failing closed, never rendered as a normal approval.", failures: [{ name: "internalError", detail: `${e && e.code ? e.code : "ERROR"}: ${e && e.message ? e.message : String(e)}` }] });
+  }
+}
+
+function refusalLines(doc) {
+  const lines = [];
+  lines.push("!! DO NOT SIGN !!");
+  lines.push("HIERARCHICAL-DELEGATION APPROVAL REFUSED — this description FAILED verification and must not be signed.");
+  lines.push(`Reason: ${sanitizeDetail(doc.refusal.reason)}`);
+  lines.push(`Failing checks: ${doc.refusal.failingChecks.join(", ")}.`);
+  for (const f of doc.refusal.failures) lines.push(`- ${f.name}: ${sanitizeDetail(f.detail)}`);
+  if (doc.txId !== null) lines.push(`Transaction id (NOT verified): ${sanitizeDetail(doc.txId)}.`);
+  if (doc.manifestHash !== null) lines.push(`Manifest hash (NOT verified): ${sanitizeDetail(doc.manifestHash)}.`);
+  lines.push("A refused approval is never rendered as a normal transaction summary. Rebuild the request and verify again.");
+  return lines;
+}
+
+function verifiedLines(doc) {
+  const lines = [];
+  const isSpend = doc.action.kind === "spend";
+  lines.push(`HIERARCHICAL-DELEGATION ${isSpend ? "SPEND" : "DELEGATION"} — ${doc.action.sdkAction} (level ${doc.action.level}).`);
+  lines.push(`Vault ${doc.vault.covenantId} (id ${doc.vault.vaultId}). This transaction does NOT touch your organization's root: a delegate/child leaf is never an owner.`);
+  lines.push(`Ancestor chain (${doc.ancestorChain.length} level(s), oldest first):`);
+  for (const l of doc.ancestorChain) {
+    lines.push(`  Level ${l.level}: signer key ${l.pk}, maxPerSpend ${l.maxPerSpend}, periodBudget ${l.periodBudget} (spent ${l.periodSpent} so far this period), maxFeePerTx ${l.maxFeePerTx}, maxCarryKas ${l.maxCarryKas}, expiryDaa ${l.expiryDaa}, childRoot ${l.childRoot}.`);
+  }
+  if (doc.effectiveAuthority) {
+    lines.push(`Effective (intersected) authority for this spend: maxPerSpend ${doc.effectiveAuthority.maxPerSpend}, maxFeePerTx ${doc.effectiveAuthority.maxFeePerTx}, maxCarryKas ${doc.effectiveAuthority.maxCarryKas} — the TIGHTEST value across every ancestor, never just this leaf's own.`);
+  }
+  if (doc.payment) {
+    lines.push(`Paying ${doc.payment.spendAmount} (atomic units) to ${doc.payment.recipient}. Token position: ${doc.payment.positionBefore} -> ${doc.payment.positionAfter}.`);
+  }
+  if (doc.delegation) {
+    lines.push(`Delegation: level ${doc.delegation.delegatingParentLevel} parent's childRoot is being set to ${doc.delegation.newChildRoot}. Every OTHER field of that parent's leaf (caps, budgets, expiry, recipient allowlist) is UNCHANGED — a delegation can only narrow authority for the subtree it names, never widen it.`);
+  }
+  lines.push(`Expiry: ${doc.expiryStatement}`);
+  lines.push(`Network fee: ${doc.fee.requiredFeeSompi} sompi (compute budget ${doc.fee.computeBudget}); vault fee reserve consumed: ${doc.fee.reserveConsumed} sompi.`);
+  lines.push(`Network: ${doc.network.networkId}. Transaction id: ${doc.txId}. Manifest hash: ${doc.manifestHash}.`);
+  lines.push(`Verification: PASSED — ${doc.statement}`);
+  return lines;
+}
+
+function humanReadable(input) {
+  const doc = structured(input);
+  const lines = doc.verdict === EXPLANATION_VERDICTS.VERIFIED_EXACT ? verifiedLines(doc) : refusalLines(doc);
+  return deepFreeze(lines);
+}
+
+module.exports = {
+  HD_EXPLANATION_VERSION_1,
+  EXPLANATION_VERDICTS,
+  structured,
+  humanReadable
+};
+  });
+
+  define("core/model/vault-state-v7-kas", function (module, exports, require) {
+"use strict";
+const { ownGet, describeKey } = require("./own-get");
+
+/*
+ * Exact live-state model for a PolicyVault v0.7 ROOTED KAS SAFE-PAYMENT
+ * VAULT (contracts/PolicyVault.v0.7-kas.sil, contract `PolicyVaultRootedKas`,
+ * derived from the FROZEN v0.4.1 KAS covenant by a deterministic delta,
+ * tools/gen_v7_kas.js). Same byte-level root-successor pinning as
+ * core/model/vault-state-v7.js (the payment profile); this module is its
+ * v0.4.1-flavored sibling.
+ *
+ * The MUTABLE STATE is byte-for-byte the frozen v0.4.1 state — protectedValue,
+ * feeReserve, paused, agentRoot, approver1..10, approvalM, policyNonce, with
+ * boundVaultId pinned to the template's vaultId — so this module deliberately
+ * REUSES the v0.4 normalizers (core/model/vault-state-v4.js) rather than
+ * restating them; there is no token position and no descriptor, so this
+ * profile carries none of the v0.5-derived asset-descriptor machinery the
+ * payment profile's template does. What changes vs plain v0.4.1 is the
+ * TEMPLATE:
+ *
+ *   REMOVED  pubkey owner           — a rooted vault has NO owner key at all
+ *   ADDED    orgRootCovenantId      — the organizational root that authorizes
+ *            rootTemplateVmHash       every owner operation, pinned by its
+ *            rootPrefixLen            covenant id AND its exact template
+ *            rootStateLen             identity + geometry, so the vault can
+ *            rootSuffixLen            tell WHICH root path ran
+ *            recoveryPk             — the COLD recovery destination, fixed at
+ *                                     genesis so a hijacked quorum-signing
+ *                                     session can never redirect recovery
+ *
+ * The owner AUTHORITY is therefore an INPUT, not a key: an owner operation is
+ * valid only when the same transaction also spends the pinned root, whose own
+ * covenant proved M-of-N (or the lighter emergency quorum for FREEZE).
+ * ownerControl merges v0.4.1's six selectors (0..5) with a new EMERGENCY
+ * pause (selector 6, the ONLY vault effect reachable from the lighter
+ * emergency quorum).
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-state-v7-kas.test.js).
+ */
+
+const crypto = require("crypto");
+const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
+const { normalizeStateV4, normalizeStateV4ForRecovery, stateToJsonV4, MAX_APPROVERS } = require("./vault-state-v4");
+const { ROOT_STATE_LEN_V7, ROOT_TAIL_LEN_V7 } = require("./vault-state-v7-root");
+
+const CONTRACT_VERSION_V7_KAS = "policyvault-0.7-kas";
+
+const V7_KAS_ABIS = Object.freeze({
+  [CONTRACT_VERSION_V7_KAS]: Object.freeze({
+    version: CONTRACT_VERSION_V7_KAS,
+    contractName: "PolicyVaultRootedKas",
+    contractRelPath: "contracts/PolicyVault.v0.7-kas.sil",
+    buildSubdir: "build-v7-kas",
+    rootAuthorized: true
+  })
+});
+
+/*
+ * ownerControl opSelector. Selectors 0..5 are the frozen v0.4.1 owner
+ * branches and require the root to run AUTHORIZE (full quorum); selector 6
+ * is the new EMERGENCY pause and is the ONLY vault effect reachable from the
+ * root's lighter emergency quorum, so it requires the root to run FREEZE.
+ */
+const OWNER_OP_SELECTOR_V7_KAS = Object.freeze({
+  ownerSetAgentRoot: 0,
+  ownerSetApprovers: 1,
+  ownerTopUp: 2,
+  ownerTopUpReserve: 3,
+  ownerPause: 4,
+  ownerUnpause: 5,
+  ownerEmergencyPause: 6
+});
+
+const OWNER_OP_ROOT_AUTHORITY_V7_KAS = Object.freeze({
+  ownerSetAgentRoot: Object.freeze({ opSelector: 0, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerSetApprovers: Object.freeze({ opSelector: 1, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerTopUp: Object.freeze({ opSelector: 2, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerTopUpReserve: Object.freeze({ opSelector: 3, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerPause: Object.freeze({ opSelector: 4, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerUnpause: Object.freeze({ opSelector: 5, rootActionName: "authorize", expectFrozenAfter: 0n }),
+  ownerEmergencyPause: Object.freeze({ opSelector: 6, rootActionName: "freeze", expectFrozenAfter: 1n }),
+  ownerRecover: Object.freeze({ opSelector: null, rootActionName: "authorize", expectFrozenAfter: 0n })
+});
+
+function fail(message, code) {
+  const e = new Error(`vault-state-v7-kas: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function resolveV7KasAbi(contractVersion) {
+  const abi = ownGet(V7_KAS_ABIS, contractVersion); // own-property only (F-05)
+  if (!abi) {
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.7-kas rooted-vault lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
+  }
+  return abi;
+}
+
+function resolveOwnerOpAuthorityV7Kas(action) {
+  const info = ownGet(OWNER_OP_ROOT_AUTHORITY_V7_KAS, action); // own-property only (F-05)
+  if (!info) fail(`unknown v0.7-kas rooted-vault owner action ${describeKey(action)} — failing closed`, "UNKNOWN_ACTION");
+  return info;
+}
+
+function normalizeLen(value, field) {
+  if (!Number.isInteger(value) || value < 0 || value > 1_000_000) fail(`${field} must be an integer 0..1000000`);
+  return value;
+}
+
+/*
+ * v0.7-kas immutable template constants: vaultId (unchanged from v0.4.1) plus
+ * the organizational-root pins and the cold recovery destination. There is
+ * NO descriptor/token/template-vm-hash triple — this profile is plain KAS.
+ */
+function normalizeTemplateV7Kas(input) {
+  if (!input || typeof input !== "object") fail("template object is required");
+
+  const rootStateLen = normalizeLen(input.rootStateLen, "template.rootStateLen");
+  if (rootStateLen !== ROOT_STATE_LEN_V7) {
+    fail(`template.rootStateLen must be ${ROOT_STATE_LEN_V7} for the v0.7 root state layout — a wrong pin would slice the wrong bytes and self-lock the vault; failing closed`, "ROOT_GEOMETRY_MISMATCH");
+  }
+  if (rootStateLen <= ROOT_TAIL_LEN_V7) fail("template.rootStateLen must exceed the fixed-width TAIL", "ROOT_GEOMETRY_MISMATCH");
+  const rootPrefixLen = normalizeLen(input.rootPrefixLen, "template.rootPrefixLen");
+  const rootSuffixLen = normalizeLen(input.rootSuffixLen, "template.rootSuffixLen");
+  if (rootPrefixLen < 1 || rootSuffixLen < 1) fail("template.rootPrefixLen/rootSuffixLen must be >= 1", "ROOT_GEOMETRY_MISMATCH");
+
+  const orgRootCovenantId = normalizeHex(input.orgRootCovenantId, 32, "template.orgRootCovenantId");
+  if (orgRootCovenantId === "00".repeat(32)) {
+    fail("template.orgRootCovenantId must not be the sentinel zero — a rooted vault with no root has no owner authority at all", "ROOT_PIN_MISSING");
+  }
+
+  return Object.freeze({
+    vaultId: normalizeHex(input.vaultId, 32, "template.vaultId"),
+    orgRootCovenantId,
+    rootTemplateVmHash: normalizeHex(input.rootTemplateVmHash, 32, "template.rootTemplateVmHash"),
+    rootPrefixLen,
+    rootStateLen,
+    rootSuffixLen,
+    recoveryPk: normalizeXOnlyPubkey(input.recoveryPk, "template.recoveryPk")
+  });
+}
+
+/* The mutable state is the frozen v0.4.1 state, verbatim. */
+function normalizeStateV7Kas(input) {
+  return normalizeStateV4(input);
+}
+function normalizeStateV7KasForRecovery(input) {
+  return normalizeStateV4ForRecovery(input);
+}
+function stateToJsonV7Kas(state) {
+  return stateToJsonV4(state);
+}
+
+function requireNonce(state) {
+  if (typeof state.policyNonce !== "bigint") {
+    fail("state.policyNonce is required (BigInt) — refusing an implicit default for a consensus-visible value");
+  }
+  return state.policyNonce;
+}
+
+function t2Frozen(t) {
+  return Object.isFrozen(t) && typeof t.orgRootCovenantId === "string" && typeof t.recoveryPk === "string" && typeof t.rootStateLen === "number";
+}
+
+/* Deterministic v0.7-kas rooted-vault state ID (application identity only). */
+function computeStateIdV7Kas({ networkId, template, state, contractVersion }) {
+  if (typeof networkId !== "string" || networkId.length === 0) fail("networkId is required for the state ID");
+  const abi = resolveV7KasAbi(contractVersion ?? CONTRACT_VERSION_V7_KAS);
+  const t = template && t2Frozen(template) ? template : normalizeTemplateV7Kas(template);
+  const canonical = [
+    "policyvault-state/v7-kas",
+    `network:${networkId}`,
+    `contract:${abi.version}`,
+    `vaultId:${t.vaultId}`,
+    `orgRootCovenantId:${t.orgRootCovenantId}`,
+    `rootTemplateVmHash:${t.rootTemplateVmHash}`,
+    `rootGeometry:${t.rootPrefixLen}/${t.rootStateLen}/${t.rootSuffixLen}`,
+    `recoveryPk:${t.recoveryPk}`,
+    `protectedValue:${state.protectedValue}`,
+    `feeReserve:${state.feeReserve}`,
+    `paused:${state.paused}`,
+    `agentRoot:${state.agentRoot}`,
+    `approvers:${state.approvers.join(",")}`,
+    `approvalM:${state.approvalM}`,
+    `policyNonce:${requireNonce(state)}`
+  ].join("\n");
+  return crypto.createHash("sha256").update(canonical, "utf8").digest("hex");
+}
+
+function templateToJsonV7Kas(template) {
+  return { ...normalizeTemplateV7Kas(template) };
+}
+
+module.exports = {
+  CONTRACT_VERSION_V7_KAS,
+  V7_KAS_ABIS,
+  MAX_APPROVERS,
+  OWNER_OP_SELECTOR_V7_KAS,
+  OWNER_OP_ROOT_AUTHORITY_V7_KAS,
+  ROOT_STATE_LEN_V7,
+  ROOT_TAIL_LEN_V7,
+  resolveV7KasAbi,
+  resolveOwnerOpAuthorityV7Kas,
+  normalizeTemplateV7Kas,
+  normalizeStateV7Kas,
+  normalizeStateV7KasForRecovery,
+  computeStateIdV7Kas,
+  stateToJsonV7Kas,
+  templateToJsonV7Kas
+};
+  });
+
+  define("core/model/vault-transitions-v7-kas", function (module, exports, require) {
+"use strict";
+
+/*
+ * v0.7 ROOTED KAS VAULT transition planner
+ * (contracts/PolicyVault.v0.7-kas.sil, derived from the FROZEN v0.4.1).
+ *
+ * The vault's STATE MATH is the frozen v0.4.1 math, so this module DELEGATES
+ * to core/model/vault-transitions-v4.js rather than restating rules that are
+ * already VM-proven and byte-frozen. What v0.7-kas adds is the AUTHORITY:
+ *
+ *   - there is no owner key and no owner signature; an owner operation is
+ *     valid only when the same transaction ALSO spends the pinned
+ *     organizational root, and the vault pins that root's EXACT successor
+ *     bytes so it can tell WHICH root path ran;
+ *   - `ownerControl` merges v0.4.1's six selectors (0..5, all requiring the
+ *     root's AUTHORIZE/full quorum) with a new EMERGENCY pause (selector 6,
+ *     the ONLY vault effect reachable from the root's LIGHTER emergency
+ *     quorum — a FREEZE root successor);
+ *   - `ownerRecover` pays protectedValue + feeReserve to the GENESIS-PINNED
+ *     cold destination `recoveryPk` — never to an address a quorum-signing
+ *     session can choose — under the root's FULL quorum (AUTHORIZE);
+ *   - the DELEGATE path (`agentSpend`) never touches the root at all and is
+ *     byte-for-byte the frozen v0.4.1 logic (including D2:
+ *     require(periodLengthDaa > 0), which the FROZEN v0.4.1 base itself does
+ *     NOT have — v0.7-kas adds it, so this module rejects a zero-length
+ *     period at the SAME boundary the covenant does).
+ *
+ * Every plan therefore carries `rootAuthority` — the root action the
+ * transaction MUST also run, and the frozen byte the vault will pin — so a
+ * builder can never assemble a vault operation without the matching root
+ * path, and a manifest can state the required organizational authority.
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/vault-transitions-v7-kas.test.js).
+ */
+
+const { parsePositiveSompi } = require("./amounts");
+const { normalizeXOnlyPubkey } = require("./vault-state");
+const { resolveOwnerOpAuthorityV7Kas, OWNER_OP_SELECTOR_V7_KAS } = require("./vault-state-v7-kas");
+const {
+  agentSpendSuccessorV4,
+  setAgentRootSuccessorV4,
+  setApproversSuccessorV4,
+  topUpSuccessorV4,
+  topUpReserveSuccessorV4,
+  pauseSuccessorV4,
+  MAX_PERIODS_ELAPSED
+} = require("./vault-transitions-v4");
+
+function fail(message, code) {
+  const e = new Error(`vault-transitions-v7-kas: ${message}`);
+  if (code) e.code = code;
+  throw e;
+}
+
+function authority(action) {
+  const info = resolveOwnerOpAuthorityV7Kas(action);
+  return Object.freeze({
+    action,
+    opSelector: info.opSelector,
+    rootActionName: info.rootActionName,
+    expectFrozenAfter: info.expectFrozenAfter,
+    quorum: info.rootActionName === "freeze" ? "emergencyK" : "ownerM"
+  });
+}
+
+/*
+ * DELEGATE spend — the frozen v0.4.1 rules PLUS DEVIATION D2: a zero-length
+ * period makes the period budget vacuous (the v0.6 adversarial-review
+ * finding F1, carried into every v0.7 generation). The FROZEN v0.4.1
+ * covenant itself lacks this check (its leaves are owner-committed, so it is
+ * an owner-misconfiguration hazard there, not a delegate escalation), so
+ * vault-transitions-v4.js is NEVER changed; this wrapper adds the same
+ * boundary the v0.7-kas covenant enforces, so a builder can never derive a
+ * plan the covenant would reject on that ground. NO root input exists.
+ */
+function agentSpendSuccessorV7Kas(state, params) {
+  const policy = params && params.agentPolicy;
+  if (policy && policy.periodLengthDaa !== undefined) {
+    const periodLengthDaa = typeof policy.periodLengthDaa === "bigint" ? policy.periodLengthDaa : BigInt(policy.periodLengthDaa);
+    if (periodLengthDaa <= 0n) {
+      fail("agentSpend: D2 — periodLengthDaa must be > 0 (a zero-length period makes the period budget vacuous)", "D2_ZERO_LENGTH_PERIOD");
+    }
+  }
+  const plan = agentSpendSuccessorV4(state, params);
+  return Object.freeze({ ...plan, rootAuthority: null, requiresRootInput: false });
+}
+
+function setAgentRootSuccessorV7Kas(state, newAgentRoot) {
+  const successor = setAgentRootSuccessorV4(state, newAgentRoot);
+  return Object.freeze({ successor, opSelector: OWNER_OP_SELECTOR_V7_KAS.ownerSetAgentRoot, rootAuthority: authority("ownerSetAgentRoot"), requiresRootInput: true });
+}
+
+function setApproversSuccessorV7Kas(state, params) {
+  const successor = setApproversSuccessorV4(state, params);
+  return Object.freeze({ successor, opSelector: OWNER_OP_SELECTOR_V7_KAS.ownerSetApprovers, rootAuthority: authority("ownerSetApprovers"), requiresRootInput: true });
+}
+
+function topUpSuccessorV7Kas(state, topUpAmount) {
+  const successor = topUpSuccessorV4(state, topUpAmount);
+  return Object.freeze({ successor, opSelector: OWNER_OP_SELECTOR_V7_KAS.ownerTopUp, rootAuthority: authority("ownerTopUp"), requiresRootInput: true });
+}
+
+function topUpReserveSuccessorV7Kas(state, topUpAmount) {
+  const successor = topUpReserveSuccessorV4(state, topUpAmount);
+  return Object.freeze({ successor, opSelector: OWNER_OP_SELECTOR_V7_KAS.ownerTopUpReserve, rootAuthority: authority("ownerTopUpReserve"), requiresRootInput: true });
+}
+
+function pauseSuccessorV7Kas(state, pause) {
+  const successor = pauseSuccessorV4(state, pause);
+  const action = pause ? "ownerPause" : "ownerUnpause";
+  return Object.freeze({
+    successor,
+    opSelector: pause ? OWNER_OP_SELECTOR_V7_KAS.ownerPause : OWNER_OP_SELECTOR_V7_KAS.ownerUnpause,
+    rootAuthority: authority(action),
+    requiresRootInput: true
+  });
+}
+
+/*
+ * EMERGENCY pause (selector 6): the identical state effect to selector 4 but
+ * a strictly LIGHTER root authority (the root runs FREEZE under emergencyK).
+ * AUTHORITY-REDUCING and monotone — paused 0 -> 1, every other field
+ * preserved, policyNonce included, no value movement. Unpausing is selector 5
+ * and needs the FULL quorum.
+ */
+function emergencyPauseSuccessorV7Kas(state) {
+  const successor = pauseSuccessorV4(state, true);
+  return Object.freeze({ successor, opSelector: OWNER_OP_SELECTOR_V7_KAS.ownerEmergencyPause, rootAuthority: authority("ownerEmergencyPause"), requiresRootInput: true });
+}
+
+/*
+ * ownerRecover (TERMINAL): protectedValue + feeReserve pay out to the
+ * GENESIS-PINNED recoveryPk. The destination is a template constant, NOT a
+ * parameter of the signing session — unlike v0.4.1's plain recoverPlanV4,
+ * which pays the removed owner key.
+ */
+function recoverPlanV7Kas(state, template) {
+  if (!state || typeof state !== "object" || typeof state.protectedValue !== "bigint" || typeof state.feeReserve !== "bigint") {
+    fail("recover: normalized predecessor state is required");
+  }
+  if (!template || typeof template !== "object") fail("recover: the vault template is required (recoveryPk is pinned at genesis)");
+  const recoveryPk = normalizeXOnlyPubkey(template.recoveryPk, "template.recoveryPk");
+  return Object.freeze({
+    terminal: true,
+    payoutXOnly: recoveryPk,
+    payoutValue: state.protectedValue + state.feeReserve,
+    opSelector: null,
+    rootAuthority: authority("ownerRecover"),
+    requiresRootInput: true
+  });
+}
+
+/*
+ * Dispatch by SDK action; unknown actions fail closed. `state` MUST already
+ * be normalized (typeof state.policyNonce === "bigint") — callers normalize
+ * once via normalizeStateV7Kas before dispatch (matching vault-builders-v7.js
+ * for the payment profile). Re-normalizing here would be UNSAFE for v0.4's
+ * approvers/approverSlots field-name overlap: a normalized state's own
+ * `approvers` field is the padded 10-slot array, which normalizeStateV4
+ * would otherwise misinterpret as the "active keys only" input form and
+ * reject on the first sentinel slot. Each underlying v4 transition function
+ * already enforces normalization via requireContinuingState.
+ */
+function ownerOpSuccessorV7Kas(action, state, params = {}) {
+  if (!state || typeof state !== "object" || typeof state.policyNonce !== "bigint") {
+    fail("ownerOpSuccessorV7Kas: state must already be normalized via normalizeStateV7Kas (BigInt fields) — refusing to guess the approvers/approverSlots shape");
+  }
+  const s = state;
+  switch (action) {
+    case "ownerSetAgentRoot": {
+      if (params.newAgentRoot === undefined) fail("ownerSetAgentRoot requires params.newAgentRoot");
+      return { ...setAgentRootSuccessorV7Kas(s, params.newAgentRoot), externalFunding: 0n };
+    }
+    case "ownerSetApprovers":
+      return { ...setApproversSuccessorV7Kas(s, params), externalFunding: 0n };
+    case "ownerTopUp": {
+      const amount = parsePositiveSompi(params.topUpAmountSompi, "topUpAmountSompi");
+      return { ...topUpSuccessorV7Kas(s, amount), externalFunding: amount };
+    }
+    case "ownerTopUpReserve": {
+      const amount = parsePositiveSompi(params.topUpReserveAmountSompi, "topUpReserveAmountSompi");
+      return { ...topUpReserveSuccessorV7Kas(s, amount), externalFunding: amount };
+    }
+    case "ownerPause":
+      return { ...pauseSuccessorV7Kas(s, true), externalFunding: 0n };
+    case "ownerUnpause":
+      return { ...pauseSuccessorV7Kas(s, false), externalFunding: 0n };
+    case "ownerEmergencyPause":
+      return { ...emergencyPauseSuccessorV7Kas(s), externalFunding: 0n };
+    default:
+      return fail(`unknown v0.7-kas rooted-vault owner action ${JSON.stringify(action)} — failing closed`, "UNKNOWN_ACTION");
+  }
+}
+
+module.exports = {
+  MAX_PERIODS_ELAPSED,
+  agentSpendSuccessorV7Kas,
+  setAgentRootSuccessorV7Kas,
+  setApproversSuccessorV7Kas,
+  topUpSuccessorV7Kas,
+  topUpReserveSuccessorV7Kas,
+  pauseSuccessorV7Kas,
+  emergencyPauseSuccessorV7Kas,
+  recoverPlanV7Kas,
+  ownerOpSuccessorV7Kas
+};
+  });
+
+  define("core/model/compute-budget-v7-kas", function (module, exports, require) {
+"use strict";
+
+/*
+ * Centralized v0.7-kas ROOTED KAS SAFE-PAYMENT VAULT compute-budget
+ * selection. Sibling of core/model/compute-budget-v7.js (the payment
+ * profile); the ROOT side of a rooted-vault transaction is UNCHANGED (same
+ * root covenant), so this module reuses selectRootComputeBudgetV7 from
+ * compute-budget-v7.js unmodified and adds ONLY the vault-side model.
+ *
+ * The committed budget is CONSENSUS-CRITICAL for usability: an
+ * under-committed budget makes an otherwise-valid transaction fail script
+ * execution on a live node. Every constant below is an ENGINE MEASUREMENT
+ * from tests/vm/tests/v7_kas_production.rs (2026-09-03, release build,
+ * rusty-kaspa 2.0.1); nothing here is estimated without a labeled safety
+ * margin on top of a real measurement.
+ *
+ * BUDGET ARITHMETIC. Identical to compute-budget-v7.js:
+ *   required_budget = ceil((units - (10_000 - 1)) / 10_000)
+ * so every model below over-approximates with ceil(units / 10_000) after
+ * adding headroom, so the committed budget is ALWAYS >= the required one.
+ * tests/vm/tests/v7_kas_sdk_integration.rs asserts exactly that on SDK-built
+ * bytes for every input of every accept vector.
+ *
+ * MEASURED (v7_kas_production.rs, priced units for the VAULT input, sig-op
+ * pricing 100,000 units/executed checkSig — ownerControl/ownerRecover
+ * EXECUTE ZERO checkSigs, so their priced and unpriced numbers are equal).
+ *
+ * RE-MEASURED 2026-09-03 (Wave 2, Track C2) after candidate hardening E6
+ * (tools/gen_v7_kas.js: requireAgentAuthorization SIGHASH_ALL gate on
+ * agentSig + requireOnlyPlainInputsOnDelegatePath). SilverScript inlines
+ * every function into the ONE shared redeem script regardless of which
+ * entrypoint calls it, so the two new functions shifted priced/unpriced
+ * units for EVERY entrypoint, not only agentSpend (by a different, non-
+ * uniform amount per entrypoint — empirically +1,740 for every ownerControl
+ * selector, +580 for ownerRecover, +2,096 for agentSpend; deltas BETWEEN two
+ * agentSpend shapes, e.g. depth vs base or approvals vs base, are unaffected
+ * since the E6 overhead is a constant offset on that entrypoint's own base).
+ * Values below are the CURRENT measurement; the constants derived from them
+ * carry their own margin on top:
+ *   ownerControl(0 setAgentRoot)   priced 361,088
+ *   ownerControl(1 setApprovers)   priced 366,214  <- max of 0..6
+ *   ownerControl(2 topUp)          priced 361,156
+ *   ownerControl(3 topUpReserve)   priced 361,157
+ *   ownerControl(4 pause)          priced 361,162
+ *   ownerControl(5 unpause)        priced 361,160
+ *   ownerControl(6 EMERGENCY pause) priced 361,163
+ *   ownerRecover                   priced 278,768
+ *   delegate spend depth 0/0, 0 approvals    unpriced 123,730 (1 sig-op)
+ *   delegate spend depth 12/16, 0 approvals  unpriced 175,925 (1 sig-op)
+ *   delegate spend depth 12/16, 10-of-10     unpriced 219,103, priced 1,319,103 (11 sig-ops)
+ * The depth allowance (52,195) and per-approval delta (~4,318/approval) are
+ * UNCHANGED from the pre-E6 measurement (both are differences between two
+ * agentSpend shapes, so the constant E6 offset cancels out).
+ *
+ * Status: IMPLEMENTED + UNIT-TESTED (core/model/test/compute-budget-v7-kas.test.js);
+ * sufficiency is PROVEN on real engine execution by the SDK integration suite.
+ */
+
+const { selectRootComputeBudgetV7, ROOT_TEMPLATE_REFERENCE_BYTES } = require("./compute-budget-v7");
+
+const UNITS_PER_BUDGET = 10_000;
+const SIGOP_UNITS = 100_000;
+const HEADROOM = 20_000;
+
+/* ---- rooted KAS vault: ownerControl / ownerRecover ---- */
+
+/* The vault's owner path slices the root's revealed redeem exactly as the
+ * payment profile's does (byte-for-byte the same requireRootAuthorization),
+ * so it scales with the SAME root-template reference and slope. */
+const ROOT_TEMPLATE_SLOPE = 26;
+const VAULT_OWNER_CONTROL_UNITS = 367_000; /* post-E6 max measured selector 0..6 (366,214) + margin */
+const VAULT_OWNER_RECOVER_UNITS = 279_500; /* post-E6 measured 278,768 + margin */
+
+/* ---- rooted KAS vault: agentSpend (delegate) ---- */
+
+const SPEND_BASE = 124_500; /* post-E6 measured depth0/0, 0 approvals: 123,730 + margin */
+const SPEND_ROLLOVER_MARGIN = 200; /* measured rollover delta over base: 44 */
+/* Measured: depth12/16 adds 52,195 unpriced units over the depth0/0 base
+ * (agent Merkle depth <= 12, recipient Merkle depth <= 16, both linear
+ * unrolled walks in the covenant — a linear model in the DEEPER-normalized
+ * fraction is the right functional form, not a heuristic). Rounded up. */
+const DEPTH_ALLOWANCE_MAX = 53_000;
+const AGENT_MAX_DEPTH = 12;
+const RECIPIENT_MAX_DEPTH = 16;
+/* Measured: 10-of-10 approvals at depth12/16 add 43,178 unpriced units over
+ * the depth12/16-only measurement (217,007 - 173,829), i.e. ~4,318/approval
+ * for the slot-extraction + gate loop (BEFORE sig-op pricing, which is added
+ * separately below). Rounded up per approval. */
+const PER_APPROVAL_UNPRICED = 4_400;
+
+const V7_KAS_BUDGET = Object.freeze({
+  ORDINARY_INPUT: 10
+});
+
+function fail(message) {
+  throw new Error(`compute-budget-v7-kas: ${message}`);
+}
+
+function ceilBudget(units) {
+  const n = Math.ceil(units / UNITS_PER_BUDGET);
+  if (!Number.isInteger(n) || n < 1 || n > 65_535) fail(`computed compute budget ${n} is outside the u16 domain`);
+  return n;
+}
+
+function requiredBudgetForUnits(units) {
+  if (!Number.isInteger(units) || units < 0) fail("units must be a non-negative integer");
+  const charged = Math.max(0, units - (UNITS_PER_BUDGET - 1));
+  return Math.ceil(charged / UNITS_PER_BUDGET);
+}
+
+function rootTemplateBytes({ rootPrefixLen, rootSuffixLen }) {
+  if (!Number.isInteger(rootPrefixLen) || !Number.isInteger(rootSuffixLen) || rootPrefixLen < 0 || rootSuffixLen < 0) {
+    fail("root template geometry (rootPrefixLen/rootSuffixLen) is required to size a rooted-vault owner budget");
+  }
+  return rootPrefixLen + rootSuffixLen;
+}
+
+function rootExtraUnits({ rootPrefixLen, rootSuffixLen }) {
+  return Math.max(0, rootTemplateBytes({ rootPrefixLen, rootSuffixLen }) - ROOT_TEMPLATE_REFERENCE_BYTES) * ROOT_TEMPLATE_SLOPE;
+}
+
+function smallNonNegInt(value, field, max) {
+  const n = typeof value === "bigint" ? Number(value) : value;
+  if (!Number.isInteger(n) || n < 0 || n > max) fail(`${field} must be an integer 0..${max}`);
+  return n;
+}
+
+/* The committed budget for the ROOTED KAS VAULT covenant input. */
+function selectComputeBudgetV7Kas({ operation, rootPrefixLen, rootSuffixLen, agentTreeDepth = 0, recipientDepth = 0, approvalsChecked = 0, rollover = false }) {
+  switch (operation) {
+    case "agentSpend": {
+      const depth = smallNonNegInt(agentTreeDepth, "agentTreeDepth", AGENT_MAX_DEPTH);
+      const recip = smallNonNegInt(recipientDepth, "recipientDepth", RECIPIENT_MAX_DEPTH);
+      const approvals = smallNonNegInt(approvalsChecked, "approvalsChecked", 10);
+      const depthFraction = Math.max(depth / AGENT_MAX_DEPTH, recip / RECIPIENT_MAX_DEPTH);
+      const depthUnits = Math.ceil(depthFraction * DEPTH_ALLOWANCE_MAX);
+      const approvalUnits = approvals * PER_APPROVAL_UNPRICED;
+      const sigOpUnits = (1 + approvals) * SIGOP_UNITS; /* the agent's own sig-op + every executed approval */
+      const rolloverMargin = rollover ? SPEND_ROLLOVER_MARGIN : 0;
+      return ceilBudget(SPEND_BASE + depthUnits + approvalUnits + sigOpUnits + rolloverMargin + HEADROOM);
+    }
+    case "ownerSetAgentRoot":
+    case "ownerSetApprovers":
+    case "ownerTopUp":
+    case "ownerTopUpReserve":
+    case "ownerPause":
+    case "ownerUnpause":
+    case "ownerEmergencyPause": {
+      const extra = rootExtraUnits({ rootPrefixLen, rootSuffixLen });
+      return ceilBudget(VAULT_OWNER_CONTROL_UNITS + extra + HEADROOM);
+    }
+    case "ownerRecover": {
+      const extra = rootExtraUnits({ rootPrefixLen, rootSuffixLen });
+      return ceilBudget(VAULT_OWNER_RECOVER_UNITS + extra + HEADROOM);
+    }
+    default:
+      return fail(`unknown v0.7-kas rooted-vault operation ${JSON.stringify(operation)} — failing closed`);
+  }
+}
+
+function assertBudgetSufficientV7Kas({ operation, committed, ...geometry }) {
+  const required = selectComputeBudgetV7Kas({ operation, ...geometry });
+  if (!Number.isInteger(committed) || committed < required) {
+    fail(`committed compute budget ${committed} is below the proven-safe minimum ${required} for ${operation}`);
+  }
+  return committed;
+}
+
+module.exports = {
+  V7_KAS_BUDGET,
+  UNITS_PER_BUDGET,
+  SIGOP_UNITS,
+  AGENT_MAX_DEPTH,
+  RECIPIENT_MAX_DEPTH,
+  requiredBudgetForUnits,
+  selectComputeBudgetV7Kas,
+  assertBudgetSufficientV7Kas,
+  /* re-exported so a caller never has to import compute-budget-v7.js just to
+   * budget the root input of a v0.7-kas owner operation */
+  selectRootComputeBudgetV7
+};
+  });
+
+  define("core/intent/org-root-manifest-v7-kas", function (module, exports, require) {
+"use strict";
+
+/*
+ * policyvault-rooted-kas-vault-manifest/1 — the closed-schema, hash-committed
+ * description of ONE v0.7-kas ROOTED KAS SAFE-PAYMENT VAULT transition, plus
+ * its deterministic LOCAL VERIFICATION against the frozen transaction bytes;
+ * and policyvault-org-root-kas-manifest/1 — the org-root-level wrapper that
+ * embeds every rooted-KAS-vault owner operation riding in the SAME
+ * transaction, exactly like core/intent/org-root-manifest-v7.js does for the
+ * rooted PAYMENT profile.
+ *
+ * SIBLING of core/intent/org-root-manifest-v7.js. This is a SEPARATE module
+ * (not a patch to it) because that file's org-root wrapper hard-wires calls
+ * to the PAYMENT profile's buildRootedVaultManifestV7/verifyRootedVaultManifestV7
+ * inside its vaultOperations loop — extending it in place would touch
+ * production-byte-verified payment-profile code. The ROOT-side logic
+ * (rootFactsFrom/setSummary/the org-root body shape) is restated here
+ * VERBATIM against the identical `rootAuthority` shape vault-builders-v7-kas.js
+ * produces (see finishBuildV7Kas) — never re-derived, only re-typed for this
+ * profile's vaultOperations wiring.
+ *
+ * WHAT CHANGES vs the payment profile's manifest, and only this:
+ *   - the vault state is the frozen v0.4.1 shape (protectedValue, feeReserve,
+ *     paused, agentRoot, approver1..10/approverSlots, approvalM, policyNonce)
+ *     instead of the payment profile's (feeReserve, paused, agentRoot,
+ *     policyNonce + a token descriptor) — no descriptor, no token family;
+ *   - ownerControl carries SEVEN selectors (0..6: setAgentRoot, setApprovers,
+ *     topUp, topUpReserve, pause, unpause, EMERGENCY pause) instead of the
+ *     payment profile's five;
+ *   - the DELEGATE path is `agentSpend` (frozen v0.4.1 ABI) and carries the
+ *     VAULT-LEVEL M-of-N APPROVAL TIER above a per-agent threshold — a
+ *     DIFFERENT M-of-N mechanism from the organizational root's, shown here
+ *     as COUNTS + PUBLIC KEYS + DIGESTS (approvalM required, the active
+ *     approver public keys, and — when an approval package is supplied —
+ *     its commitment digest), never raw collected signatures;
+ *   - a delegate spend is a STANDALONE manifest (buildRootedKasVaultManifestV7
+ *     used directly, exactly like tokenAgentSpend in the payment profile's
+ *     own vector generator) since it never touches the root; owner
+ *     operations are embedded INSIDE the org-root-kas manifest exactly like
+ *     the payment profile's owner operations.
+ *
+ * Status: IMPLEMENTED (SDK-facing core module, portable). Exercised by
+ * sdk/tools/gen-v7-kas-vectors.js + tests/vm/tests/v7_kas_sdk_integration.rs
+ * (production-byte proof) and core/crossruntime portability.
+ */
+
+const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
+const {
+  normalizeRootStateV7,
+  normalizeRootTemplateV7,
+  rootStateToJsonV7,
+  rootStateTailHexV7,
+  computeRootStateDigestV7
+} = require("../model/vault-state-v7-root");
+const { resolveRootActionV7, requiredApprovalsV7, activeOwnerSlotsV7, normalizeOwnerSetV7, OWNER_SLOTS_V7 } = require("../model/owner-set-v7");
+const { normalizeTemplateV7Kas, resolveOwnerOpAuthorityV7Kas, OWNER_OP_SELECTOR_V7_KAS, templateToJsonV7Kas } = require("../model/vault-state-v7-kas");
+const { normalizeStateV4, stateToJsonV4, MAX_APPROVERS } = require("../model/vault-state-v4");
+const { normalizeAgentPolicyV4, verifyAgentProofV4, foldAgentPolicyV4, buildAgentTreeV4 } = require("../model/agent-merkle-v4");
+const { verifyRecipientProof, buildRecipientTree } = require("../model/recipient-merkle-v3");
+const { ROOT_STATE_LEN_V7 } = require("../model/vault-state-v7-root"); // Codex checkpoint 7
+const { blake2bHex } = require("../assets/blake2b"); // Codex checkpoint 7
+function hexToBytes(hex) { const out = new Uint8Array(hex.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16); return out; }
+const rootScriptV7 = require("./root-script-v7"); // rc21 review R6-03: the same root-script binding as the v7 verifier
+const { V7_KAS_BUDGET, selectComputeBudgetV7Kas, selectRootComputeBudgetV7 } = require("../model/compute-budget-v7-kas"); // Codex checkpoint 6 (UX-02 / UX-13): budgets DERIVED from the reviewed operation (parity with the payment verifier)
+
+const ORG_ROOT_KAS_MANIFEST_VERSION_1 = "policyvault-org-root-kas-manifest/1";
+const ROOTED_KAS_VAULT_MANIFEST_VERSION_1 = "policyvault-rooted-kas-vault-manifest/1";
+const VERIFIED_STATEMENT = "AI MAY REQUEST. POLICYVAULT DETERMINISTICALLY DECIDES. THE COVENANT ENFORCES. SIGNERS RETAIN CUSTODY.";
+
+const ORG_ROOT_KAS_EXPLANATION =
+  "This transaction spends your organization's PolicyVault root. The root holds the owner set, " +
+  "the approval thresholds, the freeze flag and a strictly increasing nonce; it never pays anyone " +
+  "and it can never be dissolved. Approving means: the named action runs, the named owner slots " +
+  "must sign, and every ROOTED KAS SAFE-PAYMENT VAULT operation listed below happens in the SAME " +
+  "transaction or none of them do. Your approval is bound to this exact transaction and to this " +
+  "exact root outpoint — there is no expiry, because spending the root outpoint is what " +
+  "invalidates every collected approval at once. A rooted vault has no owner key: this root input " +
+  "IS the owner authority. This vault ALSO has its own, separate vault-level M-of-N approver tier " +
+  "above a per-agent spending threshold — that tier is a completely different mechanism from the " +
+  "organizational root and is never satisfied by root owners signing.";
+
+/* role / terminal / mutation class per SDK action (mirrors ROOTED_VAULT_ACTIONS). */
+const ROOTED_KAS_VAULT_ACTIONS = Object.freeze({
+  ownerSetAgentRoot: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-EXPANDING" }),
+  ownerSetApprovers: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-EXPANDING" }),
+  ownerTopUp: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-NEUTRAL" }),
+  ownerTopUpReserve: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-NEUTRAL" }),
+  ownerPause: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-REDUCING" }),
+  ownerUnpause: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-EXPANDING" }),
+  ownerEmergencyPause: Object.freeze({ role: "owners", terminal: false, mutationClass: "AUTHORITY-REDUCING" }),
+  ownerRecover: Object.freeze({ role: "owners", terminal: true, mutationClass: "TERMINAL" }),
+  agentSpend: Object.freeze({ role: "agent", terminal: false, mutationClass: "AUTHORITY-NEUTRAL" })
+});
+
+function refuse(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  throw e;
+}
+function digits(v, where) {
+  if (typeof v !== "string" || !/^(0|[1-9][0-9]*)$/.test(v)) refuse("SCHEMA_INVALID", `${where} must be a non-negative digit string`);
+  return BigInt(v);
+}
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const k of Object.keys(value)) deepFreeze(value[k]);
+  }
+  return value;
+}
+
+/* ------------------------------------------------------------------ */
+/* the ROOTED KAS VAULT controller manifest (one vault operation)       */
+/* ------------------------------------------------------------------ */
+
+function buildRootedKasVaultManifestV7({ build, approvalPackage = null }) {
+  if (!build || build.contractVersion !== "policyvault-0.7-kas" || build.kind !== "transition") {
+    refuse("SCHEMA_INVALID", "a v0.7-kas transition build is required");
+  }
+  const info = ownGet(ROOTED_KAS_VAULT_ACTIONS, build.action);
+  if (!info) refuse("UNKNOWN_ACTION", `unknown v0.7-kas rooted-vault action ${JSON.stringify(build.action)} — failing closed`);
+  const authority = build.action === "agentSpend" ? null : resolveOwnerOpAuthorityV7Kas(build.action);
+  const body = {
+    manifestVersion: ROOTED_KAS_VAULT_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    vault: {
+      contractVersion: build.contractVersion,
+      vaultId: build.template.vaultId,
+      covenantId: build.covenantId,
+      orgRootCovenantId: build.template.orgRootCovenantId,
+      rootTemplateVmHash: build.template.rootTemplateVmHash,
+      rootGeometry: { prefixLen: build.template.rootPrefixLen, stateLen: build.template.rootStateLen, suffixLen: build.template.rootSuffixLen },
+      recoveryPk: build.template.recoveryPk
+    },
+    action: {
+      sdkAction: build.action,
+      role: info.role,
+      terminal: info.terminal,
+      mutationClass: info.mutationClass,
+      opSelector: build.callExtra.opSelector ?? null,
+      requiresRootInput: build.hasRootInput,
+      requiredRootAction: authority ? authority.rootActionName : null,
+      expectFrozenAfter: authority ? authority.expectFrozenAfter.toString() : null
+    },
+    stateBefore: { stateId: build.predecessorStateId, state: build.stateJson, outpoint: build.predecessorOutpoint },
+    stateAfter: info.terminal ? null : { stateId: build.successorStateId, state: build.successorState },
+    accounting: { kas: { ...build.accounting.kas } },
+    approverTier:
+      build.action === "agentSpend"
+        ? {
+            /* the VAULT-LEVEL M-of-N approver tier, shown as COUNTS + PUBLIC
+             * KEYS + DIGESTS — NEVER raw collected signatures. This is the
+             * frozen v0.4.1 approver tier, a completely separate mechanism
+             * from the organizational root's M-of-N. */
+            approvalThreshold: build.callExtra.approvalThreshold,
+            requiredM: build.stateJson.approvalM,
+            activeApprovers: build.stateJson.approverSlots.filter((k) => k !== "00".repeat(32)),
+            aboveThreshold: build.aboveThreshold,
+            approvalPackageCommitment: approvalPackage ? approvalPackage.commitment : null
+          }
+        : null,
+    policy:
+      build.action === "agentSpend"
+        ? {
+            agentPolicy: build.callExtra
+              ? {
+                  agentPk: build.callExtra.agentPk,
+                  maxPerSpend: build.callExtra.maxPerSpend,
+                  periodBudget: build.callExtra.periodBudget,
+                  periodLengthDaa: build.callExtra.periodLengthDaa,
+                  periodStartDaa: build.callExtra.periodStartDaa,
+                  periodSpent: build.callExtra.periodSpent,
+                  approvalThreshold: build.callExtra.approvalThreshold,
+                  agentMaxFeePerTx: build.callExtra.agentMaxFeePerTx,
+                  agentRecipientRoot: build.callExtra.agentRecipientRoot
+                }
+              : null,
+            agentProof: build.agentProof ? { ...build.agentProof } : null,
+            recipient: build.payment.recipient,
+            recipientProof: build.recipientProof ? { ...build.recipientProof } : null,
+            periodsElapsed: build.callExtra.periodsElapsed,
+            lockTime: build.frozen.lockTime.toString()
+          }
+        : build.action === "ownerSetAgentRoot"
+          ? {
+              /* rc26 round-7 review R7-02 (parity with the payment profile): the full new policy set travels in the manifest. */
+              recoveryPk: null,
+              agentSet: Array.isArray(build.agentSet) ? build.agentSet.map((policy) => ({ ...policy })) : null
+            }
+          : { recoveryPk: build.action === "ownerRecover" ? build.template.recoveryPk : null },
+    transaction: { txId: build.txId, computeBudget: build.computeBudget, requiredFeeSompi: build.requiredFeeSompi }
+  };
+  return deepFreeze({ ...body, manifestHash: computeManifestHashV1(body) });
+}
+
+/* The per-selector state effect the covenant's mutually exclusive branches
+ * allow (contracts/PolicyVault.v0.7-kas.sil ownerControl, carried byte-for-
+ * byte from the frozen v0.4.1 base except selector 6, the new EMERGENCY
+ * pause — identical state effect to selector 4). */
+function selectorEffectHoldsV7Kas(sel, before, after) {
+  switch (sel) {
+    case OWNER_OP_SELECTOR_V7_KAS.ownerSetAgentRoot:
+      return (
+        after.protectedValue === before.protectedValue &&
+        after.feeReserve === before.feeReserve &&
+        after.paused === before.paused &&
+        approversEqual(before, after) &&
+        after.policyNonce === before.policyNonce + 1n
+      );
+    case OWNER_OP_SELECTOR_V7_KAS.ownerSetApprovers:
+      return (
+        after.protectedValue === before.protectedValue &&
+        after.feeReserve === before.feeReserve &&
+        after.paused === before.paused &&
+        after.agentRoot === before.agentRoot &&
+        after.policyNonce === before.policyNonce + 1n
+      );
+    case OWNER_OP_SELECTOR_V7_KAS.ownerTopUp:
+      return (
+        after.protectedValue > before.protectedValue &&
+        after.feeReserve === before.feeReserve &&
+        after.paused === before.paused &&
+        after.agentRoot === before.agentRoot &&
+        approversEqual(before, after) &&
+        after.policyNonce === before.policyNonce
+      );
+    case OWNER_OP_SELECTOR_V7_KAS.ownerTopUpReserve:
+      return (
+        after.feeReserve > before.feeReserve &&
+        after.protectedValue === before.protectedValue &&
+        after.paused === before.paused &&
+        after.agentRoot === before.agentRoot &&
+        approversEqual(before, after) &&
+        after.policyNonce === before.policyNonce
+      );
+    case OWNER_OP_SELECTOR_V7_KAS.ownerPause:
+    case OWNER_OP_SELECTOR_V7_KAS.ownerEmergencyPause:
+      return (
+        before.paused === 0n &&
+        after.paused === 1n &&
+        after.protectedValue === before.protectedValue &&
+        after.feeReserve === before.feeReserve &&
+        after.agentRoot === before.agentRoot &&
+        approversEqual(before, after) &&
+        after.policyNonce === before.policyNonce
+      );
+    case OWNER_OP_SELECTOR_V7_KAS.ownerUnpause:
+      return (
+        before.paused === 1n &&
+        after.paused === 0n &&
+        after.protectedValue === before.protectedValue &&
+        after.feeReserve === before.feeReserve &&
+        after.agentRoot === before.agentRoot &&
+        approversEqual(before, after) &&
+        after.policyNonce === before.policyNonce
+      );
+    default:
+      return false;
+  }
+}
+function approversEqual(before, after) {
+  /* `before`/`after` are normalizeStateV4() OBJECTS — the padded 10-slot
+   * array lives at `.approvers` there; `.approverSlots` is only the JSON
+   * (stateToJsonV4) field name. */
+  if (before.approvers.length !== MAX_APPROVERS || after.approvers.length !== MAX_APPROVERS) return false;
+  for (let i = 0; i < MAX_APPROVERS; i += 1) if (before.approvers[i] !== after.approvers[i]) return false;
+  return before.approvalM === after.approvalM;
+}
+
+/*
+ * Verify ONE rooted-KAS-vault operation against the frozen transaction it
+ * rides in. `frozen` is the parsed canonical transaction shared by every
+ * operation in the manifest, so a vault op can never be verified against a
+ * different transaction than the root it claims to ride.
+ */
+function verifyRootedKasVaultManifestV7({ manifest, frozen, check }) {
+  if (manifest.manifestVersion !== ROOTED_KAS_VAULT_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown rooted-kas-vault manifest version — failing closed");
+  const { manifestHash, ...body } = manifest;
+  const tag = `vault[${manifest.vault.covenantId.slice(0, 8)}].`;
+  check(`${tag}manifestHash`, computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+  const info = ownGet(ROOTED_KAS_VAULT_ACTIONS, manifest.action.sdkAction);
+  check(`${tag}action`, !!info && info.role === manifest.action.role && info.terminal === manifest.action.terminal && info.mutationClass === manifest.action.mutationClass, "role/terminal/class derived from the action table");
+  if (!info) return;
+
+  /* THE DECLARED TEMPLATE PINS MUST BE A WELL-FORMED v0.7-kas ROOTED VAULT
+   * (identical discipline to the payment profile's I3c-F2 hardening). */
+  let templatePinFailure = null;
+  try {
+    normalizeTemplateV7Kas({
+      vaultId: manifest.vault.vaultId,
+      orgRootCovenantId: manifest.vault.orgRootCovenantId,
+      rootTemplateVmHash: manifest.vault.rootTemplateVmHash,
+      rootPrefixLen: manifest.vault.rootGeometry.prefixLen,
+      rootStateLen: manifest.vault.rootGeometry.stateLen,
+      rootSuffixLen: manifest.vault.rootGeometry.suffixLen,
+      recoveryPk: manifest.vault.recoveryPk
+    });
+  } catch (e) {
+    templatePinFailure = `${e.code ?? "TEMPLATE_INVALID"}: ${e.message}`;
+  }
+  check(`${tag}templatePins`, templatePinFailure === null, templatePinFailure ?? "the declared template pins are a well-formed v0.7-kas rooted vault");
+
+  const inputs = frozen.inputs;
+  const outputs = frozen.outputs;
+  const vaultIns = inputs.filter((i) => i.utxo.covenantId === manifest.vault.covenantId);
+  /* rc26 round-7 review R7-01 (parity): every non-root input is spendable NOW (sequence 0); an owner operation never
+   * carries a lock time. The agent spend's lockTime is bound exactly to its period rule (lockTimeBound). */
+  check(`${tag}inputSequencesZero`, inputs.every((i) => i.utxo.covenantId === manifest.vault.orgRootCovenantId || String(i.sequence) === "0"), "every non-root input carries sequence 0 — no hidden relative lock");
+  if (manifest.action.sdkAction !== "agentSpend") check(`${tag}lockTimeZero`, String(frozen.lockTime) === "0", `an owner operation never carries a lock time (frozen lockTime ${frozen.lockTime})`);
+  const before = normalizeStateV4(manifest.stateBefore.state);
+  check(
+    `${tag}vaultInputValue`,
+    vaultIns.length === 1 && vaultIns[0].utxo.amount === (before.protectedValue + before.feeReserve).toString(),
+    "the vault input carries exactly protectedValue + feeReserve"
+  );
+  if (manifest.action.sdkAction !== "agentSpend") { // Codex checkpoint 6 (UX-02 / UX-13): an owner op's vault-input budget is derived from the op + the pinned root geometry (a delegate spend's depends on proof depths the manifest does not carry — left to the builder's own sufficiency assertion)
+    let expectedVaultBudget = null, budgetError = null;
+    try { expectedVaultBudget = selectComputeBudgetV7Kas({ operation: manifest.action.sdkAction, rootPrefixLen: manifest.vault.rootGeometry.prefixLen, rootSuffixLen: manifest.vault.rootGeometry.suffixLen }); } catch (e) { budgetError = e && e.message ? e.message : String(e); }
+    check(`${tag}vaultComputeBudgetBound`, budgetError === null && vaultIns.length === 1 && Number.isInteger(vaultIns[0].computeBudget) && vaultIns[0].computeBudget === expectedVaultBudget && String(manifest.transaction.computeBudget) === String(expectedVaultBudget), budgetError ? `the vault input's compute budget could not be derived: ${budgetError}` : `the vault input commits exactly the derived compute budget ${expectedVaultBudget} for ${manifest.action.sdkAction}`);
+  }
+
+  /* AUTHORITY: an owner path must carry exactly one input of the pinned root
+   * family; a delegate spend must carry NONE. */
+  const rootIns = inputs.filter((i) => i.utxo.covenantId === manifest.vault.orgRootCovenantId);
+  const rootOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.orgRootCovenantId);
+  if (manifest.action.sdkAction === "agentSpend") {
+    check(`${tag}agentPathHasNoRoot`, rootIns.length === 0 && rootOuts.length === 0 && manifest.action.requiresRootInput === false, "a delegate spend never touches the organizational root");
+  } else {
+    const authority = ownGet(ROOTED_KAS_VAULT_ACTIONS, manifest.action.sdkAction) ? resolveOwnerOpAuthorityV7Kas(manifest.action.sdkAction) : null;
+    check(`${tag}rootAuthorityPresent`, rootIns.length === 1 && rootOuts.length === 1 && manifest.action.requiresRootInput === true, "exactly one pinned root input and continuation output");
+    check(
+      `${tag}rootAuthorityPath`,
+      !!authority && authority.rootActionName === manifest.action.requiredRootAction && authority.expectFrozenAfter.toString() === manifest.action.expectFrozenAfter && (authority.opSelector === null || authority.opSelector === manifest.action.opSelector),
+      `${manifest.action.sdkAction} requires the root to run ${authority ? authority.rootActionName : "?"}`
+    );
+  }
+
+  if (info.terminal) {
+    const selfOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.covenantId);
+    check(`${tag}terminalNoContinuation`, selfOuts.length === 0, "a terminal operation leaves no continuation of its own covenant"); // rc21 review R6-03 (ported from v7)
+  }
+  if (!info.terminal) {
+    const after = normalizeStateV4(manifest.stateAfter.state);
+    const succ = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.vault.covenantId);
+    check(
+      `${tag}successorOutput`,
+      succ.length === 1 && succ[0].value === (after.protectedValue + after.feeReserve).toString(),
+      "exactly one successor carrying protectedValue + feeReserve"
+    );
+    if (manifest.action.sdkAction !== "agentSpend") {
+      const sel = manifest.action.opSelector;
+      check(`${tag}selectorEffect`, selectorEffectHoldsV7Kas(sel, before, after), `selector ${sel} moves exactly the fields its covenant branch allows`);
+      if (manifest.action.sdkAction === "ownerSetAgentRoot") {
+        /* rc26 round-7 review R7-02 (parity): the installed root is DERIVED from the carried policy set (v4 leaf layout). */
+        const set = manifest.policy && Array.isArray(manifest.policy.agentSet) ? manifest.policy.agentSet : null;
+        check(`${tag}agentSetPresent`, set !== null, "the new delegate policy set is carried by the manifest — the owners approve the RULES, never a bare root");
+        if (set !== null) {
+          let foldError = null;
+          let foldRoot = null;
+          /* Codex checkpoint 11 (R7-02, recipients): every carried policy lists its COMPLETE recipient set and its
+         * agentRecipientRoot must be exactly the fold of those recipients — withheld, emptied, substituted or extended
+         * recipients, or a root that does not match them, refuse here. The agent tree folds from the POLICY fields. */
+        let recipientsError = null;
+        set.forEach((p, i) => {
+          if (recipientsError !== null) return;
+          if (!p || typeof p !== "object") { recipientsError = `agentSet[${i}] is not an object`; return; }
+          if (!Array.isArray(p.recipients) || p.recipients.length === 0) { recipientsError = `agentSet[${i}] carries no recipient set — the owners must see every destination this delegate may pay`; return; }
+          let root = null;
+          try { root = buildRecipientTree(p.recipients).root; } catch (e) { recipientsError = `agentSet[${i}].recipients: ${e.message}`; return; }
+          if (typeof p.agentRecipientRoot !== "string" || p.agentRecipientRoot.toLowerCase() !== root) recipientsError = `agentSet[${i}].agentRecipientRoot ${String(p.agentRecipientRoot).slice(0, 16)}… is not the Merkle root of its ${p.recipients.length} recipient(s) (${root.slice(0, 16)}…)`;
+        });
+        check(`${tag}agentRecipientsBound`, recipientsError === null, recipientsError ?? "every carried policy's agentRecipientRoot is the Merkle root of its listed recipients");
+        try { foldRoot = buildAgentTreeV4(set.map((p) => { const { recipients, ...policy } = p || {}; void recipients; return policy; })).root; } catch (e) { foldError = e.message; }
+          check(`${tag}agentSetBound`, foldError === null && foldRoot === after.agentRoot, foldError ? `the carried policy set is malformed: ${foldError}` : `stateAfter.agentRoot ${after.agentRoot} must be the Merkle root of the carried policy set (${foldRoot})`);
+        }
+      }
+    }
+  }
+
+  if (manifest.action.sdkAction === "agentSpend") {
+    check(`${tag}outputZeroIsRecipient`, outputs[0].scriptPublicKey.scriptHex.toLowerCase() === `20${manifest.policy.recipient}ac`, "the covenant binds the payment to output 0 (P2PK recipient)");
+    const policy = manifest.policy.agentPolicy ? normalizeAgentPolicyV4(manifest.policy.agentPolicy) : null;
+    check(`${tag}agentPolicyPresent`, !!policy, "agent policy carried");
+    if (policy) {
+      const proof = manifest.policy.agentProof;
+      check(`${tag}agentProof`, !!proof && verifyAgentProofV4({ root: before.agentRoot, policy, siblingsHex: proof.siblingsHex, pathBits: BigInt(proof.pathBits) }), "leaf proven under the predecessor agentRoot");
+      const after = normalizeStateV4(manifest.stateAfter.state);
+      const spend = digits(outputs[0].value, "outputs[0].value");
+      check(`${tag}spendWithinCap`, spend <= policy.maxPerSpend, `spend ${spend} <= cap ${policy.maxPerSpend}`);
+      const periods = digits(manifest.policy.periodsElapsed, "policy.periodsElapsed");
+      const newStart = periods >= 1n ? policy.periodStartDaa + periods * policy.periodLengthDaa : policy.periodStartDaa;
+      const newSpent = periods >= 1n ? spend : policy.periodSpent + spend;
+      check(`${tag}spendWithinBudget`, newSpent <= policy.periodBudget, `period spent ${newSpent} <= budget ${policy.periodBudget}`);
+      const expectedLockTime = periods >= 1n ? newStart : 0n;
+      check(
+        `${tag}lockTimeBound`,
+        digits(manifest.policy.lockTime, "policy.lockTime") === BigInt(frozen.lockTime) && BigInt(frozen.lockTime) === expectedLockTime,
+        `lockTime must be exactly ${expectedLockTime} for periodsElapsed ${periods} (declared ${manifest.policy.lockTime}, frozen ${frozen.lockTime})`
+      );
+      check(`${tag}successorRootDerived`, foldAgentPolicyV4({ ...policy, periodStartDaa: newStart, periodSpent: newSpent }, proof.siblingsHex, BigInt(proof.pathBits)) === after.agentRoot, "successor agentRoot == single-leaf fold of the advanced leaf");
+      check(`${tag}reserveWithinAgentCap`, digits(manifest.accounting.kas.reserveConsumed, "accounting.kas.reserveConsumed") <= policy.agentMaxFeePerTx, "reserve consumed <= agentMaxFeePerTx");
+      const rp = manifest.policy.recipientProof;
+      check(`${tag}recipientAllowlisted`, !!rp && rp.root === policy.agentRecipientRoot && verifyRecipientProof({ root: rp.root, recipient: manifest.policy.recipient, siblingsHex: rp.siblingsHex, pathBits: BigInt(rp.pathBits) }), "recipient proven under the agent's recipient root");
+      /* the vault-level M-of-N approver tier, shown honestly (counts + keys,
+       * never raw signatures) and cross-checked against the DECLARED
+       * threshold — this is NOT the organizational root's quorum. */
+      const at = manifest.approverTier;
+      check(`${tag}approverTierPresent`, !!at, "the vault-level approver tier is declared");
+      if (at) {
+        check(`${tag}approverTierThresholdMatchesLeaf`, at.approvalThreshold === manifest.policy.agentPolicy.approvalThreshold, "the declared threshold matches the leaf's own approvalThreshold");
+        check(`${tag}approverTierAboveThresholdFlag`, at.aboveThreshold === spend > digits(at.approvalThreshold, "approverTier.approvalThreshold"), "aboveThreshold reflects spend vs the leaf threshold");
+        if (at.aboveThreshold) check(`${tag}approverTierRequiresM`, BigInt(at.requiredM) >= 1n && BigInt(at.requiredM) <= BigInt(at.activeApprovers.length), "an above-threshold spend needs a well-formed approver tier (M in [1, activeCount])");
+      }
+    }
+  } else if (manifest.action.sdkAction === "ownerRecover") {
+    check(
+      `${tag}payoutToPinnedRecoveryPk`,
+      outputs[0].scriptPublicKey.scriptHex.toLowerCase() === `20${manifest.vault.recoveryPk}ac` && outputs[0].value === (before.protectedValue + before.feeReserve).toString() && outputs[0].value === manifest.accounting.kas.terminalPayout,
+      "output 0 pays protectedValue + feeReserve to the GENESIS-PINNED recoveryPk"
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* the ORGANIZATIONAL ROOT (KAS-vault) manifest                        */
+/* ------------------------------------------------------------------ */
+
+/* `build` is either a root-only build (kind "orgRootTransition") or a
+ * rooted-KAS-vault build whose `rootAuthority` describes the root side —
+ * IDENTICAL shape to the payment profile's (finishBuildV7Kas produces the
+ * SAME rootAuthority fields finishBuild in vault-builders-v7.js does), so
+ * this is restated here (not imported) only because the payment profile's
+ * own wrapper hard-wires its vaultOperations loop. */
+function rootFactsFrom(build) {
+  if (build.kind === "orgRootTransition") {
+    const action = resolveRootActionV7(build.action);
+    return {
+      covenantId: build.covenantId,
+      outpoint: build.predecessorOutpoint,
+      template: build.template,
+      prevState: build.stateJson,
+      newState: build.successorState,
+      prevDigest: build.predecessorStateDigest,
+      newDigest: build.successorStateDigest,
+      tailHex: build.successorTailHex,
+      actionName: build.action,
+      actionCode: action.action,
+      entrypoint: action.entrypoint,
+      class: action.class,
+      classForPreviousSet: action.classForPreviousSet ?? null,
+      quorumSource: build.quorumSource,
+      requiredApprovals: build.requiredApprovals,
+      expectedSignerSlots: build.expectedSignerSlots,
+      minSequence: build.minSequence,
+      valueBefore: build.accounting.kas.rootValueBefore,
+      valueAfter: build.accounting.kas.rootValueAfter,
+      rootMaxFeePerTx: build.accounting.kas.rootMaxFeePerTx,
+      computeBudget: build.computeBudget
+    };
+  }
+  const ra = build.rootAuthority;
+  if (!ra) refuse("SCHEMA_INVALID", "a rooted-kas-vault build without a root input cannot carry an organizational-root manifest");
+  const action = resolveRootActionV7(ra.rootActionName);
+  return {
+    covenantId: ra.covenantId,
+    outpoint: ra.outpoint,
+    template: ra.template,
+    prevState: ra.prevState,
+    newState: ra.newState,
+    prevDigest: ra.prevStateDigest,
+    newDigest: ra.newStateDigest,
+    tailHex: ra.successorTailHex,
+    actionName: ra.rootActionName,
+    actionCode: action.action,
+    entrypoint: action.entrypoint,
+    class: action.class,
+    classForPreviousSet: action.classForPreviousSet ?? null,
+    quorumSource: ra.quorumSource,
+    requiredApprovals: ra.requiredApprovals,
+    expectedSignerSlots: ra.expectedSignerSlots,
+    minSequence: "0",
+    valueBefore: ra.value,
+    valueAfter: ra.value,
+    rootMaxFeePerTx: normalizeRootTemplateV7(ra.template).rootMaxFeePerTx.toString(),
+    computeBudget: ra.computeBudget
+  };
+}
+
+function setSummary(stateJson) {
+  const s = normalizeRootStateV7(stateJson);
+  return {
+    activeCount: s.activeCount,
+    ownerM: s.ownerM.toString(),
+    emergencyK: s.emergencyK.toString(),
+    recoveryM: s.recoveryM.toString(),
+    slots: activeOwnerSlotsV7(s).map((x) => ({ slot: x.slot, publicKey: x.publicKey }))
+  };
+}
+
+function buildOrgRootIntentManifestV7Kas({ build, vaultOperations = [], satisfiedApprovals = null }) {
+  if (!build || typeof build !== "object") refuse("SCHEMA_INVALID", "a v0.7 build is required");
+  const facts = rootFactsFrom(build);
+  const before = setSummary(facts.prevState);
+  const after = setSummary(facts.newState);
+  const beforeKeys = new Set(before.slots.map((s) => s.publicKey));
+  const afterKeys = new Set(after.slots.map((s) => s.publicKey));
+
+  const ops = vaultOperations.map((op) => {
+    const m = buildRootedKasVaultManifestV7({ build: op.build });
+    return {
+      covenantId: op.build.covenantId,
+      vaultId: op.build.template.vaultId,
+      sdkAction: op.build.action,
+      opSelector: op.build.callExtra.opSelector ?? null,
+      terminal: ownGet(ROOTED_KAS_VAULT_ACTIONS, op.build.action).terminal,
+      manifest: m
+    };
+  });
+
+  const body = {
+    manifestVersion: ORG_ROOT_KAS_MANIFEST_VERSION_1,
+    network: { networkId: build.networkId },
+    root: {
+      contractVersion: "policyvault-0.7-root",
+      orgId: normalizeRootStateV7(facts.prevState).boundOrgId,
+      covenantId: facts.covenantId,
+      outpoint: facts.outpoint,
+      template: {
+        recoveryDelayDaa: normalizeRootTemplateV7(facts.template).recoveryDelayDaa.toString(),
+        successorPk: normalizeRootTemplateV7(facts.template).successorPk,
+        successionEnabled: normalizeRootTemplateV7(facts.template).successionEnabled,
+        successionDelayDaa: normalizeRootTemplateV7(facts.template).successionDelayDaa.toString(),
+        rootMaxFeePerTx: facts.rootMaxFeePerTx
+      },
+      valueBefore: facts.valueBefore,
+      valueAfter: facts.valueAfter,
+      computeBudget: facts.computeBudget
+    },
+    action: {
+      name: facts.actionName,
+      code: facts.actionCode,
+      entrypoint: facts.entrypoint,
+      authorityClass: facts.class,
+      authorityClassForPreviousSet: facts.classForPreviousSet,
+      quorumSource: facts.quorumSource,
+      requiredApprovals: facts.requiredApprovals,
+      satisfiedApprovals: satisfiedApprovals === null ? null : String(satisfiedApprovals),
+      expectedSignerSlots: facts.expectedSignerSlots.map((s) => ({ slot: s.slot, publicKey: s.publicKey })),
+      minSequence: facts.minSequence
+    },
+    ownerSet: {
+      before,
+      after,
+      changes: {
+        added: after.slots.filter((s) => !beforeKeys.has(s.publicKey)).map((s) => s.publicKey),
+        removed: before.slots.filter((s) => !afterKeys.has(s.publicKey)).map((s) => s.publicKey),
+        thresholdsChanged: before.ownerM !== after.ownerM || before.emergencyK !== after.emergencyK || before.recoveryM !== after.recoveryM,
+        frozenChanged: normalizeRootStateV7(facts.prevState).frozen !== normalizeRootStateV7(facts.newState).frozen
+      }
+    },
+    rootState: {
+      before: { digest: facts.prevDigest, state: rootStateToJsonV7(normalizeRootStateV7(facts.prevState)) },
+      after: { digest: facts.newDigest, state: rootStateToJsonV7(normalizeRootStateV7(facts.newState)), tailHex: facts.tailHex }
+    },
+    vaultOperations: ops,
+    fee: {
+      requiredFeeSompi: build.requiredFeeSompi,
+      rootMaxFeePerTx: facts.rootMaxFeePerTx,
+      rootValueLoss: (BigInt(facts.valueBefore) - BigInt(facts.valueAfter)).toString()
+    },
+    freshness: {
+      kind: "ROOT_OUTPOINT_KILL_SWITCH",
+      rootOutpoint: facts.outpoint,
+      expiry: null,
+      note: "Approvals are bound to this root outpoint and to this exact transaction (SIGHASH_ALL). Spending the outpoint invalidates every collected approval; the root nonce strictly increases. There is deliberately no expiry: Kaspa lockTime is a lower bound only."
+    },
+    transaction: { txId: build.txId, frozenCanonicalJson: build.frozenCanonicalJson },
+    explanation: ORG_ROOT_KAS_EXPLANATION
+  };
+  return deepFreeze({ ...body, manifestHash: computeManifestHashV1(body) });
+}
+
+function verifyOrgRootIntentManifestV7Kas({ manifest }) {
+  const checks = [];
+  const failures = [];
+  const check = (name, ok, detail) => {
+    checks.push({ name, ok: !!ok, detail: detail ?? null });
+    if (!ok) failures.push({ name, detail: detail ?? null });
+  };
+  try {
+    if (manifest.manifestVersion !== ORG_ROOT_KAS_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown org-root-kas manifest version — failing closed");
+    const { manifestHash, ...body } = manifest;
+    check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
+    check("explanationVerbatim", manifest.explanation === ORG_ROOT_KAS_EXPLANATION, "the fixed human explanation is carried verbatim");
+    check("freshnessIsOutpointKillSwitch", manifest.freshness.kind === "ROOT_OUTPOINT_KILL_SWITCH" && manifest.freshness.expiry === null, "freshness is the root outpoint, never an expiry");
+
+    const action = resolveRootActionV7(manifest.action.name);
+    check("actionTable", action.action === manifest.action.code && action.entrypoint === manifest.action.entrypoint && action.class === manifest.action.authorityClass && action.quorumSource === manifest.action.quorumSource, "action / class / entrypoint / quorum source come from the action table");
+
+    const before = normalizeRootStateV7(manifest.rootState.before.state);
+    const after = normalizeRootStateV7(manifest.rootState.after.state);
+    check("stateDigests", computeRootStateDigestV7(before) === manifest.rootState.before.digest && computeRootStateDigestV7(after) === manifest.rootState.after.digest, "both digests recomputed from the exact 467-byte state regions");
+    check("orgIdBound", before.boundOrgId === after.boundOrgId && before.boundOrgId === manifest.root.orgId, "the bound organization id is immutable");
+    check("nonceAdvancesByOne", after.rootNonce === before.rootNonce + 1n, `nonce ${before.rootNonce} -> ${after.rootNonce}`);
+    check("successorTailBytes", manifest.rootState.after.tailHex === rootStateTailHexV7({ frozen: after.frozen, rootNonce: after.rootNonce }), "the pinned successor TAIL equals 0x01||frozen||0x08||nonce8");
+    if (action.landsFrozen !== null) check("frozenOutcome", after.frozen === action.landsFrozen, `${manifest.action.name} must land frozen=${action.landsFrozen}`);
+    else check("frozenPreserved", after.frozen === before.frozen, `${manifest.action.name} preserves the frozen flag`);
+    if (action.requiresUnfrozen) check("rootNotFrozen", before.frozen === 0n, "the predecessor must be unfrozen for this action");
+    const setPreserved = before.owners.every((k, i) => k === after.owners[i]) && before.ownerM === after.ownerM && before.emergencyK === after.emergencyK && before.recoveryM === after.recoveryM;
+    if (action.setMayChange) check("setChangeDeclared", true, "this action may install a new set");
+    else check("setPreserved", setPreserved, `${manifest.action.name} must carry the owner set across verbatim`);
+    check("ownerSetSummaries", manifest.ownerSet.before.ownerM === before.ownerM.toString() && manifest.ownerSet.after.ownerM === after.ownerM.toString() && manifest.ownerSet.before.activeCount === before.activeCount && manifest.ownerSet.after.activeCount === after.activeCount, "the declared summaries match the declared states");
+    const declaredAdded = new Set(manifest.ownerSet.changes.added);
+    const actualAdded = activeOwnerSlotsV7(after).map((s) => s.publicKey).filter((k) => !activeOwnerSlotsV7(before).some((b) => b.publicKey === k));
+    check("ownerSetDiff", actualAdded.length === declaredAdded.size && actualAdded.every((k) => declaredAdded.has(k)), "the declared owner-set diff is the real one");
+
+    const required = requiredApprovalsV7(before, manifest.action.name);
+    check("requiredApprovals", required.toString() === manifest.action.requiredApprovals, `${manifest.action.name} requires ${required} from the PREDECESSOR set`);
+    const expected = manifest.action.name === "succession" ? [] : activeOwnerSlotsV7(before).map((s) => `${s.slot}:${s.publicKey}`);
+    check("expectedSignerSlots", JSON.stringify(manifest.action.expectedSignerSlots.map((s) => `${s.slot}:${s.publicKey}`)) === JSON.stringify(expected), "the expected signer slots are exactly the predecessor's active slots");
+    if (manifest.action.satisfiedApprovals !== null) {
+      check("quorumSatisfied", digits(manifest.action.satisfiedApprovals, "action.satisfiedApprovals") >= required, "the collected approvals reach the required threshold");
+    }
+    if (action.requiresAge) {
+      const t = normalizeRootTemplateV7({ ...manifest.root.template, orgId: manifest.root.orgId });
+      const expectedSeq = manifest.action.name === "succession" ? t.successionDelayDaa : t.recoveryDelayDaa;
+      check("relativeAgeGate", digits(manifest.action.minSequence, "action.minSequence") === expectedSeq, `the input sequence must carry the ${manifest.action.name} idle delay`);
+    }
+
+    const frozen = JSON.parse(manifest.transaction.frozenCanonicalJson);
+    const inputs = frozen.inputs;
+    const outputs = frozen.outputs;
+    const totalIn = inputs.reduce((s, i) => s + BigInt(i.utxo.amount), 0n);
+    const totalOut = outputs.reduce((s, o) => s + BigInt(o.value), 0n);
+    const fee = totalIn - totalOut;
+    check("feeExact", fee.toString() === manifest.fee.requiredFeeSompi, `fee ${fee}`);
+
+    const rootIns = inputs.filter((i) => i.utxo.covenantId === manifest.root.covenantId);
+    const rootOuts = outputs.filter((o) => o.covenant && o.covenant.covenantId === manifest.root.covenantId);
+    check("rootInputSingleton", rootIns.length === 1 && rootOuts.length === 1, "exactly one root input and one root continuation output");
+    { /* Codex checkpoint 6 (UX-02 / UX-13), ported from the payment verifier: derived root + ordinary input budgets */
+      let expectedRootBudget = null, rootBudgetError = null;
+      try { expectedRootBudget = selectRootComputeBudgetV7({ actionName: manifest.action.name, activeOwnerSlots: before.activeCount }); } catch (e) { rootBudgetError = e && e.message ? e.message : String(e); }
+      check("rootComputeBudgetBound", rootBudgetError === null && rootIns.length === 1 && Number.isInteger(rootIns[0].computeBudget) && rootIns[0].computeBudget === expectedRootBudget && String(manifest.root.computeBudget) === String(expectedRootBudget), rootBudgetError ? `the root input's compute budget could not be derived: ${rootBudgetError}` : `the root input commits exactly the derived compute budget ${expectedRootBudget} for ${manifest.action.name} with ${before.activeCount} active slot(s)`);
+      const plain = inputs.filter((i) => i.utxo.covenantId === null || i.utxo.covenantId === undefined);
+      check("ordinaryInputBudgets", plain.every((i) => Number.isInteger(i.computeBudget) && i.computeBudget === V7_KAS_BUDGET.ORDINARY_INPUT), `every plain input commits the ordinary compute budget ${V7_KAS_BUDGET.ORDINARY_INPUT}`);
+    }
+    /* rc21 review R6-03: the five rc21 outer checks of the v7 verifier, ported to this profile (same frozen v0.7 root). */
+    let rootEvidence = null; // Codex checkpoint 7: the rebuilt root script's REAL geometry + in-VM template identity
+    if (rootIns.length === 1 && rootOuts.length === 1) {
+      let expectBefore = null, expectAfter = null, rebuildError = null;
+      try {
+        const tpl = { ...manifest.root.template, orgId: manifest.root.orgId };
+        const rootBeforeHex = rootScriptV7.reconstructRootScriptHexV7({ template: tpl, state: manifest.rootState.before.state });
+        expectBefore = rootScriptV7.p2shSpkHexOf(rootBeforeHex);
+        expectAfter = rootScriptV7.p2shSpkHexOf(rootScriptV7.reconstructRootScriptHexV7({ template: tpl, state: manifest.rootState.after.state }));
+        const prefixHex = rootBeforeHex.slice(0, rootScriptV7.ROOT_SCRIPT_PREFIX_HEX_V7.length);
+        const suffixHex = rootBeforeHex.slice(rootScriptV7.ROOT_SCRIPT_PREFIX_HEX_V7.length + ROOT_STATE_LEN_V7 * 2);
+        rootEvidence = { prefixLen: prefixHex.length / 2, stateLen: ROOT_STATE_LEN_V7, suffixLen: suffixHex.length / 2, templateVmHash: blake2bHex([hexToBytes(prefixHex), hexToBytes(suffixHex)], 32) }; // Codex checkpoint 7 (parity with the payment profile)
+      } catch (e) { rebuildError = e && e.message ? e.message : String(e); }
+      const inSpk = rootIns[0].utxo.scriptPublicKey || {};
+      const outSpk = rootOuts[0].scriptPublicKey || {};
+      check("rootScriptsBound", rebuildError === null && Number(inSpk.version || 0) === 0 && String(inSpk.scriptHex || "").toLowerCase() === expectBefore && Number(outSpk.version || 0) === 0 && String(outSpk.scriptHex || "").toLowerCase() === expectAfter, rebuildError ? `the root script could not be rebuilt from the reviewed template and state: ${rebuildError}` : "the root input spends, and the root output creates, exactly the P2SH of the frozen v0.7 root script rebuilt from the reviewed template and states");
+    }
+    const continuations = new Map();
+    let genesisShaped = 0;
+    for (const o of outputs) {
+      if (!o.covenant) continue;
+      const ai = Number(o.covenant.authorizingInput);
+      const src = Number.isInteger(ai) && inputs[ai] ? inputs[ai].utxo.covenantId : null;
+      if (src === null || src === undefined || String(src).toLowerCase() !== String(o.covenant.covenantId).toLowerCase()) genesisShaped += 1;
+      else continuations.set(ai, (continuations.get(ai) || 0) + 1);
+    }
+    check("noCovenantGenesisInRootAction", genesisShaped === 0, genesisShaped ? `${genesisShaped} covenant output(s) do not continue the covenant of the input they name (a root action never creates a covenant)` : "every covenant output continues the covenant of the input it names");
+    check("oneContinuationPerCovenantInput", [...continuations.values()].every((n) => n === 1), "each covenant input continues at most once");
+    {
+      const spk = String(manifest.root.template.successorPk || "").toLowerCase();
+      const on = /^[0-9a-f]{64}$/.test(spk) && spk !== "00".repeat(32);
+      check("successionFlag", manifest.root.template.successionEnabled === on, `template.successionEnabled must be ${on} for successorPk ${spk.slice(0, 8)}…`);
+    }
+    {
+      const fuelSpk = inputs.length ? String(inputs[inputs.length - 1].utxo.scriptPublicKey.scriptHex || "").toLowerCase() : "";
+      const fuelOk = /^20[0-9a-f]{64}ac$/.test(fuelSpk) && inputs[inputs.length - 1].utxo.covenantId === null;
+      const terminalOps = manifest.vaultOperations.filter((op) => op.manifest && op.manifest.action && op.manifest.action.terminal === true);
+      const payoutSpks = new Set(terminalOps.map((op) => `20${String((op.manifest.vault && op.manifest.vault.recoveryPk) || "").toLowerCase()}ac`));
+      let change = 0, payouts = 0, bad = 0;
+      outputs.forEach((o, n) => {
+        if (o.covenant) return;
+        const spk = String(o.scriptPublicKey.scriptHex || "").toLowerCase();
+        if (n === 0 && terminalOps.length === 1 && payoutSpks.has(spk)) { payouts += 1; return; }
+        if (fuelOk && spk === fuelSpk) { change += 1; return; }
+        bad += 1;
+      });
+      check("feePayerChangeBound", fuelOk && bad === 0 && change <= 1 && terminalOps.length <= 1 && payouts === terminalOps.length, `non-covenant outputs: ${payouts} payout(s) for ${terminalOps.length} terminal operation(s), ${change} change output(s) to the fee payer, ${bad} other destination(s)`);
+    }
+    if (rootIns.length === 1) {
+      check("rootOutpointBinding", rootIns[0].previousOutpoint.transactionId === manifest.root.outpoint.transactionId && Number(rootIns[0].previousOutpoint.index) === Number(manifest.root.outpoint.index) && rootIns[0].previousOutpoint.transactionId === manifest.freshness.rootOutpoint.transactionId, "the declared root outpoint IS the spent one (the freshness kill switch)");
+      check("rootValueBefore", rootIns[0].utxo.amount === manifest.root.valueBefore, "the declared root value is the input's");
+      if (action.requiresAge) check("rootInputSequence", String(rootIns[0].sequence) === manifest.action.minSequence, "the root input carries the relative-age sequence");
+      else check("rootInputSequenceZero", String(rootIns[0].sequence) === "0", `${manifest.action.name} is not age-gated: the root input must carry sequence 0 (a non-zero sequence is a hidden relative lock)`); // rc26 round-7 review R7-01
+    }
+    /* rc26 round-7 review R7-01 (parity): no other input carries a sequence; a root transaction never carries a lockTime. */
+    check("inputSequencesZero", inputs.every((i) => i.utxo.covenantId === manifest.root.covenantId || String(i.sequence) === "0"), "every non-root input carries sequence 0 — no hidden relative lock");
+    check("lockTimeZero", String(frozen.lockTime) === "0", `a root transaction never carries a lock time (frozen lockTime ${frozen.lockTime})`);
+    if (rootOuts.length === 1) {
+      check("rootValueAfter", rootOuts[0].value === manifest.root.valueAfter, "the declared successor value is the output's");
+      const loss = BigInt(manifest.root.valueBefore) - BigInt(rootOuts[0].value);
+      check("rootValueRule", loss <= digits(manifest.root.template.rootMaxFeePerTx, "root.template.rootMaxFeePerTx") && loss.toString() === manifest.fee.rootValueLoss, `the root loses ${loss} <= rootMaxFeePerTx ${manifest.root.template.rootMaxFeePerTx}`);
+    }
+
+    const accounted = new Set([manifest.root.covenantId]);
+    for (const op of manifest.vaultOperations) {
+      check(`vaultOp[${String(op.covenantId).slice(0, 8)}]idsBound`, op.manifest && op.manifest.vault && op.covenantId === op.manifest.vault.covenantId && (op.tokenCovenantId ?? null) === (op.manifest.vault.tokenCovenantId ?? null), "the declared vault covenant id is the inner manifest's"); // rc21 review R6-03
+      accounted.add(op.covenantId);
+      check(`vaultOp[${op.covenantId.slice(0, 8)}]declared`, inputs.some((i) => i.utxo.covenantId === op.covenantId), "the declared vault operation has an input in this transaction");
+      check(`vaultOp[${op.covenantId.slice(0, 8)}]rootPin`, op.manifest.vault.orgRootCovenantId === manifest.root.covenantId, "the vault is pinned to THIS root");
+      { /* Codex checkpoint 7 (UX-02 / UX-13, parity with the payment profile): the vault's declared root geometry + root template hash must be the rebuilt root script's */
+        const g = op.manifest.vault && op.manifest.vault.rootGeometry ? op.manifest.vault.rootGeometry : {};
+        const agrees = !!rootEvidence && Number(g.prefixLen) === rootEvidence.prefixLen && Number(g.stateLen) === rootEvidence.stateLen && Number(g.suffixLen) === rootEvidence.suffixLen && String(op.manifest.vault.rootTemplateVmHash || "").toLowerCase() === rootEvidence.templateVmHash;
+        check(`vaultOp[${op.covenantId.slice(0, 8)}]rootEvidenceAgrees`, agrees, rootEvidence ? `the vault's declared root geometry (${g.prefixLen} / ${g.stateLen} / ${g.suffixLen}) and root template hash must be the rebuilt root script's (${rootEvidence.prefixLen} / ${rootEvidence.stateLen} / ${rootEvidence.suffixLen}, ${rootEvidence.templateVmHash.slice(0, 8)}…)` : "the root script could not be rebuilt, so the vault's root pins cannot be bound");
+      }
+      if (op.manifest.action.requiresRootInput) {
+        check(
+          `vaultOp[${op.covenantId.slice(0, 8)}]rootPathAgreesWithThisManifest`,
+          op.manifest.action.requiredRootAction === manifest.action.name,
+          `${op.manifest.action.sdkAction} requires the root to run ${op.manifest.action.requiredRootAction}, and this manifest runs ${manifest.action.name}`
+        );
+        const landsFrozen = action.landsFrozen === null ? before.frozen : action.landsFrozen;
+        check(
+          `vaultOp[${op.covenantId.slice(0, 8)}]frozenByteAgrees`,
+          digits(op.manifest.action.expectFrozenAfter, "expectFrozenAfter") === landsFrozen,
+          "the frozen byte the vault pins in the root's successor is the one this action produces"
+        );
+      }
+      verifyRootedKasVaultManifestV7({ manifest: op.manifest, frozen, check });
+    }
+    const unaccounted = inputs.map((i) => i.utxo.covenantId).filter((c) => c !== null && !accounted.has(c));
+    check("noHiddenCovenantOperations", unaccounted.length === 0, unaccounted.length ? `undeclared covenant families among the inputs: ${[...new Set(unaccounted)].join(", ")}` : "every covenant input is accounted for by a declared operation");
+    const unaccountedOut = outputs.filter((o) => o.covenant && !accounted.has(o.covenant.covenantId));
+    check("noHiddenCovenantOutputs", unaccountedOut.length === 0, "every covenant output is accounted for by a declared operation");
+    check("txIdDeclared", typeof manifest.transaction.txId === "string" && /^[0-9a-f]{64}$/.test(manifest.transaction.txId), "the transaction id is well-formed");
+  } catch (e) {
+    failures.push({ name: "exception", detail: `${e.code ?? "ERROR"}: ${e.message}` });
+    checks.push({ name: "exception", ok: false, detail: `${e.code ?? "ERROR"}: ${e.message}` });
+  }
+  const verdict = failures.length === 0 ? "VERIFIED" : "REFUSED";
+  return deepFreeze({ verdict, statement: verdict === "VERIFIED" ? VERIFIED_STATEMENT : null, checks, failures, manifestHash: manifest.manifestHash ?? null });
+}
+
+module.exports = {
+  ORG_ROOT_KAS_MANIFEST_VERSION_1,
+  ROOTED_KAS_VAULT_MANIFEST_VERSION_1,
+  ORG_ROOT_KAS_EXPLANATION,
+  ROOTED_KAS_VAULT_ACTIONS,
+  VERIFIED_STATEMENT,
+  buildOrgRootIntentManifestV7Kas,
+  verifyOrgRootIntentManifestV7Kas,
+  buildRootedKasVaultManifestV7,
+  verifyRootedKasVaultManifestV7,
+  canonicalJsonStringify,
+  OWNER_SLOTS_V7,
+  normalizeOwnerSetV7,
+  normalizeTemplateV7Kas,
+  templateToJsonV7Kas,
+  stateToJsonV4
+};
+  });
+
   var api = Object.freeze({
     require: function (id) { return load(resolveId("core", "./" + id)); },
     intent: load("core/intent/index"),
+    /* Canonical KAS<->sompi (core/model/amounts.js) — the ONLY sanctioned
+     * client-side amount parser. It was already embedded as the byte-native
+     * Merkle modules' dependency closure; exposing it on the api surface is
+     * what lets web/app.js and web/app-v4.js stop hand-rolling conversions on
+     * a funds path (app.js used FLOATING POINT: Number(v) * 1e8). */
+    amounts: load("core/model/amounts"),
+    /* human duration <-> DAA score: the ONE conversion path (never a UI-local constant) */
+    durationDaa: load("core/model/duration-daa"),
+    rootScriptV7: load("core/intent/root-script-v7"),
+    vaultScriptV7: load("core/intent/vault-script-v7"),
     explainKas: load("core/explain/kas"),
     intentExplain: load("core/explain/intent-explain"),
     signerErrors: load("core/signer/errors"),
     signerInterface: load("core/signer/interface"),
+    signerErrorsV2: load("core/signer/v2/errors"),
+    signerInterfaceV2: load("core/signer/v2/interface"),
+    signerLiftV2: load("core/signer/v2/adapters/lift"),
+    signerKasWareProfileV2: load("core/signer/v2/adapters/kasware"),
     recipientMerkle: load("core/model/recipient-merkle-v3"),
     agentMerkle: load("core/model/agent-merkle-v4"),
     computeBudgetV3: load("core/model/compute-budget-v3"),
@@ -10831,7 +25546,43 @@ module.exports = { explainTokenIntent, scaled };
     agentMerkleV5: load("core/model/agent-merkle-v5"),
     computeBudgetV5: load("core/model/compute-budget-v5"),
     tokenManifestV5: load("core/intent/token-manifest-v5"),
-    tokenExplain: load("core/explain/token-explain")
+    tokenExplain: load("core/explain/token-explain"),
+    /* G4: M-of-N approval-package commitments */
+    vaultStateV3: load("core/model/vault-state-v3"),
+    approvalPackageV3: load("core/model/approval-package-v3"),
+    approvalPackageV4: load("core/model/approval-package-v4"),
+    /* v0.6 atomic-composability token controller (model + manifests) */
+    storageMass: load("core/model/storage-mass"),
+    vaultStateV6: load("core/model/vault-state-v6"),
+    agentMerkleV6: load("core/model/agent-merkle-v6"),
+    swapPolicyV6: load("core/model/swap-policy-v6"),
+    vaultTransitionsV6: load("core/model/vault-transitions-v6"),
+    computeBudgetV6: load("core/model/compute-budget-v6"),
+    controllerManifestV6: load("core/intent/token-manifest-v6"),
+    swapManifestV6: load("core/intent/swap-manifest-v6"),
+    /* version-aware fail-closed manifest dispatch */
+    intentRouter: load("core/intent/router"),
+    /* v0.7 organizational M-of-N owner root */
+    ownerSetV7: load("core/model/owner-set-v7"),
+    vaultStateV7Root: load("core/model/vault-state-v7-root"),
+    vaultStateV7: load("core/model/vault-state-v7"),
+    vaultTransitionsV7Root: load("core/model/vault-transitions-v7-root"),
+    vaultTransitionsV7: load("core/model/vault-transitions-v7"),
+    computeBudgetV7: load("core/model/compute-budget-v7"),
+    orgRootManifestV7: load("core/intent/org-root-manifest-v7"),
+    orgRootExplain: load("core/explain/org-root-explain"),
+    orgRootSlotV7: load("core/signer/org-root-slot-v7"),
+    orgRootSignerV7: load("core/signer/org-root-slot-v7"),
+    /* v0.7 hierarchical-delegation rooted profile (candidate) */
+    hdLeafV7: load("core/model/hd-leaf-v7"),
+    computeBudgetV7Hd: load("core/model/compute-budget-v7-hd"),
+    hdVaultManifestV7: load("core/intent/org-root-manifest-v7-hd"),
+    hdVaultExplain: load("core/explain/hd-vault-explain"),
+    /* v0.7 rooted KAS safe-payment profile (candidate) */
+    vaultStateV7Kas: load("core/model/vault-state-v7-kas"),
+    vaultTransitionsV7Kas: load("core/model/vault-transitions-v7-kas"),
+    computeBudgetV7Kas: load("core/model/compute-budget-v7-kas"),
+    orgRootManifestV7Kas: load("core/intent/org-root-manifest-v7-kas")
   });
 
   if (typeof window !== "undefined") window.PolicyVaultCore = api;

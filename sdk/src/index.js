@@ -78,6 +78,16 @@ const computeBudgetV5 = require("../../core/model/compute-budget-v5");
 const assets = require("../../core/assets");
 const tokenManifestV5 = require("../../core/intent/token-manifest-v5");
 const tokenExplain = require("../../core/explain/token-explain");
+const ownerSetV7 = require("../../core/model/owner-set-v7");
+const vaultStateV7Root = require("../../core/model/vault-state-v7-root");
+const vaultStateV7 = require("../../core/model/vault-state-v7");
+const vaultTransitionsV7Root = require("../../core/model/vault-transitions-v7-root");
+const vaultTransitionsV7 = require("../../core/model/vault-transitions-v7");
+const computeBudgetV7 = require("../../core/model/compute-budget-v7");
+const contractCompilerV7 = require("./contract-compiler-v7");
+const vaultBuildersV7 = require("./vault-builders-v7");
+const orgRootManifestV7 = require("../../core/intent/org-root-manifest-v7");
+const intentRouter = require("../../core/intent/router");
 
 /* ---- network client ---------------------------------------------------- */
 const httpClient = require("./http-client");
@@ -235,5 +245,35 @@ module.exports = Object.freeze({
   /* v0.5 token intent manifest + deterministic local verification, and its
    * deterministic explanation (separate token / KAS sections). */
   tokenManifestV5,
-  tokenExplain
+  tokenExplain,
+
+  /* ===================================================================
+   * v0.7 ORGANIZATIONAL M-of-N OWNER ROOT lineage
+   * (docs/postlaunch/v0.7-organizational-root-design.md).
+   * CANDIDATE — SDK/PRODUCTION-BYTE-VERIFIED, NOT testnet-verified, NOT
+   * byte-frozen, NOT externally reviewed. Additive beside the frozen v0.5
+   * and the v0.6 candidate; unknown versions still fail closed everywhere.
+   *
+   * The authority model in one line: a ROOTED VAULT HAS NO OWNER KEY — an
+   * owner operation is valid only when the same transaction also spends the
+   * organizational root, whose own covenant proved M-of-N, and the vault
+   * pins that root's EXACT successor bytes so it can tell WHICH root path
+   * ran. A delegate spend never touches the root at all.
+   * =================================================================== */
+  CONTRACT_VERSION_V7_ROOT: vaultStateV7Root.CONTRACT_VERSION_V7_ROOT,
+  CONTRACT_VERSION_V7: vaultStateV7.CONTRACT_VERSION_V7,
+  resolveV7RootAbi: vaultStateV7Root.resolveV7RootAbi,
+  resolveV7Abi: vaultStateV7.resolveV7Abi,
+  ownerSetV7,
+  vaultStateV7Root,
+  vaultStateV7,
+  vaultTransitionsV7Root,
+  vaultTransitionsV7,
+  computeBudgetV7,
+  contractCompilerV7,
+  vaultBuildersV7,
+  /* signer-visible organizational manifest + its deterministic local
+   * verification, and the fail-closed manifest version router */
+  orgRootManifestV7,
+  intentRouter
 });

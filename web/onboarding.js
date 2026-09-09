@@ -177,6 +177,12 @@
             "The vault lives as a covenant-locked output on Kaspa L1. The owner keeps break-glass controls on-chain: Pause, Remove agent, Rotate key, and Close & recover."
           ]
         },
+        {
+          type: "note",
+          text:
+            "This owner is ONE key. If several people must jointly control funds, PolicyVault also has an ON-CHAIN ORGANIZATIONAL ROOT — a separate covenant holding a real M-of-N owner quorum, enforced by Kaspa consensus (under Organizations). " +
+            "A hosted \"organization\" (grouping vaults, members, roles) is application metadata only and is NOT that — it grants no owner authority on its own."
+        },
         { type: "docs", slug: "fee-reserve", label: "Learn more about the fee reserve" }
       ]
     },

@@ -590,15 +590,48 @@
     runWalletFlow(() => postJSON("/wallet/requests", { vaultId, action, params, signerAddress: ui.adapter.getActiveAddress() }), label, addressBook);
   }
 
-  function promptSompi(msg) {
-    const v = window.prompt(msg);
-    if (!v) return null;
-    const kasVal = Number(v);
-    if (!Number.isFinite(kasVal) || kasVal <= 0) {
+  /*
+   * CANONICAL KAS -> sompi. Delegates to core/model/amounts.js
+   * (`window.PolicyVaultCore.amounts.kasToSompi`) — the SAME integer-only
+   * parser the SDK, the server and the covenant accounting use. Never
+   * floating point, never a second grammar.
+   *
+   * This replaced a FLOATING-POINT conversion (`Number(v) * 1e8`) that
+   * silently accepted "0x10" as 16 KAS and "1e3" as 1000 KAS, rounded a
+   * 9th decimal away, rounded "0.000000001" to 0, and lost precision on
+   * large amounts (e.g. "9007199254740993" KAS came out 1000 KAS low).
+   * Divergences are pinned vector-by-vector by
+   * web/test/client-amounts-parity.test.js against a golden fixture
+   * captured from the original code.
+   *
+   * Fail-closed: an unavailable core, or any input the canonical grammar
+   * refuses, returns null and NOTHING is requested. A positive amount is
+   * required (the callers all request a spend/deposit).
+   */
+  function kasToSompiCanonical(value) {
+    const core = typeof window !== "undefined" ? window.PolicyVaultCore : undefined;
+    if (!core || !core.amounts || typeof core.amounts.kasToSompi !== "function") {
+      note("Amount parsing is unavailable (the verification core did not load) — refusing", "bad");
+      return null;
+    }
+    let sompi;
+    try {
+      sompi = core.amounts.kasToSompi(String(value).trim());
+    } catch {
+      note("Invalid amount — enter KAS as plain digits with at most 8 decimals (e.g. 1.5)", "warn");
+      return null;
+    }
+    if (sompi <= 0n) {
       note("Invalid amount", "warn");
       return null;
     }
-    return BigInt(Math.round(kasVal * 1e8)).toString();
+    return sompi.toString();
+  }
+
+  function promptSompi(msg) {
+    const v = window.prompt(msg);
+    if (!v) return null;
+    return kasToSompiCanonical(v);
   }
 
   window.pvActions = {
@@ -727,13 +760,11 @@
     }, "Create vault", addressBook);
   });
 
+  /* Same canonical parser as promptSompi; the label only names the field. */
   function promptCheck(v, label) {
-    const n = Number(v);
-    if (!Number.isFinite(n) || n <= 0) {
-      note(`Invalid ${label}`, "warn");
-      return null;
-    }
-    return BigInt(Math.round(n * 1e8)).toString();
+    const sompi = kasToSompiCanonical(v);
+    if (sompi === null) note(`Invalid ${label}`, "warn");
+    return sompi;
   }
 
   /* ---------------- organizations (OFF-CHAIN metadata only) ---------------- */
@@ -830,11 +861,24 @@
     const actionRequired = orgVaults.filter((v) => ["ACTION_REQUIRED_VERIFY", "UNKNOWN"].includes(v.operational?.status));
     const closed = orgVaults.filter((v) => v.operational?.status === "CLOSED");
     const activeDelegates = new Set(live.filter((v) => v.live?.delegateActive).map((v) => v.delegate));
-    const totalKas = live.reduce((s, v) => s + (Number(v.live?.protectedValueKas) || 0), 0);
+    /* Integer sompi summation through the canonical parser/renderer (never
+     * floating point); a malformed or missing value, or a missing core,
+     * renders as unknown rather than a wrong total. */
+    let totalKasDisplay = "—";
+    {
+      const core = typeof window !== "undefined" ? window.PolicyVaultCore : undefined;
+      if (core && core.amounts && typeof core.amounts.kasToSompi === "function" && typeof core.amounts.sompiToKas === "function") {
+        try {
+          let totalSompi = 0n;
+          for (const v of live) totalSompi += core.amounts.kasToSompi(String(v.live?.protectedValueKas ?? "").trim());
+          totalKasDisplay = core.amounts.sompiToKas(totalSompi);
+        } catch { totalKasDisplay = "unknown (unparseable vault value)"; }
+      }
+    }
     $("org-overview").innerHTML = `
       <div class="grid">
         <div class="field"><div class="k">Active vaults</div><div class="v">${live.length}</div></div>
-        <div class="field"><div class="k">Total protected</div><div class="v">${esc(totalKas.toLocaleString())} KAS</div></div>
+        <div class="field"><div class="k">Total protected</div><div class="v">${esc(totalKasDisplay)} KAS</div></div>
         <div class="field"><div class="k">Action required</div><div class="v">${actionRequired.length}</div></div>
         <div class="field"><div class="k">Active delegates</div><div class="v">${activeDelegates.size}</div></div>
         <div class="field"><div class="k">Closed vaults</div><div class="v">${closed.length}</div></div>
@@ -1405,7 +1449,6 @@
     }
   });
 
-  $("refresh")?.addEventListener?.("click", () => Promise.all([loadOrgs(), loadVaults()]));
   // Adoption UX: the first-run walkthrough (web/onboarding.js) mounts ONLY
   // after boot() has settled — never awaited by boot, never on any request /
   // verify / sign / network path. Absent module (or any error) = no-op;

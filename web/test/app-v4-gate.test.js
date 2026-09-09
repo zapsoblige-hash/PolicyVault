@@ -76,6 +76,11 @@ function loadApp({ session, verify, dom }) {
   const windowObj = {
     addEventListener() {},
     PolicyVaultWalletSession: session,
+    /* STALE ASSUMPTION (2026-09-05, guided setup): the create view renders
+     * through web/setup-ui.js over the reviewed core bundle (index.html loads
+     * both before app-v4.js), so the sandbox window carries them too. */
+    PolicyVaultCore: core,
+    PolicyVaultSetupUi: require("../setup-ui.js"),
     ...(verify !== undefined ? { PolicyVaultVerifyIntent: verify } : {})
   };
   const sandbox = {

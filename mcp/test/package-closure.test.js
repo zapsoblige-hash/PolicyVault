@@ -79,7 +79,7 @@ test("runtime closure of server.js stays inside the package and inside package.j
   const pkg = JSON.parse(fs.readFileSync(path.join(MCP_ROOT, "package.json"), "utf8"));
   assert.equal(Object.keys(pkg.dependencies ?? {}).length, 0);
   assert.ok(pkg.files.includes("core/"), "package.json files must ship core/");
-  assert.equal(pkg.scripts.prepack, "node tools/sync-core.js --check");
+  assert.equal(pkg.scripts.prepack, "node tools/sync-core.js --check && node tools/check-license.js");
   fs.writeFileSync(path.join(os.tmpdir(), "policyvault-mcp-closure-report.json"), JSON.stringify({ entry: "server.js", files, problems }, null, 2));
 });
 

@@ -30,12 +30,12 @@ the SAME primitive interface (`read`, `write`, `createExclusive`,
 
 - **json** — the released self-hosted backend: files under
   `config.dataRoot` with the proven `durable-json` fsync-rename
-  discipline and `link()`/`EEXIST` create-only claims. It IS the
+  discipline and `link`/`EEXIST` create-only claims. It IS the
   pre-Phase-C code, relocated — behavior-identical by construction.
 - **postgres** — the hosted backend: one table per category,
   `(network_id, key)` composite primary key, single-statement atomic
   operations. `INSERT … ON CONFLICT DO NOTHING` is the create-only claim
-  arbiter — the exact `link()`/`EEXIST` equivalent.
+  arbiter — the exact `link`/`EEXIST` equivalent.
 
 Backend selection is validated configuration (`config.persistenceBackend`,
 default `json`). Unknown values fail closed. **The postgres driver never

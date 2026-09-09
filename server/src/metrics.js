@@ -42,6 +42,7 @@ const ROUTE_CLASSES = Object.freeze([
   "health",
   "health.ready",
   "metrics",
+  "mcp.telemetry",
   "auth",
   "identity.resolve",
   "identities",
@@ -51,6 +52,7 @@ const ROUTE_CLASSES = Object.freeze([
   "vaults.reconcile",
   "vaults.agent-suspensions",
   "manifests",
+  "attestations",
   "network.status",
   "audit",
   "support",
@@ -93,11 +95,13 @@ function metricsRouteClass(method, segments) {
   if (s0 === "capabilities") return "capabilities";
   if (s0 === "health") return segments[1] === "ready" ? "health.ready" : "health";
   if (s0 === "metrics") return "metrics";
+  if (s0 === "mcp-telemetry") return "mcp.telemetry";
   if (s0 === "auth") return "auth";
   if (s0 === "identity") return "identity.resolve";
   if (s0 === "identities") return "identities";
   if (s0 === "support") return "support";
   if (s0 === "manifests") return "manifests";
+  if (s0 === "attestations") return "attestations";
   if (s0 === "network") return "network.status";
   if (s0 === "audit") return "audit";
   if (s0 === "events") return "events";

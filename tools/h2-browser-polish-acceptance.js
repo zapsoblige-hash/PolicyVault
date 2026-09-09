@@ -1,6 +1,8 @@
 "use strict";
 
 /*
+ * SUPERSEDED (2026-09-05, flagship UX directive): this harness targets the rc14-era single-page create form and its
+ * "approximately every …" wording. The guided setup is exercised by tools/ux-browser-acceptance.js; kept for history only.
  * H2 final-browser-polish §17 acceptance — SERVED-APP verification.
  *
  * Runs the REAL PolicyVault server (no dev signer, isolated temp data root,

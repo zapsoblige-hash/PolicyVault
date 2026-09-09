@@ -73,7 +73,7 @@ Verified directly in the `postlaunch-rc` worktree, not taken from docs:
 | The cross-runtime equivalence suite (127 cases) runs **all** runtimes inside one V8 process and says so | `docs/postlaunch/cross-runtime-equivalence.md` §7 first bullet |
 | The core contains **no floating point, no `Intl`, no `toLocaleString`, no `localeCompare`, no `String.normalize`, no unicode property-escape regexes** in any value-bearing path; KAS rendering is BigInt-only and refuses JS numbers | `grep` across `core/` non-test sources; `core/explain/kas.js:1-60` |
 | The only `Math.*` uses are `Math.floor(idx/2)` on small integers (Merkle path walk) and `Math.max` over array lengths — exact in every conforming engine | `core/model/agent-merkle-v4.js:288`, `core/model/recipient-merkle-v3.js:191`, `core/intent/verify.js:140` |
-| `Date.now()` appears only in signing-request metadata / lifecycle transitions, never in a hashed or value-bearing field | `core/signer/interface.js:494,551,640` |
+| `Date.now` appears only in signing-request metadata / lifecycle transitions, never in a hashed or value-bearing field | `core/signer/interface.js:494,551,640` |
 | The USI already models exactly the capabilities mobile needs: `airGapped`, `asynchronousApproval`, `hardwareDisplay`, `messageSigning`, `transactionSigning`, `specificInputSigning`, plus fail-closed negotiation and unknown-capability refusal | `core/signer/interface.js:85-95, 179-250, 336-395` |
 | A materially different, offline, no-network, file-in/file-out reference signer already exists | `core/signer/adapters/cli/{adapter.js,cli.js}`; `docs/postlaunch/signer-cli-reference.md` |
 | The hosted API is segment-routed and already exposes the whole control plane the mobile client needs | `server/src/api.js` — `auth`, `identities`, `identity/resolve-address`, `wallet/create`, `wallet/requests`, `wallet/v4/*`, `governance`, `risk/evaluations`, `organizations`, `vaults`, `vaults/:id/reconcile`, `audit`, `manifests`, `network/status`, `capabilities`, `health` |
@@ -168,7 +168,7 @@ verifiable rather than assumed:
   already in `CANONICAL_JSON_VECTORS` — but it *is* an engine-observable
   surface, which is exactly why it must be re-run on device (§6.2).
 - Key sorting is codepoint/UTF-16-code-unit ordering with ES2019-stable
-  `sort()` — identical in JSC and V8.
+  `sort` — identical in JSC and V8.
 - Residual, named honestly: **Android System WebView ships as an
   independently-updatable APK**, so the Android engine version is *not*
   pinned at build time and varies across the device fleet. This is not a
@@ -293,7 +293,7 @@ must keep it cheap to revisit. Enforce a hard two-layer seam:
   PORTABLE LAYER  (identical in every client, never forked)
     web/core-bundle.js        — the sha256-pinned deterministic core
     web/verify-intent.js      — createVerifyIntent(core), pure factory
-    core/explain rendering    — structured() + humanReadable()
+    core/explain rendering    — structured + humanReadable
     core/signer/interface.js  — USI descriptors, negotiation, lifecycle
 
   PLATFORM LAYER  (swappable: DOM today, RN components if ever needed)
@@ -324,7 +324,7 @@ transport and the display; it changes nothing about who holds keys.
 |---|---|---|---|
 | **`qr-airgap`** — QR/file transport to the existing `core/signer/adapters/cli` reference signer | `airGapped: true`, `asynchronousApproval: true`, `messageSigning: true`, `transactionSigning: true`, `specificInputSigning: true`, `multiAccount: false`, `accountEvents: false`, `networkSwitching: false`, `hardwareDisplay: false` | **v1 PRIMARY** | New *transport*, not new cryptography. The phone renders the USI signing request (or an animated multi-frame QR for large `unsignedSafeJson`); the operator's offline CLI signer consumes it; the phone's camera scans the signed response. `asynchronousApproval: true` binds `cancelSigning` and requires an explicit `timeoutMs` — already enforced by `executeSigning`. |
 | **`qr-airgap-file`** — same adapter, share-sheet/Files transport instead of camera | same descriptor | **v1 PRIMARY (fallback)** | For devices where camera capture is unavailable or the payload is too large for practical QR framing. Same request/response documents, so no second security review. |
-| **`kasware-mobile`** — injected provider inside KasWare's Android in-app browser | probed at runtime; declared from what `describe()`/`detect()` actually finds | **v1 OPPORTUNISTIC, unclaimed** | Only reachable in the *PolicyVault-served-in-KasWare's-browser* deployment mode (§4.3), not inside our own Capacitor app. Ship detection + negotiation; if `signPskt`/`signMessage`/`specificInputSigning` are absent or the network is wrong, **negotiation refuses fail-closed** and the capability-limitation card renders. Never advertised in store copy or docs until device-probed. |
+| **`kasware-mobile`** — injected provider inside KasWare's Android in-app browser | probed at runtime; declared from what `describe`/`detect` actually finds | **v1 OPPORTUNISTIC, unclaimed** | Only reachable in the *PolicyVault-served-in-KasWare's-browser* deployment mode (§4.3), not inside our own Capacitor app. Ship detection + negotiation; if `signPskt`/`signMessage`/`specificInputSigning` are absent or the network is wrong, **negotiation refuses fail-closed** and the capability-limitation card renders. Never advertised in store copy or docs until device-probed. |
 | **`mock`** (`core/signer/mock-adapter.js`) | — | dev/test only | Must be structurally absent from production builds, enforced by a build-time assertion, mirroring the existing mainnet-startup refusal of dev signers. |
 | **`kaspium` / `tangem` / `ledger` / `walletconnect`** | — | **NOT BUILT** | No verifiable interface exists (§2). These appear in the product **only** as capability-limitation entries. |
 
@@ -429,7 +429,7 @@ signature today only because the hosted session is wallet-auth-bound
 | **Activity / Audit** | correlated intent ↔ manifest ↔ policy ↔ approvals ↔ signer ↔ txid ↔ chain state | `R` | `audit`, `manifests` | Read-only; the mobile view is a lens on the same correlation, never a second source of truth. |
 | **Alerts / Notifications** | approval requested, approval granted, risk hold, reconciliation anomaly, pause/revoke executed | `R` | surface 19 (ABSENT) | See §5.2. |
 | **Emergency controls** | pause, unpause, revoke agent, break-glass, recovery | `S` | `wallet/v4/*` | Distinct destructive-confirm ceremony; must remain reachable when the rest of the app is degraded (§5.3). |
-| **Reconcile** | trigger reconciliation, view chain-verified state | `R` (trigger is unsigned) | `vaults/:id/reconcile` | `submitTransaction()` returning is not success — the mobile UI must show the reconciliation state machine, never an optimistic "sent." |
+| **Reconcile** | trigger reconciliation, view chain-verified state | `R` (trigger is unsigned) | `vaults/:id/reconcile` | `submitTransaction` returning is not success — the mobile UI must show the reconciliation state machine, never an optimistic "sent." |
 | **Signers** | connected signers, capability descriptors, **capability limitations** (§4.2) | `R` | local | Renders the USI descriptor honestly, including declared-false features. |
 | **Settings → Build integrity** | packaged core-bundle digest, app version, build id, network | `R` | local | §6.4. |
 
@@ -900,7 +900,7 @@ Additional open items (lower priority, recorded so they are not lost):
 | Delivery/ops (§7) | **DESIGNED** |
 
 Nothing here is IMPLEMENTED, UNIT-TESTED, VM-VERIFIED, TESTNET-VERIFIED,
-PRODUCTION-HARDENED, EXTERNALLY REVIEWED, or AUDITED, and none of that is
+PRODUCTION-HARDENED, or HUMAN-ACCEPTED, and none of that is
 claimed.
 
 ---

@@ -294,7 +294,8 @@ test("REAL: a genesis built by the REAL SDK passes the EXACT fee recomputation (
       feeReserveKas: sompiToKas(RESERVE),
       approvalM: "2",
       approverXOnlys: [XO(APPR_A), XO(APPR_B)],
-      agentXOnly: XO(AGENT)
+      agentXOnly: XO(AGENT),
+      agentPeriodLengthDaa: "864000" // UX-01: the owner's chosen period, bound to the committed leaf
     },
     sessionNetwork: config.networkId,
     sessionXOnly: XO(OWNER)
@@ -350,3 +351,39 @@ test("REAL-TAMPER: the REAL genesis payload with its fee moved by ONE SOMPI refu
   assert.equal(out.ok, false);
   assert.ok(out.refusalCodes.includes("FEE_MISMATCH"), JSON.stringify(out.refusalCodes));
 });
+
+test("UX-01 REAL-CONSISTENT-SUBSTITUTION: a REAL genesis built with periodLengthDaa 1 (registry root + state id perfectly consistent) presented against the owner's chosen 1-day period refuses BEFORE any wallet (REVIEW_MISMATCH)", async () => {
+  const vaultId = "7d".repeat(32);
+  const r = await post("/wallet/v4/create", {
+    templateInput: { owner: XO(OWNER), vaultId },
+    initialAgents: [{ agentPk: XO(AGENT), maxPerSpend: (20n * KAS).toString(), periodBudget: (50n * KAS).toString(), periodLengthDaa: "1", periodStartDaa: "541000000", periodSpent: "0", approvalThreshold: (5n * KAS).toString(), agentMaxFeePerTx: (1n * KAS).toString(), recipients: [XO(RECIP)] }],
+    initialState: { protectedValue: DEPOSIT.toString(), feeReserve: RESERVE.toString(), approvers: [XO(APPR_A), XO(APPR_B)], approvalM: "2" },
+    signerAddress: ADDR(OWNER),
+    funding: [{ outpoint: { transactionId: "5a".repeat(32), index: 0 }, amount: (800n * KAS).toString(), scriptPublicKeyHex: p2pk(XO(OWNER)) }],
+    label: "verify-real-genesis-substituted-period",
+    contractVersion: CONTRACT_VERSION_V4_1
+  });
+  assert.equal(r.status, 201, JSON.stringify(r.j).slice(0, 300));
+  const ctx = { vaultId, depositKas: sompiToKas(DEPOSIT), feeReserveKas: sompiToKas(RESERVE), approvalM: "2", approverXOnlys: [XO(APPR_A), XO(APPR_B)], agentXOnly: XO(AGENT), agentMaxPerSpendKas: "20", agentBudgetKas: "50", agentApprovalThresholdKas: "5", agentRecipientXOnlys: [XO(RECIP)] };
+  // without the period in the context the substituted document is internally consistent and passes (this is the gap Codex reported)
+  const without = vi.verifyBeforeSigning({ request: r.j.request, createContext: ctx, sessionNetwork: config.networkId, sessionXOnly: XO(OWNER) });
+  assert.equal(without.ok, true, "control: the substituted document is internally consistent — only the owner's intent can catch it");
+  // with the owner's chosen period bound, the SAME document refuses
+  const out = vi.verifyBeforeSigning({ request: r.j.request, createContext: { ...ctx, agentPeriodLengthDaa: "864000" }, sessionNetwork: config.networkId, sessionXOnly: XO(OWNER) });
+  assert.equal(out.ok, false);
+  assert.ok(out.refusalCodes.includes("REVIEW_MISMATCH"), JSON.stringify(out.refusalCodes));
+  assert.ok(out.failures.some((x) => /budget period \(1 DAA\) differs from the period you chose \(864000 DAA\)/.test(x.detail || JSON.stringify(x))), JSON.stringify(out.failures).slice(0, 400));
+  // and the honest document with the SAME context passes (the binding is exact, not a coincidence)
+  const honest = vi.verifyBeforeSigning({ request: CREATE, createContext: { ...ctx, vaultId: NEW_VAULT, agentPeriodLengthDaa: "864000" }, sessionNetwork: config.networkId, sessionXOnly: XO(OWNER) });
+  assert.equal(honest.ok, true, JSON.stringify(honest.refusalCodes));
+});
+
+test("UX-12 REAL: the creation fee LIMIT is enforced independently of the agent's per-payment cap — a 1-sompi limit refuses the REAL genesis; a 1-KAS limit with a 0.1-KAS agent cap passes", () => {
+  const base = { vaultId: NEW_VAULT, depositKas: sompiToKas(DEPOSIT), feeReserveKas: sompiToKas(RESERVE), approvalM: "2", approverXOnlys: [XO(APPR_A), XO(APPR_B)], agentXOnly: XO(AGENT), agentPeriodLengthDaa: "864000" };
+  const tight = vi.verifyBeforeSigning({ request: CREATE, createContext: { ...base, maxFeeSompi: "1" }, sessionNetwork: config.networkId, sessionXOnly: XO(OWNER) });
+  assert.equal(tight.ok, false, "a 1-sompi creation limit must refuse the real fee");
+  assert.ok(tight.refusalCodes.some((c) => /FEE/.test(c)), JSON.stringify(tight.refusalCodes));
+  const ok = vi.verifyBeforeSigning({ request: CREATE, createContext: { ...base, maxFeeSompi: "100000000", agentMaxFeePerTxKas: "1" }, sessionNetwork: config.networkId, sessionXOnly: XO(OWNER) });
+  assert.equal(ok.ok, true, JSON.stringify(ok.refusalCodes));
+});
+

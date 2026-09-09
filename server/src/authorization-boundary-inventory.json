@@ -1,0 +1,1743 @@
+{
+ "schema": "policyvault-authorization-boundary-inventory/1",
+ "purpose": "Mechanical authorization-boundary inventory of every hosted API route family (rc11 internal security review F-04, owner addendum \u00a7E GATE 2). Verified by sdk/test/authorization-boundary-inventory.test.js: every route family literal in server/src/scopes.js and server/src/api.js must appear here; machine scopes must match requiredScopesFor; every non-public route must name an auth gate present in its file; every tenant-owned route must name a tenancy resolver and (for mutations) a mutation gate, plus a hostile-evidence test that exercises its path with a foreign principal; `void principal`-style discards are lint failures unless listed under documentedExceptions.",
+ "principalTypes": {
+  "none": "public route; no principal",
+  "optional": "principal resolved when presented; route serves no tenant-owned object",
+  "session-or-machine": "wallet session cookie / bearer session or a pvmk_ machine credential (deny-by-default scopes)",
+  "session-only": "wallet session only; never machine-reachable"
+ },
+ "resourceClasses": {
+  "public": "no authority",
+  "global": "authenticated aggregate or chain fact; not a tenant-owned object",
+  "identity": "machine identities of the creating wallet",
+  "dev-hook": "development signer hooks (production-disabled)",
+  "vault": "vault manifest / per-vault records",
+  "request": "wallet request records",
+  "org-root": "on-chain organizational root records and their requests",
+  "organization": "off-chain organization metadata (never covenant authority)",
+  "creator-owned": "records owned by the creating principal (webhooks, notification rules, events)"
+ },
+ "documentedExceptions": [],
+ "routes": [
+  {
+   "method": "GET",
+   "path": "/health",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "GET",
+   "path": "/health/ready",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "GET",
+   "path": "/support",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "GET",
+   "path": "/capabilities",
+   "resourceClass": "public",
+   "principalType": "optional",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a",
+   "note": "capabilities narrows to the presented principal's scopes when one is presented"
+  },
+  {
+   "method": "POST",
+   "path": "/auth/challenge",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "POST",
+   "path": "/auth/verify",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "GET",
+   "path": "/auth/session",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "POST",
+   "path": "/auth/logout",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "POST",
+   "path": "/identity/resolve-address",
+   "resourceClass": "public",
+   "principalType": "none",
+   "authGate": "isPublicRoute",
+   "file": "server/src/scopes.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [],
+   "hostileEvidence": "n/a"
+  },
+  {
+   "method": "GET",
+   "path": "/metrics",
+   "resourceClass": "global",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:metrics"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/mcp-telemetry",
+   "resourceClass": "global",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:metrics"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "feature-gated (POLICYVAULT_MCP_TELEMETRY); disabled -> 404 MCP_TELEMETRY_DISABLED for every caller; enabled -> principal required"
+  },
+  {
+   "method": "GET",
+   "path": "/network/status",
+   "resourceClass": "global",
+   "principalType": "optional",
+   "authGate": "connectVerified",
+   "file": "server/src/api.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:network"
+   ],
+   "hostileEvidence": "n/a",
+   "note": "node-verified network identity; no tenant data; machine credentials need read:network"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/fuel/:address",
+   "resourceClass": "global",
+   "principalType": "optional",
+   "authGate": "connectVerified",
+   "file": "server/src/api.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:network"
+   ],
+   "hostileEvidence": "n/a",
+   "note": "chain UTXO lookup for a caller-supplied address (public chain data)"
+  },
+  {
+   "method": "GET",
+   "path": "/audit/chain",
+   "resourceClass": "global",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:audit"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-audit-chain.test.js",
+   "note": "tamper-evident chain head; no per-tenant record body"
+  },
+  {
+   "method": "GET",
+   "path": "/audit/chain/verify",
+   "resourceClass": "global",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "n/a",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:audit"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-audit-chain.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/identities",
+   "resourceClass": "identity",
+   "principalType": "session-only",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
+   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/identities",
+   "resourceClass": "identity",
+   "principalType": "session-only",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
+   "mutationGate": "n/a",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/identities/:id",
+   "resourceClass": "identity",
+   "principalType": "session-only",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
+   "mutationGate": "n/a",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/identities/:id/credentials",
+   "resourceClass": "identity",
+   "principalType": "session-only",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
+   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/identities/:id/credentials/:cid/revoke",
+   "resourceClass": "identity",
+   "principalType": "session-only",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
+   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/identities/:id/revoke",
+   "resourceClass": "identity",
+   "principalType": "session-only",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
+   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/dev-accounts",
+   "resourceClass": "dev-hook",
+   "principalType": "session-only",
+   "authGate": "devSignerEnabled",
+   "file": "server/src/api.js",
+   "tenancyResolver": "devSignerEnabled (production-disabled; session-only)",
+   "mutationGate": "n/a",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "never machine-reachable; production-disabled"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/dev-sign",
+   "resourceClass": "dev-hook",
+   "principalType": "session-only",
+   "authGate": "devSignerEnabled",
+   "file": "server/src/api.js",
+   "tenancyResolver": "devSignerEnabled (production-disabled; session-only)",
+   "mutationGate": "devSignerEnabled",
+   "machineScope": null,
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "never machine-reachable; production-disabled"
+  },
+  {
+   "method": "GET",
+   "path": "/vaults",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "vaultAccessAllowed(read) filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:vaults"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "principal FIRST; caller-visible records of another generation are not part of this family's listing: loadVaultOrNull (never 500) \u2014 rc12 review R-01"
+  },
+  {
+   "method": "GET",
+   "path": "/vaults/:id",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:vaults"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "GET",
+   "path": "/vaults/:id/status",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:vaults"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "live chain status of a vault; principal FIRST then loadVaultOrNull (rc12 review R-04 found this row missing) | rc13 review N-01: v0.4.x manifests compile through compileExactStateV4 (owner/agent 200, never the v1 policy path)"
+  },
+  {
+   "method": "GET",
+   "path": "/vaults/:id/audit",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:vaults"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "per-vault audit view; principal FIRST then loadVaultOrNull (rc12 review R-04)"
+  },
+  {
+   "method": "POST",
+   "path": "/vaults/:id/reconcile",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(owner)",
+   "mutationGate": "requireVaultAccess(owner)",
+   "machineScope": [
+    "vaults:reconcile"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "GET",
+   "path": "/vaults/:id/agent-suspensions",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:vaults"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "POST",
+   "path": "/vaults/:id/agent-suspensions",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(owner)",
+   "mutationGate": "requireVaultAccess(owner)",
+   "machineScope": [
+    "vaults:suspend-agents"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "GET",
+   "path": "/manifests/:vaultId",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:manifests"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/attestations/export",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read) | requireOrgAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:attestations"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/audit",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "vaultAccessAllowed(read) filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:audit"
+   ],
+   "hostileEvidence": "sdk/test/hosted-phase-f-hostile.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/create",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requireLegacyBuildAuthority",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireLegacyBuildAuthority (genesis: signer == principal)",
+   "mutationGate": "requireLegacyBuildAuthority",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "production-disabled (POLICYVAULT_LEGACY_CREATE); when enabled the hosted build-authority rule applies"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireLegacyBuildAuthority",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read) + participant signer",
+   "mutationGate": "requireLegacyBuildAuthority",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/requests/:id/signature",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestSigner",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requireRequestSigner (the request's signer only) + requireSignedSafeJsonShape",
+   "machineScope": [
+    "request:sign"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "rc13 review N-02: a participant that is not the request's signer (an agent on the owner's request, the owner on its agent's) gets 403 NOT_THE_SIGNER before any state can change; malformed payloads are a closed 400 BAD_SIGNATURE"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/requests/:id/reject",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestMutation",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requestMutationAllowed",
+   "machineScope": [
+    "request:reject"
+   ],
+   "hostileEvidence": "sdk/test/hosted-phase-f-hostile.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/requests/:id",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestAccess",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:requests"
+   ],
+   "hostileEvidence": "sdk/test/hosted-phase-f-hostile.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/create",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requireBuildAuthority",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireBuildAuthority (genesis: signer == principal)",
+   "mutationGate": "requireBuildAuthority",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireBuildAuthority",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read) + build authority + participant signer",
+   "mutationGate": "requireBuildAuthority",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireBuildAuthority",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read) + build authority + participant signer",
+   "mutationGate": "requireBuildAuthority",
+   "machineScope": [
+    "request:build",
+    "request:break-glass"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "scopeSampleBody": {
+    "action": "ownerPause"
+   },
+   "note": "break-glass actions need the additional scope | caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/simulate",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requireBuildAuthority",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(read) + principal build authority",
+   "mutationGate": "requireBuildAuthority(simulate) \u2014 persists nothing",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "persists nothing; the signer is what is being simulated | caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v4/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed filter (scoped listing)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:requests"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v4/requests/:id",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestAccess",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:requests"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests/:id/signature",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestSigner",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requireRequestSigner (the request's signer only) + requireSignedSafeJsonShape",
+   "machineScope": [
+    "request:sign"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "rc13 review N-02: a participant that is not the request's signer (an agent on the owner's request, the owner on its agent's) gets 403 NOT_THE_SIGNER before any state can change; malformed payloads are a closed 400 BAD_SIGNATURE"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests/:id/approvals",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestMutation",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requestMutationAllowed",
+   "machineScope": [
+    "request:sign"
+   ],
+   "hostileEvidence": "sdk/test/external-approver-discovery.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests/:id/submit",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestMutation",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requestMutationAllowed",
+   "machineScope": [
+    "request:submit"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests/:id/genesis-submit",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestSigner",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requireRequestSigner (the request's signer only) + requireSignedSafeJsonShape",
+   "machineScope": [
+    "request:submit"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "rc13 review N-02: a participant that is not the request's signer (an agent on the owner's request, the owner on its agent's) gets 403 NOT_THE_SIGNER before any state can change; malformed payloads are a closed 400 BAD_SIGNATURE"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests/:id/reject",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestMutation",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requestMutationAllowed",
+   "machineScope": [
+    "request:reject"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v4/requests/:id/reconcile",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requireRequestSigner",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requestAccessAllowed",
+   "mutationGate": "requireRequestSigner (the request's signer only); genesis requests only (409 NOT_A_GENESIS otherwise)",
+   "machineScope": [
+    "request:submit"
+   ],
+   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
+   "note": "Codex checkpoint 2 UX-05: resolves an UNRESOLVED genesis (SUBMITTING / SUBMITTED / RECONCILIATION_REQUIRED) by chain proof only — CHAIN_VERIFIED / NOT_BROADCAST / PENDING; never by a status read. POST /wallet/v4/create refuses 409 CREATION_UNRESOLVED for the same signer while one exists; GET /wallet/v4/requests?unresolved=1 lists them under the listing's own scoping"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v5/create",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "xOnly(signerAddress) == principal.xOnlyPubkey (SIGNER_NOT_PRINCIPAL)",
+   "mutationGate": "xOnly(signerAddress) == principal.xOnlyPubkey",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v5/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireTokenBuildAuthority",
+   "mutationGate": "requireTokenBuildAuthority",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v5/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requestVisible filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:requests"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v5/requests/:id",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:requests"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v5/requests/:id/signature",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "requireRequestAccess(mutation) + signer-only (NOT_THE_SIGNER; rc13 review N-02)",
+   "machineScope": [
+    "request:sign"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v5/requests/:id/submit",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "requireRequestAccess(mutation)",
+   "machineScope": [
+    "request:submit"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v5/requests/:id/reject",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "requireRequestAccess(mutation)",
+   "machineScope": [
+    "request:reject"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v6/create",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "xOnly(signerAddress) == principal.xOnlyPubkey (SIGNER_NOT_PRINCIPAL)",
+   "mutationGate": "xOnly(signerAddress) == principal.xOnlyPubkey",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v6/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireTokenBuildAuthority",
+   "mutationGate": "requireTokenBuildAuthority",
+   "machineScope": [
+    "request:build"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v6/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requestVisible filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:requests"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v6/requests/:id",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:requests"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v6/requests/:id/signature",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "requireRequestAccess(mutation) + signer-only (NOT_THE_SIGNER; rc13 review N-02)",
+   "machineScope": [
+    "request:sign"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v6/requests/:id/submit",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "requireRequestAccess(mutation)",
+   "machineScope": [
+    "request:submit"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v6/requests/:id/reject",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/wallet-token-surface.js",
+   "tenancyResolver": "requireRequestAccess",
+   "mutationGate": "requireRequestAccess(mutation)",
+   "machineScope": [
+    "request:reject"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v7/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "requireRootedBuildAuthority",
+   "mutationGate": "requireRootedBuildAuthority",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v7/requests",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "walletRequestVisible filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/wallet/v7/requests/:id",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "requireWalletRequest",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v7/requests/:id/signature",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "requireWalletRequest",
+   "mutationGate": "requireWalletRequest(mutation) + signer-only (NOT_THE_SIGNER; rc13 review N-02)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v7/requests/:id/submit",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "requireWalletRequest",
+   "mutationGate": "requireWalletRequest(mutation)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v7/requests/:id/reject",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "requireWalletRequest",
+   "mutationGate": "requireWalletRequest(mutation)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/org-roots",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "orgRootAccessAllowed(read) filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "bindSignerToPrincipal (genesis funder)",
+   "mutationGate": "bindSignerToPrincipal",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/org-roots/:id",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRootScoped(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/org-roots/:id/vaults",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRootScoped(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/vaults",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRootScoped(owner) + bindSignerToPrincipal",
+   "mutationGate": "loadRootScoped(owner)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/reconcile",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRootScoped(owner)",
+   "mutationGate": "loadRootScoped(owner)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/requests",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRootScoped(read) + bindSignerToPrincipal",
+   "mutationGate": "bindSignerToPrincipal",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "the SDK's assertInitiatingOwner then requires the bound signer to be an ACTIVE owner slot (successor only for succession) before any lock"
+  },
+  {
+   "method": "GET",
+   "path": "/org-roots/:id/requests",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "requireOrgRootAccess(read) + orgRootRequestAccessAllowed filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/org-roots/:id/requests/:rid",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRequestScoped",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/org-roots/:id/requests/:rid/slot-request/:slot",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRequestScoped + requireSlotOwner",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/requests/:rid/slot-signatures",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRequestScoped + requireSlotOwner",
+   "mutationGate": "requireSlotOwner",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/requests/:rid/signature",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRequestScoped",
+   "mutationGate": "loadRequestScoped(mutation) + signer-only (NOT_THE_SIGNER; rc13 review N-02)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/requests/:rid/finalize",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRequestScoped",
+   "mutationGate": "loadRequestScoped(mutation)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/requests/:rid/submit",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRequestScoped",
+   "mutationGate": "loadRequestScoped(mutation)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/org-roots/:id/requests/:rid/reject",
+   "resourceClass": "org-root",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "loadRequestScoped",
+   "mutationGate": "loadRequestScoped(mutation)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/governance/proposals",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(owner)",
+   "mutationGate": "requireVaultAccess(owner)",
+   "machineScope": [
+    "governance:propose"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "GET",
+   "path": "/governance/proposals",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "vaultAccessAllowed(read) | quorum approver filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:governance"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js",
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+  },
+  {
+   "method": "GET",
+   "path": "/governance/proposals/:id",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "vaultAccessAllowed(read) | quorum approver",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:governance"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/governance/proposals/:id/approvals",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "loadScopedProposal (vaultAccessAllowed(read) | quorum approver)",
+   "mutationGate": "collectProposalApproval (approver Schnorr signature verified against the quorum key; SDK)",
+   "machineScope": [
+    "governance:approve"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-governance-server.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/governance/proposals/:id/cancel",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireVaultAccess(owner)",
+   "mutationGate": "requireVaultAccess(owner)",
+   "machineScope": [
+    "governance:cancel"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/risk/evaluations",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "vaultAccessAllowed(read) | orgAccessAllowed(read) filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:risk"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/risk/evaluations/:id",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "vaultAccessAllowed(read) | orgAccessAllowed(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:risk"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/risk/evaluations/:id/release",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "orgAccessAllowed(owner) | vaultAccessAllowed(owner)",
+   "mutationGate": "orgAccessAllowed(owner) | vaultAccessAllowed(owner)",
+   "machineScope": [
+    "risk:release"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/organizations",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "orgAccessAllowed(read) filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:organizations"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "tenantOwner = principal",
+   "mutationGate": "tenantOwner = principal",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/organizations/:id",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:organizations"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/rename",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/archive",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/restore",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/delete",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/members",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/members/:m/remove",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/members/:m",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/vaults",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/vaults/:v/unassign",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/organizations/:id/controls",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(owner|admin) (+ requireVaultAccess(owner) for vault assignment)",
+   "mutationGate": "requireOrgAccess(owner|admin)",
+   "machineScope": [
+    "organizations:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/organizations/:id/members",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:organizations"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/organizations/:id/vaults",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:organizations"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/organizations/:id/controls",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:organizations"
+   ],
+   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/organizations/:id/audit",
+   "resourceClass": "organization",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "requireOrgAccess(read)",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:organizations"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/events",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "eventVisibleTo filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:events"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-webhooks-events.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/webhooks",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "creatorXOnly scoping",
+   "machineScope": [
+    "webhooks:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/webhooks",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "webhooks:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/webhooks/:id",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "webhooks:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/webhooks/:id/rotate-secret",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "creatorXOnly scoping",
+   "machineScope": [
+    "webhooks:manage"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/webhooks/:id/revoke",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "creatorXOnly scoping",
+   "machineScope": [
+    "webhooks:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/notifications/channels",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:notifications"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-notifications.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/notifications/rules",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "creatorXOnly scoping",
+   "machineScope": [
+    "notifications:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-notifications.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/notifications/rules",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:notifications"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-notifications.test.js"
+  },
+  {
+   "method": "GET",
+   "path": "/notifications/rules/:id",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:notifications"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-notifications.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/notifications/rules/:id/disable",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "creatorXOnly scoping",
+   "machineScope": [
+    "notifications:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-notifications.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/notifications/rules/:id/enable",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "creatorXOnly scoping",
+   "machineScope": [
+    "notifications:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-notifications.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/notifications/rules/:id/delete",
+   "resourceClass": "creator-owned",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/api.js",
+   "tenancyResolver": "creatorXOnly scoping",
+   "mutationGate": "creatorXOnly scoping",
+   "machineScope": [
+    "notifications:manage"
+   ],
+   "hostileEvidence": "sdk/test/postlaunch-notifications.test.js"
+  }
+ ]
+}

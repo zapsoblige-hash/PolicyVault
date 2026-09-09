@@ -21,6 +21,13 @@
  *      and never server/src/**, never sdk/src/store|builders|signers|rpc.
  *   4. The canonicalJsonStringify used by the adapters IS the SDK public
  *      entry's export — the same function object (never a reimplementation).
+ *   5. integrations/x402-facilitator (the READ-ONLY chain-verification
+ *      facilitator; spec §14) may import ONLY core/**, integrations/lib/**
+ *      and TWO sanctioned read-only SDK leaves — sdk/src/chain.js and
+ *      sdk/src/tx-identity.js — never server/src, never the kaspa wasm
+ *      module directly, never any SDK builder / signer / store / http /
+ *      config / submit module, and never a database driver (the launcher
+ *      injects a query function).
  */
 
 const { test } = require("node:test");
@@ -105,9 +112,46 @@ test("rule 3: integrations/lib imports ONLY the four sanctioned SDK leaf modules
   assert.deepEqual(offenders, [], `integrations/lib may import only the sanctioned SDK leaves:\n${offenders.join("\n")}`);
 });
 
+test("rule 5: integrations/x402-facilitator imports only core, integrations/lib, sdk/src/chain.js and sdk/src/tx-identity.js — no signer/builder/store/http/config/wasm/database access", () => {
+  const ALLOWED_SDK = new Set(["sdk/src/chain.js", "sdk/src/tx-identity.js"]);
+  const offenders = [];
+  const files = jsFilesUnder(path.join(REPO, "integrations/x402-facilitator"));
+  assert.ok(files.length > 0, "facilitator runtime files expected");
+  for (const file of files) {
+    for (const spec of importsOf(file)) {
+      if (spec === "pg" || spec.startsWith("pg/")) offenders.push(`${path.relative(REPO, file)} -> ${spec} (database driver must be injected)`);
+      if (spec.includes("rusty-kaspa")) offenders.push(`${path.relative(REPO, file)} -> ${spec} (wasm direct)`);
+      const hit = resolvesInto(file, spec, ["sdk", "server", "web", "mcp"]);
+      if (!hit) continue;
+      const resolved = path.relative(REPO, path.resolve(path.dirname(file), spec));
+      const withExt = resolved.endsWith(".js") ? resolved : `${resolved}.js`;
+      if (!ALLOWED_SDK.has(withExt)) offenders.push(`${path.relative(REPO, file)} -> ${spec} (${hit})`);
+    }
+  }
+  assert.deepEqual(offenders, [], `facilitator may import only core/, integrations/lib/, sdk/src/chain.js, sdk/src/tx-identity.js:\n${offenders.join("\n")}`);
+});
+
+test("rule 5b: the two sanctioned SDK leaves are read-only — they import nothing but sdk/src/chain.js (wasm loader) and never a store/builder/signer/submit module", () => {
+  const offenders = [];
+  for (const rel of ["sdk/src/chain.js", "sdk/src/tx-identity.js"]) {
+    const file = path.join(REPO, rel);
+    for (const spec of importsOf(file)) {
+      if (!spec.startsWith(".")) continue;
+      const resolved = path.relative(REPO, path.resolve(path.dirname(file), spec));
+      const withExt = resolved.endsWith(".js") ? resolved : `${resolved}.js`;
+      if (withExt !== "sdk/src/chain.js") offenders.push(`${rel} -> ${spec}`);
+    }
+    const text = fs.readFileSync(file, "utf8");
+    for (const forbidden of ["submitTransaction", "createInputSignature", "signTransaction", "PrivateKey("]) {
+      if (text.includes(forbidden)) offenders.push(`${rel} contains ${forbidden}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
 test("rule 3b: no integrations runtime file imports server/src at any path", () => {
   const offenders = [];
-  for (const dir of ["integrations/lib", "integrations/x402", "integrations/ap2"]) {
+  for (const dir of ["integrations/lib", "integrations/x402", "integrations/ap2", "integrations/x402-facilitator"]) {
     for (const file of jsFilesUnder(path.join(REPO, dir))) {
       for (const spec of importsOf(file)) {
         if (resolvesInto(file, spec, ["server"])) offenders.push(`${path.relative(REPO, file)} -> ${spec}`);

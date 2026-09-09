@@ -117,7 +117,7 @@ export interface SimulationBody extends PolicyVaultResponse {
 export interface RequestOptions {
   /**
    * `undefined` (default on POST) — a fresh key is generated per call.
-   * A string — your key; retrying with it is guaranteed at-most-once execution.
+   * A string — your key; same-key retries are at-most-once only on server idempotency-supported routes. Secret-bearing identities/webhooks/notifications routes require resource inspection before retry.
    * `null` — send no key at all (byte-identical to a pre-platform caller).
    * Ignored on GET.
    */
@@ -237,6 +237,12 @@ export declare class PolicyVaultClient {
   fuel(address: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
   getManifest(manifestHash: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
 
+  /* Exportable execution attestations (evidence products, never authority).
+   * Requires scope read:attestations. Re-check the exported record WITHOUT
+   * this server: `node tools/attestation-verify.js <file> --chain`. */
+  getRequestAttestation(requestId: string, options?: RequestOptions & { format?: "json" | "ndjson" }): Promise<PolicyVaultResponse>;
+  exportAttestations(options?: RequestOptions & { vaultId?: string; organizationId?: string; limit?: number; format?: "json" | "ndjson" }): Promise<PolicyVaultResponse>;
+
   /* v0.4 wallet requests. Simulate first; builders never broadcast. */
   simulate(body: PolicyVaultResponse, options?: RequestOptions): Promise<SimulationBody>;
   createRequest(body: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
@@ -277,6 +283,40 @@ export declare class PolicyVaultClient {
   mintCredential(identityId: string, body?: { label?: string }, options?: RequestOptions): Promise<PolicyVaultResponse>;
   revokeCredential(identityId: string, credentialId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
   revokeIdentity(identityId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+
+  /* v0.7 ON-CHAIN ORGANIZATIONAL ROOT (docs/postlaunch/v0.7-app-surface-
+   * contract.md §2). Every response carries authorityModel:
+   * "ON_CHAIN_ORGANIZATIONAL_ROOT" — distinct from a HOSTED organization
+   * (above), which carries "HOSTED_ORGANIZATION" and grants no on-chain
+   * authority. Scopes read:org-roots / write:org-roots (never implied by
+   * read:organizations / organizations:manage). */
+  listOrgRoots(options?: RequestOptions): Promise<PolicyVaultResponse>;
+  createOrgRoot(body: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  getOrgRoot(rootId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  listRootedVaults(rootId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  createRootedVault(rootId: string, body: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  createOrgRootRequest(rootId: string, body: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  listOrgRootRequests(rootId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  getOrgRootRequest(rootId: string, requestId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  getOrgRootRequestSlotRequest(rootId: string, requestId: string, slot: number | string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  submitOrgRootSlotSignature(rootId: string, requestId: string, body: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  /** Single-signer path only (root genesis / rooted-vault genesis / succession) — refused with NOT_A_SINGLE_SIGNER_REQUEST for an M-of-N owner action. */
+  submitOrgRootRequestSignature(rootId: string, requestId: string, body: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  /** M-of-N path only — refused with NOT_AN_MOFN_REQUEST for a genesis or succession request. */
+  finalizeOrgRootRequest(rootId: string, requestId: string, body?: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  submitOrgRootRequest(rootId: string, requestId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  rejectOrgRootRequest(rootId: string, requestId: string, body?: { reason?: string }, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  reconcileOrgRoot(rootId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+
+  /* /wallet/v7 — delegate spend / token deposit on a rooted vault (no root
+   * input; same build->sign->finalize->submit->reconcile pattern as
+   * /wallet/v4, under the org-roots scopes). */
+  createV7Request(body: PolicyVaultResponse, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  listV7Requests(options?: RequestOptions & { vaultId?: string }): Promise<PolicyVaultResponse>;
+  getV7Request(requestId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  submitV7RequestSignature(requestId: string, body: { signedSafeJson: string }, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  submitV7Request(requestId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
+  rejectV7Request(requestId: string, options?: RequestOptions): Promise<PolicyVaultResponse>;
 }
 
 /** Convenience factory equivalent to `new PolicyVaultClient(options)`. */

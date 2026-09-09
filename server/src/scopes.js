@@ -28,6 +28,7 @@ const SCOPES = Object.freeze([
   "read:risk",
   "read:organizations",
   "read:manifests",
+  "read:attestations",
   "read:network",
   "read:audit",
   "request:build",
@@ -46,7 +47,9 @@ const SCOPES = Object.freeze([
   "webhooks:manage",
   "read:metrics",
   "read:notifications",
-  "notifications:manage"
+  "notifications:manage",
+  "read:org-roots",
+  "write:org-roots"
 ]);
 const SCOPE_SET = new Set(SCOPES);
 
@@ -123,8 +126,19 @@ function requiredScopesFor(method, segments, body) {
   // scope-gated for machine credentials (see api.js for the route's own
   // principal requirements in hosted mode).
   if (s0 === "metrics" && method === "GET") return ["read:metrics"];
+  // MCP usage telemetry aggregate (Track 7): reuses read:metrics — no new
+  // scope, no new authority (see server/src/mcp-telemetry.js).
+  if (s0 === "mcp-telemetry" && method === "GET") return ["read:metrics"];
   if (s0 === "audit" && method === "GET") return ["read:audit"];
   if (s0 === "manifests" && method === "GET") return ["read:manifests"];
+  /* Exportable execution attestations (evidence products). A dedicated
+   * deny-by-default scope: read:requests / read:manifests do NOT imply it,
+   * because an attestation export bundles a request, its manifest verdict
+   * and its chain proof into ONE portable document that leaves the
+   * deployment — a deliberate, separately granted capability. It remains
+   * read-only and strictly narrower than the tenancy the credential
+   * already inherits. */
+  if (s0 === "attestations" && method === "GET") return ["read:attestations"];
   if (s0 === "network" && method === "GET") return ["read:network"];
 
   if (s0 === "wallet") {
@@ -138,10 +152,43 @@ function requiredScopesFor(method, segments, body) {
         if (body && typeof body.action === "string" && BREAK_GLASS_ACTIONS.has(body.action)) scopes.push("request:break-glass");
         return scopes;
       }
-      if (tail === "submit" || tail === "genesis-submit") return ["request:submit"];
+      if (tail === "submit" || tail === "genesis-submit" || tail === "reconcile") return ["request:submit"]; // UX-05: reconciling an unresolved genesis is the submitter's act
       if (tail === "signature" || tail === "approvals") return ["request:sign"];
       if (tail === "reject") return ["request:reject"];
       return null;
+    }
+    // /wallet/v5 (policyvault-0.5 FROZEN token controller) and /wallet/v6
+    // (policyvault-0.6 FROZEN optional-atomic-composability controller) —
+    // Wave 2 Track E; docs/postlaunch/v0.7-app-surface-contract.md §6.1
+    // "scopes reuse the existing wallet scopes for v5/v6". Same route
+    // SHAPE as v4's create/requests/signature/submit/reject (no separate
+    // approvals or genesis-submit route — see sdk/src/wallet-requests-v5.js
+    // / -v6.js: a genesis request is finalized/submitted through the SAME
+    // requests/:id/{signature,submit,reject} triad as a transition).
+    if (s1 === "v5" || s1 === "v6") {
+      const tail = segments[4];
+      if (method === "GET") return ["read:requests"];
+      if (segments[2] === "create" || (segments[2] === "requests" && segments.length === 3)) {
+        const scopes = ["request:build"];
+        if (body && typeof body.action === "string" && BREAK_GLASS_ACTIONS.has(body.action)) scopes.push("request:break-glass");
+        return scopes;
+      }
+      if (tail === "submit") return ["request:submit"];
+      if (tail === "signature") return ["request:sign"];
+      if (tail === "reject") return ["request:reject"];
+      return null;
+    }
+    // /wallet/v7/requests — delegate spend / token deposit / HD actions on a
+    // rooted vault. Mirrors the /wallet/v4 scope shape but under the
+    // org-roots scopes (the rooted vault's authority model is the
+    // organizational root, not a single owner key). F-06 (rc11 review): this
+    // block MUST precede the legacy fallthrough below — it was previously
+    // placed after the wallet branch's `return null`, making /wallet/v7
+    // unreachable by any machine credential and mis-scoping its GET to
+    // read:requests. Pinned by sdk/test/scopes-route-precedence.test.js.
+    if (s1 === "v7") {
+      if (method === "GET") return ["read:org-roots"];
+      return ["write:org-roots"];
     }
     // legacy v0.2 wallet routes
     if (method === "GET") return ["read:requests"];
@@ -189,6 +236,18 @@ function requiredScopesFor(method, segments, body) {
     return ["notifications:manage"];
   }
 
+  // v0.7 ON-CHAIN ORGANIZATIONAL ROOT (docs/postlaunch/v0.7-app-surface-
+  // contract.md §2). Two DEDICATED scopes, deny-by-default, NOT implied
+  // by read:organizations / organizations:manage (a hosted-organization
+  // admin gets zero on-chain root authority from those). write:org-roots
+  // covers every mutation: create a root/rooted-vault genesis, create a
+  // root-action request, attach a slot/single signature, finalize,
+  // submit, reject, reconcile. The actual owner-slot authority check
+  // still runs in sdk/src/wallet-requests-v7.js regardless of scope.
+  if (s0 === "org-roots") {
+    if (method === "GET") return ["read:org-roots"];
+    return ["write:org-roots"];
+  }
   return null; // unmapped route: deny-by-default
 }
 

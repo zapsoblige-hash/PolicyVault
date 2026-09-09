@@ -156,7 +156,9 @@ async function loadAnyManifest(config, vaultId) {
     const { normalizeManifest } = require("./manifest");
     return { version: "v1", manifest: normalizeManifest(raw) };
   }
-  fail(`unknown manifest schema ${JSON.stringify(raw.schema)} — failing closed`);
+  const e = new Error(`manifest-v2: unknown manifest schema ${JSON.stringify(raw.schema)} — failing closed`);
+  e.code = "MANIFEST_SCHEMA_UNKNOWN"; // closed code so hosted routes can answer 404 (not 500) for an id of another generation
+  throw e;
 }
 
 module.exports = {

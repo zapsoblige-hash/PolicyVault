@@ -52,7 +52,7 @@ that can never collide with a transition-claim key
 (`<64-hex-txid>-<index>`):
 
 - `resv-<vaultId>-<agentPk>-<requestId>` — one reservation per request,
-  created with `createExclusive` (link()/EEXIST — INSERT ... ON CONFLICT
+  created with `createExclusive` (link/EEXIST — INSERT ... ON CONFLICT
   DO NOTHING). Schema `policyvault-budget-reservation/v1`.
 - `resvlock-<vaultId>` — the short-lived per-vault admission lock.
   Schema `policyvault-reservation-lock/v1`.

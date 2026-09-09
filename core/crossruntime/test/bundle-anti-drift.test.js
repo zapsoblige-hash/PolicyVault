@@ -37,31 +37,91 @@ test("BROWSER-GLOBAL: loading the bundle in an isolated vm context with no requi
   assert.deepEqual(Object.keys(PolicyVaultCore).sort(), [
     "agentMerkle",
     "agentMerkleV5",
+    "agentMerkleV6",
+    "amounts",
+    "approvalPackageV3",
+    "approvalPackageV4",
     "assets",
     "computeBudgetV3",
     "computeBudgetV4",
     "computeBudgetV5",
+    "computeBudgetV6",
+    "computeBudgetV7",
+    "computeBudgetV7Hd",
+    "computeBudgetV7Kas",
+    "controllerManifestV6",
+    /* STALE ASSUMPTION (2026-09-05, flagship UX successor): the api surface
+     * gained durationDaa — the ONE human-duration <-> DAA conversion path. */
+    "durationDaa",
     "explainKas",
     "feeMass",
     "frozenTx",
     "governance",
     "governanceExplain",
+    "hdLeafV7",
+    "hdVaultExplain",
+    "hdVaultManifestV7",
     "intent",
     "intentExplain",
+    "intentRouter",
+    "orgRootExplain",
+    "orgRootManifestV7",
+    "orgRootManifestV7Kas",
+    "orgRootSignerV7",
+    "orgRootSlotV7",
+    "ownerSetV7",
     "recipientMerkle",
     "require",
     "riskExplain",
+    /* STALE ASSUMPTION (2026-09-05, Codex checkpoint 3 / UX-02): rootScriptV7 — the
+     * frozen v0.7 root-script reconstruction (genesis P2SH bound to the reviewed rules). */
+    "rootScriptV7",
     "signerErrors",
+    "signerErrorsV2",
     "signerInterface",
+    "signerInterfaceV2",
+    "signerKasWareProfileV2",
+    "signerLiftV2",
+    "storageMass",
+    "swapManifestV6",
+    "swapPolicyV6",
     "tokenExplain",
     "tokenManifestV5",
+    /* STALE ASSUMPTION (2026-09-05, Codex checkpoint 6 / UX-02+UX-13): vaultScriptV7 — the
+     * rooted-vault successor-script reconstruction from the vault's own revealed redeem script. */
+    "vaultScriptV7",
+    "vaultStateV3",
     "vaultStateV4",
     "vaultStateV5",
+    "vaultStateV6",
+    "vaultStateV7",
+    "vaultStateV7Kas",
+    "vaultStateV7Root",
     "vaultTransitionsV4",
-    "vaultTransitionsV5"
+    "vaultTransitionsV5",
+    "vaultTransitionsV6",
+    "vaultTransitionsV7",
+    "vaultTransitionsV7Kas",
+    "vaultTransitionsV7Root"
   ]);
   assert.equal(PolicyVaultCore.intent.MANIFEST_VERSION_1, "policyvault-intent-manifest/1");
   assert.equal(PolicyVaultCore.signerInterface.SIGNER_INTERFACE_VERSION, "policyvault-signer/1");
+  /* USI v2 loads INSIDE the Buffer-free vm context: its nonces/request ids
+   * come from the bundle's randomBytes shim and its payload binding from
+   * the shim's sha256 (string mode). Both cores coexist and refuse each
+   * other's version strings by exact equality. */
+  assert.equal(PolicyVaultCore.signerInterfaceV2.SIGNER_INTERFACE_VERSION_V2, "policyvault-signer/2");
+  assert.equal(PolicyVaultCore.signerErrorsV2.SignerErrorCodesV2.PAYLOAD_MUTATED, "PAYLOAD_MUTATED");
+  assert.equal(typeof PolicyVaultCore.signerLiftV2.liftV1Adapter, "function");
+  assert.equal(PolicyVaultCore.signerKasWareProfileV2.KASWARE_V2_DECLARATIONS.transport, "in-page");
+  assert.equal(PolicyVaultCore.signerKasWareProfileV2.probeKasWareProvider({ present: false }).probed, false);
+  const v2Request = PolicyVaultCore.signerInterfaceV2.createMessageSigningRequestV2({
+    message: "browser-context v2 request",
+    scheme: "schnorr",
+    ttlMs: 60000
+  });
+  assert.match(v2Request.nonce, /^[0-9a-f]{64}$/, "the browser crypto shim supplies 32 CSPRNG nonce bytes");
+  assert.match(v2Request.payloadSha256, /^[0-9a-f]{64}$/, "the browser crypto shim supplies the payload digest");
   /* F1: the byte-native Merkle modules load INSIDE the Buffer-free vm
    * context and produce real roots (module-load-time PADDING_LEAF hashing
    * through the byte-mode crypto shim). */

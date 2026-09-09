@@ -31,7 +31,10 @@
       <div class="brand">PolicyVault</div>
       <nav id="nav" class="tabs"></nav>
     </header>
-    <div id="banner" class="banner"></div>
+    <!-- Live status region: this element flips from the scaffold notice to
+         "PACKAGED VERIFIER UNAVAILABLE — every verification on this device
+         refuses". A screen-reader user must hear that, not discover it. -->
+    <div id="banner" class="banner" role="status" aria-live="polite" aria-atomic="true"></div>
     <main id="main"></main>
     <footer>
       <p>

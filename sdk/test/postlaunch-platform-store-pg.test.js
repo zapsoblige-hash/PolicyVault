@@ -88,10 +88,10 @@ test("migration 005 applies after 001-004, in order, exactly once; the three new
   const { store } = await freshPgConfig();
   const pool = store.pool();
   const files = listMigrationFiles();
-  assert.deepEqual(files.map((m) => m.version), [1, 2, 3, 4, 5, 6, 7, 8, 9], "this build ships migrations 001..009 (008 = audit chain, 009 = notifications)");
+  assert.deepEqual(files.map((m) => m.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], "this build ships migrations 001..011 (008 = audit chain, 009 = notifications, 010 = MCP usage telemetry — Track 7, config-gated OFF, 011 = v0.7 org roots)");
 
   const applied = await pool.query("SELECT version, name FROM schema_migrations ORDER BY version");
-  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.equal(applied.rows[4].name, "005_platform_agent_api.sql");
   assert.equal(applied.rows[5].name, "006_events_webhooks.sql");
 
@@ -108,7 +108,7 @@ test("migration 005 applies after 001-004, in order, exactly once; the three new
   const { runMigrations, assertSchemaCurrent } = require("../../server/src/migrate");
   await runMigrations(pool);
   const again = await pool.query("SELECT count(*)::int AS n FROM schema_migrations");
-  assert.equal(again.rows[0].n, 9);
+  assert.equal(again.rows[0].n, 11);
   await assertSchemaCurrent(pool);
 });
 

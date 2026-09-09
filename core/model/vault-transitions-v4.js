@@ -109,7 +109,7 @@ function agentSpendSuccessorV4(state, { agentPolicy, agentProof, payAmount, peri
 
   const pay = parsePositiveSompi(payAmount, "payAmount");
   if (pay > policy.maxPerSpend) {
-    fail("agentSpend: payAmount exceeds this agent's maxPerSpend");
+    fail("agentSpend: payAmount exceeds this agent's maxPerSpend", "OVER_CAP");
   }
   const periods = parseSompi(periodsElapsed ?? 0n, "periodsElapsed");
   if (periods > MAX_PERIODS_ELAPSED) {
@@ -124,7 +124,7 @@ function agentSpendSuccessorV4(state, { agentPolicy, agentProof, payAmount, peri
     lockTime = newStart; // covenant CLTV: tx lockTime must be >= newStart
   }
   if (newSpent > policy.periodBudget) {
-    fail("agentSpend: spend exceeds this agent's remaining period budget");
+    fail("agentSpend: spend exceeds this agent's remaining period budget", "OVER_BUDGET");
   }
 
   if (pay >= state.protectedValue) {

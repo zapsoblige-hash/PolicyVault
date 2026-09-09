@@ -64,7 +64,7 @@ validation / persistent mutation / on ambiguity or failure.
   its wallet signatures already authorize). Authentication: network
   isolation (VPC + firewall). Validation: `connectVerified` (network id,
   synced, utxoindex) before live operations; node txid must equal the
-  frozen txid; success requires chain proof, never `submitTransaction()`
+  frozen txid; success requires chain proof, never `submitTransaction`
   returning. Node lies/ambiguity → claims stay held, reconcile
   fail-closed (existing proven behavior).
 - **B7:** blocks/transactions cross; consensus authority lives OUTSIDE

@@ -94,6 +94,7 @@ class ConformanceHarness {
     this.baseUrl = null;
     this.tokens = {}; // name -> raw pvmk_ credential (test-only; scanned-for, never printed)
     this.scopes = {}; // name -> the exact scope list minted for that credential
+    this.identityIds = {}; // name -> the minted machine identity's identityId (uuid)
     this.encoderAvailable = fs.existsSync(ENCODER_PATH);
   }
 
@@ -178,6 +179,7 @@ class ConformanceHarness {
     }
     this.tokens[name] = created.json.credential.token;
     this.scopes[name] = [...scopes];
+    this.identityIds[name] = created.json.identity.identityId;
     return created.json;
   }
 

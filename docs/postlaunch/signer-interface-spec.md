@@ -11,6 +11,17 @@ Companion document: `docs/postlaunch/signer-kasware-mapping.md` maps the
 EXISTING production KasWare + hosted-auth flow onto this interface,
 citing the real source files.
 
+**Successor: `docs/postlaunch/signer-interface-v2-spec.md`** —
+`policyvault-signer/2` (`core/signer/v2/`) is the ADDITIVE successor
+adding declared+negotiated sighash behaviour, a pinned transaction
+format, PSKT declaration, transport and user-presence declarations,
+consumer cancellation, request expiry, capability probing, and bound
+request/response envelopes with replay and duplicate-settlement
+refusal. **v1 below is FROZEN and unchanged** — its vocabularies are
+never mutated, both cores run side by side, and each refuses the
+other's version string by exact equality. v1 remains the shipped
+production path.
+
 ---
 
 ## 1. Purpose
@@ -110,7 +121,7 @@ Further non-goals of `core/signer/` itself:
 
 ## 5. Capability descriptor
 
-Every adapter exposes `describe()` returning:
+Every adapter exposes `describe` returning:
 
 ```
 {
@@ -169,19 +180,19 @@ Required unconditionally: `describe`, `detect`, `connect`, `disconnect`,
 `getActiveAccount`, `getNetwork`, `getPublicKey`. Conditional methods
 per §5. All methods except `describe`/`detect` may be async.
 
-- `detect() -> boolean` — is the provider present/reachable (e.g.
+- `detect -> boolean` — is the provider present/reachable (e.g.
   `window.kasware` injection). Never throws for absence.
-- `connect() -> { address, network }` — establish the provider session
+- `connect -> { address, network }` — establish the provider session
   (may open a provider consent prompt). Holder refusal is
   `USER_REJECTED`.
-- `disconnect() -> void` — best-effort provider-session teardown.
-- `getActiveAccount() -> { address } | null` — the currently active
+- `disconnect -> void` — best-effort provider-session teardown.
+- `getActiveAccount -> { address } | null` — the currently active
   account CLAIM, or null when disconnected.
-- `getNetwork() -> <network id> | null` — the live network CLAIM,
+- `getNetwork -> <network id> | null` — the live network CLAIM,
   normalized to the canonical vocabulary (`mainnet` / `testnet-10`);
   null/unknown when unavailable. Consumers must treat any non-matching
   value as `WRONG_NETWORK`, never assume.
-- `getPublicKey() -> <provider-native public key hex>` — the active
+- `getPublicKey -> <provider-native public key hex>` — the active
   account's public key CLAIM in the provider's native encoding. The core
   supplies the ONE shared normalization `normalizePublicKeyToXOnly`
   (exact `web/wallet.js` rules): 64-hex x-only accepted; 66-hex
@@ -337,7 +348,7 @@ Gates, in order, all before the signer is contacted:
    REQUIRE an explicit `timeoutMs` (an unbounded out-of-band wait is
    refused).
 4. **Network** — the request network must be declared by the adapter
-   AND equal the adapter's LIVE `getNetwork()` answer; null/unknown live
+   AND equal the adapter's LIVE `getNetwork` answer; null/unknown live
    networks fail closed. Declared networks are never trusted alone.
 5. **Identity (pre)** — when `expectedSignerAddress` is bound, the live
    active account must equal it (`SIGNER_DISCONNECTED` when none;
@@ -449,7 +460,7 @@ weakens or substitutes for them.
 6. **`networkSwitching` binds no method** — declarative only; the
    production app never switches programmatically (the server's network
    is authoritative and the human switches in the wallet).
-7. **Event unsubscription** — `on()` has no `off()`/return-unsubscriber
+7. **Event unsubscription** — `on` has no `off`/return-unsubscriber
    contract yet (the existing `web/wallet.js` adapters have none
    either); listener lifecycle management is a v2 candidate.
 8. **Air-gapped transport format unspecified** — the async lifecycle

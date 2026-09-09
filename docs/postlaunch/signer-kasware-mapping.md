@@ -60,7 +60,7 @@ Sources read (private tree, commit `3db4759` worktree):
 ```
 
 Justification against the real adapter (`web/wallet.js`
-`KasWareAdapter.getCapabilities()` plus behavior):
+`KasWareAdapter.getCapabilities` plus behavior):
 
 | USI declaration | Existing evidence |
 | --- | --- |
@@ -68,7 +68,7 @@ Justification against the real adapter (`web/wallet.js`
 | `networks: ["mainnet","testnet-10"]` | `normalizeNetwork` (wallet.js:73–80) canonicalizes provider labels to exactly these two ids; anything else is left non-canonical and fails the app's network gate. |
 | `messageSigning: true` | `signAuthMessage` via `kw.signMessage` (wallet.js:192–210). |
 | `transactionSigning: true` + `specificInputSigning: true` | `signInputs(unsignedSafeJson, signInputs)` via `kw.signPskt({ txJsonString, options: { signInputs } })` (wallet.js:245–263) — KasWare signs exactly the named inputs of the frozen Safe JSON (`canSignSpecificInputs: true` in the legacy capability object, wallet.js:101–107). |
-| `multiAccount: false` | `connect()` takes `accounts[0]` only (wallet.js:123); no account-selection surface. |
+| `multiAccount: false` | `connect` takes `accounts[0]` only (wallet.js:123); no account-selection surface. |
 | `networkSwitching: false` | Legacy `canSwitchNetwork: false` (wallet.js:104); the app never switches programmatically — the human switches inside the wallet and the server's configured network stays authoritative (app.js `verifyNetwork`, 106–131). |
 | `accountEvents: true` | `kw.on("accountsChanged"/"networkChanged")` subscription (wallet.js:227–240). |
 | `asynchronousApproval: false` | The extension popup resolves the same in-page promise; no out-of-band approval channel. (Consequence under USI: no `cancelSigning` required, `timeoutMs` optional.) |
@@ -77,14 +77,14 @@ Justification against the real adapter (`web/wallet.js`
 
 | USI v1 method | Existing KasWare adapter member (web/wallet.js) |
 | --- | --- |
-| `describe()` | NEW (constant object above). Legacy `getCapabilities()` (99–108) carries the same facts in the old key names. |
-| `detect()` | `detect()` (96–98) — `!!window.kasware`. |
-| `connect()` | `connect()` (109–131) — `kw.requestAccounts()`, then `getNetwork` normalization, then event subscription; rejection classified `USER_REJECTED` on `e.code === 4001 || /reject/i` (115–117). |
-| `disconnect()` | `disconnect()` (132–141) — best-effort `kw.disconnect(window.location.origin)`. |
-| `getActiveAccount()` | `getActiveAddress()` (153–155), reshaped to `{ address } \| null`. |
-| `getNetwork()` | `getNetwork()` (156–159) — live `kw.getNetwork()` through `normalizeNetwork`. |
-| `getPublicKey()` | `getPublicKeyRaw()` (213–223) — the provider-native 66-hex compressed key used by the auth verify call. The x-only form is DERIVED, not a second provider call: core `normalizePublicKeyToXOnly` is the byte-exact port of wallet.js:57–70 (64-hex pass, 02/03 → X, 04 refused, shape-only diagnostics), so `getPublicKeyXOnly()` (167–183) ≡ `normalizePublicKeyToXOnly(await getPublicKey(), "KasWare")`. |
-| `on(event, cb)` | `on()` + `_subscribe()` (224–240) — `accountsChanged` → `accountChanged`, `networkChanged` → `networkChanged`. |
+| `describe` | NEW (constant object above). Legacy `getCapabilities` (99–108) carries the same facts in the old key names. |
+| `detect` | `detect` (96–98) — `!!window.kasware`. |
+| `connect` | `connect` (109–131) — `kw.requestAccounts`, then `getNetwork` normalization, then event subscription; rejection classified `USER_REJECTED` on `e.code === 4001 || /reject/i` (115–117). |
+| `disconnect` | `disconnect` (132–141) — best-effort `kw.disconnect(window.location.origin)`. |
+| `getActiveAccount` | `getActiveAddress` (153–155), reshaped to `{ address } \| null`. |
+| `getNetwork` | `getNetwork` (156–159) — live `kw.getNetwork` through `normalizeNetwork`. |
+| `getPublicKey` | `getPublicKeyRaw` (213–223) — the provider-native 66-hex compressed key used by the auth verify call. The x-only form is DERIVED, not a second provider call: core `normalizePublicKeyToXOnly` is the byte-exact port of wallet.js:57–70 (64-hex pass, 02/03 → X, 04 refused, shape-only diagnostics), so `getPublicKeyXOnly` (167–183) ≡ `normalizePublicKeyToXOnly(await getPublicKey, "KasWare")`. |
+| `on(event, cb)` | `on` + `_subscribe` (224–240) — `accountsChanged` → `accountChanged`, `networkChanged` → `networkChanged`. |
 | `signMessage(request)` | `signAuthMessage(message)` (192–210) — `kw.signMessage(request.message, { type: "schnorr" })`; result gate `/^[0-9a-f]{128}$/i` ≡ core `validateSignatureResponse` for schnorr. |
 | `signTransaction(request)` | `signInputs(unsignedSafeJson, signInputs)` (245–263) — `kw.signPskt({ txJsonString: request.unsignedSafeJson, options: { signInputs: request.signInputs } })`; non-empty-string result gate ≡ core `validateSignedTransactionResponse`. |
 | `cancelSigning` | NOT required (asynchronousApproval false) — and KasWare exposes no cancellation API. |
@@ -137,8 +137,8 @@ of "no unknown category may pass".
    - The manual mid-flow guard "wallet may have switched" (app.js:280–283)
      is SUBSUMED by the interface's pre/post identity gates and live
      network gate — the same refusals, now uniform for every adapter.
-3. **Public key claim:** `getPublicKeyRaw()` (app.js:284) ≡
-   `adapter.getPublicKey()`.
+3. **Public key claim:** `getPublicKeyRaw` (app.js:284) ≡
+   `adapter.getPublicKey`.
 4. **Verification (server, unchanged) — this is the identity-proof
    rule executed:** `POST /auth/verify` →
    `HostedAuthService.verify` (auth.js:391–454), fail-closed order:
@@ -222,10 +222,10 @@ finalizes, and only server/SDK chain verification advances state.
 
 ## 6. Behaviors the interface cannot yet express (honest gaps)
 
-1. **Silent session resume** — `KasWareAdapter.reconnect()`
-   (wallet.js:142–152) resumes via `kw.getAccounts()` without a consent
-   popup. USI v1 has `connect()`/`disconnect()` only; a KasWare USI
-   adapter would fold resume into `connect()` (prompt-free when already
+1. **Silent session resume** — `KasWareAdapter.reconnect`
+   (wallet.js:142–152) resumes via `kw.getAccounts` without a consent
+   popup. USI v1 has `connect`/`disconnect` only; a KasWare USI
+   adapter would fold resume into `connect` (prompt-free when already
    authorized), but "resume-only, never prompt" is not expressible as a
    distinct contract yet.
 2. **Legacy capability key `canReturnRawSignedTx`** (wallet.js:103) has
@@ -236,7 +236,7 @@ finalizes, and only server/SDK chain verification advances state.
    USI deliberately does not model UI states (derivable from
    detect/connect/getNetwork + events + refusal codes).
 4. **Event unsubscription** — neither the existing adapters nor USI v1
-   define `off()`; listener lifecycle is a v2 candidate (spec §13.7).
+   define `off`; listener lifecycle is a v2 candidate (spec §13.7).
 5. **Origin-scoped disconnect** — `kw.disconnect(window.location.origin)`
    (wallet.js:135) is adapter-internal; USI passes no origin (correct
    for non-browser signers, but the browser adapter must supply it

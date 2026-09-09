@@ -2,7 +2,8 @@
 #
 # Build context = repository root, filtered by the DEFAULT-DENY
 # .dockerignore (only the exact runtime paths enter the context at all).
-# Build:   tools/stage-vendor.sh && docker build -f deploy/Dockerfile \
+# Build: first prepare the verified stage (docs/selfhost-quickstart.md), then
+#          docker build -f deploy/Dockerfile \
 #            --build-arg POLICYVAULT_BUILD_ID=$(git rev-parse --short HEAD) \
 #            -t policyvault-app .
 #
@@ -58,6 +59,7 @@ WORKDIR /app
 # core/ carries the portable shared-core (PostLaunchUpgradeOG); the sdk
 # re-export shims resolve ../../core/model at runtime, so it must be in
 # the image alongside sdk/src.
+COPY LICENSE NOTICE /app/
 COPY core /app/core
 COPY sdk/src /app/sdk/src
 COPY sdk/package.json /app/sdk/package.json

@@ -572,6 +572,7 @@ function goldenFeeMass(m) {
   const {
     MINIMUM_RELAY_TRANSACTION_FEE,
     STANDARD_MASS_CAP,
+    STANDARD_MASS_CAP_PRE_TOCCATA, // rc26 round-7 review R7-08 (ADDITIVE surface: the pre-Toccata per-dimension cap is now named)
     estimatedSerializedSize,
     computeMass,
     feeMass,
@@ -642,7 +643,7 @@ function goldenFeeMass(m) {
   };
 
   return {
-    constants: encode({ MINIMUM_RELAY_TRANSACTION_FEE, STANDARD_MASS_CAP }),
+    constants: encode({ MINIMUM_RELAY_TRANSACTION_FEE, STANDARD_MASS_CAP, STANDARD_MASS_CAP_PRE_TOCCATA }),
     small: {
       size: estimatedSerializedSize(smallTx).toString(),
       computeMass: encode(computeMass(smallTx)),

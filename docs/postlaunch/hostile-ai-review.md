@@ -10,8 +10,8 @@ each finding-test was flipped to assert the FIXED behavior.
 
 | ID | Sev | Disposition |
 |----|-----|-------------|
-| **H-8** | MED funds | **FIXED** — `canonicalAmountParam()` at the v4 plan/create amount boundary rejects JSON numbers/arrays/leading-zeros (no more `String()` laundering); valid string/bigint builds byte-identical. |
-| **H-1** | MED deception | **FIXED** — `sanitizeDetail()` strips control/bidi chars + caps length before line rendering in intent/governance/risk explain; a crafted detail can no longer forge a verdict/fee/payment line. |
+| **H-8** | MED funds | **FIXED** — `canonicalAmountParam` at the v4 plan/create amount boundary rejects JSON numbers/arrays/leading-zeros (no more `String` laundering); valid string/bigint builds byte-identical. |
+| **H-1** | MED deception | **FIXED** — `sanitizeDetail` strips control/bidi chars + caps length before line rendering in intent/governance/risk explain; a crafted detail can no longer forge a verdict/fee/payment line. |
 | **H-2** | MED authority | **FIXED** — additive `policyvault-cli-signing-request/2` carries the manifest; the offline CLI signer verifies (VERIFIED_EXACT) + binds txId + renders intent + refuses on mismatch. `/1` stays blind (documented); offline guarantee preserved. |
 | **H-7** | LOW-MED design | **FIXED (top-level)** — v4 request + simulate routes refuse unknown TOP-LEVEL keys (`422 UNKNOWN_FIELD`, permitted set named, hostile text not echoed). **TRACKED FOLLOW-UP:** per-action **params-level** closed schema (action-dependent key tables; bounded — the builder is whitelist-by-construction, unknown params proven never to reach consensus). |
 | **H-5** | LOW avail | **TRACKED FOLLOW-UP** — gate the x402 allowlist during `accepts[]` selection (filter to allowlisted destinations before choosing) so one cheap non-allowlisted entry cannot hide payable alternatives. Availability-only; no funds/authority impact. Fix recipe in §H-5. |
@@ -26,8 +26,7 @@ LOW and bounded (no funds/authority path); recipes are in their sections.
 
 **Claim label: REVIEWED + ADVERSARIALLY TESTED (internal).** This is an
 internal adversarial review by the project's own engineering process. It
-is **not** an external or independent security review, and nothing here
-may be described as "audited" or "externally reviewed".
+is an internal review and nothing here may be described as an "audit".
 
 **Scope of the security claim under test** (addendum §Security model):
 
@@ -126,7 +125,7 @@ CLI signing) and the API suite boots a real server on a temp data root.
     AUDIT-ONLY trichotomy; no fourth category)        |
                                                      |
  agent REST call ─────────────────────────────────────┼─► planV4 whitelist
-   (NO closed schema — H-7; String() coercion — H-8)  |   (rebuilds params)
+   (NO closed schema — H-7; String coercion — H-8)  |   (rebuilds params)
                                                      |
  server responses / vault labels / memos / adapter    |
  messages / error text ──► envelope `data` ───────────┼─► model reads as DATA
@@ -189,7 +188,7 @@ authority claim survives them.
 | P3 | Hostile API `error.code` + injected directive into the agent-facing outcome document (real `X402Adapter`, real attempt store) | **FINDING H-6** — code passthrough; HOLDS on everything else (refusal, no build/simulate call, no requestId, no txId, directive quarantined) |
 | P4 | Constraint evaluator: invented "granting" types, prototype-shaped types, unreadable values, hostile budget shapes, order permutations | HOLDS — restrictive-only by construction; every verdict inside `{ALLOW, REVIEW, DENY}`; deny-wins in both orders; empty list ALLOWs only in the "no constraint objected" sense |
 | P4b | Line-item prices as an amount oracle | HOLDS — descriptive only; disagreement is REVIEW, never a different paid amount |
-| P5 | Hostile audit-only metadata (injection prose, RTL, `extra.payAmountSompi` / `extra.recipient` / `extra.maxFeeSompi`, hostile `extensions`) | HOLDS — normalized intent byte-identical; digest DOES change (bound for audit, not discarded); raw bytes preserved verbatim |
+| P5 | Hostile review-only metadata (injection prose, RTL, `extra.payAmountSompi` / `extra.recipient` / `extra.maxFeeSompi`, hostile `extensions`) | HOLDS — normalized intent byte-identical; digest DOES change (bound for audit, not discarded); raw bytes preserved verbatim |
 | P5b | Authority-shaped keys at CLASSIFIED depth (requirement level, top level) | HOLDS — `X402_SCHEMA_UNKNOWN_FIELD` |
 
 ### E — explanation / rendering (`explanation-injection.test.js`)
@@ -298,7 +297,7 @@ verifier was supposed to catch it.
 
 ---
 
-### H-8 — `String()` coercion at the v4 planner defeats the canonical amount parser
+### H-8 — `String` coercion at the v4 planner defeats the canonical amount parser
 
 **Severity: MEDIUM (funds-correctness). Classification: PRODUCTION.**
 **Probes: N2e (and N2 for what still holds).**
@@ -321,7 +320,7 @@ array `[100000000]` and the non-canonical string `"01"` are all ACCEPTED
 and produce `review.paymentKas` of `1`, `1` and `0.00000001`.
 
 The hazard this opens: **a JSON number above 2^53 is already rounded by
-`JSON.parse` before PolicyVault sees it**, and `String()` then yields a
+`JSON.parse` before PolicyVault sees it**, and `String` then yields a
 perfectly canonical but *different* amount —
 `String(9007199254740993) === "9007199254740992"`,
 `String(2900000000000000001) === "2900000000000000000"`. Both are inside
@@ -415,7 +414,7 @@ current clients. H-2's recommended fix would turn it into a live path.
    `U+202A`-`U+202E` and `U+2066`-`U+2069` — and keep the 2000-char
    cap. (`requireCode` is already UPPER_SNAKE-constrained and is fine.)
 2. Defence in depth in `core/explain`: sanitize at render time too —
-   every interpolated untrusted value passes a `oneLine()` helper before
+   every interpolated untrusted value passes a `oneLine` helper before
    entering a line, and `formatValue`'s fallback branch uses
    `JSON.stringify` instead of `String` (matching the validator's own
    convention, which E4 proves safe).
@@ -500,8 +499,8 @@ should be a decision, not an accident.
 `mcp/src/tools.js` documents its stance as *"every value taken from it is
 shape-validated against strict ASCII patterns first"*, and `scopes`,
 `actions.v4`, `schemas.walletV4Request` and `networkId` all are.
-`apiVersion` is not: it reaches `diag()` with only `.slice(0, 32)` applied.
-Since `diag()` writes `policyvault-mcp: ${line}\n`, an embedded newline
+`apiVersion` is not: it reaches `diag` with only `.slice(0, 32)` applied.
+Since `diag` writes `policyvault-mcp: ${line}\n`, an embedded newline
 splits the diagnostic into two lines, and the attacker supplies the second
 line's full text (including a convincing `policyvault-mcp: ` prefix). The
 authentic line is truncated at the injection point, destroying real
@@ -517,7 +516,7 @@ is unchanged (14 tools).
 **Recommended fix:** validate `apiVersion` in `normalizeCapabilities` with
 `/^[A-Za-z0-9._-]{1,32}$/`, defaulting to `"unknown"` like `networkId`
 does (or failing closed). Additionally, strip `[\r\n]` from any
-interpolated value inside `diag()` itself as defence in depth.
+interpolated value inside `diag` itself as defence in depth.
 
 ---
 

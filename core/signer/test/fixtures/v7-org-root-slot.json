@@ -1,0 +1,541 @@
+{
+ "capturedBy": "sdk/tools/capture-v7-manifests.js",
+ "note": "REAL v0.7 org-root builds. `unsignedSafeJson` is the FROZEN canonical transaction JSON the manifest itself carries; the slot path is serialization-agnostic (it requires only that the signer returns the SAME document with exactly one input's signatureScript filled).",
+ "ownerSet": {
+  "owners": [
+   "7171717171717171717171717171717171717171717171717171717171717171",
+   "7272727272727272727272727272727272727272727272727272727272727272",
+   "7373737373737373737373737373737373737373737373737373737373737373",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000",
+   "0000000000000000000000000000000000000000000000000000000000000000"
+  ],
+  "ownerM": 2,
+  "emergencyK": 1,
+  "recoveryM": 2
+ },
+ "ownerAddresses": [
+  "kaspatest:orgowner1",
+  "kaspatest:orgowner2",
+  "kaspatest:orgowner3"
+ ],
+ "rootInputIndex": 0,
+ "primary": {
+  "name": "root_authorize_2of3",
+  "manifest": {
+   "manifestVersion": "policyvault-org-root-manifest/1",
+   "network": {
+    "networkId": "testnet-10"
+   },
+   "root": {
+    "contractVersion": "policyvault-0.7-root",
+    "orgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+    "covenantId": "5252525252525252525252525252525252525252525252525252525252525252",
+    "outpoint": {
+     "transactionId": "0101010101010101010101010101010101010101010101010101010101010101",
+     "index": 0
+    },
+    "template": {
+     "recoveryDelayDaa": "1000",
+     "successorPk": "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f",
+     "successionEnabled": true,
+     "successionDelayDaa": "2000",
+     "rootMaxFeePerTx": "200000"
+    },
+    "valueBefore": "300000000",
+    "valueAfter": "300000000",
+    "computeBudget": 42
+   },
+   "action": {
+    "name": "authorize",
+    "code": 0,
+    "entrypoint": "rootAction",
+    "authorityClass": "AUTHORITY-NEUTRAL",
+    "authorityClassForPreviousSet": null,
+    "quorumSource": "ownerM",
+    "requiredApprovals": "2",
+    "satisfiedApprovals": "2",
+    "expectedSignerSlots": [
+     {
+      "slot": 1,
+      "publicKey": "7171717171717171717171717171717171717171717171717171717171717171"
+     },
+     {
+      "slot": 2,
+      "publicKey": "7272727272727272727272727272727272727272727272727272727272727272"
+     },
+     {
+      "slot": 3,
+      "publicKey": "7373737373737373737373737373737373737373737373737373737373737373"
+     }
+    ],
+    "minSequence": "0"
+   },
+   "ownerSet": {
+    "before": {
+     "activeCount": 3,
+     "ownerM": "2",
+     "emergencyK": "1",
+     "recoveryM": "2",
+     "slots": [
+      {
+       "slot": 1,
+       "publicKey": "7171717171717171717171717171717171717171717171717171717171717171"
+      },
+      {
+       "slot": 2,
+       "publicKey": "7272727272727272727272727272727272727272727272727272727272727272"
+      },
+      {
+       "slot": 3,
+       "publicKey": "7373737373737373737373737373737373737373737373737373737373737373"
+      }
+     ]
+    },
+    "after": {
+     "activeCount": 3,
+     "ownerM": "2",
+     "emergencyK": "1",
+     "recoveryM": "2",
+     "slots": [
+      {
+       "slot": 1,
+       "publicKey": "7171717171717171717171717171717171717171717171717171717171717171"
+      },
+      {
+       "slot": 2,
+       "publicKey": "7272727272727272727272727272727272727272727272727272727272727272"
+      },
+      {
+       "slot": 3,
+       "publicKey": "7373737373737373737373737373737373737373737373737373737373737373"
+      }
+     ]
+    },
+    "changes": {
+     "added": [],
+     "removed": [],
+     "thresholdsChanged": false,
+     "frozenChanged": false
+    }
+   },
+   "rootState": {
+    "before": {
+     "digest": "33f8d90ff3e176e65d673a87670fb15726c7beab987e2b15fe983abf8f711704",
+     "state": {
+      "boundOrgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "owners": [
+       "7171717171717171717171717171717171717171717171717171717171717171",
+       "7272727272727272727272727272727272727272727272727272727272727272",
+       "7373737373737373737373737373737373737373737373737373737373737373",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "ownerM": "2",
+      "emergencyK": "1",
+      "recoveryM": "2",
+      "frozen": "0",
+      "rootNonce": "0"
+     }
+    },
+    "after": {
+     "digest": "1c26dd121ceebf1bf02d72959bfa98e6754553749f01d52a3aa0dba3c3235d84",
+     "state": {
+      "boundOrgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "owners": [
+       "7171717171717171717171717171717171717171717171717171717171717171",
+       "7272727272727272727272727272727272727272727272727272727272727272",
+       "7373737373737373737373737373737373737373737373737373737373737373",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "ownerM": "2",
+      "emergencyK": "1",
+      "recoveryM": "2",
+      "frozen": "0",
+      "rootNonce": "1"
+     },
+     "tailHex": "0100080100000000000000"
+    }
+   },
+   "vaultOperations": [],
+   "fee": {
+    "requiredFeeSompi": "2636600",
+    "rootMaxFeePerTx": "200000",
+    "rootValueLoss": "0"
+   },
+   "freshness": {
+    "kind": "ROOT_OUTPOINT_KILL_SWITCH",
+    "rootOutpoint": {
+     "transactionId": "0101010101010101010101010101010101010101010101010101010101010101",
+     "index": 0
+    },
+    "expiry": null,
+    "note": "Approvals are bound to this root outpoint and to this exact transaction (SIGHASH_ALL). Spending the outpoint invalidates every collected approval; the root nonce strictly increases. There is deliberately no expiry: Kaspa lockTime is a lower bound only."
+   },
+   "transaction": {
+    "txId": "e241b107fd882716a73f131545d81b7049a829830e85330e4f73b5398b5765af",
+    "frozenCanonicalJson": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":42,\"utxo\":{\"amount\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20c97bfa2cc478fafd5185e168bf361f9c53d37474260eb9489be574e0cef89b3c87\"},\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\",\"blockDaaScore\":\"0\"}},{\"previousOutpoint\":{\"transactionId\":\"0303030303030303030303030303030303030303030303030303030303030303\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":10,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenantId\":null,\"blockDaaScore\":\"0\"}}],\"outputs\":[{\"value\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20c3152f6858b9233f036f346431d45a517b4fc21762941b06a3c7e6f1110f60e287\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\"}},{\"value\":\"97363400\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}"
+   },
+   "explanation": "This transaction spends your organization's PolicyVault root. The root holds the owner set, the approval thresholds, the freeze flag and a strictly increasing nonce; it never pays anyone and it can never be dissolved. Approving means: the named action runs, the named owner slots must sign, and every vault operation listed below happens in the SAME transaction or none of them do. Your approval is bound to this exact transaction and to this exact root outpoint — there is no expiry, because spending the root outpoint is what invalidates every collected approval at once. A rooted vault has no owner key: this root input IS the owner authority.",
+   "manifestHash": "f386f1a17eb580d30fdb275183727ed42aade5b47ccb79234f0b644645114e23"
+  },
+  "unsignedSafeJson": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":42,\"utxo\":{\"amount\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20c97bfa2cc478fafd5185e168bf361f9c53d37474260eb9489be574e0cef89b3c87\"},\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\",\"blockDaaScore\":\"0\"}},{\"previousOutpoint\":{\"transactionId\":\"0303030303030303030303030303030303030303030303030303030303030303\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":10,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenantId\":null,\"blockDaaScore\":\"0\"}}],\"outputs\":[{\"value\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20c3152f6858b9233f036f346431d45a517b4fc21762941b06a3c7e6f1110f60e287\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\"}},{\"value\":\"97363400\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}"
+ },
+ "other": {
+  "name": "root_unfreeze_full_quorum",
+  "manifest": {
+   "manifestVersion": "policyvault-org-root-manifest/1",
+   "network": {
+    "networkId": "testnet-10"
+   },
+   "root": {
+    "contractVersion": "policyvault-0.7-root",
+    "orgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+    "covenantId": "5252525252525252525252525252525252525252525252525252525252525252",
+    "outpoint": {
+     "transactionId": "0101010101010101010101010101010101010101010101010101010101010101",
+     "index": 0
+    },
+    "template": {
+     "recoveryDelayDaa": "1000",
+     "successorPk": "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f",
+     "successionEnabled": true,
+     "successionDelayDaa": "2000",
+     "rootMaxFeePerTx": "200000"
+    },
+    "valueBefore": "300000000",
+    "valueAfter": "300000000",
+    "computeBudget": 42
+   },
+   "action": {
+    "name": "unfreeze",
+    "code": 3,
+    "entrypoint": "rootAction",
+    "authorityClass": "AUTHORITY-EXPANDING",
+    "authorityClassForPreviousSet": null,
+    "quorumSource": "ownerM",
+    "requiredApprovals": "2",
+    "satisfiedApprovals": "2",
+    "expectedSignerSlots": [
+     {
+      "slot": 1,
+      "publicKey": "7171717171717171717171717171717171717171717171717171717171717171"
+     },
+     {
+      "slot": 2,
+      "publicKey": "7272727272727272727272727272727272727272727272727272727272727272"
+     },
+     {
+      "slot": 3,
+      "publicKey": "7373737373737373737373737373737373737373737373737373737373737373"
+     }
+    ],
+    "minSequence": "0"
+   },
+   "ownerSet": {
+    "before": {
+     "activeCount": 3,
+     "ownerM": "2",
+     "emergencyK": "1",
+     "recoveryM": "2",
+     "slots": [
+      {
+       "slot": 1,
+       "publicKey": "7171717171717171717171717171717171717171717171717171717171717171"
+      },
+      {
+       "slot": 2,
+       "publicKey": "7272727272727272727272727272727272727272727272727272727272727272"
+      },
+      {
+       "slot": 3,
+       "publicKey": "7373737373737373737373737373737373737373737373737373737373737373"
+      }
+     ]
+    },
+    "after": {
+     "activeCount": 3,
+     "ownerM": "2",
+     "emergencyK": "1",
+     "recoveryM": "2",
+     "slots": [
+      {
+       "slot": 1,
+       "publicKey": "7171717171717171717171717171717171717171717171717171717171717171"
+      },
+      {
+       "slot": 2,
+       "publicKey": "7272727272727272727272727272727272727272727272727272727272727272"
+      },
+      {
+       "slot": 3,
+       "publicKey": "7373737373737373737373737373737373737373737373737373737373737373"
+      }
+     ]
+    },
+    "changes": {
+     "added": [],
+     "removed": [],
+     "thresholdsChanged": false,
+     "frozenChanged": true
+    }
+   },
+   "rootState": {
+    "before": {
+     "digest": "9f31a8383ac6b389963fabbe30379a257d748a11a95dd4a0adf1fb9c3bd52b35",
+     "state": {
+      "boundOrgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "owners": [
+       "7171717171717171717171717171717171717171717171717171717171717171",
+       "7272727272727272727272727272727272727272727272727272727272727272",
+       "7373737373737373737373737373737373737373737373737373737373737373",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "ownerM": "2",
+      "emergencyK": "1",
+      "recoveryM": "2",
+      "frozen": "1",
+      "rootNonce": "0"
+     }
+    },
+    "after": {
+     "digest": "1c26dd121ceebf1bf02d72959bfa98e6754553749f01d52a3aa0dba3c3235d84",
+     "state": {
+      "boundOrgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "owners": [
+       "7171717171717171717171717171717171717171717171717171717171717171",
+       "7272727272727272727272727272727272727272727272727272727272727272",
+       "7373737373737373737373737373737373737373737373737373737373737373",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "ownerM": "2",
+      "emergencyK": "1",
+      "recoveryM": "2",
+      "frozen": "0",
+      "rootNonce": "1"
+     },
+     "tailHex": "0100080100000000000000"
+    }
+   },
+   "vaultOperations": [],
+   "fee": {
+    "requiredFeeSompi": "2636600",
+    "rootMaxFeePerTx": "200000",
+    "rootValueLoss": "0"
+   },
+   "freshness": {
+    "kind": "ROOT_OUTPOINT_KILL_SWITCH",
+    "rootOutpoint": {
+     "transactionId": "0101010101010101010101010101010101010101010101010101010101010101",
+     "index": 0
+    },
+    "expiry": null,
+    "note": "Approvals are bound to this root outpoint and to this exact transaction (SIGHASH_ALL). Spending the outpoint invalidates every collected approval; the root nonce strictly increases. There is deliberately no expiry: Kaspa lockTime is a lower bound only."
+   },
+   "transaction": {
+    "txId": "e241b107fd882716a73f131545d81b7049a829830e85330e4f73b5398b5765af",
+    "frozenCanonicalJson": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":42,\"utxo\":{\"amount\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20381c1edb0bb0cb2095e0edff600c47c6cddabdb7f65cef0ac62125311eaee3eb87\"},\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\",\"blockDaaScore\":\"0\"}},{\"previousOutpoint\":{\"transactionId\":\"0303030303030303030303030303030303030303030303030303030303030303\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":10,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenantId\":null,\"blockDaaScore\":\"0\"}}],\"outputs\":[{\"value\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20c3152f6858b9233f036f346431d45a517b4fc21762941b06a3c7e6f1110f60e287\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\"}},{\"value\":\"97363400\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}"
+   },
+   "explanation": "This transaction spends your organization's PolicyVault root. The root holds the owner set, the approval thresholds, the freeze flag and a strictly increasing nonce; it never pays anyone and it can never be dissolved. Approving means: the named action runs, the named owner slots must sign, and every vault operation listed below happens in the SAME transaction or none of them do. Your approval is bound to this exact transaction and to this exact root outpoint — there is no expiry, because spending the root outpoint is what invalidates every collected approval at once. A rooted vault has no owner key: this root input IS the owner authority.",
+   "manifestHash": "6074d4b4c3c4da743f119e66fa14d13a60a331df53d4097182e96c0fd7147a17"
+  },
+  "unsignedSafeJson": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":42,\"utxo\":{\"amount\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20381c1edb0bb0cb2095e0edff600c47c6cddabdb7f65cef0ac62125311eaee3eb87\"},\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\",\"blockDaaScore\":\"0\"}},{\"previousOutpoint\":{\"transactionId\":\"0303030303030303030303030303030303030303030303030303030303030303\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":10,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenantId\":null,\"blockDaaScore\":\"0\"}}],\"outputs\":[{\"value\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20c3152f6858b9233f036f346431d45a517b4fc21762941b06a3c7e6f1110f60e287\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\"}},{\"value\":\"97363400\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}"
+ },
+ "succession": {
+  "name": "root_succession",
+  "manifest": {
+   "manifestVersion": "policyvault-org-root-manifest/1",
+   "network": {
+    "networkId": "testnet-10"
+   },
+   "root": {
+    "contractVersion": "policyvault-0.7-root",
+    "orgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+    "covenantId": "5252525252525252525252525252525252525252525252525252525252525252",
+    "outpoint": {
+     "transactionId": "0101010101010101010101010101010101010101010101010101010101010101",
+     "index": 0
+    },
+    "template": {
+     "recoveryDelayDaa": "1000",
+     "successorPk": "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f",
+     "successionEnabled": true,
+     "successionDelayDaa": "2000",
+     "rootMaxFeePerTx": "200000"
+    },
+    "valueBefore": "300000000",
+    "valueAfter": "300000000",
+    "computeBudget": 20
+   },
+   "action": {
+    "name": "succession",
+    "code": null,
+    "entrypoint": "rootSuccession",
+    "authorityClass": "AUTHORITY-EXPANDING",
+    "authorityClassForPreviousSet": "TERMINAL",
+    "quorumSource": "successorPk",
+    "requiredApprovals": "1",
+    "satisfiedApprovals": "1",
+    "expectedSignerSlots": [],
+    "minSequence": "2000"
+   },
+   "ownerSet": {
+    "before": {
+     "activeCount": 3,
+     "ownerM": "2",
+     "emergencyK": "1",
+     "recoveryM": "2",
+     "slots": [
+      {
+       "slot": 1,
+       "publicKey": "7171717171717171717171717171717171717171717171717171717171717171"
+      },
+      {
+       "slot": 2,
+       "publicKey": "7272727272727272727272727272727272727272727272727272727272727272"
+      },
+      {
+       "slot": 3,
+       "publicKey": "7373737373737373737373737373737373737373737373737373737373737373"
+      }
+     ]
+    },
+    "after": {
+     "activeCount": 1,
+     "ownerM": "1",
+     "emergencyK": "1",
+     "recoveryM": "0",
+     "slots": [
+      {
+       "slot": 1,
+       "publicKey": "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f"
+      }
+     ]
+    },
+    "changes": {
+     "added": [
+      "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f"
+     ],
+     "removed": [
+      "7171717171717171717171717171717171717171717171717171717171717171",
+      "7272727272727272727272727272727272727272727272727272727272727272",
+      "7373737373737373737373737373737373737373737373737373737373737373"
+     ],
+     "thresholdsChanged": true,
+     "frozenChanged": true
+    }
+   },
+   "rootState": {
+    "before": {
+     "digest": "33f8d90ff3e176e65d673a87670fb15726c7beab987e2b15fe983abf8f711704",
+     "state": {
+      "boundOrgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "owners": [
+       "7171717171717171717171717171717171717171717171717171717171717171",
+       "7272727272727272727272727272727272727272727272727272727272727272",
+       "7373737373737373737373737373737373737373737373737373737373737373",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "ownerM": "2",
+      "emergencyK": "1",
+      "recoveryM": "2",
+      "frozen": "0",
+      "rootNonce": "0"
+     }
+    },
+    "after": {
+     "digest": "3172d66d9453fb9890f1475f7ac6a1a1164ee3d9081335d15f2f1105dbc83baa",
+     "state": {
+      "boundOrgId": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "owners": [
+       "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000",
+       "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "ownerM": "1",
+      "emergencyK": "1",
+      "recoveryM": "0",
+      "frozen": "1",
+      "rootNonce": "1"
+     },
+     "tailHex": "0101080100000000000000"
+    }
+   },
+   "vaultOperations": [],
+   "fee": {
+    "requiredFeeSompi": "2492800",
+    "rootMaxFeePerTx": "200000",
+    "rootValueLoss": "0"
+   },
+   "freshness": {
+    "kind": "ROOT_OUTPOINT_KILL_SWITCH",
+    "rootOutpoint": {
+     "transactionId": "0101010101010101010101010101010101010101010101010101010101010101",
+     "index": 0
+    },
+    "expiry": null,
+    "note": "Approvals are bound to this root outpoint and to this exact transaction (SIGHASH_ALL). Spending the outpoint invalidates every collected approval; the root nonce strictly increases. There is deliberately no expiry: Kaspa lockTime is a lower bound only."
+   },
+   "transaction": {
+    "txId": "a41bf489c9800e0b71fd3098c34a057e360a4a2ead5307b9159aa9dacad5cea7",
+    "frozenCanonicalJson": "{\"version\":1,\"inputs\":[{\"previousOutpoint\":{\"transactionId\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"index\":0},\"sequence\":\"2000\",\"computeBudget\":20,\"utxo\":{\"amount\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa20c97bfa2cc478fafd5185e168bf361f9c53d37474260eb9489be574e0cef89b3c87\"},\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\",\"blockDaaScore\":\"0\"}},{\"previousOutpoint\":{\"transactionId\":\"0303030303030303030303030303030303030303030303030303030303030303\",\"index\":0},\"sequence\":\"0\",\"computeBudget\":10,\"utxo\":{\"amount\":\"100000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenantId\":null,\"blockDaaScore\":\"0\"}}],\"outputs\":[{\"value\":\"300000000\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"aa202f74b834270023546c111010163e6a152e4be28bf5e72cd8750b8af91bd6eef387\"},\"covenant\":{\"authorizingInput\":0,\"covenantId\":\"5252525252525252525252525252525252525252525252525252525252525252\"}},{\"value\":\"97507200\",\"scriptPublicKey\":{\"version\":0,\"scriptHex\":\"206464646464646464646464646464646464646464646464646464646464646464ac\"},\"covenant\":null}],\"lockTime\":\"0\",\"subnetworkId\":\"0000000000000000000000000000000000000000\",\"gas\":\"0\",\"payload\":\"\"}"
+   },
+   "explanation": "This transaction spends your organization's PolicyVault root. The root holds the owner set, the approval thresholds, the freeze flag and a strictly increasing nonce; it never pays anyone and it can never be dissolved. Approving means: the named action runs, the named owner slots must sign, and every vault operation listed below happens in the SAME transaction or none of them do. Your approval is bound to this exact transaction and to this exact root outpoint — there is no expiry, because spending the root outpoint is what invalidates every collected approval at once. A rooted vault has no owner key: this root input IS the owner authority.",
+   "manifestHash": "b1b6fe2a48eca4d3dad57d720557c8811bc1012dd37536c054b2d321cb183920"
+  }
+ }
+}

@@ -660,7 +660,7 @@ Every rejection carries a deterministic machine code plus the
 ### 4.6 Settlement evidence → AP2 Payment Receipt
 
 PolicyVault's success definition is unchanged and stricter than any
-payment protocol's: `submitTransaction()` returning is **not** success.
+payment protocol's: `submitTransaction` returning is **not** success.
 Success requires txid verified, old state consumed, expected successor
 observed, and a durable receipt persisted (CLAUDE.md). Only then:
 
@@ -833,7 +833,7 @@ Normative prohibitions, each with the mechanism that makes it structural.
 14. **NEVER report settled before chain proof** (§4.6).
 15. **NEVER parse the `checkout_jwt`, line items, or `risk_data` for
     amounts, addresses, or authorizations.** They are opaque
-    audit-only blobs; AP2 itself is agnostic to `checkout_jwt` contents.
+    review-only blobs; AP2 itself is agnostic to `checkout_jwt` contents.
 16. **NEVER let an LLM, a tool result, or free text reach a consensus
     value.** The adapter's input is closed-schema, cryptographically
     verified JSON. Merchant-authored strings (`payee.name`, product
@@ -877,7 +877,7 @@ whom (Google? the FIDO Alliance, post-donation?), is **OPEN** (OQ-9).
 |---|---|---|
 | `payment_instrument.type` | a unique reverse-DNS-style literal, e.g. `org.policy-vault.kaspa.covenant-vault.v1` | **proposed; exact literal is OQ-9** |
 | `payment_instrument.id` | an **opaque PolicyVault-minted handle** → `(vaultId, agentPk)`, resolvable only PolicyVault-side. Never a vault id, address, or key | proposed |
-| `payment_instrument.description` | human label only; audit-only | proposed |
+| `payment_instrument.description` | human label only; review-only | proposed |
 | Minor unit | **1 sompi**, declared normatively by the instrument type — the reason the adapter never converts | proposed |
 | `payment_amount.currency` | a non-ISO-4217 token pinned by the instrument type (e.g. `"KAS"`). **This deviates from the spec's ISO 4217 statement** and is the single largest interop risk | **UNVERIFIED / OPEN (OQ-4)** |
 | Destination | **not carried in AP2 at all** — resolved PolicyVault-side (§3.3). A property, not a gap |
@@ -1124,7 +1124,7 @@ PostgreSQL, and (for A-13/A-14) a live testnet-10 node.
 | Adversarial suite §8 | NOT WRITTEN |
 
 Nothing here is IMPLEMENTED, UNIT-TESTED, VM-VERIFIED, TESTNET-VERIFIED,
-PRODUCTION-HARDENED, EXTERNALLY REVIEWED, or AUDITED.
+PRODUCTION-HARDENED, or HUMAN-ACCEPTED.
 
 ---
 

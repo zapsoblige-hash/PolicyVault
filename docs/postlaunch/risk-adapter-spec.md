@@ -2,7 +2,7 @@
 
 Status: **DESIGNED** (this framework) / composition core **IMPLEMENTED +
 UNIT-TESTED** (`core/risk/`, 32/32 `node --test`). No covenant bytes
-changed. Not externally reviewed. LATER WAVES (release-candidate lane;
+changed.. LATER WAVES (release-candidate lane;
 this document's §7 table predates them): the server wiring now EXISTS
 (`server/src/risk.js` — per-org adapter config, intent-stage gate,
 durable evaluation evidence, REVIEW hold release with read-side
@@ -127,7 +127,7 @@ what other adapters or the caller see (regression-tested).
 
 ### 3.2 Registration
 
-`createAdapterRegistry()` — ordered, duplicate names refuse. Registration
+`createAdapterRegistry` — ordered, duplicate names refuse. Registration
 is deployment configuration (self-hosted operators and hosted org admins
 configure their own adapter sets). Registering an adapter grants it no
 authority: the maximum power of ANY adapter, correct or hostile, is to
@@ -228,7 +228,7 @@ like every stored artifact it is display/audit data, never authority.
 
 ### 5.5 Explanation rendering (W4-refinements — `core/explain/risk-explain.js`)
 
-`riskExplain.structured()/.humanReadable()` turn an `evaluateRisk`
+`riskExplain.structured/.humanReadable` turn an `evaluateRisk`
 result or the server's stored evaluation record into deterministic
 explanation documents/lines (portable; bundled into the browser as
 `window.PolicyVaultCore.riskExplain`, consumed by

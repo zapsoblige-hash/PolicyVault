@@ -137,7 +137,7 @@ test("EXACT candidate tarball: pack, clean consumer install, bin mapping, REAL i
   assert.ok(packed.ok, `npm pack failed: ${packed.stderr}`);
   assert.equal(packed.info.name, "policyvault-mcp");
   assert.equal(packed.info.version, PKG.version);
-  for (const required of ["package.json", "server.js", "server.json", "README.md", "src/idempotency.js", "core/model/canonical-json.js", "core/MANIFEST.json"]) {
+  for (const required of ["LICENSE", "NOTICE", "package.json", "server.js", "server.json", "README.md", "src/idempotency.js", "core/model/canonical-json.js", "core/MANIFEST.json"]) {
     assert.ok(packed.files.includes(required), `tarball must contain ${required}`);
   }
   assert.ok(!packed.files.some((f) => f.startsWith("test/") || f.startsWith("tools/")), "tests/tools are not shipped");
@@ -183,6 +183,7 @@ function mutatedCopy(mutate) {
     fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
     fs.copyFileSync(path.join(REPO_ROOT, rel), path.join(repo, rel));
   }
+  for (const name of ["LICENSE", "NOTICE"]) fs.copyFileSync(path.join(REPO_ROOT, name), path.join(repo, name));
   const dir = path.join(repo, "mcp");
   fs.cpSync(MCP_ROOT, dir, { recursive: true, filter: (src) => !src.includes(`${path.sep}node_modules`) && !src.includes(`${path.sep}test${path.sep}`) && !src.endsWith(`${path.sep}test`) });
   mutate(dir);
@@ -235,4 +236,11 @@ test("NEGATIVE: a missing/drifted packaged shared implementation makes `npm pack
   const packed = packFrom(dir);
   assert.equal(packed.ok, false, "npm pack must refuse a package without its shared-core copy");
   assert.match(packed.stderr + packed.stdout, /sync-core: DRIFT|missing packaged copy/);
+});
+
+for (const name of ["LICENSE", "NOTICE"]) test(`pack refuses missing or substituted ${name}`, () => {
+  for (const mode of ["missing", "substituted"]) {
+    const dir = mutatedCopy((d) => { const p = path.join(d, name); if (mode === "missing") fs.unlinkSync(p); else fs.appendFileSync(p, "\nchanged\n"); });
+    assert.equal(packFrom(dir).ok, false, `${mode} ${name} cannot pass prepack`);
+  }
 });

@@ -86,7 +86,7 @@ test("corrupted / malformed / legacy records fail closed but never break the lis
   const badId = "11111111-2222-3333-4444-555555555555";
   fs.writeFileSync(path.join(dir, `${badId}.json`), "{ truncated");
   const legacyId = "99999999-8888-7777-6666-555555555555";
-  fs.writeFileSync(path.join(dir, `${legacyId}.json`), JSON.stringify({ schema: "policyvault-organization/v1", orgId: "legacy" }));
+  fs.writeFileSync(path.join(dir, `${legacyId}.json`), JSON.stringify({ schema: "policyvault-organization/v1", orgId: legacyId }));
   const weirdId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
   fs.writeFileSync(path.join(dir, `${weirdId}.json`), JSON.stringify({ schema: "policyvault-organization/v9", orgId: weirdId }));
 

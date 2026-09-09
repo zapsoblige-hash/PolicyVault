@@ -36,6 +36,7 @@
  */
 
 const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
 
 const MANIFEST_VERSION_1 = "policyvault-intent-manifest/1";
 const REQUESTED_INTENT_VERSION_1 = "policyvault-requested-intent/1";
@@ -384,7 +385,7 @@ function validateRequestedIntent(intent) {
     default:
       refuse("UNKNOWN_ACTION", `unknown action ${JSON.stringify(sdkAction)} — failing closed`);
   }
-  return { requestedAction, highLevelAction, sdkAction, info: ACTIONS[sdkAction] };
+  return { requestedAction, highLevelAction, sdkAction, info: ownGet(ACTIONS, sdkAction) };
 }
 
 /* ------------------------------------------------------------------ */

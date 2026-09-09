@@ -41,7 +41,12 @@ const FULL_CATALOG = [
   "policyvault_reject_request",
   "policyvault_governance_proposals",
   "policyvault_governance_proposal",
-  "policyvault_risk_evaluation"
+  "policyvault_risk_evaluation",
+  "policyvault_org_roots",
+  "policyvault_org_root",
+  "policyvault_org_root_requests",
+  "policyvault_create_org_root_request",
+  "policyvault_create_v7_request"
 ];
 
 const NETWORK_STATUS = { networkId: "testnet-10", isSynced: true, hasUtxoIndex: true, serverVersion: "2.0.1", virtualDaaScore: "1" };
@@ -52,7 +57,7 @@ function liveRoutes(record) {
 }
 const listNames = async (driver) => (await driver.request("l", "tools/list")).result.tools.map((t) => t.name);
 
-test("full scopes → the expected full catalog (14 tools), and discovery PRESENTED the credential", async () => {
+test("full scopes → the expected full catalog (19 tools), and discovery PRESENTED the credential", async () => {
   const mock = await startMockApi({ scoped: { scopes: ALL_SCOPES } });
   const driver = await startDriver({ mock });
   try {
@@ -60,7 +65,7 @@ test("full scopes → the expected full catalog (14 tools), and discovery PRESEN
     assert.deepEqual(await listNames(driver), FULL_CATALOG);
     const disc = mock.requests.find((r) => r.path === "/api/v1/capabilities");
     assert.equal(disc.headers.authorization, `Bearer ${TEST_TOKEN}`, "the credential is presented at discovery so the server can scope it");
-    assert.match(driver.stderrRaw, /14 of 14 tool\(s\) advertised \(discovery: credential-scoped\)/);
+    assert.match(driver.stderrRaw, /19 of 19 tool\(s\) advertised \(discovery: credential-scoped\)/);
     assert.ok(!driver.stderrRaw.includes(TEST_TOKEN), "credential never reaches stderr");
   } finally {
     driver.close();
@@ -74,7 +79,7 @@ test("read:network only → ONLY the authorized discoverable tools (capabilities
   try {
     await driver.initialize();
     assert.deepEqual(await listNames(driver), ["policyvault_capabilities", "policyvault_network_status"]);
-    assert.match(driver.stderrRaw, /2 of 14 tool\(s\) advertised \(discovery: credential-scoped\)/);
+    assert.match(driver.stderrRaw, /2 of 19 tool\(s\) advertised \(discovery: credential-scoped\)/);
     const ns = await driver.callTool("ns", "policyvault_network_status", {});
     assert.equal(ns.result.structuredContent.status, "OK");
     assert.equal(ns.result.structuredContent.data.networkId, "testnet-10");
@@ -169,7 +174,7 @@ test("a server WITHOUT principal-scoped discovery (older build / self-hosted) ke
   try {
     await driver.initialize();
     assert.deepEqual(await listNames(driver), FULL_CATALOG);
-    assert.match(driver.stderrRaw, /14 of 14 tool\(s\) advertised \(discovery: build-level\)/);
+    assert.match(driver.stderrRaw, /19 of 19 tool\(s\) advertised \(discovery: build-level\)/);
     assert.match(driver.stderrRaw, /does not declare principal-scoped discovery/);
     const disc = mock.requests.find((r) => r.path === "/api/v1/capabilities");
     assert.equal(disc.headers.authorization, `Bearer ${TEST_TOKEN}`);

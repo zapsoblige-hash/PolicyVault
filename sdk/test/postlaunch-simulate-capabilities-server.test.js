@@ -41,7 +41,16 @@ const RECIP = KEY(0xf3);
 const OTHER = KEY(0xf4);
 const VAULT_ID = "6a".repeat(32);
 
-const POST = (segs, body, headers) => handle(config, "POST", segs, {}, body, { headers: headers ?? {} });
+/* F-03 (rc11 review): hosted simulate/build requires a principal with build
+ * authority; the OWNER (A) signs in once and is the default principal. */
+let ownerCookie = null;
+const POST = (segs, body, headers) => handle(config, "POST", segs, {}, body, { headers: { ...(ownerCookie ? { cookie: ownerCookie } : {}), ...(headers ?? {}) } });
+async function signInOwner() {
+  const ch = await POST(["auth", "challenge"], { walletAddress: ADDR(A) });
+  const sig = kaspa.signMessage({ message: ch.body.challenge.message, privateKey: A.toString() });
+  const v = await POST(["auth", "verify"], { nonce: ch.body.challenge.nonce, signature: sig, publicKey: A.toPublicKey().toString().toLowerCase() });
+  ownerCookie = v.headers["Set-Cookie"].split(";")[0];
+}
 const GET = (segs, query, headers) => handle(config, "GET", segs, query ?? {}, null, { headers: headers ?? {} });
 async function expectThrow(promise, status, code) {
   try {
@@ -92,6 +101,7 @@ async function snapshotStore() {
 
 test("setup: seed a real v0.4 vault", async () => {
   await seedVault();
+  await signInOwner();
 });
 
 test("simulate ok:true for an in-policy agentSpend: reports review/fee/successor + intent verification, no risk/governance gate for agentSpend absent org controls, and touches NOTHING durable", async () => {

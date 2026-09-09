@@ -57,6 +57,8 @@ const FORBIDDEN_VECTORS = [
   "var/backups/dpkg.status.0", // a FILE inside var/backups still fails
   "app/sdk/node_modules/evil/wallets/hot.dat", // only keys/ is exempted under node_modules
   "app/sdk/keys/delegate.key", // keys/ outside node_modules still fails
+  "app/sdk/node_modules/evil/keys/private.pem",
+  "app/sdk/node_modules/evil/keys/.env",
   "usr/lib/ssl/private.pem" // only the cert.pem public-bundle symlink is exempted
 ];
 

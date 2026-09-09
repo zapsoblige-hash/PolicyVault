@@ -62,6 +62,21 @@ header {
 }
 .tab.active { color: var(--text); border-color: var(--accent); font-weight: 700; }
 
+/* Touch targets. A tab was ~28 px tall; on a phone that is a mis-tap
+ * waiting to happen, and a mis-tap in this app navigates away from a
+ * verification the user was reading. */
+.tab { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* Keyboard / switch-access visibility. The stylesheet paints its own
+ * backgrounds on every control, so the ring is defined explicitly rather
+ * than left to whatever the WebView draws. Never removed anywhere. */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .banner {
   background: rgba(210, 153, 34, 0.15);
   border-bottom: 1px solid rgba(210, 153, 34, 0.4);

@@ -84,6 +84,9 @@ from .schemas import (
     WalletRequestV4Spec,
 )
 from .transport import Secret, new_idempotency_key
+from .webhooks import DEFAULT_TOLERANCE_SECONDS as WEBHOOK_DEFAULT_TOLERANCE_SECONDS
+from .webhooks import SIGNATURE_SCHEME as WEBHOOK_SIGNATURE_SCHEME
+from .webhooks import WebhookVerifyResult, verify_webhook_signature
 
 __version__ = "0.1.0"
 
@@ -146,4 +149,9 @@ __all__ = [
     "GenesisSubmitSpec",
     "ProposalSpec",
     "ProposalApprovalSpec",
+    # webhooks (reference consumer-side verifier — notification only, never authority)
+    "verify_webhook_signature",
+    "WebhookVerifyResult",
+    "WEBHOOK_SIGNATURE_SCHEME",
+    "WEBHOOK_DEFAULT_TOLERANCE_SECONDS",
 ]

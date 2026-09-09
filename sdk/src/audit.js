@@ -20,8 +20,8 @@ async function appendAudit(config, event) {
   return record;
 }
 
-async function readAudit(config, { vaultId, limit = 200 } = {}) {
-  return getStore(config).readAudit({ vaultId, limit });
+async function readAudit(config, { vaultId, txId, limit = 200 } = {}) {
+  return getStore(config).readAudit({ vaultId, txId, limit });
 }
 
 module.exports = { appendAudit, readAudit };

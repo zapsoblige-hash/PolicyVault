@@ -89,3 +89,30 @@ closed vocabularies.
   here.
 - Recording is failure-isolated: metrics/log recording never throws
   and can never fail a request.
+
+## 5. MCP usage telemetry (Track 7 — separate module, separate gate)
+
+**Status: IMPLEMENTED + UNIT-TESTED. NOT ENABLED IN PRODUCTION BY THIS
+WORK** — see `docs/postlaunch/mcp-usage-telemetry-todo.md` for the full
+spec, schema, privacy contract, and test evidence. Summarized here only
+to place it relative to the surfaces above:
+
+- **Different question, different module.** Sections 1–4 above answer
+  "is the SERVER healthy" (aggregate, anonymous, route-class counters).
+  MCP usage telemetry answers "which MACHINE IDENTITY called which TOOL,
+  how often, and how it went" — necessarily per-identity, so it lives in
+  its own module (`server/src/mcp-telemetry.js`) with its own gate,
+  never inside the anonymous `/metrics` document.
+- **OFF by default**, config-gated by `POLICYVAULT_MCP_TELEMETRY`
+  (unset/"off"): zero events built, zero storage touched, and
+  `GET /api/v1/mcp-telemetry` does not exist (404
+  `MCP_TELEMETRY_DISABLED`).
+- **No new authority.** The aggregate read route reuses the EXACT same
+  access model as `GET /metrics` — the existing `read:metrics` scope,
+  no new scope, no new grant.
+- **Wiring point differs on purpose**: `/metrics` instrumentation lives
+  in the HTTP layer (`server.js`'s `res.on("finish")`, which never sees
+  a resolved principal); MCP telemetry hooks `server/src/api.js
+  handle` instead — the one place that already resolves the machine
+  principal for scope gating — so it can key events by
+  `machine:<identityId>` without adding a second auth path.

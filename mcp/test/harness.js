@@ -60,7 +60,9 @@ function defaultCapabilities(overrides = {}) {
       "governance:cancel",
       "risk:release",
       "vaults:reconcile",
-      "organizations:manage"
+      "organizations:manage",
+      "read:org-roots",
+      "write:org-roots"
     ].map((scope) => ({ scope, description: "test" })),
     schemas: {
       capabilities: "policyvault-capabilities/v1",

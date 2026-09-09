@@ -102,7 +102,7 @@ function normalizeTokenPosition(input, expectedFamilyId) {
 
 function normalizeManifestV5(input) {
   if (!input || typeof input !== "object") fail("manifest object required");
-  if (input.schema !== MANIFEST_SCHEMA_V5) fail(`unknown manifest schema ${JSON.stringify(input.schema)} — failing closed`);
+  if (input.schema !== MANIFEST_SCHEMA_V5) fail(`unknown manifest schema ${JSON.stringify(input.schema)} — failing closed (a vault stored under a different covenant generation's schema is refused, never silently migrated)`, "CONTRACT_VERSION_MISMATCH");
   const abi = resolveV5Abi(input.contractVersion);
   if (typeof input.networkId !== "string" || input.networkId.length === 0) fail("networkId required");
   if (!Object.values(VaultStatus).includes(input.status)) fail(`unknown vault status ${JSON.stringify(input.status)} — failing closed`);

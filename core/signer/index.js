@@ -13,6 +13,7 @@
 const errors = require("./errors");
 const iface = require("./interface");
 const { createMockSignerAdapter, DEFAULT_ACCOUNTS } = require("./mock-adapter");
+const orgRootSlotV7 = require("./org-root-slot-v7");
 
 module.exports = {
   /* errors.js */
@@ -51,5 +52,19 @@ module.exports = {
 
   /* mock-adapter.js */
   createMockSignerAdapter,
-  MOCK_DEFAULT_ACCOUNTS: DEFAULT_ACCOUNTS
+  MOCK_DEFAULT_ACCOUNTS: DEFAULT_ACCOUNTS,
+
+  /* org-root-slot-v7.js — the v0.7 ORGANIZATIONAL ROOT M-of-N slot path:
+   * one owner, one slot, one SIGHASH_ALL signature, collected out of band
+   * through ANY v1 adapter and folded into the covenant's 780-byte blob. */
+  ORG_ROOT_SLOT_REQUEST_VERSION_1: orgRootSlotV7.ORG_ROOT_SLOT_REQUEST_VERSION_1,
+  ORG_ROOT_SLOT_RESPONSE_VERSION_1: orgRootSlotV7.ORG_ROOT_SLOT_RESPONSE_VERSION_1,
+  ORG_ROOT_SLOT_REFUSALS: orgRootSlotV7.SLOT_REFUSALS,
+  createRootSlotSigningRequest: orgRootSlotV7.createRootSlotSigningRequest,
+  assertRootSlotSigningRequest: orgRootSlotV7.assertRootSlotSigningRequest,
+  extractSlotSignatureFromSignedTransaction: orgRootSlotV7.extractSlotSignatureFromSignedTransaction,
+  buildRootSlotSignatureResponse: orgRootSlotV7.buildRootSlotSignatureResponse,
+  verifyRootSlotSignatureResponse: orgRootSlotV7.verifyRootSlotSignatureResponse,
+  collectRootSlotApprovals: orgRootSlotV7.collectRootSlotApprovals,
+  requestRootSlotSignature: orgRootSlotV7.requestRootSlotSignature
 };

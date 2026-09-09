@@ -332,12 +332,18 @@ function createServer(config) {
       // request headers as trusted identity or configuration. authorization
       // (machine Bearer credential) and idempotencyKey (Idempotency-Key)
       // are the platform-agent-api additions — additive: a request that
-      // sends neither behaves byte-identically to before.
+      // sends neither behaves byte-identically to before. mcpClient
+      // (X-PolicyVault-MCP-Client) is Track 7 MCP usage telemetry
+      // (server/src/mcp-telemetry.js): UNTRUSTED display data, only ever
+      // read (never trusted for authority) and only ever recorded when
+      // telemetry is explicitly enabled (default OFF) — a request that
+      // omits it behaves byte-identically to before.
       const result = await handle(config, req.method, segments, query, body, {
         headers: {
           cookie: req.headers.cookie,
           authorization: req.headers.authorization,
-          idempotencyKey: req.headers["idempotency-key"]
+          idempotencyKey: req.headers["idempotency-key"],
+          mcpClient: req.headers["x-policyvault-mcp-client"]
         }
       });
       if (result.headers) {

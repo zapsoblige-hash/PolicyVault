@@ -26,6 +26,13 @@ const https = require("node:https");
 
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024; // generous; vault lists are small
 
+// MCP USAGE TELEMETRY (Track 7; docs/postlaunch/mcp-usage-telemetry-todo.md):
+// this adapter's own name/version, exactly as it appears in mcp/package.json
+// (e.g. "policyvault-mcp/1.4.2") — the server treats it as UNTRUSTED display
+// data (length-capped, charset-validated at the recording layer) and records
+// it ONLY when telemetry is explicitly enabled server-side (default OFF).
+const MCP_CLIENT_HEADER = `${require("../package.json").name}/${require("../package.json").version}`;
+
 class TransportError extends Error {
   constructor(reason, target, detail) {
     super(`policyvault-mcp transport: ${reason} (${target})${detail ? ` — ${detail}` : ""}`);
@@ -56,6 +63,7 @@ function callApi(cfg, { method, pathSegments, query, body, idempotencyKey, signa
     const payload = body === undefined ? null : Buffer.from(JSON.stringify(body), "utf8");
     const headers = {
       accept: "application/json",
+      "x-policyvault-mcp-client": MCP_CLIENT_HEADER,
       ...(anonymous ? {} : { authorization: cfg.authorizationHeader() }),
       ...(payload ? { "content-type": "application/json", "content-length": String(payload.length) } : {}),
       ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {})

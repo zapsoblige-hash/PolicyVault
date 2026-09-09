@@ -16,7 +16,7 @@ today, for a real reason: PolicyVault hosted sessions are **wallet-bound**.
 `server/src/auth.js`'s own header states it exactly — "a hosted session
 proves only 'this browser holds a live Schnorr-verified login for wallet
 X on network Y'" — and that proof is a `PersonalMessageSigningHash`
-Schnorr signature (`server/src/auth.js` `verify()`), not a password. So
+Schnorr signature (`server/src/auth.js` `verify`), not a password. So
 even *read-only* mobile use needs one signature to start a session, and
 this app **holds no signing key of any kind, ever** (`mobile/www/index.html`
 footer; `docs/postlaunch/mobile-architecture-decision.md` §4.4, which
@@ -32,7 +32,7 @@ them** and changes the shape of the decision: *how does the phone's HTTP
 client, once it has a credential, actually get authenticated per
 request?*
 
-- `server/src/auth.js` `buildSessionCookie()` sets the session token
+- `server/src/auth.js` `buildSessionCookie` sets the session token
   **only** via `Set-Cookie`, with `HttpOnly; SameSite=Strict` (`Secure`
   too when `authCookieSecure`). The `/auth/verify` route handler
   (`server/src/api.js` line ~631) returns `{ session }` in the JSON body
@@ -185,7 +185,7 @@ repeated below.
   request.
 - A new QR document format, encoded through the *already-existing*
   `mobile/www/js/portable/qr-frames.js` (the same frame/reassembly
-  machinery `screenSign()` already uses), but with its **own** format
+  machinery `screenSign` already uses), but with its **own** format
   tag — never reusing `AIRGAP.SIGNING_REQUEST_FORMAT` /
   `SIGNED_TX_FORMAT` (`mobile/www/js/portable/airgap.js`) for a
   different document class. This project's own versioning rule
@@ -213,7 +213,7 @@ moment.
 `POST /auth/challenge` (`server/src/api.js` ~line 613), renders the
 returned challenge message as a QR through
 `mobile/www/js/portable/qr-frames.js` — the exact machinery
-`screenSign()` already exercises for transaction signing, and
+`screenSign` already exercises for transaction signing, and
 `mobile/test/airgap-signing.test.js` already covers (13 tests: framing
 round-trip, tamper detection, oversize handling, cross-document mixing
 refusal). The CLI signer signs it as a **message**, not a transaction —
@@ -253,7 +253,7 @@ For a *read-only* glance at a vault this is real friction, repeated every
 time the session expires, not a one-time setup cost like (a). The
 architecture doc's own mitigation is a longer session TTL bound to a
 biometric/Keychain-held session token *on the phone* — which is itself
-unbuilt (`mobile/www/js/platform/env.js` `biometricReport()`: "biometric/
+unbuilt (`mobile/www/js/platform/env.js` `biometricReport`: "biometric/
 Keychain session gating is not implemented in this build") — so today
 this cost cannot yet be mitigated the way the doc assumes; that is an
 additional, currently-missing piece of this option's real cost, not a
@@ -327,7 +327,7 @@ cookie flow entirely: a `pvmk_`-prefixed bearer token, shown once at mint
 time, only its SHA-256 ever persisted, sent as `Authorization: Bearer`
 (`sdk/src/http-client.js` line ~268 — the exact mechanism §1 identifies
 as the one that already survives the transport problem, because it is a
-header, not a cookie). `mobile/www/js/app.js`'s `screenSettings()`
+header, not a cookie). `mobile/www/js/app.js`'s `screenSettings`
 **already has a field for this** — "Machine credential (optional,
 read-only testing)" — and `www/js/portable/api.js` already threads it
 through to `httpClient.createClient({ token, ... })`. This is the one
@@ -378,7 +378,7 @@ answer.**
 alongside the existing `revokedAt` handling in `machine-identity.js`;
 possibly a `MAX_CREDENTIALS_PER_IDENTITY`-style default nudging toward
 short-lived mobile credentials; and, if this is the chosen interim
-answer, explicit UI copy change in `screenSettings()` that stops calling
+answer, explicit UI copy change in `screenSettings` that stops calling
 it "testing" once it is a sanctioned path.
 
 **UX cost.** One manual mint-and-paste, then works until revoked or
@@ -461,9 +461,9 @@ well-informed, not to make it.
 - `mobile/www/js/portable/qr-frames.js`, `mobile/www/js/portable/airgap.js`,
   `mobile/test/airgap-signing.test.js` — the existing, tested QR framing
   and document-envelope machinery this paper proposes reusing.
-- `mobile/www/js/platform/env.js` — `biometricReport()` (not implemented),
+- `mobile/www/js/platform/env.js` — `biometricReport` (not implemented),
   the honest capability-report pattern this paper follows.
-- `mobile/www/js/app.js` `screenSettings()` — the existing machine-
+- `mobile/www/js/app.js` `screenSettings` — the existing machine-
   credential field, already wired.
 - `mobile/capacitor.config.json` — `androidScheme: "https"`, local
   bundled `webDir`, no `server.url` configured today.

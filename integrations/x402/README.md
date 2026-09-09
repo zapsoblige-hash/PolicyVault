@@ -2,7 +2,7 @@
 
 **IMPLEMENTED + UNIT-TESTED + INTEGRATION-TESTED** (real spawned
 PolicyVault server). Not testnet-verified through this adapter, not
-production-hardened, not externally reviewed, not audited. **Not "x402
+production-hardened. **Not "x402
 compatible"** in an ecosystem sense: no resource server, client SDK, or
 facilitator supports Kaspa today, and no upstream Kaspa scheme exists.
 This adapter interoperates only with servers explicitly configured to

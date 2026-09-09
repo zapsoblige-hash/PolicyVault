@@ -1,25 +1,35 @@
 node_modules/
 dist/
 build/
+__pycache__/
+*.pyc
 .env
 .env.*
 *.log
 *.tmp
+.DS_Store
 coverage/
-tmp/
-temp/
+secrets/
 keys/
 wallets/
-secrets/
-backups/
-data/
-data-mainnet/
 tests/vm/target/
 tests/vm/Cargo.lock
+data/
+data-mainnet/
+keys/policyvault_test_keys.json
+.claude/settings.local.json*
+
+# Hosted deployment (Phase E): staged third-party/runtime artifacts and
+# staging secrets/backups never enter Git. The env TEMPLATE (checked in)
+# is deploy/staging.env.example only.
 deploy/vendor/
+deploy/staging.env
 deploy/*.env
 deploy/selfhost-backup-*.dump
 deploy/.selfhost-state
-__pycache__/
-*.pyc
-.DS_Store
+backups/
+
+# Claude agent worktrees (PostLaunchUpgradeOG isolated workers)
+.claude/
+node_modules
+tests/vm/target

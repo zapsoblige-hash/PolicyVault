@@ -85,7 +85,7 @@ test("migration 006 applies after 001-005; outbox + webhook tables carry the exp
   const { store } = await freshPgConfig();
   const pool = store.pool();
   const applied = await pool.query("SELECT version, name FROM schema_migrations ORDER BY version");
-  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.equal(applied.rows[5].name, "006_events_webhooks.sql");
 
   const cols = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'platform_events' ORDER BY column_name`);

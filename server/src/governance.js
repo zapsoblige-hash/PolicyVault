@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet } = require("../../core/model/own-get");
 
 /*
  * Policy-change governance — SERVER ENFORCEMENT (Program B wiring,
@@ -263,7 +264,7 @@ function deriveAfterTupleV4(config, manifest, action, params) {
  * Throws (fail closed) on unknown actions and classifier refusals.
  */
 function classifyActionV4(config, manifest, action, params) {
-  const entry = ACTION_MATRIX[action];
+  const entry = ownGet(ACTION_MATRIX, action); // own-property only (F-05)
   if (!entry) {
     throw govError(422, "GOVERNANCE_ACTION_UNKNOWN", `unknown action ${JSON.stringify(action)} — unknown operations are never silently ungoverned`);
   }

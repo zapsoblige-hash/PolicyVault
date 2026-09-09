@@ -3,7 +3,7 @@
 **Claim label: IMPLEMENTED + UNIT-TESTED + INTEGRATION-TESTED (against a
 real spawned PolicyVault server).** NOT VM-VERIFIED against a covenant on
 a live node through these adapters, NOT TESTNET-VERIFIED, NOT
-PRODUCTION-HARDENED, NOT EXTERNALLY REVIEWED, NOT AUDITED. No
+PRODUCTION-HARDENED. No
 protocol-ecosystem compatibility is claimed (Kaspa is unregistered
 upstream in both x402 and AP2 — see each adapter's README and the
 implementation-evidence note).

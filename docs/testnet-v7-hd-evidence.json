@@ -1,0 +1,704 @@
+{
+  "schema": "policyvault-testnet-v7-hd-evidence/1",
+  "startedAt": "2026-09-03T18:49:49.104Z",
+  "finishedAt": "2026-09-03T18:51:39.355Z",
+  "dryRun": false,
+  "mainnet": false,
+  "network": {
+    "rpcUrl": "ws://127.0.0.1:18210",
+    "networkId": "testnet-10",
+    "serverVersion": "2.0.1",
+    "isSynced": true,
+    "hasUtxoIndex": true,
+    "virtualDaaScoreAtStart": "561026073"
+  },
+  "covenant": {
+    "before": {
+      "PolicyVault.v0.5.sil": "c693aeffb59286d21d44452bde0943d78840b66cf480b629624b7747b4197dd9",
+      "PolicyVault.v0.7-root.sil": "69417514f90d61b0281ea673e6fb5a5fd858c2bd50e14a4eb9043d5fdf17f8ce",
+      "PolicyVault.v0.7-payment.sil": "09cdbb6c284d8bd6c4cd2f4aad20d9682172eea3e048631176034b517be25091",
+      "PolicyVault.v0.7-payment-hd.sil": "a5a59047ed2c3bd1639eec0c8c110ab0527480f1f0d28c5a95551f9a51626a8c"
+    },
+    "after": {
+      "PolicyVault.v0.5.sil": "c693aeffb59286d21d44452bde0943d78840b66cf480b629624b7747b4197dd9",
+      "PolicyVault.v0.7-root.sil": "69417514f90d61b0281ea673e6fb5a5fd858c2bd50e14a4eb9043d5fdf17f8ce",
+      "PolicyVault.v0.7-payment.sil": "09cdbb6c284d8bd6c4cd2f4aad20d9682172eea3e048631176034b517be25091",
+      "PolicyVault.v0.7-payment-hd.sil": "a5a59047ed2c3bd1639eec0c8c110ab0527480f1f0d28c5a95551f9a51626a8c"
+    }
+  },
+  "organization": {
+    "orgId": "c6ec2aea89c274b36d8f6b2b5fa165f97ddf09ffbd74eab9766b722553721ba9",
+    "vaultId": "be4ed3248e919ada94bc64f43669f1ba4dccfd5ed2b3b223b7a22b70ebec54f7",
+    "rootCovenantId": "dd92d3fb7cf72733a43df18254bede37b0f47a38e605067f7a01b7f45738a86f",
+    "vaultCovenantId": "64361c53b469310386ad2f9d19a74a5643e24ef42eca82fcc09003418bef4a95",
+    "tokenFamilyId": "7179101b7a275640b933fb0bbed4d3d47b31fb8f7f21082dd10655418cd433b2"
+  },
+  "steps": [
+    {
+      "step": "lock-acquired",
+      "at": "2026-09-03T18:49:49.148Z",
+      "path": "~/.policyvault-testnet-live.lock"
+    },
+    {
+      "step": "connect",
+      "at": "2026-09-03T18:49:49.173Z",
+      "rpcUrl": "ws://127.0.0.1:18210",
+      "networkId": "testnet-10",
+      "serverVersion": "2.0.1",
+      "isSynced": true,
+      "hasUtxoIndex": true,
+      "virtualDaaScoreAtStart": "561026073"
+    },
+    {
+      "step": "fuel-primed",
+      "at": "2026-09-03T18:49:49.176Z",
+      "outpoint": "727c72b08f38dda422fb3e8a6cc7a9af049b641f4d0244490a6441daf0ecf0cb:1",
+      "amountSompi": "9187006531800",
+      "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld"
+    },
+    {
+      "step": "01-kcc20-issuance:AUTHORIZED",
+      "at": "2026-09-03T18:49:49.244Z",
+      "status": "AUTHORIZED",
+      "txId": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50",
+      "tokenFamilyId": "7179101b7a275640b933fb0bbed4d3d47b31fb8f7f21082dd10655418cd433b2",
+      "supply": "1000000",
+      "feeSompi": "208300"
+    },
+    {
+      "step": "01-kcc20-issuance:BROADCAST",
+      "at": "2026-09-03T18:49:49.253Z",
+      "txId": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "01-kcc20-issuance:CHAIN_SEEN",
+      "at": "2026-09-03T18:49:51.258Z",
+      "txId": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50:0",
+      "blockDaaScore": "561026086"
+    },
+    {
+      "step": "01-kcc20-issuance:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:49:51.258Z",
+      "txId": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "user token position",
+          "outpoint": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50:0",
+          "address": "kaspatest:prgypfr3f6nv6j2mzzwsjyhf8htzngsnqf7qft3pe37lfvhdaytls7t88tx3r",
+          "valueSompi": "300000000",
+          "covenantId": "7179101b7a275640b933fb0bbed4d3d47b31fb8f7f21082dd10655418cd433b2",
+          "blockDaaScore": "561026086"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9186706323500",
+          "covenantId": null,
+          "blockDaaScore": "561026086"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "01-kcc20-issuance:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:49:51.258Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50",
+      "tokenFamilyId": "7179101b7a275640b933fb0bbed4d3d47b31fb8f7f21082dd10655418cd433b2"
+    },
+    {
+      "step": "02-root-genesis:AUTHORIZED",
+      "at": "2026-09-03T18:49:52.222Z",
+      "status": "AUTHORIZED",
+      "txId": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92",
+      "rootCovenantId": "dd92d3fb7cf72733a43df18254bede37b0f47a38e605067f7a01b7f45738a86f",
+      "feeSompi": "208300"
+    },
+    {
+      "step": "02-root-genesis:BROADCAST",
+      "at": "2026-09-03T18:49:52.223Z",
+      "txId": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "02-root-genesis:CHAIN_SEEN",
+      "at": "2026-09-03T18:49:54.225Z",
+      "txId": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92:0",
+      "blockDaaScore": "561026112"
+    },
+    {
+      "step": "02-root-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:49:54.226Z",
+      "txId": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "organizational root",
+          "outpoint": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92:0",
+          "address": "kaspatest:ppshzqgmpqht2sfeeqnd3qncmrvp4ewpp20hz60dgs8we7nxsztd5wm8skqk7",
+          "valueSompi": "200000000",
+          "covenantId": "dd92d3fb7cf72733a43df18254bede37b0f47a38e605067f7a01b7f45738a86f",
+          "blockDaaScore": "561026112"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9186506115200",
+          "covenantId": null,
+          "blockDaaScore": "561026112"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "02-root-genesis:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:49:54.226Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92",
+      "rootCovenantId": "dd92d3fb7cf72733a43df18254bede37b0f47a38e605067f7a01b7f45738a86f"
+    },
+    {
+      "step": "03-hd-vault-genesis:AUTHORIZED",
+      "at": "2026-09-03T18:49:56.886Z",
+      "status": "AUTHORIZED",
+      "txId": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913",
+      "vaultCovenantId": "64361c53b469310386ad2f9d19a74a5643e24ef42eca82fcc09003418bef4a95",
+      "orgRootCovenantId": "dd92d3fb7cf72733a43df18254bede37b0f47a38e605067f7a01b7f45738a86f",
+      "scriptSha256": "1a141e57ec7e95701f7214a6ba3339dbc6d621ad3599d87ae4b2f1e17e53a1c3",
+      "feeSompi": "208300"
+    },
+    {
+      "step": "03-hd-vault-genesis:BROADCAST",
+      "at": "2026-09-03T18:49:56.887Z",
+      "txId": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "03-hd-vault-genesis:CHAIN_SEEN",
+      "at": "2026-09-03T18:49:58.893Z",
+      "txId": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913:0",
+      "blockDaaScore": "561026156"
+    },
+    {
+      "step": "03-hd-vault-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:49:58.894Z",
+      "txId": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "rooted HD vault",
+          "outpoint": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913:0",
+          "address": "kaspatest:pr252trd0rhyuaw6xz48ffzdfmjswh26ghdyyfslhtt8nuk8ps6xxt769zqa5",
+          "valueSompi": "300000000",
+          "covenantId": "64361c53b469310386ad2f9d19a74a5643e24ef42eca82fcc09003418bef4a95",
+          "blockDaaScore": "561026156"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9186205906900",
+          "covenantId": null,
+          "blockDaaScore": "561026156"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "03-hd-vault-genesis:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:49:58.894Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913",
+      "vaultCovenantId": "64361c53b469310386ad2f9d19a74a5643e24ef42eca82fcc09003418bef4a95",
+      "agentRoot": "f1e52ce3da1ef792bdfbbe0b9c8e4419e6c6bbbaf9a4bc98618ba1f4af0a09dc"
+    },
+    {
+      "step": "04-token-deposit:AUTHORIZED",
+      "at": "2026-09-03T18:49:59.234Z",
+      "status": "AUTHORIZED",
+      "txId": "7ad3d5463aa9d6e417599877780ea9de6bdd1dbaa7d6dd01363b3341066110bd",
+      "deposit": "10000",
+      "feeSompi": "592200"
+    },
+    {
+      "step": "04-token-deposit:BROADCAST",
+      "at": "2026-09-03T18:49:59.237Z",
+      "txId": "7ad3d5463aa9d6e417599877780ea9de6bdd1dbaa7d6dd01363b3341066110bd",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "04-token-deposit:CHAIN_SEEN",
+      "at": "2026-09-03T18:50:01.243Z",
+      "txId": "7ad3d5463aa9d6e417599877780ea9de6bdd1dbaa7d6dd01363b3341066110bd",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "7ad3d5463aa9d6e417599877780ea9de6bdd1dbaa7d6dd01363b3341066110bd:0",
+      "blockDaaScore": "561026174"
+    },
+    {
+      "step": "04-token-deposit:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:50:01.243Z",
+      "txId": "7ad3d5463aa9d6e417599877780ea9de6bdd1dbaa7d6dd01363b3341066110bd",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault token position",
+          "outpoint": "7ad3d5463aa9d6e417599877780ea9de6bdd1dbaa7d6dd01363b3341066110bd:0",
+          "address": "kaspatest:prg5lwc7u5ur82gfdslhx042dfmy3zsw8eh68t8z3u3ja30t7l932sm20nhnp",
+          "valueSompi": "150000000",
+          "covenantId": "7179101b7a275640b933fb0bbed4d3d47b31fb8f7f21082dd10655418cd433b2",
+          "blockDaaScore": "561026174"
+        }
+      ],
+      "consumed": [
+        "c59a82ed417f77a2f0b6a8a19db641655eb8262407ba62c489b04b6af5f7cb50:0"
+      ]
+    },
+    {
+      "step": "04-token-deposit:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:50:01.244Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "7ad3d5463aa9d6e417599877780ea9de6bdd1dbaa7d6dd01363b3341066110bd",
+      "vaultTokenAmount": "10000"
+    },
+    {
+      "step": "05-level1-spend:AUTHORIZED",
+      "at": "2026-09-03T18:50:09.709Z",
+      "status": "AUTHORIZED",
+      "txId": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220",
+      "level": 1,
+      "spendAmount": "100",
+      "manifestVerdict": "VERIFIED",
+      "feeSompi": "9115800"
+    },
+    {
+      "step": "05-level1-spend:BROADCAST",
+      "at": "2026-09-03T18:50:09.723Z",
+      "txId": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "05-level1-spend:CHAIN_SEEN",
+      "at": "2026-09-03T18:50:11.728Z",
+      "txId": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220:2",
+      "blockDaaScore": "561026276"
+    },
+    {
+      "step": "05-level1-spend:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:50:11.728Z",
+      "txId": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "recipient token",
+          "outpoint": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220:2",
+          "address": "kaspatest:pqtygwjfn0k4zgtwrc6jzehly5mut3mg2ux6rw6esjqczhx0zyqzu22pjfu78",
+          "valueSompi": "20000000",
+          "covenantId": "7179101b7a275640b933fb0bbed4d3d47b31fb8f7f21082dd10655418cd433b2",
+          "blockDaaScore": "561026276"
+        }
+      ],
+      "consumed": [
+        "4c5f2fbd30a403bce36de75dd07260643b061780d98c282fa3139e66c545b913:0"
+      ]
+    },
+    {
+      "step": "05-level1-spend:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:50:11.729Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220",
+      "newAgentRoot": "72bde91fcd56233046d98765c528dcc7dc773a2c12c872f548fb28961384db2c"
+    },
+    {
+      "step": "06-delegate-level2:AUTHORIZED",
+      "at": "2026-09-03T18:50:19.827Z",
+      "status": "AUTHORIZED",
+      "txId": "612aa06580414a7a541cf3729cd9ae22d0e4b59f5b7cc66cbc09353a524926af",
+      "delegatingLevel": 1,
+      "newChildRoot": "79cc81bb0ff4fc6ee53ff6b40c202612825b0b2481bad21ab3b2c65ded26fefb",
+      "feeSompi": "8721800"
+    },
+    {
+      "step": "06-delegate-level2:BROADCAST",
+      "at": "2026-09-03T18:50:19.840Z",
+      "txId": "612aa06580414a7a541cf3729cd9ae22d0e4b59f5b7cc66cbc09353a524926af",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "06-delegate-level2:CHAIN_SEEN",
+      "at": "2026-09-03T18:50:21.846Z",
+      "txId": "612aa06580414a7a541cf3729cd9ae22d0e4b59f5b7cc66cbc09353a524926af",
+      "status": "CHAIN_SEEN",
+      "predecessorConsumed": "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220:0"
+    },
+    {
+      "step": "06-delegate-level2:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:50:21.846Z",
+      "txId": "612aa06580414a7a541cf3729cd9ae22d0e4b59f5b7cc66cbc09353a524926af",
+      "status": "CHAIN_VERIFIED",
+      "verified": [],
+      "consumed": [
+        "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220:0"
+      ]
+    },
+    {
+      "step": "06-delegate-level2:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:50:21.846Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "612aa06580414a7a541cf3729cd9ae22d0e4b59f5b7cc66cbc09353a524926af",
+      "newAgentRoot": "ce7d650cb04a32357b0d190d153f040e8efcf18442a15538387c8d25f0cc8d1c"
+    },
+    {
+      "step": "07-level2-spend-intersection-boundary:AUTHORIZED",
+      "at": "2026-09-03T18:50:30.319Z",
+      "status": "AUTHORIZED",
+      "txId": "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1",
+      "level": 2,
+      "spendAmount": "150",
+      "effectiveAuthorityMaxPerSpend": "150",
+      "feeSompi": "9149400"
+    },
+    {
+      "step": "07-level2-spend-intersection-boundary:BROADCAST",
+      "at": "2026-09-03T18:50:30.334Z",
+      "txId": "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "07-level2-spend-intersection-boundary:CHAIN_SEEN",
+      "at": "2026-09-03T18:50:32.339Z",
+      "txId": "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1",
+      "status": "CHAIN_SEEN",
+      "predecessorConsumed": "612aa06580414a7a541cf3729cd9ae22d0e4b59f5b7cc66cbc09353a524926af:0"
+    },
+    {
+      "step": "07-level2-spend-intersection-boundary:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:50:32.342Z",
+      "txId": "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1",
+      "status": "CHAIN_VERIFIED",
+      "verified": [],
+      "consumed": [
+        "612aa06580414a7a541cf3729cd9ae22d0e4b59f5b7cc66cbc09353a524926af:0",
+        "5850c80cd20bafcdcc9bbe546ed0fb729d77091a7984aa77ee3652f80382b220:1"
+      ]
+    },
+    {
+      "step": "07-level2-spend-intersection-boundary:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:50:32.342Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1"
+    },
+    {
+      "step": "08-delegate-level3:AUTHORIZED",
+      "at": "2026-09-03T18:50:40.521Z",
+      "status": "AUTHORIZED",
+      "txId": "0fcc161801c21799fe7cd085783679c72a2f1150ba28663c4a1a95991e38a2c2",
+      "delegatingLevel": 2,
+      "newChildRoot": "edab23a272fa8169824463f333f8f8884b36fe53c6e12166e8b4730c5c0cb078",
+      "feeSompi": "8754600"
+    },
+    {
+      "step": "08-delegate-level3:BROADCAST",
+      "at": "2026-09-03T18:50:40.534Z",
+      "txId": "0fcc161801c21799fe7cd085783679c72a2f1150ba28663c4a1a95991e38a2c2",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "08-delegate-level3:CHAIN_SEEN",
+      "at": "2026-09-03T18:50:42.540Z",
+      "txId": "0fcc161801c21799fe7cd085783679c72a2f1150ba28663c4a1a95991e38a2c2",
+      "status": "CHAIN_SEEN",
+      "predecessorConsumed": "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1:0"
+    },
+    {
+      "step": "08-delegate-level3:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:50:42.541Z",
+      "txId": "0fcc161801c21799fe7cd085783679c72a2f1150ba28663c4a1a95991e38a2c2",
+      "status": "CHAIN_VERIFIED",
+      "verified": [],
+      "consumed": [
+        "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1:0"
+      ]
+    },
+    {
+      "step": "08-delegate-level3:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:50:42.541Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "0fcc161801c21799fe7cd085783679c72a2f1150ba28663c4a1a95991e38a2c2",
+      "newAgentRoot": "8cd4dd826fa2867619bce39df05bb2937f1c85c309a17b7660df3fe6f0a7e37a"
+    },
+    {
+      "step": "09-level3-spend:AUTHORIZED",
+      "at": "2026-09-03T18:50:51.090Z",
+      "status": "AUTHORIZED",
+      "txId": "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4",
+      "level": 3,
+      "spendAmount": "25",
+      "feeSompi": "9182600"
+    },
+    {
+      "step": "09-level3-spend:BROADCAST",
+      "at": "2026-09-03T18:50:51.104Z",
+      "txId": "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "09-level3-spend:CHAIN_SEEN",
+      "at": "2026-09-03T18:50:53.111Z",
+      "txId": "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4",
+      "status": "CHAIN_SEEN",
+      "predecessorConsumed": "0fcc161801c21799fe7cd085783679c72a2f1150ba28663c4a1a95991e38a2c2:0"
+    },
+    {
+      "step": "09-level3-spend:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:50:53.115Z",
+      "txId": "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4",
+      "status": "CHAIN_VERIFIED",
+      "verified": [],
+      "consumed": [
+        "0fcc161801c21799fe7cd085783679c72a2f1150ba28663c4a1a95991e38a2c2:0",
+        "b2db84e06107fff341f32d039a1acb84b7f1c2075339858bc417a981df6f21b1:1"
+      ]
+    },
+    {
+      "step": "09-level3-spend:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:50:53.115Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4"
+    },
+    {
+      "step": "10-parent-revokes:AUTHORIZED",
+      "at": "2026-09-03T18:51:01.898Z",
+      "status": "AUTHORIZED",
+      "txId": "60b6a2a5336ae72be8e5d6d96da48497c276233bc89fb8f83161b420dbb5fbd4",
+      "revokedLevel": 1,
+      "feeSompi": "8721800"
+    },
+    {
+      "step": "10-parent-revokes:BROADCAST",
+      "at": "2026-09-03T18:51:01.913Z",
+      "txId": "60b6a2a5336ae72be8e5d6d96da48497c276233bc89fb8f83161b420dbb5fbd4",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "10-parent-revokes:CHAIN_SEEN",
+      "at": "2026-09-03T18:51:03.919Z",
+      "txId": "60b6a2a5336ae72be8e5d6d96da48497c276233bc89fb8f83161b420dbb5fbd4",
+      "status": "CHAIN_SEEN",
+      "predecessorConsumed": "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4:0"
+    },
+    {
+      "step": "10-parent-revokes:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:51:03.919Z",
+      "txId": "60b6a2a5336ae72be8e5d6d96da48497c276233bc89fb8f83161b420dbb5fbd4",
+      "status": "CHAIN_VERIFIED",
+      "verified": [],
+      "consumed": [
+        "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4:0"
+      ]
+    },
+    {
+      "step": "10-parent-revokes:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:51:03.919Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "60b6a2a5336ae72be8e5d6d96da48497c276233bc89fb8f83161b420dbb5fbd4",
+      "newAgentRoot": "caadeeb7213fe050d2064fe5e7a42e9c17e54d638b141b5a1b7b82ef10fc98b0",
+      "revokedSubtree": "C (and D beneath it)"
+    },
+    {
+      "step": "11-root-governed-revoke-subtree:AUTHORIZED",
+      "at": "2026-09-03T18:51:16.387Z",
+      "status": "AUTHORIZED",
+      "txId": "dd6c32297438154926d24d26e0ed339468190c62ee659f6e57198a7df081549c",
+      "newAgentRoot": "f68d6bbb144de4fb889a2ed1057ae10e7f75fa4115ee5e957adb2cb91b31b186",
+      "manifestVerdict": "VERIFIED",
+      "feeSompi": "11246400"
+    },
+    {
+      "step": "11-root-governed-revoke-subtree:BROADCAST",
+      "at": "2026-09-03T18:51:16.400Z",
+      "txId": "dd6c32297438154926d24d26e0ed339468190c62ee659f6e57198a7df081549c",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "11-root-governed-revoke-subtree:CHAIN_SEEN",
+      "at": "2026-09-03T18:51:18.406Z",
+      "txId": "dd6c32297438154926d24d26e0ed339468190c62ee659f6e57198a7df081549c",
+      "status": "CHAIN_SEEN",
+      "predecessorConsumed": "60b6a2a5336ae72be8e5d6d96da48497c276233bc89fb8f83161b420dbb5fbd4:0"
+    },
+    {
+      "step": "11-root-governed-revoke-subtree:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:51:18.407Z",
+      "txId": "dd6c32297438154926d24d26e0ed339468190c62ee659f6e57198a7df081549c",
+      "status": "CHAIN_VERIFIED",
+      "verified": [],
+      "consumed": [
+        "60b6a2a5336ae72be8e5d6d96da48497c276233bc89fb8f83161b420dbb5fbd4:0",
+        "b7cd9bcc72389098134808c877392693ab9569f08631db2d5240795689a37b92:0"
+      ]
+    },
+    {
+      "step": "11-root-governed-revoke-subtree:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:51:18.407Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "dd6c32297438154926d24d26e0ed339468190c62ee659f6e57198a7df081549c",
+      "revokedSubtree": "B"
+    },
+    {
+      "step": "12-owner-recover:AUTHORIZED",
+      "at": "2026-09-03T18:51:37.326Z",
+      "status": "AUTHORIZED",
+      "txId": "5596260dcfc386f9f6d907ec5fb4a6a6a8cfffe440830f9bb9d222e170546876",
+      "payoutTo": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+      "feeSompi": "11585800"
+    },
+    {
+      "step": "12-owner-recover:BROADCAST",
+      "at": "2026-09-03T18:51:37.343Z",
+      "txId": "5596260dcfc386f9f6d907ec5fb4a6a6a8cfffe440830f9bb9d222e170546876",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "12-owner-recover:CHAIN_SEEN",
+      "at": "2026-09-03T18:51:39.350Z",
+      "txId": "5596260dcfc386f9f6d907ec5fb4a6a6a8cfffe440830f9bb9d222e170546876",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "5596260dcfc386f9f6d907ec5fb4a6a6a8cfffe440830f9bb9d222e170546876:0",
+      "blockDaaScore": "561027116"
+    },
+    {
+      "step": "12-owner-recover:CHAIN_VERIFIED",
+      "at": "2026-09-03T18:51:39.353Z",
+      "txId": "5596260dcfc386f9f6d907ec5fb4a6a6a8cfffe440830f9bb9d222e170546876",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "recovered fee reserve",
+          "outpoint": "5596260dcfc386f9f6d907ec5fb4a6a6a8cfffe440830f9bb9d222e170546876:0",
+          "address": "kaspatest:qza0w6yupg6437mqgkysx65dre9kshvsnahqutrqrzs5qjdwvnkzvl00ff0tk",
+          "valueSompi": "300000000",
+          "covenantId": null,
+          "blockDaaScore": "561027116"
+        }
+      ],
+      "consumed": [
+        "dd6c32297438154926d24d26e0ed339468190c62ee659f6e57198a7df081549c:0",
+        "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4:1"
+      ]
+    },
+    {
+      "step": "12-owner-recover:VERIFIED_OUTCOME",
+      "at": "2026-09-03T18:51:39.354Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "5596260dcfc386f9f6d907ec5fb4a6a6a8cfffe440830f9bb9d222e170546876",
+      "recoveredKas": "300000000",
+      "recoveredTokens": "9725"
+    }
+  ],
+  "negatives": [
+    {
+      "name": "N9-replay-accepted-bytes-post-revocation",
+      "at": "2026-09-03T18:51:03.922Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "the EXACT already-accepted level-3 spend bytes (txId 127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4) resubmitted — that vault outpoint is now consumed",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4: transaction 127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4 was already accepted by the consensus` data:None",
+      "originalTxId": "127be7b1d4ed303a97a90c19bf3e657e8b3a3a585dfeae094261c1586c7b58f4"
+    },
+    {
+      "name": "child-spend-refused-after-parent-revocation-SDK-preflight",
+      "at": "2026-09-03T18:51:03.924Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "dryRun": false,
+      "rejected": true,
+      "why": "the SDK refuses to even BUILD a spend whose presented chain no longer folds to the live (post-revocation) agentRoot",
+      "sdkErrorCode": "AGENT_ROOT_MISMATCH"
+    },
+    {
+      "name": "N5-N6-descendant-hd-leaf-key-attempts-owner-and-root-authorization",
+      "at": "2026-09-03T18:51:29.622Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "one of the two required owner-slot signatures is a REAL SIGHASH_ALL Schnorr signature by HD leaf A's key — never an owner, whether spending as a descendant or attempting the root's own authorization directly — so the slot verifies against no installed owner key and the quorum count stays below threshold",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 67d90f7b4e2504aca2646959d224bbe8e9fe2451a6548d53346c67f2636f8e7c: failed to verify the signature script: script ran, but verification failed` data:None",
+      "attemptedBySigner": "cb144659ef300200912762786a173663150592d78f4408390c47e9956d9a6c31",
+      "requiredApprovals": "2"
+    },
+    {
+      "name": "N1-child-over-parent-cap",
+      "at": "2026-09-03T18:51:39.354Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "dryRun": true,
+      "defined": true,
+      "executed": false,
+      "why": "a spend amount exceeding a leaf's committed maxPerSpend, re-encoded through the production encoder with the SAME internal consistency as 14g in tools/testnet-v7-lifecycle.js",
+      "note": "DEFINED, NOT YET EXECUTED this run — see the readiness record"
+    },
+    {
+      "name": "N2-forged-broader-allowlist",
+      "at": "2026-09-03T18:51:39.354Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "dryRun": true,
+      "defined": true,
+      "executed": false,
+      "why": "a recipient satisfying a child's OWN recipientRoot but not an ancestor's, re-encoded with a swapped recipientSiblings/recipientPathBits argument at one level",
+      "note": "DEFINED, NOT YET EXECUTED this run — see the readiness record"
+    },
+    {
+      "name": "N4-level-confusion",
+      "at": "2026-09-03T18:51:39.354Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "dryRun": true,
+      "defined": true,
+      "executed": false,
+      "why": "a level-1 leaf/proof presented to the childSpendL2 entrypoint (domain separation: the level constant is substituted by the covenant per entrypoint, never a caller argument)",
+      "note": "DEFINED, NOT YET EXECUTED this run — see the readiness record"
+    },
+    {
+      "name": "N7-delegation-while-paused",
+      "at": "2026-09-03T18:51:39.354Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "dryRun": true,
+      "rejected": "SDK-preflight",
+      "why": "the SDK's own PAUSED guard refuses to build a delegation against a paused state; the covenant independently enforces prevState.paused == 0"
+    },
+    {
+      "name": "N8-sighash-variant",
+      "at": "2026-09-03T18:51:39.354Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "dryRun": true,
+      "defined": true,
+      "executed": false,
+      "why": "the spending leaf's signature re-signed with a non-ALL sighash type and the gate byte forged — PolicyVault signs SIG_HASH_ALL only",
+      "note": "DEFINED, NOT YET EXECUTED this run — see the readiness record"
+    },
+    {
+      "name": "N10-domain-tag-confusion",
+      "at": "2026-09-03T18:51:39.354Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "dryRun": true,
+      "defined": true,
+      "executed": false,
+      "why": "a v0.5-shaped flat leaf tree (domain tag 0x50563501) fed to hdSpend (which only accepts the 0x50564801 HD domain) — proven already by tests/vm/tests/v7_hd_production.rs's hd_cross_family_v05_v07_payment_refuse_an_hd_committed_tree",
+      "note": "already VM-PROVEN on the real engine; not re-executed live this run"
+    }
+  ],
+  "notExercised": [],
+  "summary": {
+    "steps": 63,
+    "negatives": 9,
+    "dryRun": false
+  }
+}

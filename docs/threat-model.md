@@ -294,7 +294,7 @@ source-proven fail-closed (checked_add/sub/mul → NumberTooBig). num8 is VM-pro
 injective at 2^32/2^53/large; the singleton successor is unique
 (OpAuthOutputCount == 1). An 8-way deliberate-sabotage matrix confirmed the
 suite catches each broken funds/authority rule (0 blind spots). Production bytes
-UNCHANGED (SHA256 8f87dea…); MAX-REVIEWED is internal, not an external audit.
+UNCHANGED (SHA256 8f87dea…); MAX-REVIEWED is an internal review label.
 
 ## v0.4 application-integration threats (Checkpoint G, 2026-08-19)
 

@@ -102,6 +102,62 @@ const FUEL = {
   }
 };
 
+/* ---- v0.7 ON-CHAIN ORGANIZATIONAL ROOT schema fragments ---- */
+const ROOT_ACTION_ENUM = ["authorize", "rotate", "freeze", "unfreeze", "ownerRecover", "succession"];
+const VAULT_OP_ACTION_ENUM = ["ownerSetAgentRoot", "ownerTopUpReserve", "ownerPause", "ownerUnpause", "ownerEmergencyPause"];
+const OWNER_SET_INPUT = {
+  type: "object",
+  additionalProperties: false,
+  required: ["owners", "ownerM", "emergencyK", "recoveryM"],
+  properties: {
+    owners: { type: "array", items: HEX64, minItems: 1, maxItems: 12 },
+    ownerM: { type: "integer", minimum: 1, maximum: 12 },
+    emergencyK: { type: "integer", minimum: 1, maximum: 12 },
+    recoveryM: { type: "integer", minimum: 0, maximum: 12 }
+  }
+};
+const V7_ROOT_ACTION_PARAMS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    newOwnerSet: OWNER_SET_INPUT,
+    fuel: FUEL
+  }
+};
+const V7_VAULT_OP_PARAMS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    newAgentRoot: HEX64,
+    topUpReserveAmountSompi: SOMPI
+  }
+};
+const V7_VAULT_OPERATION = {
+  type: "object",
+  additionalProperties: false,
+  required: ["vaultId", "action"],
+  properties: {
+    vaultId: HEX64,
+    action: { type: "string", enum: VAULT_OP_ACTION_ENUM, maxLength: 32 },
+    params: V7_VAULT_OP_PARAMS
+  }
+};
+const V7_WALLET_PARAMS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    spendAmount: SOMPI,
+    recipient: HEX64,
+    recipients: { type: "array", items: HEX64, minItems: 0, maxItems: 128 },
+    periodsElapsed: DECIMAL,
+    reserveConsumedSompi: SOMPI,
+    recipientCarryKasSompi: SOMPI,
+    depositAmount: SOMPI,
+    depositCarryKasSompi: SOMPI,
+    fuel: FUEL
+  }
+};
+
 const V4_PARAMS = {
   type: "object",
   additionalProperties: false,
@@ -331,6 +387,68 @@ function blueprints({ actionEnum, walletV4SchemaVersion }) {
       requiredScopes: ["read:risk"],
       inputSchema: closedObject({ evaluationId: UUID }, ["evaluationId"]),
       request: (args) => ({ method: "GET", pathSegments: ["risk", "evaluations", args.evaluationId] })
+    },
+    {
+      name: "policyvault_org_roots",
+      title: "List on-chain organizational roots",
+      description:
+        "List v0.7 ON-CHAIN ORGANIZATIONAL ROOTS visible to this identity (consensus-enforced M-of-N owner authority — distinct from a HOSTED organization, which grants NO on-chain authority). Every summary carries authorityModel. Requires scope read:org-roots. Read-only." +
+        SHARED_DESCRIPTION_TAIL,
+      requiredScopes: ["read:org-roots"],
+      inputSchema: closedObject({}),
+      request: () => ({ method: "GET", pathSegments: ["org-roots"] })
+    },
+    {
+      name: "policyvault_org_root",
+      title: "Organizational root detail",
+      description:
+        "Read one v0.7 organizational root's full record (owner slots, thresholds M/K/R, freeze flag, generation/nonce, pending request, live outpoint) plus authorityModel and a human explanation, by rootCovenantId. A root not yet chain-proven answers 404. Requires scope read:org-roots. Read-only." +
+        SHARED_DESCRIPTION_TAIL,
+      requiredScopes: ["read:org-roots"],
+      inputSchema: closedObject({ rootId: HEX64 }, ["rootId"]),
+      request: (args) => ({ method: "GET", pathSegments: ["org-roots", args.rootId] })
+    },
+    {
+      name: "policyvault_org_root_requests",
+      title: "List or read organizational-root requests",
+      description:
+        "List every durable request against one organizational root (root genesis, rooted-vault genesis, or a root-authorized owner action), or read one by requestId — per-slot signature status, requiredApprovals/signaturesPresent, the outcome ladder, and warnings. Requires scope read:org-roots. Read-only." +
+        SHARED_DESCRIPTION_TAIL,
+      requiredScopes: ["read:org-roots"],
+      inputSchema: closedObject({ rootId: HEX64, requestId: UUID }, ["rootId"]),
+      request: (args) => (args.requestId !== undefined ? { method: "GET", pathSegments: ["org-roots", args.rootId, "requests", args.requestId] } : { method: "GET", pathSegments: ["org-roots", args.rootId, "requests"] })
+    },
+    {
+      name: "policyvault_create_org_root_request",
+      title: "Create a root-authorized request (build only)",
+      description:
+        "BUILD a durable v0.7 root-authorized request: a root-only owner action (authorize/rotate/freeze/unfreeze/ownerRecover/succession) or the same action carrying AT MOST ONE rooted-vault operation (the covenant itself refuses a second rooted vault as a foreign covenant rider — ONE_VAULT_OPERATION_PER_ROOT_TRANSITION otherwise). This NEVER signs and NEVER broadcasts: it produces per-owner-slot signer-request envelopes; owner signatures are collected out of band from external signer custody. The initiating signerAddress must be an ACTIVE OWNER SLOT of the CURRENT root (or, for succession, the root's pinned successor key) — a hosted-organization admin role grants NO on-chain root authority and is refused with NOT_AN_ACTIVE_SLOT. Amounts are integer sompi as decimal strings — never floats. Requires scope write:org-roots." +
+        SHARED_DESCRIPTION_TAIL,
+      requiredScopes: ["write:org-roots"],
+      inputSchema: closedObject(
+        { rootId: HEX64, action: { type: "string", enum: ROOT_ACTION_ENUM, maxLength: 32 }, params: V7_ROOT_ACTION_PARAMS, vaultOperations: { type: "array", items: V7_VAULT_OPERATION, minItems: 0, maxItems: 1 }, signerAddress: ADDRESS },
+        ["rootId", "action", "signerAddress"]
+      ),
+      mutating: true,
+      request: (args) => ({
+        method: "POST",
+        pathSegments: ["org-roots", args.rootId, "requests"],
+        body: { action: args.action, params: args.params ?? {}, ...(args.vaultOperations !== undefined ? { vaultOperations: args.vaultOperations } : {}), signerAddress: args.signerAddress }
+      })
+    },
+    {
+      name: "policyvault_create_v7_request",
+      title: "Create a rooted-vault delegate spend or token deposit (build only)",
+      description:
+        "BUILD a durable v0.7 rooted-vault request: a delegate spend (tokenAgentSpend, an authorized agent's own key) or a token deposit — NEITHER touches the organizational root at all (no root input; the covenant enforces this by construction). This NEVER signs and NEVER broadcasts: it produces an unsigned transaction for external signer custody. Amounts are integer sompi as decimal strings — never floats. Requires scope write:org-roots." +
+        SHARED_DESCRIPTION_TAIL,
+      requiredScopes: ["write:org-roots"],
+      inputSchema: closedObject(
+        { vaultId: HEX64, action: { type: "string", enum: ["tokenAgentSpend", "tokenDeposit"], maxLength: 32 }, params: V7_WALLET_PARAMS, signerAddress: ADDRESS },
+        ["vaultId", "action", "signerAddress"]
+      ),
+      mutating: true,
+      request: (args) => ({ method: "POST", pathSegments: ["wallet", "v7", "requests"], body: { vaultId: args.vaultId, action: args.action, params: args.params ?? {}, signerAddress: args.signerAddress } })
     }
   ];
 }

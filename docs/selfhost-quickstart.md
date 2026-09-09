@@ -12,19 +12,48 @@ mode is a weaker-security variant.
 ## Prerequisites
 
 - Docker with the compose plugin; Node 20+ (for the self-check and
-  acceptance tools); `openssl` (secret generation).
-- Sibling checkouts of the public `silverscript` and `rusty-kaspa`
-  projects next to this repository (the container image vendors the
-  pinned covenant/VM toolchain from them via `tools/stage-vendor.sh` —
-  `up` runs it for you when `deploy/vendor/` is missing; the script
-  header documents the exact expected layout, including the
-  SHASUMS-verified Node dist).
+  acceptance tools); `openssl` (secret generation); a Rust toolchain
+  (`cargo`) to build the covenant VM tooling below.
+- Pinned sibling checkouts of `silverscript` and `rusty-kaspa`, plus
+  `wasm-pack`, `objcopy` and Python 3. Build fresh runtime artifacts with
+  neutral source paths before staging; raw developer builds can embed
+  private paths in runtime strings and debug sections:
+  ```bash
+  tools/build-private-safe-vendor.sh "$PWD/.vendor-build-reviewed"
+  ```
+  This preserves existing toolchains, uses pinned dependency revisions and
+  fails if its output already exists. Verify its output against the tracked
+  native/WASM pins and applicable behavior checks before image use.
+- **Pre-fetch the pinned Node.js runtime** (the image installs Node from
+  the verified official tarball, not from an OS package):
+  ```bash
+  mkdir -p .vendor-dist
+  curl -fsSLo .vendor-dist/node-v20.20.2-linux-x64.tar.xz \
+    https://nodejs.org/dist/v20.20.2/node-v20.20.2-linux-x64.tar.xz
+  curl -fsSLo .vendor-dist/node-SHASUMS256.txt \
+    https://nodejs.org/dist/v20.20.2/SHASUMS256.txt
+  grep " node-v20.20.2-linux-x64.tar.xz$" .vendor-dist/node-SHASUMS256.txt \
+    | (cd .vendor-dist && sha256sum -c -)   # must print OK
+  ```
+  This is the same official checksum the Docker build re-verifies
+  independently inside the image, so a tampered download fails the
+  build either way.
 - **Your own kaspad** with `--utxoindex`, synced on your chosen network
   (testnet-10 for development; your own trusted node — never a public
   one). Expose its JSON wRPC to the compose network with the private
   host-side forwarder: `node tools/staging-kaspad-proxy.js` (binds the
   Docker bridge interface only — the RPC port is never
   internet-reachable).
+
+Stage into a fresh directory after fetching the Node distribution:
+
+```bash
+tools/stage-vendor.sh "$PWD/.vendor-build-reviewed" "$PWD/deploy/vendor" "$PWD/.vendor-dist"
+```
+
+If `deploy/vendor` already exists, keep it as historical evidence and choose
+another fresh stage/context for verification. Do not overwrite a previously
+verified stage to conceal changed byte pins. `up` requires a complete stage.
 
 ## One command per step
 

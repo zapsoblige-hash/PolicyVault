@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet, describeKey } = require("./own-get");
 
 /*
  * Exact live-state model for a PolicyVault v0.4 vault (FROZEN ABI,
@@ -60,9 +61,13 @@ const OWNER_OP_SELECTOR_V4_1 = Object.freeze({
 });
 
 function resolveV4Abi(contractVersion) {
-  const abi = V4_ABIS[contractVersion ?? CONTRACT_VERSION_V4];
+  // OWN-PROPERTY lookup only (F-01/F-05): an absent version keeps the documented
+  // v0.4 default; every STRING must name an own key — prototype-chain keys and
+  // non-strings fail closed exactly like any unknown version.
+  const key = contractVersion === undefined || contractVersion === null ? CONTRACT_VERSION_V4 : contractVersion;
+  const abi = ownGet(V4_ABIS, key);
   if (!abi) {
-    fail(`unknown contract version ${JSON.stringify(contractVersion)} for the v0.4 family — failing closed (no cross-version fallback)`);
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.4 family — failing closed (no cross-version fallback)`);
   }
   return abi;
 }

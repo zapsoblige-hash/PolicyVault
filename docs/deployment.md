@@ -73,10 +73,7 @@ property/fuzz testing, crash/concurrency/reconciliation hardening,
 production deployment/containerization, monitoring/alerting,
 backup/restore rehearsal, clean fresh-environment testnet deployment
 rehearsal, security-critical code freeze, and separate explicit owner
-authorization before any mainnet broadcasting. An **independent
-professional security review** is PLANNED and POST-LAUNCH ACCEPTABLE
-(owner policy update, 2026-08-17) — important but no longer a pre-mainnet
-blocker; it must never be falsely claimed as done.
+authorization before any mainnet broadcasting.
 
 Underlying suites: covenant VM PASS · negative-validation VM matrix PASS ·
 SDK PASS · API smoke PASS · crash/recovery PASS · full testnet lifecycle
@@ -87,10 +84,10 @@ transactions even when correctly signed by the designated delegate) ·
 deployment rehearsal PASS · security docs complete · no open P0/P1
 blockers.
 
-**Review/release status (owner policy update, 2026-08-17):** external
-professional review is planned and post-launch acceptable, not a
-pre-mainnet blocker; audit/external-review status is never fabricated
-(mission §63). Explicit owner mainnet authorization (gate R) remains a
+**Review/release status (owner policy 2026-08-17, restated 2026-09-05):**
+security assurance is the internal program (independent AI falsification
+review, hostile testing, permanent regressions); internal reviews are never
+described as audits (mission §63). Explicit owner mainnet authorization (gate R) remains a
 hard human gate. Deployment packaging/containerization (Phase 6),
 monitoring (Phase 7), backup/restore rehearsal (Phase 8), and the
 fresh-environment rehearsal (Phase 9) are OPEN items tracked in the

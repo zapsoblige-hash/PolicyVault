@@ -1,0 +1,212 @@
+[
+  {
+    "path": "usr/local/lib/node_modules/npm/docs/content/using-npm/config.md",
+    "sha256": "4793d88688041eb7660ffc8fa249a0e41f2dad7bbdcd2441073424b154b8bb02",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/docs/output/using-npm/config.html",
+    "sha256": "75a9a89b7988d25ba180b9cf93844c4b177ba1d167bd1231385e5a121f9a1944",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/man/man7/config.7",
+    "sha256": "8c60f3262a925eaef484a33c97d9d7f0649a1838735927f41e694eaa11071eda",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/node_modules/@npmcli/config/lib/definitions/definitions.js",
+    "sha256": "83b2068320f1a131c96658940e80522ec1f29150b338ce40eccf486e0ee05900",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/docs/content/using-npm/config.md",
+    "sha256": "4793d88688041eb7660ffc8fa249a0e41f2dad7bbdcd2441073424b154b8bb02",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/docs/output/using-npm/config.html",
+    "sha256": "75a9a89b7988d25ba180b9cf93844c4b177ba1d167bd1231385e5a121f9a1944",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/man/man7/config.7",
+    "sha256": "8c60f3262a925eaef484a33c97d9d7f0649a1838735927f41e694eaa11071eda",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/node_modules/@npmcli/config/lib/definitions/definitions.js",
+    "sha256": "83b2068320f1a131c96658940e80522ec1f29150b338ce40eccf486e0ee05900",
+    "family": "private-key-block",
+    "count": 1,
+    "reason": "Pinned npm documentation/config example; literal example marker, no credential"
+  },
+  {
+    "path": "app/sdk/node_modules/pg-connection-string/README.md",
+    "sha256": "c2cba494f78d950f91ec21298bbf60a949dc379d4f873ffe3ee319c918a175e0",
+    "family": "password-uri",
+    "count": 4,
+    "reason": "Pinned dependency README example credentials; no production values"
+  },
+  {
+    "path": "app/sdk/node_modules/pg-pool/README.md",
+    "sha256": "9d7028ff70e7cddeb97e7a2fda222e12c0e52fe954baf640d62d29880d9628bb",
+    "family": "password-uri",
+    "count": 1,
+    "reason": "Pinned dependency README example credentials; no production values"
+  },
+  {
+    "path": "usr/share/info/coreutils.info.gz!decoded",
+    "sha256": "a397181bdd4dd7b1dc6bb67050d6698875c8a7fd2a8ce281c20a927cc9984d99",
+    "family": "operator-path",
+    "count": 4,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/share/info/find.info.gz!decoded",
+    "sha256": "e01712b2334a264099eff49154fed611997835218ed500872fcaa581623eab0c",
+    "family": "operator-path",
+    "count": 2,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/share/info/grep.info.gz!decoded",
+    "sha256": "132fbe47be9b652aa1c1867498cd7d229bdf8b70b4168863551e4144f36e8257",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/share/info/sed.info.gz!decoded",
+    "sha256": "7177a844137cc4a77624abbdd57006cfa9f69248a255e086d5d309266265fbb4",
+    "family": "operator-path",
+    "count": 3,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "var/log/bootstrap.log",
+    "sha256": "3ae17ebbc708e88fe64b93d1d5e93cc9c200453584e13d9f59280f7d8dd00b9d",
+    "family": "operator-path",
+    "count": 90,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "0967abe04cd3840befb49e5e1529002508a73cc0750fbbf96c2ae4a48263c365",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/bin/node",
+    "sha256": "6295488653f0d93b0a157841746fef7e72cc4328cfb60c4bbe0ca2668a836ffd",
+    "family": "operator-path",
+    "count": 28,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/docs/content/using-npm/scripts.md",
+    "sha256": "a6110a749950ff587ba264512315db0fff84b9d984e6a8325f147e0dd5e805d4",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/docs/output/using-npm/scripts.html",
+    "sha256": "7942b750d0a47ef7bfe6260fd833359f2dbca011ab72874c5c3ed85884a69d74",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/man/man7/scripts.7",
+    "sha256": "ce63b87f011f69096b391102785ea73564676fc61c343ab3014951f5017f81ba",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/node_modules/libnpmpack/README.md",
+    "sha256": "b41d855097a19f2280626a5e50bf59266d08c801bdaa83aeff2426352182a2aa",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "tmp/node.tar.xz!/node-v20.20.2-linux-x64/lib/node_modules/npm/node_modules/nopt/README.md",
+    "sha256": "0be6adada47ed89897f0839145ead477684a2e47341f4347438bbdc5168b7303",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/local/bin/node",
+    "sha256": "6295488653f0d93b0a157841746fef7e72cc4328cfb60c4bbe0ca2668a836ffd",
+    "family": "operator-path",
+    "count": 28,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/docs/content/using-npm/scripts.md",
+    "sha256": "a6110a749950ff587ba264512315db0fff84b9d984e6a8325f147e0dd5e805d4",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/docs/output/using-npm/scripts.html",
+    "sha256": "7942b750d0a47ef7bfe6260fd833359f2dbca011ab72874c5c3ed85884a69d74",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/man/man7/scripts.7",
+    "sha256": "ce63b87f011f69096b391102785ea73564676fc61c343ab3014951f5017f81ba",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/node_modules/libnpmpack/README.md",
+    "sha256": "b41d855097a19f2280626a5e50bf59266d08c801bdaa83aeff2426352182a2aa",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "usr/local/lib/node_modules/npm/node_modules/nopt/README.md",
+    "sha256": "0be6adada47ed89897f0839145ead477684a2e47341f4347438bbdc5168b7303",
+    "family": "operator-path",
+    "count": 1,
+    "reason": "Independently classified pinned upstream manual/example/build paths; no PolicyVault operator identity"
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "070970f014b4813112eb6bc2efda617dd1c444f4a9c50c36d6ae6e9e7879e078",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "Pinned upstream image build paths; all matching history commands are byte-identical to the previously reviewed base-image history."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "fedc551322a2063b5e42d058252d0a4520d087bbae2f71a2472bc7049639be2f",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc29 image config (build f217011, digest sha256:ab893b13\u2026): the 9 matching history commands are the pinned Ubuntu base image's own upstream rockcraft build-directory paths, byte-identical to the previously classified config 070970f0\u2026; this config differs from it only in created timestamps, the POLICYVAULT_BUILD_ID env value and the rootfs diff_ids (Claude rc29 continuation, 2026-09-08)"
+  }
+]

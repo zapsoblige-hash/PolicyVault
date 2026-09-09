@@ -69,8 +69,8 @@ export PYTHONPATH="$PWD/python:$PYTHONPATH"
 ```python
 from policyvault_client import PolicyVaultClient, SimulateV4Spec, AgentSpendParams
 
-pv = PolicyVaultClient()      # $POLICYVAULT_API_URL / $POLICYVAULT_API_TOKEN
-pv.assert_compatible()        # fail closed if the server speaks another schema
+pv = PolicyVaultClient      # $POLICYVAULT_API_URL / $POLICYVAULT_API_TOKEN
+pv.assert_compatible        # fail closed if the server speaks another schema
 
 body = pv.simulate(SimulateV4Spec(
     vault_id="5a" * 32,
@@ -129,7 +129,7 @@ parse_sompi(1.5)             # AmountError — floats are never funds carriers
 * A float **anywhere** inside a request body is refused before encoding, not
   just in fields named like amounts.
 * ASCII-only digits and ASCII-only whitespace trimming — Python's `\d` matches
-  Unicode digits and `str.strip()` strips more than JS `trim()` does, so both
+  Unicode digits and `str.strip` strips more than JS `trim` does, so both
   are pinned down explicitly. Both divergences fail **closed**: this client is
   never more permissive than the server.
 
@@ -163,7 +163,7 @@ server's network, never whether an amount is within policy.
 ## Idempotency
 
 ```python
-key = pv.new_idempotency_key()          # generate ONCE per logical operation
+key = pv.new_idempotency_key          # generate ONCE per logical operation
 try:
     result = pv.build_request(spec, idempotency_key=key)
 except TransportError:
@@ -235,12 +235,48 @@ except ApiError as e:
 
 ---
 
+## Webhook signature verification
+
+`policyvault_client.verify_webhook_signature` is a reference CONSUMER-side
+verifier for PolicyVault's signed webhooks (`docs/postlaunch/webhooks-events-
+spec.md` §8, scheme `pv1`) — the same recipe published there as a JS snippet,
+ported so a Python webhook receiver does not have to re-derive it by hand.
+
+This is **not** a carve-out of the "no covenant verification" rule above: a
+webhook is an observation notification, never authority (the spec's §1) —
+verifying its HMAC is a generic integrity check, not a second implementation
+of anything consensus-relevant, so it carries none of the cross-runtime-
+disagreement hazard the rest of this document is careful about.
+
+```python
+from policyvault_client import verify_webhook_signature
+
+result = verify_webhook_signature(
+    header=request.headers["X-PolicyVault-Signature"],
+    raw_body=request_body_bytes.decode("utf-8"),  # the EXACT received bytes
+    secret=your_stored_endpoint_secret,
+)
+if not result.ok:
+    raise ValueError(f"webhook verification failed: {result.reason}")
+# Then: dedup on the X-PolicyVault-Event-Id header (at-least-once delivery),
+# and treat the body as a NOTIFICATION only — re-read the PolicyVault API (or
+# the covenant) for anything that actually matters for funds or policy state.
+```
+
+`result.reason` is one of `MALFORMED_HEADER`, `UNSUPPORTED_SCHEME`,
+`SIGNATURE_MISMATCH`, `TIMESTAMP_OUT_OF_TOLERANCE` — never raises on hostile
+input. See `docs/postlaunch/webhook-secret-rotation-procedure.md` for how
+this verifier is used as part of post-rotation verification when an
+operator rotates the platform's webhook signing secret.
+
+---
+
 ## Tests
 
 Run from `python/`:
 
 ```bash
-python3 -m unittest discover -s tests -t .          # all 75
+python3 -m unittest discover -s tests -t .          # all 88
 python3 -m unittest discover -s tests -t . -v       # verbose
 python3 -m unittest tests.test_amounts              # one module
 ```
@@ -253,6 +289,7 @@ if present it collects the same `unittest.TestCase` classes unchanged.
 | `test_amounts.py` | UNIT | 19 — parser-rule parity with the vectors from `sdk/test/amounts.test.js`, plus Python-specific hazards |
 | `test_schemas.py` | UNIT | 16 — closed schemas, lexical shape, amount hygiene at the boundary |
 | `test_secret_redaction.py` | UNIT | 12 — the token never escapes; no logging sink; stdlib-only imports |
+| `test_webhooks_verify.py` | UNIT | 13 — `pv1` webhook signature verification RULE parity, incl. headers generated once by the real JS `signWebhookPayload` and copied in as literal cross-implementation vectors |
 | `test_live_server.py` | INTEGRATION | 28 — **real HTTP against the real Node server** |
 
 The integration suite has **no mock server**. `tests/_server_boot.js` starts

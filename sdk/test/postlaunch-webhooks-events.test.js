@@ -352,6 +352,52 @@ test("SECRET AT REST: plaintext envelope only inside the restricted category by 
   }
 });
 
+test("AT-REST KEY ROTATION FALLBACK (TRACK 9, docs/postlaunch/webhook-secret-rotation-procedure.md): POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS opens envelopes sealed under a retired key; unset, behavior is unchanged; resealSecret migrates an envelope to the current key only", async () => {
+  const wh = require("../../server/src/webhooks");
+  const oldKeyHex = "11".repeat(32);
+  const newKeyHex = "22".repeat(32);
+  try {
+    process.env.POLICYVAULT_WEBHOOK_SECRET_KEY = oldKeyHex;
+    const created = await POST(["webhooks"], { url: "https://rot.example.com/h", label: "rot" }, state.cookieA);
+    assert.equal(created.status, 201);
+    const rawSecret = created.body.secret;
+    const endpoint = await wh.loadEndpointRaw(config, created.body.endpoint.endpointId);
+    assert.equal(endpoint.secret.v, "aes256gcm/v1");
+
+    // Rotate POLICYVAULT_WEBHOOK_SECRET_KEY with no _PREVIOUS set at all:
+    // byte-for-byte the pre-existing "no fallback" behavior must survive
+    // this change untouched (regression guard for the fallback addition).
+    process.env.POLICYVAULT_WEBHOOK_SECRET_KEY = newKeyHex;
+    assert.throws(() => wh.openSecret(endpoint.secret), (e) => e.code === "WEBHOOK_SECRET_UNAVAILABLE", "new key alone cannot open an envelope sealed under the retired key");
+
+    // With the retired key supplied as the explicit, operator-opted-in
+    // fallback, the SAME envelope opens again during the rotation window.
+    process.env.POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS = oldKeyHex;
+    assert.equal(wh.openSecret(endpoint.secret), rawSecret, "falls back to the previous key when the current key fails to decrypt");
+
+    // A malformed previous-key override still fails closed (never a
+    // silent skip of the fallback).
+    process.env.POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS = "not-hex";
+    assert.throws(() => wh.openSecret(endpoint.secret), (e) => e.code === "WEBHOOK_SECRET_KEY_INVALID");
+
+    // resealSecret migrates the envelope onto the CURRENT key only — after
+    // this, the envelope opens under the new key with no fallback needed.
+    process.env.POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS = oldKeyHex;
+    const resealed = wh.resealSecret(endpoint.secret);
+    assert.equal(resealed.v, "aes256gcm/v1");
+    delete process.env.POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS;
+    assert.equal(wh.openSecret(resealed), rawSecret, "resealed envelope opens under the current key alone");
+    assert.notEqual(JSON.stringify(resealed), JSON.stringify(endpoint.secret), "re-sealing produces a fresh IV/ciphertext, never a byte-identical copy");
+
+    // Restore for cleanup and revoke the endpoint we created.
+    process.env.POLICYVAULT_WEBHOOK_SECRET_KEY = oldKeyHex;
+    await POST(["webhooks", created.body.endpoint.endpointId, "revoke"], {}, state.cookieA);
+  } finally {
+    delete process.env.POLICYVAULT_WEBHOOK_SECRET_KEY;
+    delete process.env.POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS;
+  }
+});
+
 test("ROTATION + REVOCATION: rotate returns a NEW secret once (old co-signs during grace); revoked endpoints refuse rotation; foreign rotation hidden", async () => {
   const rotated = await POST(["webhooks", state.endpointId, "rotate-secret"], {}, state.cookieA);
   assert.equal(rotated.status, 200);

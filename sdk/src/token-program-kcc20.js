@@ -1,4 +1,5 @@
 "use strict";
+const { enforceBuildCacheBound, minimizeArtifactFile, touchCacheEntry } = require("./build-cache");
 
 /*
  * kcc20/1 ASSET ADAPTER (SDK side): compiles the vendored KCC20 reference
@@ -103,8 +104,12 @@ function compileKcc20Program({ config, state, familyBound }) {
   writeExactOrAssert(argsPath, JSON.stringify(constructorArgsKcc20(state, familyBound), null, 2) + "\n");
   if (!fs.existsSync(artifactPath)) {
     if (!fs.existsSync(config.silvercPath)) fail(`silverc not found: ${config.silvercPath}`);
+    enforceBuildCacheBound(config, { keep: dir }); // F-03: bounded cache, LRU eviction, never ENOSPC
     const r = spawnSync(config.silvercPath, [sourcePath, "--constructor-args", argsPath, "--output", artifactPath], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
     if (r.status !== 0 || !fs.existsSync(artifactPath)) fail(`silverc kcc20 compilation failed: ${r.stderr?.trim() ?? r.status}`);
+    minimizeArtifactFile(artifactPath, config); // F-03
+  } else {
+    touchCacheEntry(artifactPath);
   }
   const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
   const script = new Uint8Array(artifact.script);

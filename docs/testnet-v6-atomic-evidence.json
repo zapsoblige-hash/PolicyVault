@@ -1,0 +1,612 @@
+{
+  "schema": "policyvault-testnet-v6-atomic-evidence/1",
+  "network": {
+    "networkId": "testnet-10",
+    "serverVersion": "2.0.1",
+    "isSynced": true,
+    "hasUtxoIndex": true,
+    "virtualDaaScore": "560487906"
+  },
+  "startedAt": "2026-09-03T03:52:50.055Z",
+  "dry": false,
+  "steps": [
+    {
+      "step": "connect",
+      "at": "2026-09-03T03:52:50.128Z",
+      "networkId": "testnet-10",
+      "serverVersion": "2.0.1",
+      "isSynced": true,
+      "hasUtxoIndex": true,
+      "virtualDaaScore": "560487906"
+    },
+    {
+      "step": "issuance:BROADCAST",
+      "at": "2026-09-03T03:52:50.205Z",
+      "txId": "5d6141a814d7d7eacb356a02a611295e029891ea255fd3714c712443e97648e4",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "issuance:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:52:52.209Z",
+      "txId": "5d6141a814d7d7eacb356a02a611295e029891ea255fd3714c712443e97648e4",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:prgypfr3f6nv6j2mzzwsjyhf8htzngsnqf7qft3pe37lfvhdaytls7t88tx3r",
+          "index": 0,
+          "value": "300000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560487926"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "pool-fixture-genesis:BROADCAST",
+      "at": "2026-09-03T03:52:52.385Z",
+      "txId": "82e6220fe476f11135306f3f8749aa2eb51852a913f0ab872ae6af91cf630676",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "pool-fixture-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:52:54.393Z",
+      "txId": "82e6220fe476f11135306f3f8749aa2eb51852a913f0ab872ae6af91cf630676",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:pzac6ppjc85svh95y3g8t95tucrzyj5wujfvqm3cqpu6ywtc8ugkg6ku0l5nk",
+          "index": 0,
+          "value": "50000000000",
+          "covenantId": "465dead11468d994a9b99a1700f9bea11e115f3468d6112bcd8dcd55a0bca13c",
+          "blockDaaScore": "560487945"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "pool-fixture",
+      "at": "2026-09-03T03:52:54.393Z",
+      "poolCovenantId": "465dead11468d994a9b99a1700f9bea11e115f3468d6112bcd8dcd55a0bca13c",
+      "fixtureVersion": "v6-pool-fixture/1",
+      "sourceSha256": "c3590c82d81679bd00b3a8342604ffd220bf557fc72d937e84832a12c96a6faa",
+      "templateVmHashBlake2b256": "89b98b769fa9aafdcfb4d0d0dc8423c824ed189ff44a7e17933d2f53643b6098",
+      "geometry": {
+        "prefixLen": 1,
+        "stateLen": 36,
+        "suffixLen": 10531
+      },
+      "scriptSha256": "52987c024b708bb9ec2ab8ab5500005bc59d88cbc69102a6d9d2d0333497dc00",
+      "notAProduct": true
+    },
+    {
+      "step": "descriptor+profile+policy",
+      "at": "2026-09-03T03:52:54.397Z",
+      "descriptorHash": "7ec03b6af0db9585e566985ac1903daa098b1a473b4eaa28faaf665387466e5f",
+      "familyId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+      "templateVmHash": "9ed5a66c65290eea4514d36536c865a1de8413aa8d8d623f4ece346ba58163e5",
+      "geometry": {
+        "prefixLen": 1,
+        "stateLen": 46,
+        "suffixLen": 1521
+      },
+      "venueProfileHash": "651ae43065399bc80e66f772424c5ff1624adff2216a1dc9e4d61237027a9a23",
+      "swapRoot": "6d290399ed7f533118eceea1dc247823706d4c6560f7fab417e3b50e330c713c",
+      "agentRoot": "d7f56c834480de37a3ca4c7224939d0c358c65ee5c47de1fae12daa59975f325",
+      "swapPolicies": [
+        {
+          "destScheme": 2,
+          "directionMask": "3"
+        },
+        {
+          "destScheme": 0,
+          "directionMask": "1"
+        }
+      ]
+    },
+    {
+      "step": "pool-reserve-note:BROADCAST",
+      "at": "2026-09-03T03:52:54.751Z",
+      "txId": "77faa9e8f5c88ec3987b8bec9b0ad00255bbf9f2a47f2b32b80c7f8d46d097cb",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "pool-reserve-note:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:52:56.755Z",
+      "txId": "77faa9e8f5c88ec3987b8bec9b0ad00255bbf9f2a47f2b32b80c7f8d46d097cb",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:prz4uc8z20ypxl8yhjlgg3pywrtuychgnadzem7e58uvzlf93s2yu922tugjc",
+          "index": 0,
+          "value": "100000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560487963"
+        },
+        {
+          "address": "kaspatest:pzp8n263mnrrgx558xk4tdhjrrd2fxtkx37e2zddnpga97hu7wuh6nhf7hzut",
+          "index": 1,
+          "value": "200000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560487963"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "controller-genesis:BROADCAST",
+      "at": "2026-09-03T03:52:59.024Z",
+      "txId": "3967303a8a8a3de03d974647b78672a9e0c037f57f21baec80c8e688361a3756",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "controller-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:53:01.029Z",
+      "txId": "3967303a8a8a3de03d974647b78672a9e0c037f57f21baec80c8e688361a3756",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:pzh6rnqpjyqzqpxnanupms4pgydrnj8v40zqd2yl9fqy3ju776avyxxdeyq8d",
+          "index": 0,
+          "value": "10200000000",
+          "covenantId": "9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e",
+          "blockDaaScore": "560487995"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "controller",
+      "at": "2026-09-03T03:53:01.029Z",
+      "covenantId": "9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e",
+      "stateId": "e7e5453883c064ba02d875f7743d3435e07f391df2d61dcc0cf4b0a33acf92a5",
+      "scriptSha256": "fc7d7372b8aac30d5866626a7f70289374729752f228af9182488d044aac96c2",
+      "contractVersion": "policyvault-0.6"
+    },
+    {
+      "step": "deposit:BROADCAST",
+      "at": "2026-09-03T03:53:01.280Z",
+      "txId": "bcbecbeb4ac92a7bccd571d62fd325480e6e7880dc281d6dc126bb1319914734",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "deposit:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:53:03.284Z",
+      "txId": "bcbecbeb4ac92a7bccd571d62fd325480e6e7880dc281d6dc126bb1319914734",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:pzsq9ulqvf8nt3eyx7r93ek9hmkmm967fqezg6gn0feu55etgkrczfwwf0ja7",
+          "index": 0,
+          "value": "100000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560488021"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "atomic-sell:AUTHORIZED",
+      "at": "2026-09-03T03:53:13.095Z",
+      "status": "AUTHORIZED",
+      "txId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+      "manifestHash": "09505021b74f3deefb59059bda9e7f630fb24f69aff4c61ecca09e30046f2930",
+      "checks": 51,
+      "quote": {
+        "amountIn": "2000",
+        "kasOut": "977508480",
+        "protocolFeeMinimum": "19550170",
+        "protocolFee": "19550170",
+        "netProceeds": "957958310",
+        "minKasOut": "948378726"
+      },
+      "destination": {
+        "type": "A",
+        "scheme": 2,
+        "identity": null,
+        "outputs": 5
+      },
+      "economics": {
+        "networkFeeSompi": "8018200",
+        "swapValueSompi": "957958310",
+        "feeBpsOfSwapValue": "84",
+        "protocolFeeSompi": "19550170",
+        "protocolFeePaddingSompi": "0"
+      },
+      "freshness": {
+        "poolOutpoint": {
+          "transactionId": "82e6220fe476f11135306f3f8749aa2eb51852a913f0ab872ae6af91cf630676",
+          "index": 0
+        },
+        "controllerOutpoint": {
+          "transactionId": "3967303a8a8a3de03d974647b78672a9e0c037f57f21baec80c8e688361a3756",
+          "index": 0
+        },
+        "deadlineDaa": "560490026"
+      },
+      "explanation": [
+        "ACTION tokenAtomicSell on controller 9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e (policyvault-0.6 CANDIDATE) for asset 6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa.",
+        "GIVE UP exactly 2000 atomic token units to the approved pool 465dead11468d994a9b99a1700f9bea11e115f3468d6112bcd8dcd55a0bca13c; RECEIVE net 957958310 sompi (pool pays 977508480, venue protocol fee 19550170); minimum accepted 948378726.",
+        "DESTINATION type A: PolicyVault-controlled successor (principal / own position).",
+        "AGENT 0c12787b7ea038f4a24c8798bca76b0c994490f91527742ceed20df3c857da0b: token cap 5000/budget 10000 (spent 0); KAS cap 2000000000/budget 5000000000 (spent 0); fee cap 100000000.",
+        "OWNER POLICY: floor 400000/1, ceiling 600000/1 sompi per token; protocol fee cap 100000000; directions 3.",
+        "KAS DOMAINS: fee reserve 200000000 -> 191981800 (network fee 8018200 paid from the reserve only); swap principal 10000000000 -> 10957958310; token-note carries unchanged; no fuel input.",
+        "TOKEN DOMAIN: position 10000 -> 8000; pool note 100000 -> 102000; exact conservation.",
+        "NETWORK FEE 8018200 sompi = 84 bps of the swap value 957958310 sompi; KIP-9 storage mass 70995 (limit 500000).",
+        "FRESHNESS: usable only while pool outpoint 82e6220fe476f11135306f3f8749aa2eb51852a913f0ab872ae6af91cf630676:0 AND controller outpoint 3967303a8a8a3de03d974647b78672a9e0c037f57f21baec80c8e688361a3756:0 are unspent; pre-sign deadline DAA 560490026; sign only to broadcast immediately.",
+        "AUTHORIZATION: SIGHASH_ALL by the agent key only; the covenant enforces every rule above; PolicyVault signs nothing."
+      ],
+      "computeBudget": 45,
+      "poolComputeBudget": 23,
+      "storageMass": "70995"
+    },
+    {
+      "step": "atomic-sell:SIGNED",
+      "at": "2026-09-03T03:53:15.372Z",
+      "status": "SIGNED",
+      "txId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+      "signedAtDaa": "560488108",
+      "deadlineDaa": "560490026",
+      "sighash": "ALL"
+    },
+    {
+      "step": "atomic-sell:BROADCAST",
+      "at": "2026-09-03T03:53:15.380Z",
+      "txId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "atomic-sell:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:53:17.391Z",
+      "txId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:pzpr0rc5hq4qksf397gamsx9smjm3cc9acyj3q28lkwkzt8zczpr78flfntm2",
+          "index": 0,
+          "value": "11149940110",
+          "covenantId": "9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e",
+          "blockDaaScore": "560488141"
+        },
+        {
+          "address": "kaspatest:pzdu7eap7fywqcvx083tpz9xr0leqx8sv3kqzkpdcwkhpprqxy9pukxmsl7xm",
+          "index": 1,
+          "value": "100000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560488141"
+        },
+        {
+          "address": "kaspatest:pzcnlqsv62ap5dpu8xjzlnjfd9kv8guarmapw76k5fftq4esqyqu7dz9pry9v",
+          "index": 2,
+          "value": "100000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560488141"
+        },
+        {
+          "address": "kaspatest:prk3cvz93ytcdrr9pfdqm6re8ex3q5q5m49zvncngcfsdmxypa27x084daewm",
+          "index": 3,
+          "value": "49022491520",
+          "covenantId": "465dead11468d994a9b99a1700f9bea11e115f3468d6112bcd8dcd55a0bca13c",
+          "blockDaaScore": "560488141"
+        },
+        {
+          "address": "kaspatest:qqt3gtmf2d0ymtgdcurqmaj9c4dpwnxph7jmn6ewtx4d9t5kquklcdsy84dwm",
+          "index": 4,
+          "value": "19550170",
+          "blockDaaScore": "560488141"
+        }
+      ],
+      "consumed": [
+        {
+          "address": "kaspatest:pzac6ppjc85svh95y3g8t95tucrzyj5wujfvqm3cqpu6ywtc8ugkg6ku0l5nk",
+          "transactionId": "82e6220fe476f11135306f3f8749aa2eb51852a913f0ab872ae6af91cf630676",
+          "index": 0
+        },
+        {
+          "address": "kaspatest:pzh6rnqpjyqzqpxnanupms4pgydrnj8v40zqd2yl9fqy3ju776avyxxdeyq8d",
+          "transactionId": "3967303a8a8a3de03d974647b78672a9e0c037f57f21baec80c8e688361a3756",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "step": "atomic-sell:VERIFIED_OUTCOME",
+      "at": "2026-09-03T03:53:17.391Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+      "direction": "SELL",
+      "tokenPosition": {
+        "before": "10000",
+        "after": "8000"
+      },
+      "poolNote": {
+        "before": "100000",
+        "after": "102000"
+      },
+      "swapPrincipal": {
+        "before": "10000000000",
+        "after": "10957958310",
+        "delta": "957958310"
+      },
+      "feeReserve": {
+        "before": "200000000",
+        "after": "191981800",
+        "networkFee": "8018200"
+      },
+      "poolKas": {
+        "before": "50000000000",
+        "after": "49022491520"
+      },
+      "protocolFee": "19550170",
+      "conservation": {
+        "token": true
+      },
+      "successorStateId": "78428d5eb24f3e3e0ab7d8dbd98dc74832ba8476f2aa4e31c35ebedf964a0e19"
+    },
+    {
+      "step": "atomic-buy:AUTHORIZED",
+      "at": "2026-09-03T03:53:27.221Z",
+      "status": "AUTHORIZED",
+      "txId": "b5e78e23500807d593d8562780778e9999e8395681ea1d6a6ab34e54f527105e",
+      "manifestHash": "5aaa68fe5eef0f44fae0d8a779760eaca20a9eaef811ea4af5dd151ad29396b5",
+      "checks": 51,
+      "quote": {
+        "tokensOut": "1000",
+        "kasIn": "486831700",
+        "protocolFeeMinimum": "9736634",
+        "protocolFee": "9736634",
+        "kasSpend": "496568334",
+        "maxKasIn": "501534017"
+      },
+      "destination": {
+        "type": "A",
+        "scheme": 2,
+        "identity": null,
+        "outputs": 5
+      },
+      "economics": {
+        "networkFeeSompi": "8018800",
+        "swapValueSompi": "496568334",
+        "feeBpsOfSwapValue": "162",
+        "protocolFeeSompi": "9736634",
+        "protocolFeePaddingSompi": "0"
+      },
+      "freshness": {
+        "poolOutpoint": {
+          "transactionId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+          "index": 3
+        },
+        "controllerOutpoint": {
+          "transactionId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+          "index": 0
+        },
+        "deadlineDaa": "560490150"
+      },
+      "explanation": [
+        "ACTION tokenAtomicBuy on controller 9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e (policyvault-0.6 CANDIDATE) for asset 6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa.",
+        "PAY exactly 496568334 sompi of consideration from the protected swap principal (pool receives 486831700, venue protocol fee 9736634); RECEIVE exactly 1000 atomic token units into the controller's own position; maximum accepted 501534017.",
+        "DESTINATION type A: PolicyVault-controlled successor (principal / own position).",
+        "AGENT 0c12787b7ea038f4a24c8798bca76b0c994490f91527742ceed20df3c857da0b: token cap 5000/budget 10000 (spent 2000); KAS cap 2000000000/budget 5000000000 (spent 0); fee cap 100000000.",
+        "OWNER POLICY: floor 400000/1, ceiling 600000/1 sompi per token; protocol fee cap 100000000; directions 3.",
+        "KAS DOMAINS: fee reserve 191981800 -> 183963000 (network fee 8018800 paid from the reserve only); swap principal 10957958310 -> 10461389976; token-note carries unchanged; no fuel input.",
+        "TOKEN DOMAIN: position 8000 -> 9000; pool note 102000 -> 101000; exact conservation.",
+        "NETWORK FEE 8018800 sompi = 162 bps of the swap value 496568334 sompi; KIP-9 storage mass 122553 (limit 500000).",
+        "FRESHNESS: usable only while pool outpoint edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705:3 AND controller outpoint edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705:0 are unspent; pre-sign deadline DAA 560490150; sign only to broadcast immediately.",
+        "AUTHORIZATION: SIGHASH_ALL by the agent key only; the covenant enforces every rule above; PolicyVault signs nothing."
+      ],
+      "computeBudget": 45,
+      "poolComputeBudget": 23,
+      "storageMass": "122553"
+    },
+    {
+      "step": "atomic-buy:SIGNED",
+      "at": "2026-09-03T03:53:29.584Z",
+      "status": "SIGNED",
+      "txId": "b5e78e23500807d593d8562780778e9999e8395681ea1d6a6ab34e54f527105e",
+      "signedAtDaa": "560488245",
+      "deadlineDaa": "560490150",
+      "sighash": "ALL"
+    },
+    {
+      "step": "atomic-buy:BROADCAST",
+      "at": "2026-09-03T03:53:29.593Z",
+      "txId": "b5e78e23500807d593d8562780778e9999e8395681ea1d6a6ab34e54f527105e",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "atomic-buy:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:53:31.604Z",
+      "txId": "b5e78e23500807d593d8562780778e9999e8395681ea1d6a6ab34e54f527105e",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:pp9lggd0my2up2asllxnpr9hnmznpsgr2g4gyrct854j3vmtgqfngtczhgeuz",
+          "index": 0,
+          "value": "10645352976",
+          "covenantId": "9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e",
+          "blockDaaScore": "560488294"
+        },
+        {
+          "address": "kaspatest:ppcan7756l9uvqvm2ljq6xshjzkw0sl7mkecg3slln9up77zz9qlwhg4q07xx",
+          "index": 1,
+          "value": "100000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560488294"
+        },
+        {
+          "address": "kaspatest:pz0m9qae9lu8wcme7aqgz7jamhp9gz6aap5c9azxdd5rwtctznp5jm9mcggsq",
+          "index": 2,
+          "value": "100000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560488294"
+        },
+        {
+          "address": "kaspatest:pqn6scmy2c4qvfxst479zxfqrg20pwl64ld28d4wjve5k05dcankk9tak4k77",
+          "index": 3,
+          "value": "49509323220",
+          "covenantId": "465dead11468d994a9b99a1700f9bea11e115f3468d6112bcd8dcd55a0bca13c",
+          "blockDaaScore": "560488294"
+        },
+        {
+          "address": "kaspatest:qqt3gtmf2d0ymtgdcurqmaj9c4dpwnxph7jmn6ewtx4d9t5kquklcdsy84dwm",
+          "index": 4,
+          "value": "9736634",
+          "blockDaaScore": "560488294"
+        }
+      ],
+      "consumed": [
+        {
+          "address": "kaspatest:prk3cvz93ytcdrr9pfdqm6re8ex3q5q5m49zvncngcfsdmxypa27x084daewm",
+          "transactionId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+          "index": 3
+        },
+        {
+          "address": "kaspatest:pzpr0rc5hq4qksf397gamsx9smjm3cc9acyj3q28lkwkzt8zczpr78flfntm2",
+          "transactionId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "step": "atomic-buy:VERIFIED_OUTCOME",
+      "at": "2026-09-03T03:53:31.604Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "b5e78e23500807d593d8562780778e9999e8395681ea1d6a6ab34e54f527105e",
+      "direction": "BUY",
+      "tokenPosition": {
+        "before": "8000",
+        "after": "9000"
+      },
+      "poolNote": {
+        "before": "102000",
+        "after": "101000"
+      },
+      "swapPrincipal": {
+        "before": "10957958310",
+        "after": "10461389976",
+        "delta": "-496568334"
+      },
+      "feeReserve": {
+        "before": "191981800",
+        "after": "183963000",
+        "networkFee": "8018800"
+      },
+      "poolKas": {
+        "before": "49022491520",
+        "after": "49509323220"
+      },
+      "protocolFee": "9736634",
+      "conservation": {
+        "token": true
+      },
+      "successorStateId": "26b094b8d3940c72e893a1e65c25af0ffd2c89ac6006a19dec441e2f57a9b41b"
+    },
+    {
+      "step": "negative-stale-swap-spent-outpoints",
+      "at": "2026-09-03T03:53:44.058Z",
+      "rejected": true,
+      "why": "a distinct correctly-signed swap (5d709c4b87b9690b6b8d8a4656ddb29c33ff2e2ce5b57ac887a6b1a70dede4a1) referencing the pre-swap pool outpoint 82e6220fe476f111:0 and controller outpoint 3967303a8a8a3de0:0, both spent by the accepted SELL (transaction-level kill switches)",
+      "detail": "RPC Server (remote error) -> code:0  message:`Rejected transaction 5d709c4b87b9690b6b8d8a4656ddb29c33ff2e2ce5b57ac887a6b1a70dede4a1: transaction 5d709c4b87b9690b6b8d8a4656ddb29c33ff2e2ce5b57ac887a6b1a70dede4a1 is an orphan where orphan is d"
+    },
+    {
+      "step": "negative-accepted-swap-resubmitted",
+      "at": "2026-09-03T03:53:44.060Z",
+      "rejected": true,
+      "why": "the accepted SELL bytes resubmitted",
+      "detail": "RPC Server (remote error) -> code:0  message:`Rejected transaction edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705: transaction edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705 was already accepted by the co"
+    },
+    {
+      "step": "negative-over-cap-sell",
+      "at": "2026-09-03T03:53:56.378Z",
+      "rejected": true,
+      "why": "amountIn 5001 above the agent's tokenMaxPerSpend 5000 (re-encoded call, delegate-signed)",
+      "detail": "RPC Server (remote error) -> code:0  message:`Rejected transaction 4bc6881af393bc5d1cb646ca18c6e583e4285458fe604e51371dbf44b77bb8f5: failed to verify the signature script: script ran, but verification failed` data:None"
+    },
+    {
+      "step": "negative-wrong-signer",
+      "at": "2026-09-03T03:53:58.845Z",
+      "rejected": true,
+      "why": "owner key signing tokenAtomicSell",
+      "detail": "RPC Server (remote error) -> code:0  message:`Rejected transaction 4bc6881af393bc5d1cb646ca18c6e583e4285458fe604e51371dbf44b77bb8f5: failed to verify the signature script: script ran, but verification failed` data:None"
+    },
+    {
+      "step": "negative-protocol-fee-redirected",
+      "at": "2026-09-03T03:54:01.423Z",
+      "rejected": true,
+      "why": "protocol-fee output redirected to the agent key",
+      "detail": "RPC Server (remote error) -> code:0  message:`Rejected transaction 1c8aaf08299b9304837f3f259e2a9e9f94a90875da9211fd0765c513a6823606: failed to verify the signature script: script ran, but verification failed` data:None"
+    },
+    {
+      "step": "negative-deadline-passed-local",
+      "at": "2026-09-03T03:54:01.424Z",
+      "refusedLocally": true,
+      "code": "DEADLINE_PASSED",
+      "note": "pre-sign boundary; not a consensus expiry"
+    },
+    {
+      "step": "owner-set-swap-root:BROADCAST",
+      "at": "2026-09-03T03:54:08.465Z",
+      "txId": "674005abff9debe82be9f24e93bbcf7948a12c4c1a409ecbe13edabcbacef989",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "owner-set-swap-root:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:54:10.470Z",
+      "txId": "674005abff9debe82be9f24e93bbcf7948a12c4c1a409ecbe13edabcbacef989",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:pptk7te5k60y7j4efgfhjmmg3tns7ygdg7zd9pj30299yymwjzcpcj0hkk400",
+          "index": 0,
+          "value": "10645352976",
+          "covenantId": "9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e",
+          "blockDaaScore": "560488691"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "owner-recover:BROADCAST",
+      "at": "2026-09-03T03:54:15.362Z",
+      "txId": "371fa5f51313081c6c64ee58e2ece3697dc6e1d01a24acf8ec2d06c79590fa1d",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "owner-recover:CHAIN_VERIFIED",
+      "at": "2026-09-03T03:54:17.367Z",
+      "txId": "371fa5f51313081c6c64ee58e2ece3697dc6e1d01a24acf8ec2d06c79590fa1d",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "address": "kaspatest:qzjvdn9jxkgm8ep76q5802flm9h33mykrdc2vy489k4u9rhq622ysgg23vhet",
+          "index": 0,
+          "value": "10645352976",
+          "blockDaaScore": "560488759"
+        },
+        {
+          "address": "kaspatest:pzxydpmwhx4dl3zw97ep7qv6563d9ze3k8gemy579aakvmuxjhhlj73327qnk",
+          "index": 1,
+          "value": "100000000",
+          "covenantId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+          "blockDaaScore": "560488759"
+        }
+      ],
+      "consumed": []
+    }
+  ],
+  "finishedAt": "2026-09-03T03:54:17.367Z",
+  "covenant": {
+    "v06CandidateSha256": "c7c5f22c54a55d933ec8440a28bc2c628b9b99262541d50dbe9ffbdd16ba025c",
+    "v05FrozenSha256": "c693aeffb59286d21d44452bde0943d78840b66cf480b629624b7747b4197dd9",
+    "poolFixtureSha256": "c3590c82d81679bd00b3a8342604ffd220bf557fc72d937e84832a12c96a6faa"
+  },
+  "summary": {
+    "controllerId": "9c4f65a41cce16ca66ebcea7d5dc6789e7f43308f1da714335aa422a6f94c06e",
+    "familyId": "6fae08bf884dc61a6bee27fdaba78dc090330e19ca179383fb89bd883944dbfa",
+    "poolId": "465dead11468d994a9b99a1700f9bea11e115f3468d6112bcd8dcd55a0bca13c",
+    "venueProfileHash": "651ae43065399bc80e66f772424c5ff1624adff2216a1dc9e4d61237027a9a23",
+    "sellTxId": "edc0d8eb7d485f0d537298d0dd071d4d7771c0ef48fa9ddb72e11a81538c7705",
+    "buyTxId": "b5e78e23500807d593d8562780778e9999e8395681ea1d6a6ab34e54f527105e",
+    "byteFrozen": false,
+    "mainnet": false
+  }
+}

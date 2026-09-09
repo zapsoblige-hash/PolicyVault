@@ -100,8 +100,11 @@ const LIST = { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} };
     const b = await runMcp({ dir, env: { POLICYVAULT_MCP_SERVER_URL: harness.baseUrl, POLICYVAULT_MCP_TOKEN: harness.tokens.all }, messages: [INIT, INITED, LIST] });
     const lb = parse(b.out).find((m) => m.id === 2);
     const fullNames = lb && lb.result ? lb.result.tools.map((t) => t.name) : null;
-    if (!fullNames || fullNames.length !== 14) fail(`all-scope tools/list = ${JSON.stringify(fullNames)}`);
-    step("full-catalog", { advertised: fullNames.length, exit: b.code });
+    /* 1.5.0 (STRICTER pin): the all-scope catalog must be EXACTLY the tool set the adapter defines in mcp/src/tools.js —
+     * every name, no extras, no omissions — not merely the 1.4.2 count of 14 (the v0.7 organizational-root tools raised it). */
+    const expectedFull = [...new Set((fs.readFileSync(path.join(__dirname, "..", "src", "tools.js"), "utf8").match(/name: "policyvault_[a-z0-9_]+"/g) || []).map((s) => s.slice(7, -1)))].sort();
+    if (!fullNames || expectedFull.length < 14 || JSON.stringify([...fullNames].sort()) !== JSON.stringify(expectedFull)) fail(`all-scope tools/list = ${JSON.stringify(fullNames)} (expected exactly ${JSON.stringify(expectedFull)})`);
+    step("full-catalog", { advertised: fullNames.length, expected: expectedFull.length, exit: b.code });
 
     // 5a. bogus credential → refused at discovery with the server's code
     const c = await runMcp({ dir, env: { POLICYVAULT_MCP_SERVER_URL: harness.baseUrl, POLICYVAULT_MCP_TOKEN: `pvmk_${"0".repeat(64)}` }, messages: [INIT] });

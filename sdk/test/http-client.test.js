@@ -204,7 +204,7 @@ test("capabilities: public, and reports scopes/actions/schemas from the SERVER's
   const caps = await state.anonClient.capabilities();
   assert.equal(caps.schemaVersion, "policyvault-capabilities/v1");
   assert.equal(caps.apiVersion, "v1");
-  assert.deepEqual(caps.contract.supportedCovenantVersions, ["policyvault-0.4", "policyvault-0.4.1"]);
+  assert.deepEqual(caps.contract.supportedCovenantVersions, ["policyvault-0.4", "policyvault-0.4.1", "policyvault-0.5", "policyvault-0.6", "policyvault-0.7-root", "policyvault-0.7-payment", "policyvault-0.7-payment-hd"]);
 
   /* The client's PINNED schema version must be one the live server accepts —
    * this is the compatibility check the README tells integrators to make. */

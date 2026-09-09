@@ -1,0 +1,546 @@
+pragma silverscript ^0.1.0;
+
+/*
+ * MEASUREMENT-ONLY ADVERSARIAL REVIEW VARIANT — NEVER AN ACCEPTANCE
+ * CANDIDATE. This is the FROZEN-CANDIDATE-REVIEW copy of
+ * `contracts/PolicyVault.v0.7-root.sil` with deviation D1 (design section
+ * 7.9 / 10.7: "rootSuccession must install a different primary key")
+ * DELIBERATELY REMOVED, to measure what D1 protects against. It exists
+ * ONLY for `tests/vm/tests/v7_adversarial_review_freeze.rs` and is never
+ * referenced by any production generator, SDK, or acceptance suite.
+ *
+ * PolicyVault v0.7-root — ORGANIZATIONAL M-of-N OWNER ROOT covenant
+ * CANDIDATE (docs/postlaunch/v0.7-organizational-root-design.md).
+ *
+ * WHY THIS EXISTS. Until v0.7 the ultimate authority over a PolicyVault
+ * vault was ONE key. An organization must be able to hold that authority
+ * without any single private key being the unilateral financial root, and
+ * hosted roles, delegate approvals and application permissions are NOT
+ * substitutes: they are not the security boundary. Kaspa consensus is.
+ *
+ * ONE root covenant per organization holds the owner set, the threshold,
+ * the emergency and recovery quorums, the freeze flag and a monotone
+ * nonce. A ROOTED VAULT (contracts/PolicyVault.v0.7-payment.sil) has NO
+ * owner key at all: its owner operations are valid only when the same
+ * transaction ALSO spends this root, whose own script proved M-of-N, and
+ * the vault pins this root's EXACT successor bytes so it can tell WHICH
+ * root path ran. Rotation, threshold change, freeze, recovery and
+ * succession therefore happen ONCE for the whole organization, and a
+ * DELEGATE spend never touches the root at all.
+ *
+ * A NEW additive lineage: the frozen v0.5 controller and the v0.6
+ * candidate are never modified and no old vault mode is migrated.
+ *
+ * ---------------------------------------------------------------- *
+ * STATE LAYOUT (18 fields; the region length is a CONSTANT so a rooted
+ * vault can slice it by fixed offsets — section 9.1)
+ * ---------------------------------------------------------------- *
+ *
+ *   HEAD (never moves on an AUTHORIZE or a FREEZE):
+ *     byte[32] boundOrgId                  33 B
+ *     pubkey   owner1 .. owner12          12 x 33 B  (zero = inactive slot)
+ *     int      ownerM                       9 B
+ *     int      emergencyK                   9 B
+ *     int      recoveryM                    9 B
+ *   TAIL (fixed width, LAST — the only two fields AUTHORIZE/FREEZE move):
+ *     byte     frozen      -> 0x01 || <0x00|0x01>            2 B
+ *     byte[8]  rootNonce   -> 0x08 || <8 little-endian B>    9 B
+ *
+ *   rootStateLen = 33 + 12x33 + 3x9 + 2 + 9 = 467 B (constant for every
+ *                  reachable state and every threshold)
+ *   TAIL_LEN     = 2 + 9 = 11 B
+ *
+ * Encoded field chunks are `data_prefix(fixed_type_size) || payload`
+ * (~/silverscript/silverscript-lang/src/compiler/compile.rs), and an `int`
+ * is ALWAYS serialize_i64(n, Some(8)) — a fixed 8-byte sign-magnitude
+ * little-endian encoding, zero-padded, never minimal — so the three small
+ * ints are already constant-width and are deliberately NOT retyped
+ * (deviation D7). The tail is retyped only so a rooted vault can rebuild
+ * it with ONE OpNum2Bin instead of decoding 18 fields (deviation D8 adds
+ * the byte-domain well-formedness that retyping makes necessary).
+ *
+ * ---------------------------------------------------------------- *
+ * SIGNATURE BLOB AND COUNTING
+ * ---------------------------------------------------------------- *
+ *
+ * ownerSigs is exactly 12 x 65 = 780 bytes. Slot i (0-based) is bytes
+ * [65i, 65i+65). An ACTIVE slot MUST carry a 64-byte Schnorr signature
+ * plus the trailing 0x01 SIGHASH_ALL gate byte and counts 1 iff it
+ * verifies under that slot's key; the canonical abstention placeholder (64
+ * zero bytes + 0x01) passes the gate, fails verification and counts 0.
+ * Inactive (sentinel-zero) slots are never inspected.
+ *
+ * A signature cannot be counted twice: every active key is pairwise
+ * distinct on the predecessor AND on every new set, each slot is verified
+ * against exactly one key, and one signature verifies under exactly one
+ * key. A stale approval cannot replay: every counted signature is
+ * SIGHASH_ALL over the whole transaction, which commits to this root's
+ * outpoint (single-use by consensus) and to every output, and rootNonce
+ * strictly increases. Kaspa lockTime is a lower bound only, so freshness
+ * is outpoint binding + SIGHASH_ALL + nonce, NEVER an expiry.
+ *
+ * STATIC P2SH SIG-OPS: SilverScript inlines a function at every call site
+ * and a P2SH spend reveals the WHOLE redeem, so every checkSig in this
+ * file counts against the standardness budget of 15 regardless of the path
+ * taken. Counting therefore exists at exactly ONE call site:
+ *     12 (owner counting, one site) + 1 (succession) = 13 <= 15   headroom 2
+ * That budget is why N_MAX is 12: a 13-slot root is a different template,
+ * a different covenant id and a different (future) root version.
+ *
+ * ---------------------------------------------------------------- *
+ * MUTATION CLASSES (recorded for governance manifests; section 2.4)
+ * ---------------------------------------------------------------- *
+ *
+ *   0 AUTHORIZE     NEUTRAL              full quorum   (ownerM)
+ *   1 ROTATE        AUTHORITY-EXPANDING  full quorum   (ownerM)
+ *   2 FREEZE        AUTHORITY-REDUCING   emergency     (emergencyK)
+ *   3 UNFREEZE      AUTHORITY-EXPANDING  full quorum   (ownerM)
+ *   4 OWNER-RECOVER AUTHORITY-EXPANDING  recovery      (recoveryM) + idle age
+ *     SUCCESSION    AUTHORITY-EXPANDING  successorPk   + idle age
+ *
+ * FREEZE is the ONLY effect the lighter emergency quorum can reach, and it
+ * is monotone: its sole effect is frozen 0 -> 1; while frozen, actions 0
+ * and 2 are refused and every rooted vault's general owner path is
+ * refused; the root has one input and one action per transaction, so a
+ * FREEZE cannot be composed into an authority expansion.
+ *
+ * ---------------------------------------------------------------- *
+ * TERMINALITY — EXPLICIT RULE: THE ROOT HAS NO TERMINAL TRANSITION.
+ * ---------------------------------------------------------------- *
+ *
+ * Every entrypoint is #[covenant.singleton] with exactly one authorized
+ * continuation output; none permits termination and none can pay anyone.
+ * A dissolved root would permanently strand the owner path of every vault
+ * pinned to it (a self-locking transition), so dissolution is refused by
+ * construction. Organizational wind-down = recover every vault through
+ * that vault's OWN terminal path, after which this root's dust simply
+ * remains. Root MIGRATION = a new root genesis plus per-vault migration
+ * authorized by the OLD root; the old root persists and is harmless.
+ *
+ * If keys are lost below ownerM: (a) recoveryM > 0 lets recoveryM surviving
+ * owners install a new set after recoveryDelayDaa of idleness; (b)
+ * successorPk != 0 lets the pinned successor install a new set after
+ * successionDelayDaa; (c) neither means the root is permanently stuck and
+ * vault recovery is impossible — the deliberate, documented consequence of
+ * opting out, identical in kind to losing a single owner key today.
+ *
+ * Security boundary: Kaspa consensus. Every rule below must hold against a
+ * holder of legitimate owner keys submitting transactions directly to a
+ * node, bypassing the application entirely.
+ */
+contract V7ReviewNoD1(
+    byte[32] orgId,
+    pubkey initOwner1,
+    pubkey initOwner2,
+    pubkey initOwner3,
+    pubkey initOwner4,
+    pubkey initOwner5,
+    pubkey initOwner6,
+    pubkey initOwner7,
+    pubkey initOwner8,
+    pubkey initOwner9,
+    pubkey initOwner10,
+    pubkey initOwner11,
+    pubkey initOwner12,
+    int initOwnerM,
+    int initEmergencyK,
+    int initRecoveryM,
+    byte initFrozen,
+    byte[8] initRootNonce,
+    int recoveryDelayDaa,
+    pubkey successorPk,
+    int successionDelayDaa,
+    int rootMaxFeePerTx
+) {
+    byte[32] boundOrgId = orgId;
+    pubkey owner1 = initOwner1;
+    pubkey owner2 = initOwner2;
+    pubkey owner3 = initOwner3;
+    pubkey owner4 = initOwner4;
+    pubkey owner5 = initOwner5;
+    pubkey owner6 = initOwner6;
+    pubkey owner7 = initOwner7;
+    pubkey owner8 = initOwner8;
+    pubkey owner9 = initOwner9;
+    pubkey owner10 = initOwner10;
+    pubkey owner11 = initOwner11;
+    pubkey owner12 = initOwner12;
+    int ownerM = initOwnerM;
+    int emergencyK = initEmergencyK;
+    int recoveryM = initRecoveryM;
+    /* TAIL (fixed width, LAST): the only two fields an AUTHORIZE or a
+     * FREEZE changes, laid out so a rooted vault can slice and rebuild them
+     * without decoding the head. */
+    byte frozen = initFrozen;
+    byte[8] rootNonce = initRootNonce;
+
+    byte constant FROZEN_NO = 0x00;
+    byte constant FROZEN_YES = 0x01;
+
+    /* ---------------------------------------------------------------- *
+     * M-of-N counting (ONE call site; the v0.4.1 proven approval pattern)
+     * ---------------------------------------------------------------- */
+
+    /* Count the owner slot at byte `offset` of the 780-byte blob.
+     * Extracting the slot inside this helper keeps the caller's stack
+     * small (MAX_STACK_SIZE 244). Sentinel (zero) slots never count and
+     * are never inspected. An ACTIVE slot MUST carry a 65-byte
+     * SIGHASH_ALL signature (trailing 0x01 — the in-covenant sighash gate)
+     * or the canonical placeholder (which fails verification and counts 0). */
+    function countOwnerAt(pubkey ownerKey, byte[] ownerSigs, int offset) : (int) {
+        int result = 0;
+        if (bytes(ownerKey) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            (byte[] beforeSlot, byte[] fromSlot) = ownerSigs.split(offset);
+            (byte[] slot, byte[] afterSlot) = fromSlot.split(65);
+            (byte[] slotBody, byte[] slotHashByte) = slot.split(64);
+            require(slotHashByte == bytes(0x01));
+            if (checkSig(sig(slot), ownerKey)) {
+                result = 1;
+            }
+        }
+        return result;
+    }
+
+    /* 6 slots per frame (half split) so the deepest counting frame holds
+     * 6 temporaries rather than 12. */
+    function countSixOwners(pubkey k1, pubkey k2, pubkey k3, pubkey k4, pubkey k5, pubkey k6, byte[] ownerSigs, int base) : (int) {
+        int n = 0;
+        (int c1) = countOwnerAt(k1, ownerSigs, base + 0);
+        n = n + c1;
+        (int c2) = countOwnerAt(k2, ownerSigs, base + 65);
+        n = n + c2;
+        (int c3) = countOwnerAt(k3, ownerSigs, base + 130);
+        n = n + c3;
+        (int c4) = countOwnerAt(k4, ownerSigs, base + 195);
+        n = n + c4;
+        (int c5) = countOwnerAt(k5, ownerSigs, base + 260);
+        n = n + c5;
+        (int c6) = countOwnerAt(k6, ownerSigs, base + 325);
+        n = n + c6;
+        return n;
+    }
+
+    /* Total approvals over the 12 slots. ONE call site in the whole
+     * contract: 12 static sig-ops, counted once. */
+    function countOwnerApprovals(State s, byte[] ownerSigs) : (int) {
+        require(ownerSigs.length == 780);
+        (int lowHalf) = countSixOwners(s.owner1, s.owner2, s.owner3, s.owner4, s.owner5, s.owner6, ownerSigs, 0);
+        (int highHalf) = countSixOwners(s.owner7, s.owner8, s.owner9, s.owner10, s.owner11, s.owner12, ownerSigs, 390);
+        int total = lowHalf + highHalf;
+        return total;
+    }
+
+    /* ---------------------------------------------------------------- *
+     * Well-formedness WF(S) (design section 2.2)
+     * ---------------------------------------------------------------- */
+
+    /* Consensus never validates genesis state, so a hand-baked root UTXO
+     * could otherwise let one key satisfy M, hold a duplicate key in two
+     * slots, or set an emergency quorum above the full quorum. WF is
+     * therefore checked on the PREDECESSOR of every root spend and on
+     * every NEW set.
+     *
+     * Distinctness guards only the LATER slot because contiguity is
+     * enforced in the same block: owner_j active implies owner_i active
+     * for every i < j, so C(12,2) = 66 inequalities need only 11 guards.
+     * Kaspa's `<` aborts (NumberTooBig) on 32-byte values, so ordering is
+     * unavailable and byte inequality is the only distinctness tool. */
+    function requireWellFormed(State s) {
+        int active = 0;
+        if (bytes(s.owner1) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner2) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner3) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner4) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner5) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner6) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner7) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner8) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner9) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner10) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner11) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        if (bytes(s.owner12) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            active = active + 1;
+        }
+        require(active >= 1);
+        if (bytes(s.owner2) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner1) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner2));
+        }
+        if (bytes(s.owner3) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner2) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner3));
+            require(bytes(s.owner2) != bytes(s.owner3));
+        }
+        if (bytes(s.owner4) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner3) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner4));
+            require(bytes(s.owner2) != bytes(s.owner4));
+            require(bytes(s.owner3) != bytes(s.owner4));
+        }
+        if (bytes(s.owner5) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner4) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner5));
+            require(bytes(s.owner2) != bytes(s.owner5));
+            require(bytes(s.owner3) != bytes(s.owner5));
+            require(bytes(s.owner4) != bytes(s.owner5));
+        }
+        if (bytes(s.owner6) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner5) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner6));
+            require(bytes(s.owner2) != bytes(s.owner6));
+            require(bytes(s.owner3) != bytes(s.owner6));
+            require(bytes(s.owner4) != bytes(s.owner6));
+            require(bytes(s.owner5) != bytes(s.owner6));
+        }
+        if (bytes(s.owner7) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner6) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner7));
+            require(bytes(s.owner2) != bytes(s.owner7));
+            require(bytes(s.owner3) != bytes(s.owner7));
+            require(bytes(s.owner4) != bytes(s.owner7));
+            require(bytes(s.owner5) != bytes(s.owner7));
+            require(bytes(s.owner6) != bytes(s.owner7));
+        }
+        if (bytes(s.owner8) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner7) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner8));
+            require(bytes(s.owner2) != bytes(s.owner8));
+            require(bytes(s.owner3) != bytes(s.owner8));
+            require(bytes(s.owner4) != bytes(s.owner8));
+            require(bytes(s.owner5) != bytes(s.owner8));
+            require(bytes(s.owner6) != bytes(s.owner8));
+            require(bytes(s.owner7) != bytes(s.owner8));
+        }
+        if (bytes(s.owner9) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner8) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner9));
+            require(bytes(s.owner2) != bytes(s.owner9));
+            require(bytes(s.owner3) != bytes(s.owner9));
+            require(bytes(s.owner4) != bytes(s.owner9));
+            require(bytes(s.owner5) != bytes(s.owner9));
+            require(bytes(s.owner6) != bytes(s.owner9));
+            require(bytes(s.owner7) != bytes(s.owner9));
+            require(bytes(s.owner8) != bytes(s.owner9));
+        }
+        if (bytes(s.owner10) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner9) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner10));
+            require(bytes(s.owner2) != bytes(s.owner10));
+            require(bytes(s.owner3) != bytes(s.owner10));
+            require(bytes(s.owner4) != bytes(s.owner10));
+            require(bytes(s.owner5) != bytes(s.owner10));
+            require(bytes(s.owner6) != bytes(s.owner10));
+            require(bytes(s.owner7) != bytes(s.owner10));
+            require(bytes(s.owner8) != bytes(s.owner10));
+            require(bytes(s.owner9) != bytes(s.owner10));
+        }
+        if (bytes(s.owner11) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner10) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner11));
+            require(bytes(s.owner2) != bytes(s.owner11));
+            require(bytes(s.owner3) != bytes(s.owner11));
+            require(bytes(s.owner4) != bytes(s.owner11));
+            require(bytes(s.owner5) != bytes(s.owner11));
+            require(bytes(s.owner6) != bytes(s.owner11));
+            require(bytes(s.owner7) != bytes(s.owner11));
+            require(bytes(s.owner8) != bytes(s.owner11));
+            require(bytes(s.owner9) != bytes(s.owner11));
+            require(bytes(s.owner10) != bytes(s.owner11));
+        }
+        if (bytes(s.owner12) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000)) {
+            require(bytes(s.owner11) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(bytes(s.owner1) != bytes(s.owner12));
+            require(bytes(s.owner2) != bytes(s.owner12));
+            require(bytes(s.owner3) != bytes(s.owner12));
+            require(bytes(s.owner4) != bytes(s.owner12));
+            require(bytes(s.owner5) != bytes(s.owner12));
+            require(bytes(s.owner6) != bytes(s.owner12));
+            require(bytes(s.owner7) != bytes(s.owner12));
+            require(bytes(s.owner8) != bytes(s.owner12));
+            require(bytes(s.owner9) != bytes(s.owner12));
+            require(bytes(s.owner10) != bytes(s.owner12));
+            require(bytes(s.owner11) != bytes(s.owner12));
+        }
+        require(s.ownerM >= 1);
+        require(s.ownerM <= active);
+        require(s.emergencyK >= 1);
+        require(s.emergencyK <= s.ownerM);
+        require(s.recoveryM >= 0);
+        require(s.recoveryM <= s.ownerM);
+        /* DEVIATION D8: `frozen` is a raw byte, so its domain is checked as
+         * BYTES. A numeric range check would accept 0x80, which Kaspa's
+         * deserialize_i64 reads as negative zero (= 0) while it equals
+         * NEITHER canonical byte — permanently self-locking the root, since
+         * AUTHORIZE/FREEZE want 0x00 and UNFREEZE wants 0x01. */
+        int frozenDomainOk = 0;
+        if (s.frozen == FROZEN_NO) {
+            frozenDomainOk = 1;
+        }
+        if (s.frozen == FROZEN_YES) {
+            frozenDomainOk = 1;
+        }
+        require(frozenDomainOk == 1);
+        require(int(s.rootNonce) >= 0);
+    }
+
+    /* The owner set, threshold, emergency quorum and recovery quorum are
+     * carried across verbatim (every action except ROTATE / OWNER-RECOVER). */
+    function requireSetPreserved(State prevState, State newState) {
+        require(newState.owner1 == prevState.owner1);
+        require(newState.owner2 == prevState.owner2);
+        require(newState.owner3 == prevState.owner3);
+        require(newState.owner4 == prevState.owner4);
+        require(newState.owner5 == prevState.owner5);
+        require(newState.owner6 == prevState.owner6);
+        require(newState.owner7 == prevState.owner7);
+        require(newState.owner8 == prevState.owner8);
+        require(newState.owner9 == prevState.owner9);
+        require(newState.owner10 == prevState.owner10);
+        require(newState.owner11 == prevState.owner11);
+        require(newState.owner12 == prevState.owner12);
+        require(newState.ownerM == prevState.ownerM);
+        require(newState.emergencyK == prevState.emergencyK);
+        require(newState.recoveryM == prevState.recoveryM);
+    }
+
+    /* The ONLY value the root may lose per transition is rootMaxFeePerTx
+     * (a flat bound per transition). The root can never pay anyone: its
+     * single authorized continuation output carries the value. */
+    function requireRootValueRule() {
+        int successorIndex = OpAuthOutputIdx(this.activeInputIndex, 0);
+        require(rootMaxFeePerTx >= 0);
+        require(tx.outputs[successorIndex].value >= tx.inputs[this.activeInputIndex].value - rootMaxFeePerTx);
+    }
+
+    /* ---------------------------------------------------------------- *
+     * Entrypoints (design section 2.4 as amended by coordinator decision D6)
+     * ---------------------------------------------------------------- */
+
+    /* action 0 AUTHORIZE  (full quorum)      — the only shape a rooted
+     *                                          vault accepts for general
+     *                                          owner operations
+     * action 1 ROTATE     (full quorum)      — new set; allowed while frozen
+     * action 2 FREEZE     (emergency quorum) — AUTHORITY-REDUCING, monotone
+     * action 3 UNFREEZE   (full quorum)
+     * action 4 OWNER-RECOVER (recovery quorum + relative idle age), and it
+     *                        MUST LAND FROZEN (decision D6)
+     *
+     * The root has NO terminal transition: a dissolved root would strand
+     * the owner path of every vault pinned to it. */
+    #[covenant.singleton]
+    function rootAction(State prevState, State newState, int action, byte[] ownerSigs) {
+        require(action >= 0);
+        require(action <= 4);
+        require(ownerSigs.length == 780);
+        requireWellFormed(prevState);
+        require(newState.boundOrgId == prevState.boundOrgId);
+        require(bytes(newState.rootNonce) == OpNum2Bin(int(bytes(prevState.rootNonce)) + 1, 8));
+        requireRootValueRule();
+
+        (int approvals) = countOwnerApprovals(prevState, ownerSigs);
+
+        int required = 0;
+        int setMayChange = 0;
+        if (action == 0) {
+            /* AUTHORIZE: pure heartbeat / vault-operation authorization */
+            require(prevState.frozen == FROZEN_NO);
+            require(newState.frozen == prevState.frozen);
+            required = prevState.ownerM;
+        }
+        if (action == 1) {
+            /* ROTATE: AUTHORITY-EXPANDING, full quorum, allowed while frozen */
+            require(newState.frozen == prevState.frozen);
+            required = prevState.ownerM;
+            setMayChange = 1;
+        }
+        if (action == 2) {
+            /* FREEZE: the ONLY lighter-quorum effect; monotone */
+            require(prevState.frozen == FROZEN_NO);
+            require(newState.frozen == FROZEN_YES);
+            required = prevState.emergencyK;
+        }
+        if (action == 3) {
+            /* UNFREEZE: AUTHORITY-EXPANDING, full quorum */
+            require(prevState.frozen == FROZEN_YES);
+            require(newState.frozen == FROZEN_NO);
+            required = prevState.ownerM;
+        }
+        if (action == 4) {
+            /* OWNER-RECOVER: explicit opt-in (recoveryM > 0) plus a
+             * RELATIVE INPUT-AGE lock — active owners defeat it simply by
+             * touching the root (dead-man's switch).
+             *
+             * COORDINATOR DECISION D6 (section 11), the ONE rule this
+             * candidate adds to the probed semantics: the recovered set
+             * MUST LAND FROZEN, exactly as a succession does. Otherwise a
+             * recovery that leaves the head unchanged produces a successor
+             * BYTE-IDENTICAL to an AUTHORIZE successor, so a rooted vault's
+             * GENERAL owner path could be satisfied by a recovery in the
+             * same transaction. Landing frozen makes a recovery reachable
+             * only alongside the AUTHORITY-REDUCING emergency pause, and
+             * forces the recovered set to UNFREEZE under its own full
+             * quorum before any general vault owner operation — one
+             * explicit step that surfaces the recovery in every vault's
+             * manifest. Every other action-4 rule is exactly ROTATE's. */
+            require(prevState.recoveryM >= 1);
+            require(this.age >= recoveryDelayDaa);
+            require(newState.frozen == FROZEN_YES);
+            required = prevState.recoveryM;
+            setMayChange = 1;
+        }
+        require(required >= 1);
+        require(approvals >= required);
+
+        if (setMayChange == 1) {
+            requireWellFormed(newState);
+        } else {
+            requireSetPreserved(prevState, newState);
+        }
+    }
+
+    /* Succession: a pinned successor key installs a new set after the root
+     * has been idle for successionDelayDaa. The installed set lands FROZEN
+     * so it must deliberately unfreeze under the full quorum — one extra
+     * step that surfaces the succession in every vault's manifest. */
+    #[covenant.singleton]
+    function rootSuccession(State prevState, State newState, byte[] successorSig) {
+        require(bytes(successorPk) != bytes(0x0000000000000000000000000000000000000000000000000000000000000000));
+        require(successorSig.length == 65);
+        (byte[] successorBody, byte[] successorHashByte) = successorSig.split(64);
+        require(successorHashByte == bytes(0x01));
+        require(checkSig(sig(successorSig), successorPk));
+        require(this.age >= successionDelayDaa);
+        requireWellFormed(prevState);
+        requireWellFormed(newState);
+        require(newState.boundOrgId == prevState.boundOrgId);
+        require(bytes(newState.rootNonce) == OpNum2Bin(int(bytes(prevState.rootNonce)) + 1, 8));
+        require(newState.frozen == FROZEN_YES);
+        /* D1 DELIBERATELY REMOVED for this measurement-only variant (see file
+         * header). The real candidate's guard, for reference, was:
+         *   require(bytes(newState.owner1) != bytes(prevState.owner1));
+         */
+        requireRootValueRule();
+    }
+}

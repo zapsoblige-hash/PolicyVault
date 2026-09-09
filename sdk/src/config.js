@@ -325,6 +325,17 @@ function loadConfig(overrides = {}) {
       64, 1, 10_000
     )
   });
+  // Compiled-artifact cache bound (rc11 review F-03): the WHOLE `build*`
+  // cache under the data root stays under BOTH caps; least-recently-used
+  // entries are evicted first, entries used within graceMs are never evicted,
+  // and an impossible bound refuses the build (BUILD_CACHE_FULL) instead of
+  // ever reaching ENOSPC. Evicted entries are recompiled deterministically at
+  // finalize (sdk/src/build-cache.js).
+  const buildCache = Object.freeze({
+    maxEntries: parseBoundedInt("buildCacheMaxEntries", overrides.buildCacheMaxEntries ?? process.env.POLICYVAULT_BUILD_CACHE_MAX_ENTRIES, 256, 4, 100_000),
+    maxBytes: parseBoundedInt("buildCacheMaxBytes", overrides.buildCacheMaxBytes ?? process.env.POLICYVAULT_BUILD_CACHE_MAX_BYTES, 64 * 1024 * 1024, 1024 * 1024, 4 * 1024 * 1024 * 1024),
+    graceMs: parseBoundedInt("buildCacheGraceMs", overrides.buildCacheGraceMs ?? process.env.POLICYVAULT_BUILD_CACHE_GRACE_MS, 120_000, 0, 3_600_000)
+  });
   // HTTP slow-client bounds (headers must finish, then the whole request
   // must be received, within these windows).
   const httpTimeouts = Object.freeze({
@@ -456,6 +467,7 @@ function loadConfig(overrides = {}) {
 
     // Request protection (Phase D; see server/src/limits.js).
     requestProtection,
+    buildCache,
 
     // Deployment posture (Phase E; see docs/hosted-deployment.md).
     bindAddress,
@@ -509,6 +521,49 @@ function validatedEnvDataRoot() {
  * without that unlock, and every other network id, fails closed here even
  * though loadConfig would already have refused to construct it.
  */
+/*
+ * MAINNET CREATION/MUTATION is authorized PER COVENANT GENERATION and is
+ * fail-closed (owner pre-promotion gate, 2026-09-04). Gate R (2026-08-22)
+ * authorized mainnet OPERATION for the v0.4.x production generation only.
+ * A covenant BYTE FREEZE does NOT by itself authorize mainnet creation, and
+ * UNFROZEN CANDIDATES (v0.7-kas, v0.7-payment-hd) must NEVER be
+ * mainnet-creatable or mainnet-mutable. On testnet every operational
+ * generation is allowed (so human testnet acceptance can exercise them).
+ * To authorize a new generation on mainnet the owner adds its exact
+ * contract-version string here — never inferred from a byte freeze, a green
+ * gate, or a config flag.
+ */
+/*
+ * F-02 (rc11 internal review, 2026-09-04): `policyvault-0.4` is NOT mainnet-
+ * creatable. Its redeem script carries 18 static sig-ops, so EVERY v0.4
+ * covenant spend is non-standard on a default relay node (the reason the
+ * v0.4.1 standardness redesign exists — docs/covenant-spec-v0.4.1.md); a
+ * v0.4 vault created on mainnet would trap its deposit behind non-standard
+ * relay. Historical v0.4 READ / reconcile / transition compatibility is
+ * untouched (only NEW creation is gated). Production durable records were
+ * read-only inspected on 2026-09-04: every known PolicyVault production
+ * vault record is policyvault-0.4.1 (scope: known production records, not a
+ * chain-wide enumeration).
+ */
+const MAINNET_CREATABLE_GENERATIONS = Object.freeze(new Set([
+  "policyvault-0.4.1"
+]));
+
+function assertGenerationMainnetCreatable(config, contractVersion) {
+  const networkId = config ? config.networkId : undefined;
+  if (networkId !== Network.MAINNET) return contractVersion; // testnet: all operational generations allowed
+  if (!MAINNET_CREATABLE_GENERATIONS.has(contractVersion)) {
+    const e = new Error(
+      `mainnet: covenant generation ${JSON.stringify(contractVersion)} is NOT owner-authorized for mainnet creation/mutation — refusing (fail closed). ` +
+      `Only the v0.4.1 production generation is mainnet-authorized (v0.4 is non-standard on default relay and is never newly created on mainnet); v0.5 / v0.6 / v0.7-root / v0.7-payment require explicit per-generation owner authorization, ` +
+      `and unfrozen candidates (v0.7-kas, v0.7-payment-hd) are never mainnet-creatable.`
+    );
+    e.code = "GENERATION_NOT_MAINNET_AUTHORIZED";
+    throw e;
+  }
+  return contractVersion;
+}
+
 function assertOperationalNetwork(config) {
   const networkId = config ? config.networkId : undefined;
   if (networkId === Network.TESTNET_10) return networkId;
@@ -554,5 +609,7 @@ module.exports = {
   DEFAULT_DONATION_ADDRESS,
   loadConfig,
   assertOperationalNetwork,
+  assertGenerationMainnetCreatable,
+  MAINNET_CREATABLE_GENERATIONS,
   assertDataRootNetwork
 };

@@ -94,7 +94,7 @@ test("migration 009 applies: notification tables carry the standard category sha
   const { store } = await freshPgConfig();
   const pool = store.pool();
   const applied = await pool.query("SELECT version, name FROM schema_migrations ORDER BY version");
-  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.equal(applied.rows[8].name, "009_notifications.sql");
   for (const table of ["notification_rules", "notification_delivery_state"]) {
     const c = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY column_name`, [table]);

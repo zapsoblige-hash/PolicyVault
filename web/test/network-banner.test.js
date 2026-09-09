@@ -122,8 +122,11 @@ const withStatus = (impl) => (p) => (p.endsWith("/network/status") ? impl() : de
 /* ---------------- static markup ---------------- */
 
 test("index.html ships a NEUTRAL verifying banner — the initial markup never names a network", () => {
+  // Exact literal (TRACK 11 added the ARIA live-region wrapper so the
+  // fail-closed UNKNOWN state is ANNOUNCED, not merely displayed; the
+  // banner's text and derivation are unchanged).
   assert.ok(
-    INDEX_HTML.includes('<div id="testnet-banner">VERIFYING NETWORK…</div>'),
+    INDEX_HTML.includes('<div id="testnet-banner" role="status" aria-live="polite" aria-atomic="true">VERIFYING NETWORK…</div>'),
     "the banner's initial markup must be the neutral VERIFYING state"
   );
   assert.ok(!INDEX_HTML.includes("TESTNET-10"), "no hardcoded TESTNET-10 anywhere in index.html");

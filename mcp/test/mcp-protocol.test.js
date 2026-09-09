@@ -94,12 +94,17 @@ test("tools/list returns the full catalog with CLOSED input schemas, envelope ou
     assert.deepEqual(names, [
       "policyvault_audit_feed",
       "policyvault_capabilities",
+      "policyvault_create_org_root_request",
       "policyvault_create_request",
+      "policyvault_create_v7_request",
       "policyvault_governance_proposal",
       "policyvault_governance_proposals",
       "policyvault_list_requests",
       "policyvault_list_vaults",
       "policyvault_network_status",
+      "policyvault_org_root",
+      "policyvault_org_root_requests",
+      "policyvault_org_roots",
       "policyvault_reject_request",
       "policyvault_request_status",
       "policyvault_risk_evaluation",
@@ -112,7 +117,7 @@ test("tools/list returns the full catalog with CLOSED input schemas, envelope ou
       assert.equal(t.inputSchema.additionalProperties, false, `${t.name} inputSchema must be CLOSED`);
       assert.ok(t.outputSchema && t.outputSchema.properties.status, `${t.name} must advertise the envelope output schema`);
       assert.ok(t.description.includes("untrusted data"), `${t.name} description must state the untrusted-data stance`);
-      const mutating = t.name === "policyvault_create_request" || t.name === "policyvault_reject_request";
+      const mutating = ["policyvault_create_request", "policyvault_reject_request", "policyvault_create_org_root_request", "policyvault_create_v7_request"].includes(t.name);
       assert.equal(t.annotations.readOnlyHint, !mutating, `${t.name} readOnlyHint`);
       assert.equal(t.annotations.destructiveHint, false);
     }

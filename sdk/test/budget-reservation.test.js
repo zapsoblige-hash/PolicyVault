@@ -361,7 +361,7 @@ test("ADVERSARIAL: a reservation cannot be consumed cross-request; a doctored ow
   await store().write(Categories.TRANSITION_CLAIM, req.reservationKey, { ...record, key: undefined, requestId: impostor.requestId });
   await assert.rejects(
     async () => consumeReservationForRequest(config, await loadRequest(config, req.requestId), { txId: "ff".repeat(32) }),
-    (e) => e.code === "RESERVATION_FORGERY"
+    (e) => e.code === "STORE_IDENTITY_MISMATCH" // refused at keyed load before reservation consumption
   );
   await store().remove(Categories.TRANSITION_CLAIM, req.reservationKey);
   await markWalletRejected(config, req.requestId);
@@ -371,7 +371,7 @@ test("ADVERSARIAL: an UNKNOWN reservation schema version in scope refuses admiss
   await seedManifest([tightEntry()]);
   const alienKey = reservationKey({ vaultId: VAULT_ID, agentPk: XO(agentA), requestId: "11111111-1111-4111-8111-111111111111" });
   await store().write(Categories.TRANSITION_CLAIM, alienKey, { schema: "policyvault-budget-reservation/v99", requestId: "x", amountSompi: "1" });
-  await assert.rejects(() => buildSpend(1n), (e) => e.code === "RESERVATION_UNRECOGNIZED");
+  await assert.rejects(() => buildSpend(1n), (e) => e.code === "RESERVATION_RECORD_CORRUPT" && e.message.includes(alienKey)); // typed unknown/misbound record cannot pass keyed load
   await store().remove(Categories.TRANSITION_CLAIM, alienKey);
   const ok = await buildSpend(1n);
   assert.equal(ok.state, RequestState.BUILT);

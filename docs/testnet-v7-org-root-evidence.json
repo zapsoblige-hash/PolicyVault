@@ -1,0 +1,2764 @@
+{
+  "schema": "policyvault-testnet-v7-org-root-evidence/1",
+  "startedAt": "2026-09-03T10:26:32.114Z",
+  "finishedAt": "2026-09-03T10:30:12.275Z",
+  "dryRun": false,
+  "mainnet": false,
+  "network": {
+    "rpcUrl": "ws://127.0.0.1:18210",
+    "networkId": "testnet-10",
+    "serverVersion": "2.0.1",
+    "isSynced": true,
+    "hasUtxoIndex": true,
+    "virtualDaaScoreAtStart": "560724269",
+    "virtualDaaScoreAtEnd": "560726461"
+  },
+  "covenant": {
+    "before": {
+      "PolicyVault.v0.5.sil": "c693aeffb59286d21d44452bde0943d78840b66cf480b629624b7747b4197dd9",
+      "PolicyVault.v0.6.sil": "c7c5f22c54a55d933ec8440a28bc2c628b9b99262541d50dbe9ffbdd16ba025c",
+      "PolicyVault.v0.7-root.sil": "69417514f90d61b0281ea673e6fb5a5fd858c2bd50e14a4eb9043d5fdf17f8ce",
+      "PolicyVault.v0.7-payment.sil": "09cdbb6c284d8bd6c4cd2f4aad20d9682172eea3e048631176034b517be25091"
+    },
+    "after": {
+      "PolicyVault.v0.5.sil": "c693aeffb59286d21d44452bde0943d78840b66cf480b629624b7747b4197dd9",
+      "PolicyVault.v0.6.sil": "c7c5f22c54a55d933ec8440a28bc2c628b9b99262541d50dbe9ffbdd16ba025c",
+      "PolicyVault.v0.7-root.sil": "69417514f90d61b0281ea673e6fb5a5fd858c2bd50e14a4eb9043d5fdf17f8ce",
+      "PolicyVault.v0.7-payment.sil": "09cdbb6c284d8bd6c4cd2f4aad20d9682172eea3e048631176034b517be25091"
+    }
+  },
+  "parameters": {
+    "rootKasSompi": "200000000",
+    "vaultFeeReserveSompi": "300000000",
+    "tokenPositionCarryKasSompi": "100000000",
+    "tokenSupply": "1000000",
+    "tokenDeposit": "10000",
+    "recoveryDelayDaa": "600",
+    "successionDelayDaa": "600",
+    "rootMaxFeePerTxSompi": "1000000",
+    "genesisQuorum": "2-of-3 (ownerM 2, emergencyK 1, recoveryM 1)"
+  },
+  "organization": {
+    "orgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+    "rootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+    "rootTemplate": {
+      "orgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+      "recoveryDelayDaa": "600",
+      "successorPk": "142715675faf8da1ecc4d51e0b9e539fa0d52fdd96ed60dbe99adb15d6b05ad9",
+      "successionDelayDaa": "600",
+      "rootMaxFeePerTx": "1000000"
+    },
+    "rootPins": {
+      "orgRootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+      "rootTemplateVmHash": "3248388855a8168466689094c5015843b53c47b16cf3153d49b103dbe2e58293",
+      "rootPrefixLen": 1,
+      "rootStateLen": 467,
+      "rootSuffixLen": 11077
+    },
+    "rootAddress": "kaspatest:pzvdqnytre8ch8pe6u2fhyxvr74zzfhuh5hpzrejylrtflyqpyyd5ykkqjrep",
+    "vaultCovenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+    "vaultId": "6dc483236665cf52c966258ff06201371036304d5c56e37ad5e3645995771337",
+    "vaultTemplate": {
+      "vaultId": "6dc483236665cf52c966258ff06201371036304d5c56e37ad5e3645995771337",
+      "descriptorHash": "734d1718a4fe1ef4148b6de89899ea0a02590779da56fb0e58fb943a1d5f19d5",
+      "tokenCovenantId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+      "templateVmHash": "9ed5a66c65290eea4514d36536c865a1de8413aa8d8d623f4ece346ba58163e5",
+      "templatePrefixLen": 1,
+      "templateStateLen": 46,
+      "templateSuffixLen": 1521,
+      "orgRootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+      "rootTemplateVmHash": "3248388855a8168466689094c5015843b53c47b16cf3153d49b103dbe2e58293",
+      "rootPrefixLen": 1,
+      "rootStateLen": 467,
+      "rootSuffixLen": 11077,
+      "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26"
+    },
+    "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+    "recoveryAddress": "kaspatest:qza0w6yupg6437mqgkysx65dre9kshvsnahqutrqrzs5qjdwvnkzvl00ff0tk",
+    "tokenFamilyId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+    "descriptorHash": "734d1718a4fe1ef4148b6de89899ea0a02590779da56fb0e58fb943a1d5f19d5",
+    "successorPk": "142715675faf8da1ecc4d51e0b9e539fa0d52fdd96ed60dbe99adb15d6b05ad9"
+  },
+  "steps": [
+    {
+      "step": "connect",
+      "at": "2026-09-03T10:26:32.181Z",
+      "rpcUrl": "ws://127.0.0.1:18210",
+      "networkId": "testnet-10",
+      "serverVersion": "2.0.1",
+      "isSynced": true,
+      "hasUtxoIndex": true,
+      "virtualDaaScoreAtStart": "560724269"
+    },
+    {
+      "step": "fuel-primed",
+      "at": "2026-09-03T10:26:32.184Z",
+      "outpoint": "3967303a8a8a3de03d974647b78672a9e0c037f57f21baec80c8e688361a3756:1",
+      "amountSompi": "9200457512300",
+      "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld"
+    },
+    {
+      "step": "01-kcc20-issuance:AUTHORIZED",
+      "at": "2026-09-03T10:26:32.255Z",
+      "status": "AUTHORIZED",
+      "txId": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000",
+      "tokenFamilyId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+      "supply": "1000000",
+      "templateVmHash": "9ed5a66c65290eea4514d36536c865a1de8413aa8d8d623f4ece346ba58163e5",
+      "geometry": {
+        "prefixLen": 1,
+        "stateLen": 46,
+        "suffixLen": 1521
+      },
+      "feeSompi": "208300"
+    },
+    {
+      "step": "01-kcc20-issuance:SIGNED",
+      "at": "2026-09-03T10:26:32.256Z",
+      "status": "SIGNED",
+      "txId": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000",
+      "sighash": "ALL"
+    },
+    {
+      "step": "01-kcc20-issuance:BROADCAST",
+      "at": "2026-09-03T10:26:32.262Z",
+      "txId": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "01-kcc20-issuance:CHAIN_SEEN",
+      "at": "2026-09-03T10:26:34.269Z",
+      "txId": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000:0",
+      "blockDaaScore": "560724280"
+    },
+    {
+      "step": "01-kcc20-issuance:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:26:34.270Z",
+      "txId": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "user token position",
+          "outpoint": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000:0",
+          "address": "kaspatest:prgypfr3f6nv6j2mzzwsjyhf8htzngsnqf7qft3pe37lfvhdaytls7t88tx3r",
+          "valueSompi": "300000000",
+          "covenantId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+          "blockDaaScore": "560724280"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9200157304000",
+          "covenantId": null,
+          "blockDaaScore": "560724280"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "01-kcc20-issuance:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:26:34.270Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000",
+      "tokenFamilyId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+      "userPositionAmount": "1000000"
+    },
+    {
+      "step": "02-root-genesis:AUTHORIZED",
+      "at": "2026-09-03T10:26:35.213Z",
+      "status": "AUTHORIZED",
+      "txId": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df",
+      "rootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+      "stateId": "3fcbb15a576d44fe005920d7225099bb23a02cd925df51a7873fe416568ba450",
+      "stateDigest": "f6b16aa3574ef3beb3f5c1301f82720d679bbd196e5f6648e588c193c91203da",
+      "ownerSlots": [
+        {
+          "slot": 1,
+          "index": 0,
+          "publicKey": "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951"
+        },
+        {
+          "slot": 2,
+          "index": 1,
+          "publicKey": "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24"
+        },
+        {
+          "slot": 3,
+          "index": 2,
+          "publicKey": "d2dd684ff080264c3185ff87d357d9b4e1f9c9902ba26d998ac8eb54a610fcd2"
+        }
+      ],
+      "initialState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951",
+          "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24",
+          "d2dd684ff080264c3185ff87d357d9b4e1f9c9902ba26d998ac8eb54a610fcd2",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "2",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "0"
+      },
+      "rootPins": {
+        "orgRootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+        "rootTemplateVmHash": "3248388855a8168466689094c5015843b53c47b16cf3153d49b103dbe2e58293",
+        "rootPrefixLen": 1,
+        "rootStateLen": 467,
+        "rootSuffixLen": 11077
+      },
+      "scriptSha256": "18684814695cc10808b246d605960ccadd721d335e2f58bfac6c60bcf9aff21f",
+      "contractVersion": "policyvault-0.7-root",
+      "feeSompi": "208300"
+    },
+    {
+      "step": "02-root-genesis:SIGNED",
+      "at": "2026-09-03T10:26:35.213Z",
+      "status": "SIGNED",
+      "txId": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df",
+      "sighash": "ALL"
+    },
+    {
+      "step": "02-root-genesis:BROADCAST",
+      "at": "2026-09-03T10:26:35.214Z",
+      "txId": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "02-root-genesis:CHAIN_SEEN",
+      "at": "2026-09-03T10:26:37.222Z",
+      "txId": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df:0",
+      "blockDaaScore": "560724316"
+    },
+    {
+      "step": "02-root-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:26:37.223Z",
+      "txId": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "organizational root",
+          "outpoint": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df:0",
+          "address": "kaspatest:pzvdqnytre8ch8pe6u2fhyxvr74zzfhuh5hpzrejylrtflyqpyyd5ykkqjrep",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724316"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199957095700",
+          "covenantId": null,
+          "blockDaaScore": "560724316"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "02-root-genesis:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:26:37.223Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df",
+      "rootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+      "rootNonce": "0",
+      "frozen": "0",
+      "ownerM": "2",
+      "emergencyK": "1",
+      "recoveryM": "1"
+    },
+    {
+      "step": "03-vault-genesis:AUTHORIZED",
+      "at": "2026-09-03T10:26:37.887Z",
+      "status": "AUTHORIZED",
+      "txId": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e",
+      "vaultCovenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+      "stateId": "1419b3eace847256bcef0483adeb3b24381ba53a88b6a8830d2d54578fbdb083",
+      "orgRootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+      "rootPinsCarried": {
+        "rootTemplateVmHash": "3248388855a8168466689094c5015843b53c47b16cf3153d49b103dbe2e58293",
+        "rootPrefixLen": 1,
+        "rootStateLen": 467,
+        "rootSuffixLen": 11077
+      },
+      "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+      "initialState": {
+        "feeReserve": "300000000",
+        "paused": "0",
+        "agentRoot": "ab61f355b53daec9e7739e6e76ca26d265e925f155c5986057f6bfcf68b0fb49",
+        "policyNonce": "0"
+      },
+      "scriptSha256": "ecd625e9a97f6154f417f6a24593f4cddd3d519d3af8c3a2a19fc865f0d74172",
+      "contractVersion": "policyvault-0.7-payment",
+      "feeSompi": "208300"
+    },
+    {
+      "step": "03-vault-genesis:SIGNED",
+      "at": "2026-09-03T10:26:37.887Z",
+      "status": "SIGNED",
+      "txId": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e",
+      "sighash": "ALL"
+    },
+    {
+      "step": "03-vault-genesis:BROADCAST",
+      "at": "2026-09-03T10:26:37.888Z",
+      "txId": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "03-vault-genesis:CHAIN_SEEN",
+      "at": "2026-09-03T10:26:39.897Z",
+      "txId": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e:0",
+      "blockDaaScore": "560724345"
+    },
+    {
+      "step": "03-vault-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:26:39.899Z",
+      "txId": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "rooted payment vault",
+          "outpoint": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e:0",
+          "address": "kaspatest:pqkaduq8ruzedf355jkj45n6e5tc2l70y8yr84z945c7mzugculuu8f4gp954",
+          "valueSompi": "300000000",
+          "covenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+          "blockDaaScore": "560724345"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199656887400",
+          "covenantId": null,
+          "blockDaaScore": "560724345"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "03-vault-genesis:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:26:39.899Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e",
+      "vaultCovenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+      "pinnedRoot": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+      "feeReserve": "300000000"
+    },
+    {
+      "step": "04-token-deposit:AUTHORIZED",
+      "at": "2026-09-03T10:26:40.191Z",
+      "status": "AUTHORIZED",
+      "txId": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1",
+      "accounting": {
+        "token": {
+          "positionBefore": "1000000",
+          "deposit": "10000",
+          "remainderToUser": "990000"
+        },
+        "kas": {
+          "positionKas": "300000000",
+          "depositCarryKas": "100000000",
+          "remainderCarryKas": "200000000",
+          "externalIn": "9199656887400",
+          "externalOut": "9199656295200",
+          "fee": "592200"
+        }
+      },
+      "vaultCovenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+      "feeSompi": "592200"
+    },
+    {
+      "step": "04-token-deposit:SIGNED",
+      "at": "2026-09-03T10:26:40.252Z",
+      "status": "SIGNED",
+      "txId": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1",
+      "sighash": "ALL"
+    },
+    {
+      "step": "04-token-deposit:BROADCAST",
+      "at": "2026-09-03T10:26:40.254Z",
+      "txId": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "04-token-deposit:CHAIN_SEEN",
+      "at": "2026-09-03T10:26:42.261Z",
+      "txId": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1:0",
+      "blockDaaScore": "560724367"
+    },
+    {
+      "step": "04-token-deposit:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:26:42.265Z",
+      "txId": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault-owned token position",
+          "outpoint": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1:0",
+          "address": "kaspatest:pqpy8wv7tlm6kxmf9jfk3acc6emq5u9ddvcwftjt7sjucyyzyecxx47fm0fhr",
+          "valueSompi": "100000000",
+          "covenantId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+          "blockDaaScore": "560724367"
+        },
+        {
+          "label": "user remainder",
+          "outpoint": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1:1",
+          "address": "kaspatest:prsgxgfwaucxkkzwu3t5aa9r7ea34dvqptxakn0l24n0j8yhwh4ns880jxqjm",
+          "valueSompi": "200000000",
+          "covenantId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+          "blockDaaScore": "560724367"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199656295200",
+          "covenantId": null,
+          "blockDaaScore": "560724367"
+        }
+      ],
+      "consumed": [
+        "17e702e501264bbec2d8bb6eed6c39d4ec5ba2639758b4ad7a27762021371000:0"
+      ]
+    },
+    {
+      "step": "04-token-deposit:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:26:42.265Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1",
+      "positionAmount": "10000",
+      "ownedBy": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+      "remainderToUser": "990000"
+    },
+    {
+      "step": "05-delegated-spend:AUTHORIZED",
+      "at": "2026-09-03T10:26:43.630Z",
+      "status": "AUTHORIZED",
+      "txId": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca",
+      "action": "tokenAgentSpend",
+      "role": "agent",
+      "hasRootInput": false,
+      "manifestHash": "0343d6244089c93a0ebcb09640401832996442546921367dc196729969ee58e3",
+      "manifestVerdict": "VERIFIED",
+      "payment": {
+        "recipient": "6c238c8cb3876fc0c57246c3726a9ba49605484209f7f7cb8f8cd781b2052056",
+        "tokenAmount": "200",
+        "carryKasSompi": "20000000"
+      },
+      "accounting": {
+        "token": {
+          "positionBefore": "10000",
+          "spendAmount": "200",
+          "positionAfter": "9800",
+          "recipient": "6c238c8cb3876fc0c57246c3726a9ba49605484209f7f7cb8f8cd781b2052056",
+          "recoveredToRecoveryPk": "0"
+        },
+        "kas": {
+          "predecessorFeeReserve": "300000000",
+          "reserveConsumed": "50000",
+          "successorFeeReserve": "299950000",
+          "externalIn": "9199656295200",
+          "externalOut": "9199653889000",
+          "externalFunding": "0",
+          "tokenInputKas": "100000000",
+          "tokenSelfCarryKas": "80000000",
+          "tokenRecipientCarryKas": "20000000",
+          "fee": "2456200",
+          "terminalPayout": "0"
+        }
+      },
+      "agentProofRoot": "ab61f355b53daec9e7739e6e76ca26d265e925f155c5986057f6bfcf68b0fb49",
+      "recipientProofRoot": "4f6a9626856cac8fd52a3b1d3b730bce11204e72318898c9ecaadab54e54adce",
+      "computeBudget": 28,
+      "feeSompi": "2456200"
+    },
+    {
+      "step": "05-delegated-spend:SIGNED",
+      "at": "2026-09-03T10:26:44.235Z",
+      "status": "SIGNED",
+      "txId": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca",
+      "sighash": "ALL",
+      "signer": "delegate/agent key only",
+      "note": "the organizational root is NOT an input to an ordinary delegated spend"
+    },
+    {
+      "step": "05-delegated-spend:BROADCAST",
+      "at": "2026-09-03T10:26:44.239Z",
+      "txId": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "05-delegated-spend:CHAIN_SEEN",
+      "at": "2026-09-03T10:26:46.245Z",
+      "txId": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:0",
+      "blockDaaScore": "560724404"
+    },
+    {
+      "step": "05-delegated-spend:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:26:46.252Z",
+      "txId": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:0",
+          "address": "kaspatest:pzrl44k29hkptm65a9jufalff2fsvj2u8wnjpgcvpqj77p4dnarhxuxmegs9h",
+          "valueSompi": "299950000",
+          "covenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+          "blockDaaScore": "560724404"
+        },
+        {
+          "label": "vault token continuation",
+          "outpoint": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:1",
+          "address": "kaspatest:pp26ar342nusk00swrfw0n5n4q3p06m80n8qtn7hjynwrzgefwzxqevmnt9nv",
+          "valueSompi": "80000000",
+          "covenantId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+          "blockDaaScore": "560724404"
+        },
+        {
+          "label": "recipient token payment",
+          "outpoint": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:2",
+          "address": "kaspatest:pzfpks7r3f72qp8chamfgjljd9fr4v6wmz633h9tgndsw3dcd63y5fjmm200v",
+          "valueSompi": "20000000",
+          "covenantId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+          "blockDaaScore": "560724404"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:3",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199653889000",
+          "covenantId": null,
+          "blockDaaScore": "560724404"
+        }
+      ],
+      "consumed": [
+        "5f525b052314929ffe65f60e48545ce1ebcbbe8a0f8916febb0f47de5675498e:0",
+        "ccbb73e843d9c23f9e2d725fbdba70682418fc1ccf40d94e5f73dd0a130442f1:0"
+      ]
+    },
+    {
+      "step": "05-delegated-spend:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:26:46.253Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca",
+      "tokenPosition": {
+        "before": "10000",
+        "after": "9800"
+      },
+      "paidToRecipient": "200",
+      "recipientPk": "6c238c8cb3876fc0c57246c3726a9ba49605484209f7f7cb8f8cd781b2052056",
+      "feeReserve": {
+        "before": "300000000",
+        "after": "299950000",
+        "consumed": "50000"
+      },
+      "agentRoot": {
+        "before": "ab61f355b53daec9e7739e6e76ca26d265e925f155c5986057f6bfcf68b0fb49",
+        "after": "fa7e272ff7158732689ac4d1f8f4acc7120d3615a67cf58cb405d0e2e0c8a776"
+      },
+      "rootTouched": false
+    },
+    {
+      "step": "06-authority-expansion-set-agent-root:AUTHORIZED",
+      "at": "2026-09-03T10:26:49.513Z",
+      "status": "AUTHORIZED",
+      "txId": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a",
+      "action": "ownerSetAgentRoot",
+      "opSelector": "0",
+      "rootAuthority": {
+        "rootActionName": "authorize",
+        "rootAction": "0",
+        "authorityClass": "AUTHORITY-NEUTRAL",
+        "quorumSource": "ownerM",
+        "requiredApprovals": "2",
+        "expectFrozenAfter": "0",
+        "rootOutpoint": "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df:0",
+        "prevStateDigest": "f6b16aa3574ef3beb3f5c1301f82720d679bbd196e5f6648e588c193c91203da",
+        "newStateDigest": "995d36feb9a6f4f320cc27858ece0d081bd4f52584f0a457b3c12afb4173bf4b",
+        "successorTailHex": "0100080100000000000000"
+      },
+      "predecessorOutpoint": "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:0",
+      "predecessorStateId": "ad460911ba17b2a6de47dba32fb57d3cdb37f018f080357e28894054ae8a4858",
+      "successorStateId": "3020aabfd86ce5c0efad6729162aeb9e7d9270392ee9b5df2e238ee6202ff951",
+      "successorState": {
+        "feeReserve": "299950000",
+        "paused": "0",
+        "agentRoot": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f",
+        "policyNonce": "1"
+      },
+      "manifestHash": "4e077f3bf412adc8957953bfd5faa42cce4c6f1008f9f9adbfb70b2a2a2dee56",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 40,
+      "computeBudget": 32,
+      "feeSompi": "4607600"
+    },
+    {
+      "step": "06-authority-expansion-set-agent-root:SIGNED",
+      "at": "2026-09-03T10:26:51.249Z",
+      "status": "SIGNED",
+      "txId": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "note": "the vault operation itself carries NO signature — the root input IS the authority"
+    },
+    {
+      "step": "06-authority-expansion-set-agent-root:BROADCAST",
+      "at": "2026-09-03T10:26:51.263Z",
+      "txId": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "06-authority-expansion-set-agent-root:CHAIN_SEEN",
+      "at": "2026-09-03T10:26:53.268Z",
+      "txId": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:0",
+      "blockDaaScore": "560724480"
+    },
+    {
+      "step": "06-authority-expansion-set-agent-root:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:26:53.273Z",
+      "txId": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:0",
+          "address": "kaspatest:pru66y2ndw3fafplqfwpdmw996c57xmeqkxclqxf26zc9k7kdzcwjd69vvvgd",
+          "valueSompi": "299950000",
+          "covenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+          "blockDaaScore": "560724480"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:1",
+          "address": "kaspatest:prt4um03n6f7cu7msjwf6mas2gus6mmp4j3ljer3wac262xx9nu7qje0reucm",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724480"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199649281400",
+          "covenantId": null,
+          "blockDaaScore": "560724480"
+        }
+      ],
+      "consumed": [
+        "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:0",
+        "7bccc69da19bc18c1a22ee2a402b64096c37712c9bf4c1178511395284f982df:0"
+      ]
+    },
+    {
+      "step": "06-authority-expansion-set-agent-root:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:26:53.273Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a",
+      "vault": {
+        "paused": {
+          "before": "0",
+          "after": "0"
+        },
+        "agentRoot": {
+          "before": "fa7e272ff7158732689ac4d1f8f4acc7120d3615a67cf58cb405d0e2e0c8a776",
+          "after": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f"
+        },
+        "feeReserve": {
+          "before": "299950000",
+          "after": "299950000"
+        },
+        "policyNonce": {
+          "before": "0",
+          "after": "1"
+        }
+      },
+      "root": {
+        "rootNonce": {
+          "before": "0",
+          "after": "1"
+        },
+        "frozen": {
+          "before": "0",
+          "after": "0"
+        }
+      },
+      "vaultSuccessorOutpoint": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:0",
+      "rootSuccessorOutpoint": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:1"
+    },
+    {
+      "step": "07-authority-reduction-emergency-pause:AUTHORIZED",
+      "at": "2026-09-03T10:26:56.322Z",
+      "status": "AUTHORIZED",
+      "txId": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead",
+      "action": "ownerEmergencyPause",
+      "opSelector": "4",
+      "rootAuthority": {
+        "rootActionName": "freeze",
+        "rootAction": "2",
+        "authorityClass": "AUTHORITY-REDUCING",
+        "quorumSource": "emergencyK",
+        "requiredApprovals": "1",
+        "expectFrozenAfter": "1",
+        "rootOutpoint": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:1",
+        "prevStateDigest": "995d36feb9a6f4f320cc27858ece0d081bd4f52584f0a457b3c12afb4173bf4b",
+        "newStateDigest": "8260a07e1618386358a4b884ff4d333966060e424b1f8551bf5c96abda84eacc",
+        "successorTailHex": "0101080200000000000000"
+      },
+      "predecessorOutpoint": "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:0",
+      "predecessorStateId": "3020aabfd86ce5c0efad6729162aeb9e7d9270392ee9b5df2e238ee6202ff951",
+      "successorStateId": "d58ac3ce0e7c0194def3b18bfee910857ca9f760ffa25598d97e9a6f2ec71cb6",
+      "successorState": {
+        "feeReserve": "299950000",
+        "paused": "1",
+        "agentRoot": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f",
+        "policyNonce": "1"
+      },
+      "manifestHash": "111687b11e5c92ede5e9a68eb398cdec1208768b1f7e0b7b6624a7d19e418bb2",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 40,
+      "computeBudget": 32,
+      "feeSompi": "4607400"
+    },
+    {
+      "step": "07-authority-reduction-emergency-pause:SIGNED",
+      "at": "2026-09-03T10:26:57.868Z",
+      "status": "SIGNED",
+      "txId": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead",
+      "sighash": "ALL",
+      "signedSlots": [
+        1
+      ],
+      "requiredApprovals": "1",
+      "satisfiedApprovals": "1",
+      "note": "the vault operation itself carries NO signature — the root input IS the authority"
+    },
+    {
+      "step": "07-authority-reduction-emergency-pause:BROADCAST",
+      "at": "2026-09-03T10:26:57.880Z",
+      "txId": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "07-authority-reduction-emergency-pause:CHAIN_SEEN",
+      "at": "2026-09-03T10:26:59.886Z",
+      "txId": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:0",
+      "blockDaaScore": "560724554"
+    },
+    {
+      "step": "07-authority-reduction-emergency-pause:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:26:59.895Z",
+      "txId": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:0",
+          "address": "kaspatest:pr4gqmnsa94zxrmaq0xmmtlyavtdrjsh43n2s0gxth4rmd78zhydcqp78ssh7",
+          "valueSompi": "299950000",
+          "covenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+          "blockDaaScore": "560724554"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:1",
+          "address": "kaspatest:pp4c3xc8nu0xd3fv8f952skkwg5645e2xncd806semdpwffr96rx70t0lww6f",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724554"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199644674000",
+          "covenantId": null,
+          "blockDaaScore": "560724554"
+        }
+      ],
+      "consumed": [
+        "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:0",
+        "f315985f22ff58ce74f71110bef6ab847c3d4c7e443b74866224b61b7ee6304a:1"
+      ]
+    },
+    {
+      "step": "07-authority-reduction-emergency-pause:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:26:59.896Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead",
+      "vault": {
+        "paused": {
+          "before": "0",
+          "after": "1"
+        },
+        "agentRoot": {
+          "before": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f",
+          "after": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f"
+        },
+        "feeReserve": {
+          "before": "299950000",
+          "after": "299950000"
+        },
+        "policyNonce": {
+          "before": "1",
+          "after": "1"
+        }
+      },
+      "root": {
+        "rootNonce": {
+          "before": "1",
+          "after": "2"
+        },
+        "frozen": {
+          "before": "0",
+          "after": "1"
+        }
+      },
+      "vaultSuccessorOutpoint": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:0",
+      "rootSuccessorOutpoint": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:1"
+    },
+    {
+      "step": "08-governed-unfreeze:AUTHORIZED",
+      "at": "2026-09-03T10:27:01.858Z",
+      "status": "AUTHORIZED",
+      "txId": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201",
+      "action": "unfreeze",
+      "rootAction": "3",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "ownerM",
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "minSequence": "0",
+      "predecessorOutpoint": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:1",
+      "predecessorStateId": "baa4401e203db39cbc147d9c39382a8dcf9c96f0324b3efccf6bf3c65f4fc09e",
+      "predecessorStateDigest": "8260a07e1618386358a4b884ff4d333966060e424b1f8551bf5c96abda84eacc",
+      "successorStateId": "baac79a39f5481bf67ac450a563113f882cfed47bbac689c3da4c958485fa1dc",
+      "successorStateDigest": "dec4d9a469f969f301cd230bf65884ccdd312b82bad4de6704aec3e4b3ef7643",
+      "successorTailHex": "0100080300000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951",
+          "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24",
+          "d2dd684ff080264c3185ff87d357d9b4e1f9c9902ba26d998ac8eb54a610fcd2",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "2",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "3"
+      },
+      "manifestHash": "51f5a5b8dade0d3bc7636202f109d521fded251fa9737623546f49417cc6f001",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 24,
+      "computeBudget": 42,
+      "feeSompi": "2636600",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199644674000",
+        "externalOut": "9199642037400",
+        "fee": "2636600"
+      }
+    },
+    {
+      "step": "08-governed-unfreeze:SIGNED",
+      "at": "2026-09-03T10:27:02.849Z",
+      "status": "SIGNED",
+      "txId": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "08-governed-unfreeze:BROADCAST",
+      "at": "2026-09-03T10:27:02.860Z",
+      "txId": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "08-governed-unfreeze:CHAIN_SEEN",
+      "at": "2026-09-03T10:27:04.866Z",
+      "txId": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201:0",
+      "blockDaaScore": "560724592"
+    },
+    {
+      "step": "08-governed-unfreeze:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:27:04.867Z",
+      "txId": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201:0",
+          "address": "kaspatest:pqzhfvukljm5kvp325egfpjx0dheps5f0ttge9ddgf29ru534ylz5cfvxydnu",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724592"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199642037400",
+          "covenantId": null,
+          "blockDaaScore": "560724592"
+        }
+      ],
+      "consumed": [
+        "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:1"
+      ]
+    },
+    {
+      "step": "08-governed-unfreeze:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:27:04.868Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201",
+      "action": "unfreeze",
+      "rootNonce": {
+        "before": "2",
+        "after": "3"
+      },
+      "frozen": {
+        "before": "1",
+        "after": "0"
+      },
+      "ownerM": {
+        "before": "2",
+        "after": "2"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201:0",
+      "successorBlockDaaScore": "560724592"
+    },
+    {
+      "step": "09-governed-unpause:AUTHORIZED",
+      "at": "2026-09-03T10:27:07.366Z",
+      "status": "AUTHORIZED",
+      "txId": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99",
+      "action": "ownerUnpause",
+      "opSelector": "3",
+      "rootAuthority": {
+        "rootActionName": "authorize",
+        "rootAction": "0",
+        "authorityClass": "AUTHORITY-NEUTRAL",
+        "quorumSource": "ownerM",
+        "requiredApprovals": "2",
+        "expectFrozenAfter": "0",
+        "rootOutpoint": "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201:0",
+        "prevStateDigest": "dec4d9a469f969f301cd230bf65884ccdd312b82bad4de6704aec3e4b3ef7643",
+        "newStateDigest": "60cc40f2ed6d7228dee07e02b58a7084cb37ccc5871796730aa58c590ba203c7",
+        "successorTailHex": "0100080400000000000000"
+      },
+      "predecessorOutpoint": "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:0",
+      "predecessorStateId": "d58ac3ce0e7c0194def3b18bfee910857ca9f760ffa25598d97e9a6f2ec71cb6",
+      "successorStateId": "3020aabfd86ce5c0efad6729162aeb9e7d9270392ee9b5df2e238ee6202ff951",
+      "successorState": {
+        "feeReserve": "299950000",
+        "paused": "0",
+        "agentRoot": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f",
+        "policyNonce": "1"
+      },
+      "manifestHash": "00db9be2d451961a6be0741ad5aa2455b84657383e3628de2f087782b85073c2",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 40,
+      "computeBudget": 32,
+      "feeSompi": "4607600"
+    },
+    {
+      "step": "09-governed-unpause:SIGNED",
+      "at": "2026-09-03T10:27:08.973Z",
+      "status": "SIGNED",
+      "txId": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "note": "the vault operation itself carries NO signature — the root input IS the authority"
+    },
+    {
+      "step": "09-governed-unpause:BROADCAST",
+      "at": "2026-09-03T10:27:08.985Z",
+      "txId": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "09-governed-unpause:CHAIN_SEEN",
+      "at": "2026-09-03T10:27:10.989Z",
+      "txId": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:0",
+      "blockDaaScore": "560724649"
+    },
+    {
+      "step": "09-governed-unpause:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:27:10.992Z",
+      "txId": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:0",
+          "address": "kaspatest:pru66y2ndw3fafplqfwpdmw996c57xmeqkxclqxf26zc9k7kdzcwjd69vvvgd",
+          "valueSompi": "299950000",
+          "covenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+          "blockDaaScore": "560724649"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:1",
+          "address": "kaspatest:pzd34y0zazxvecdejvsuzkfr8nyz3q2e6jdyqzlpwltude6mhj5p53vyavsk4",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724649"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199637429800",
+          "covenantId": null,
+          "blockDaaScore": "560724649"
+        }
+      ],
+      "consumed": [
+        "6cb3302eeefc6cee8f26638ede8b1290779b410b2a54323235e8adbc67832ead:0",
+        "2cda44ed1206cabd427b474824958caace61c24ff6797bad350b73f51d1bc201:0"
+      ]
+    },
+    {
+      "step": "09-governed-unpause:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:27:10.992Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99",
+      "vault": {
+        "paused": {
+          "before": "1",
+          "after": "0"
+        },
+        "agentRoot": {
+          "before": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f",
+          "after": "45a6e2a42e4bc0f662c87f0792e8591b4050e155595c63d43c7657f0383ed23f"
+        },
+        "feeReserve": {
+          "before": "299950000",
+          "after": "299950000"
+        },
+        "policyNonce": {
+          "before": "1",
+          "after": "1"
+        }
+      },
+      "root": {
+        "rootNonce": {
+          "before": "3",
+          "after": "4"
+        },
+        "frozen": {
+          "before": "0",
+          "after": "0"
+        }
+      },
+      "vaultSuccessorOutpoint": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:0",
+      "rootSuccessorOutpoint": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:1"
+    },
+    {
+      "step": "10-member-rotation:AUTHORIZED",
+      "at": "2026-09-03T10:27:12.914Z",
+      "status": "AUTHORIZED",
+      "txId": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100",
+      "action": "rotate",
+      "rootAction": "1",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "ownerM",
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "minSequence": "0",
+      "predecessorOutpoint": "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:1",
+      "predecessorStateId": "99004fefac9b980f05e0842829ec37e98b80a428111c5e6f04bd44103525b4d2",
+      "predecessorStateDigest": "60cc40f2ed6d7228dee07e02b58a7084cb37ccc5871796730aa58c590ba203c7",
+      "successorStateId": "4b567650c71284e4cabadfb5bed6efd0a5eba0fa4e4326865a01b2b23a304dd6",
+      "successorStateDigest": "9555836fe404c7f0c68f90b23b0831b43f64b9baf5abe1de816a8a28e2e17bed",
+      "successorTailHex": "0100080500000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951",
+          "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24",
+          "51b175b2b50a9e98520ed11777d0b3612761e279724bd2afa7b0b32f389c18e4",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "2",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "5"
+      },
+      "manifestHash": "2fe4373d5ebea24a83b4d37073493007edf24ac0612ef937367d88c7f3063601",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 24,
+      "computeBudget": 43,
+      "feeSompi": "2636600",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199637429800",
+        "externalOut": "9199634793200",
+        "fee": "2636600"
+      }
+    },
+    {
+      "step": "10-member-rotation:SIGNED",
+      "at": "2026-09-03T10:27:13.854Z",
+      "status": "SIGNED",
+      "txId": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "10-member-rotation:BROADCAST",
+      "at": "2026-09-03T10:27:13.864Z",
+      "txId": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "10-member-rotation:CHAIN_SEEN",
+      "at": "2026-09-03T10:27:15.873Z",
+      "txId": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100:0",
+      "blockDaaScore": "560724686"
+    },
+    {
+      "step": "10-member-rotation:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:27:15.874Z",
+      "txId": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100:0",
+          "address": "kaspatest:ppzlsvcfcsaejmzudsku8fhhm55cl3jcyczhxcwlr0qyed4xermzc3rcspa8d",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724686"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199634793200",
+          "covenantId": null,
+          "blockDaaScore": "560724686"
+        }
+      ],
+      "consumed": [
+        "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:1"
+      ]
+    },
+    {
+      "step": "10-member-rotation:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:27:15.874Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100",
+      "action": "rotate",
+      "rootNonce": {
+        "before": "4",
+        "after": "5"
+      },
+      "frozen": {
+        "before": "0",
+        "after": "0"
+      },
+      "ownerM": {
+        "before": "2",
+        "after": "2"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100:0",
+      "successorBlockDaaScore": "560724686"
+    },
+    {
+      "step": "11-threshold-change:AUTHORIZED",
+      "at": "2026-09-03T10:27:17.728Z",
+      "status": "AUTHORIZED",
+      "txId": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696",
+      "action": "rotate",
+      "rootAction": "1",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "ownerM",
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "minSequence": "0",
+      "predecessorOutpoint": "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100:0",
+      "predecessorStateId": "4b567650c71284e4cabadfb5bed6efd0a5eba0fa4e4326865a01b2b23a304dd6",
+      "predecessorStateDigest": "9555836fe404c7f0c68f90b23b0831b43f64b9baf5abe1de816a8a28e2e17bed",
+      "successorStateId": "e621493bfe26c7c4b10943dff30191a4854dfbacab423a59b255b271e456efae",
+      "successorStateDigest": "b2d7b9778baeae9b152bd16b1881b9681f97c6625b147fc54500d7e526e22e17",
+      "successorTailHex": "0100080600000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951",
+          "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24",
+          "51b175b2b50a9e98520ed11777d0b3612761e279724bd2afa7b0b32f389c18e4",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "3",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "6"
+      },
+      "manifestHash": "8c3be185dc1c8b411360df9783949900a7f3efdd0e52c8d1976d3aa23be7c272",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 24,
+      "computeBudget": 43,
+      "feeSompi": "2636600",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199634793200",
+        "externalOut": "9199632156600",
+        "fee": "2636600"
+      }
+    },
+    {
+      "step": "11-threshold-change:SIGNED",
+      "at": "2026-09-03T10:27:18.840Z",
+      "status": "SIGNED",
+      "txId": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "11-threshold-change:BROADCAST",
+      "at": "2026-09-03T10:27:18.850Z",
+      "txId": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "11-threshold-change:CHAIN_SEEN",
+      "at": "2026-09-03T10:27:20.856Z",
+      "txId": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696:0",
+      "blockDaaScore": "560724728"
+    },
+    {
+      "step": "11-threshold-change:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:27:20.857Z",
+      "txId": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696:0",
+          "address": "kaspatest:pprh6a4zmk05sm0u75pr5he3ywylqcsm6mxer9kwyvnd2dcewpl6cv0ctvfue",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724728"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199632156600",
+          "covenantId": null,
+          "blockDaaScore": "560724728"
+        }
+      ],
+      "consumed": [
+        "93a35fbb677a0dbb760e1f3e5eb14dc18fee25a9f7eef576b41b8c336fad3100:0"
+      ]
+    },
+    {
+      "step": "11-threshold-change:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:27:20.857Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696",
+      "action": "rotate",
+      "rootNonce": {
+        "before": "5",
+        "after": "6"
+      },
+      "frozen": {
+        "before": "0",
+        "after": "0"
+      },
+      "ownerM": {
+        "before": "2",
+        "after": "3"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696:0",
+      "successorBlockDaaScore": "560724728"
+    },
+    {
+      "step": "12-emergency-freeze:AUTHORIZED",
+      "at": "2026-09-03T10:27:22.873Z",
+      "status": "AUTHORIZED",
+      "txId": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c",
+      "action": "freeze",
+      "rootAction": "2",
+      "authorityClass": "AUTHORITY-REDUCING",
+      "quorumSource": "emergencyK",
+      "requiredApprovals": "1",
+      "satisfiedApprovals": "1",
+      "minSequence": "0",
+      "predecessorOutpoint": "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696:0",
+      "predecessorStateId": "e621493bfe26c7c4b10943dff30191a4854dfbacab423a59b255b271e456efae",
+      "predecessorStateDigest": "b2d7b9778baeae9b152bd16b1881b9681f97c6625b147fc54500d7e526e22e17",
+      "successorStateId": "11cd777087bfb1e26434692c575b2f63dc03c24900148e2f49ea091c28159544",
+      "successorStateDigest": "25168da8c2dd4c95355f7e5cff90ecd6b395bb6b6151f673dfbf203b17691f6a",
+      "successorTailHex": "0101080700000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951",
+          "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24",
+          "51b175b2b50a9e98520ed11777d0b3612761e279724bd2afa7b0b32f389c18e4",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "3",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "1",
+        "rootNonce": "7"
+      },
+      "manifestHash": "89de38b837bab09333547a294576da39170e2e35daba6a757c3b872b4228c223",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 25,
+      "computeBudget": 42,
+      "feeSompi": "2636400",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199632156600",
+        "externalOut": "9199629520200",
+        "fee": "2636400"
+      }
+    },
+    {
+      "step": "12-emergency-freeze:SIGNED",
+      "at": "2026-09-03T10:27:23.917Z",
+      "status": "SIGNED",
+      "txId": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c",
+      "sighash": "ALL",
+      "signedSlots": [
+        3
+      ],
+      "requiredApprovals": "1",
+      "satisfiedApprovals": "1",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "12-emergency-freeze:BROADCAST",
+      "at": "2026-09-03T10:27:23.927Z",
+      "txId": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "12-emergency-freeze:CHAIN_SEEN",
+      "at": "2026-09-03T10:27:25.932Z",
+      "txId": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:0",
+      "blockDaaScore": "560724766"
+    },
+    {
+      "step": "12-emergency-freeze:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:27:25.933Z",
+      "txId": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:0",
+          "address": "kaspatest:prwkhm7lhvwtrfvt0d692nw4yuu46e9ln4f9uuj7vszd5pnhe0s2kmu58mu52",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724766"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199629520200",
+          "covenantId": null,
+          "blockDaaScore": "560724766"
+        }
+      ],
+      "consumed": [
+        "aa21bd5427630e22c1737a75fa4ec2c2829c73a266d5d0e29d9d9dbc635a5696:0"
+      ]
+    },
+    {
+      "step": "12-emergency-freeze:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:27:25.933Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c",
+      "action": "freeze",
+      "rootNonce": {
+        "before": "6",
+        "after": "7"
+      },
+      "frozen": {
+        "before": "0",
+        "after": "1"
+      },
+      "ownerM": {
+        "before": "3",
+        "after": "3"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:0",
+      "successorBlockDaaScore": "560724766"
+    },
+    {
+      "step": "13-governed-unfreeze-3of3:AUTHORIZED",
+      "at": "2026-09-03T10:27:27.945Z",
+      "status": "AUTHORIZED",
+      "txId": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225",
+      "action": "unfreeze",
+      "rootAction": "3",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "ownerM",
+      "requiredApprovals": "3",
+      "satisfiedApprovals": "3",
+      "minSequence": "0",
+      "predecessorOutpoint": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:0",
+      "predecessorStateId": "11cd777087bfb1e26434692c575b2f63dc03c24900148e2f49ea091c28159544",
+      "predecessorStateDigest": "25168da8c2dd4c95355f7e5cff90ecd6b395bb6b6151f673dfbf203b17691f6a",
+      "successorStateId": "77dcfd16556a3d7d9e496c0144f9b48ea64812fcb73b8e62536dbef601dc6db9",
+      "successorStateDigest": "1b3b4ad900cebbb29851bf9a265d7375e3a2a042971f4fbc7faad92beac7b1ff",
+      "successorTailHex": "0100080800000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951",
+          "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24",
+          "51b175b2b50a9e98520ed11777d0b3612761e279724bd2afa7b0b32f389c18e4",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "3",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "8"
+      },
+      "manifestHash": "8f6a798318c1af86fe762e6292c0ba73d9051e076500e483a1a9f78561c0ebae",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 24,
+      "computeBudget": 42,
+      "feeSompi": "2636600",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199629520200",
+        "externalOut": "9199626883600",
+        "fee": "2636600"
+      }
+    },
+    {
+      "step": "13-governed-unfreeze-3of3:SIGNED",
+      "at": "2026-09-03T10:27:28.919Z",
+      "status": "SIGNED",
+      "txId": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2,
+        3
+      ],
+      "requiredApprovals": "3",
+      "satisfiedApprovals": "3",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "13-governed-unfreeze-3of3:BROADCAST",
+      "at": "2026-09-03T10:27:28.928Z",
+      "txId": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "13-governed-unfreeze-3of3:CHAIN_SEEN",
+      "at": "2026-09-03T10:27:30.935Z",
+      "txId": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0",
+      "blockDaaScore": "560724826"
+    },
+    {
+      "step": "13-governed-unfreeze-3of3:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:27:30.937Z",
+      "txId": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0",
+          "address": "kaspatest:pzk9knnk5gjyfc74v7c5dykvnam3f7aehqylq08vxp65j8zpymfcvmdv6dpwk",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724826"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199626883600",
+          "covenantId": null,
+          "blockDaaScore": "560724826"
+        }
+      ],
+      "consumed": [
+        "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:0"
+      ]
+    },
+    {
+      "step": "13-governed-unfreeze-3of3:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:27:30.937Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225",
+      "action": "unfreeze",
+      "rootNonce": {
+        "before": "7",
+        "after": "8"
+      },
+      "frozen": {
+        "before": "1",
+        "after": "0"
+      },
+      "ownerM": {
+        "before": "3",
+        "after": "3"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0",
+      "successorBlockDaaScore": "560724826"
+    },
+    {
+      "step": "14h-root-authorize-heartbeat:AUTHORIZED",
+      "at": "2026-09-03T10:27:46.675Z",
+      "status": "AUTHORIZED",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "action": "authorize",
+      "rootAction": "0",
+      "authorityClass": "AUTHORITY-NEUTRAL",
+      "quorumSource": "ownerM",
+      "requiredApprovals": "3",
+      "satisfiedApprovals": "3",
+      "minSequence": "0",
+      "predecessorOutpoint": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0",
+      "predecessorStateId": "77dcfd16556a3d7d9e496c0144f9b48ea64812fcb73b8e62536dbef601dc6db9",
+      "predecessorStateDigest": "1b3b4ad900cebbb29851bf9a265d7375e3a2a042971f4fbc7faad92beac7b1ff",
+      "successorStateId": "69650596906bc94711d29f6478ff77d0579cb9e78515e78184807f14b9e63304",
+      "successorStateDigest": "46e646842d9679688a4be5f5cf2640e7a579e5bbf9af50884f93fe64ca191961",
+      "successorTailHex": "0100080900000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951",
+          "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24",
+          "51b175b2b50a9e98520ed11777d0b3612761e279724bd2afa7b0b32f389c18e4",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "3",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "9"
+      },
+      "manifestHash": "2a0bdf9b9cd5869d6ef5f49b338f44e6dfea4744cdcd5069629dd8ec58464eb5",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 25,
+      "computeBudget": 42,
+      "feeSompi": "2636600",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199626883600",
+        "externalOut": "9199624247000",
+        "fee": "2636600"
+      }
+    },
+    {
+      "step": "14h-root-authorize-heartbeat:SIGNED",
+      "at": "2026-09-03T10:27:47.665Z",
+      "status": "SIGNED",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2,
+        3
+      ],
+      "requiredApprovals": "3",
+      "satisfiedApprovals": "3",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "14h-root-authorize-heartbeat:BROADCAST",
+      "at": "2026-09-03T10:27:47.676Z",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "14h-root-authorize-heartbeat:CHAIN_SEEN",
+      "at": "2026-09-03T10:27:49.681Z",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b:0",
+      "blockDaaScore": "560724990"
+    },
+    {
+      "step": "14h-root-authorize-heartbeat:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:27:49.682Z",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b:0",
+          "address": "kaspatest:ppdn49pyqycj4kq046272jqjcxatk9fzhxa9cy2dnamdj6c35yz4jat49sasc",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560724990"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199624247000",
+          "covenantId": null,
+          "blockDaaScore": "560724990"
+        }
+      ],
+      "consumed": [
+        "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0"
+      ]
+    },
+    {
+      "step": "14h-root-authorize-heartbeat:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:27:49.682Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "action": "authorize",
+      "rootNonce": {
+        "before": "8",
+        "after": "9"
+      },
+      "frozen": {
+        "before": "0",
+        "after": "0"
+      },
+      "ownerM": {
+        "before": "3",
+        "after": "3"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b:0",
+      "successorBlockDaaScore": "560724990"
+    },
+    {
+      "step": "15-owner-recover-after-idle-delay:AUTHORIZED",
+      "at": "2026-09-03T10:27:51.532Z",
+      "status": "AUTHORIZED",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "action": "ownerRecover",
+      "rootAction": "4",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "recoveryM",
+      "requiredApprovals": "1",
+      "satisfiedApprovals": "1",
+      "minSequence": "600",
+      "predecessorOutpoint": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b:0",
+      "predecessorStateId": "69650596906bc94711d29f6478ff77d0579cb9e78515e78184807f14b9e63304",
+      "predecessorStateDigest": "46e646842d9679688a4be5f5cf2640e7a579e5bbf9af50884f93fe64ca191961",
+      "successorStateId": "31fcfc9074a687a6856cc3cd0e5c168483bdcd572846300dedd5145b0e1bb0c9",
+      "successorStateDigest": "9ad0e939da746fbc339bfaa20427938cc8ac1a4aee5b12e785c50b83b283f200",
+      "successorTailHex": "0101080a00000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "db776e8adb1c9eaad7b81a32e3a1644383e364f5d4f906dca8f8448c85970409",
+          "d5dc059b830fbed01c757e507db08559298e7104a432521c6d580ce7edc11ead",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "2",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "1",
+        "rootNonce": "10"
+      },
+      "manifestHash": "6a2ebb21a0dfe474649a695a19f117b3d81b93115253edca11a036c56cba53c3",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 26,
+      "computeBudget": 43,
+      "feeSompi": "2636400",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199624247000",
+        "externalOut": "9199621610600",
+        "fee": "2636400"
+      }
+    },
+    {
+      "step": "15-owner-recover-after-idle-delay:SIGNED",
+      "at": "2026-09-03T10:27:52.504Z",
+      "status": "SIGNED",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "sighash": "ALL",
+      "signedSlots": [
+        1
+      ],
+      "requiredApprovals": "1",
+      "satisfiedApprovals": "1",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "15-owner-recover-after-idle-delay:AGE_REACHED",
+      "at": "2026-09-03T10:28:49.564Z",
+      "status": "AGE_REACHED",
+      "virtualDaaScore": "560725626",
+      "rootUtxoBlockDaaScore": "560724990",
+      "ageDaa": "636",
+      "requiredAgeDaa": "600"
+    },
+    {
+      "step": "15-owner-recover-after-idle-delay:BROADCAST",
+      "at": "2026-09-03T10:28:49.566Z",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "15-owner-recover-after-idle-delay:CHAIN_SEEN",
+      "at": "2026-09-03T10:28:51.572Z",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964:0",
+      "blockDaaScore": "560725641"
+    },
+    {
+      "step": "15-owner-recover-after-idle-delay:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:28:51.573Z",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964:0",
+          "address": "kaspatest:pr5nsgzw2m33fxxw4pqrregkhn4gn5enwslk30r98l4367ldd0cjj3qmjmzjr",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560725641"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199621610600",
+          "covenantId": null,
+          "blockDaaScore": "560725641"
+        }
+      ],
+      "consumed": [
+        "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b:0"
+      ]
+    },
+    {
+      "step": "15-owner-recover-after-idle-delay:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:28:51.573Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "action": "ownerRecover",
+      "rootNonce": {
+        "before": "9",
+        "after": "10"
+      },
+      "frozen": {
+        "before": "0",
+        "after": "1"
+      },
+      "ownerM": {
+        "before": "3",
+        "after": "2"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964:0",
+      "successorBlockDaaScore": "560725641"
+    },
+    {
+      "step": "16-unfreeze-by-recovery-installed-set:AUTHORIZED",
+      "at": "2026-09-03T10:28:54.589Z",
+      "status": "AUTHORIZED",
+      "txId": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7",
+      "action": "unfreeze",
+      "rootAction": "3",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "ownerM",
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "minSequence": "0",
+      "predecessorOutpoint": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964:0",
+      "predecessorStateId": "31fcfc9074a687a6856cc3cd0e5c168483bdcd572846300dedd5145b0e1bb0c9",
+      "predecessorStateDigest": "9ad0e939da746fbc339bfaa20427938cc8ac1a4aee5b12e785c50b83b283f200",
+      "successorStateId": "18cc1a97625647cfabe13553b74e71575e76b82068a6787de947ba316048698e",
+      "successorStateDigest": "9bca221b8072bc8aca22ef81107fc9bac3d7b9aac36a2e9861162af30e488fe4",
+      "successorTailHex": "0100080b00000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "db776e8adb1c9eaad7b81a32e3a1644383e364f5d4f906dca8f8448c85970409",
+          "d5dc059b830fbed01c757e507db08559298e7104a432521c6d580ce7edc11ead",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "2",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "11"
+      },
+      "manifestHash": "afd3bb1eb97069de6c65f495846bbbb2513cfce98e5ec9099b20d6e9abce1774",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 24,
+      "computeBudget": 32,
+      "feeSompi": "2636600",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199621610600",
+        "externalOut": "9199618974000",
+        "fee": "2636600"
+      }
+    },
+    {
+      "step": "16-unfreeze-by-recovery-installed-set:SIGNED",
+      "at": "2026-09-03T10:28:55.705Z",
+      "status": "SIGNED",
+      "txId": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "16-unfreeze-by-recovery-installed-set:BROADCAST",
+      "at": "2026-09-03T10:28:55.717Z",
+      "txId": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "16-unfreeze-by-recovery-installed-set:CHAIN_SEEN",
+      "at": "2026-09-03T10:28:57.722Z",
+      "txId": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7:0",
+      "blockDaaScore": "560725692"
+    },
+    {
+      "step": "16-unfreeze-by-recovery-installed-set:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:28:57.724Z",
+      "txId": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7:0",
+          "address": "kaspatest:ppfh9rqa0pzf0v8pkp24sf0sw03lde0hhehcka3e0r5rf5f7re86jhtfj3f0y",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560725692"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199618974000",
+          "covenantId": null,
+          "blockDaaScore": "560725692"
+        }
+      ],
+      "consumed": [
+        "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964:0"
+      ]
+    },
+    {
+      "step": "16-unfreeze-by-recovery-installed-set:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:28:57.724Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7",
+      "action": "unfreeze",
+      "rootNonce": {
+        "before": "10",
+        "after": "11"
+      },
+      "frozen": {
+        "before": "1",
+        "after": "0"
+      },
+      "ownerM": {
+        "before": "2",
+        "after": "2"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7:0",
+      "successorBlockDaaScore": "560725692"
+    },
+    {
+      "step": "17-succession-after-idle-delay:AUTHORIZED",
+      "at": "2026-09-03T10:28:59.924Z",
+      "status": "AUTHORIZED",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "action": "succession",
+      "rootAction": "null",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "successorPk",
+      "requiredApprovals": "1",
+      "satisfiedApprovals": "1",
+      "minSequence": "600",
+      "predecessorOutpoint": "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7:0",
+      "predecessorStateId": "18cc1a97625647cfabe13553b74e71575e76b82068a6787de947ba316048698e",
+      "predecessorStateDigest": "9bca221b8072bc8aca22ef81107fc9bac3d7b9aac36a2e9861162af30e488fe4",
+      "successorStateId": "c5c3367d04df08deb1d13ba4fe5edb469440f9b4da0edcb8b1a9dc5c8c3c86ea",
+      "successorStateDigest": "b636a6f9ddf0ebdc7c287eb6bb9564fb9c39d54763cc8a3ddc78f71812c0d6f0",
+      "successorTailHex": "0101080c00000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "ab5d2e79cfd621b1b027ffb24e2453ed7fb571ba9a841ff0e2473466cabd168d",
+          "6b7eb04e07af07b5d82e463660f9e3e4eaf9c854e5aa47391d6daa8e9ac01a35",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "2",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "1",
+        "rootNonce": "12"
+      },
+      "manifestHash": "6c35efd7f7ad841c1c779ff161531124aefc3bca2369a14a22fd340d970f6ec1",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 26,
+      "computeBudget": 20,
+      "feeSompi": "2492800",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199618974000",
+        "externalOut": "9199616481200",
+        "fee": "2492800"
+      }
+    },
+    {
+      "step": "17-succession-after-idle-delay:SIGNED",
+      "at": "2026-09-03T10:29:00.923Z",
+      "status": "SIGNED",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "sighash": "ALL",
+      "signedSlots": [],
+      "requiredApprovals": "1",
+      "satisfiedApprovals": "1",
+      "signerRole": "pinned successor key"
+    },
+    {
+      "step": "17-succession-after-idle-delay:AGE_REACHED",
+      "at": "2026-09-03T10:29:57.987Z",
+      "status": "AGE_REACHED",
+      "virtualDaaScore": "560726316",
+      "rootUtxoBlockDaaScore": "560725692",
+      "ageDaa": "624",
+      "requiredAgeDaa": "600"
+    },
+    {
+      "step": "17-succession-after-idle-delay:BROADCAST",
+      "at": "2026-09-03T10:29:57.990Z",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "17-succession-after-idle-delay:CHAIN_SEEN",
+      "at": "2026-09-03T10:29:59.995Z",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96:0",
+      "blockDaaScore": "560726323"
+    },
+    {
+      "step": "17-succession-after-idle-delay:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:29:59.997Z",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96:0",
+          "address": "kaspatest:ppqyxftc5m035j9d785jlprt5jhjw82v670dlj3mv0e73g52rmgjyw82lu7mw",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560726323"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199616481200",
+          "covenantId": null,
+          "blockDaaScore": "560726323"
+        }
+      ],
+      "consumed": [
+        "c9a5fb86b81d428526b38a014979dca6c542835f095402e45c105edfeb57f1e7:0"
+      ]
+    },
+    {
+      "step": "17-succession-after-idle-delay:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:29:59.997Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "action": "succession",
+      "rootNonce": {
+        "before": "11",
+        "after": "12"
+      },
+      "frozen": {
+        "before": "0",
+        "after": "1"
+      },
+      "ownerM": {
+        "before": "2",
+        "after": "2"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96:0",
+      "successorBlockDaaScore": "560726323"
+    },
+    {
+      "step": "18-unfreeze-by-succession-installed-set:AUTHORIZED",
+      "at": "2026-09-03T10:30:02.299Z",
+      "status": "AUTHORIZED",
+      "txId": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6",
+      "action": "unfreeze",
+      "rootAction": "3",
+      "authorityClass": "AUTHORITY-EXPANDING",
+      "quorumSource": "ownerM",
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "minSequence": "0",
+      "predecessorOutpoint": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96:0",
+      "predecessorStateId": "c5c3367d04df08deb1d13ba4fe5edb469440f9b4da0edcb8b1a9dc5c8c3c86ea",
+      "predecessorStateDigest": "b636a6f9ddf0ebdc7c287eb6bb9564fb9c39d54763cc8a3ddc78f71812c0d6f0",
+      "successorStateId": "f0cb36c9b246bb2a52a474d94707cc5fc94786fc806aae694079dc4c033b26dd",
+      "successorStateDigest": "a0f4bdf7340731dcc83a3b59c62c3fbf424ae796957735288d16d1d55718aad1",
+      "successorTailHex": "0100080d00000000000000",
+      "successorState": {
+        "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+        "owners": [
+          "ab5d2e79cfd621b1b027ffb24e2453ed7fb571ba9a841ff0e2473466cabd168d",
+          "6b7eb04e07af07b5d82e463660f9e3e4eaf9c854e5aa47391d6daa8e9ac01a35",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "ownerM": "2",
+        "emergencyK": "1",
+        "recoveryM": "1",
+        "frozen": "0",
+        "rootNonce": "13"
+      },
+      "manifestHash": "e161ce1005957196b7f789db192564b1d03600a7d55a06ca5a2abda29b0e0a81",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 24,
+      "computeBudget": 32,
+      "feeSompi": "2636600",
+      "accounting": {
+        "rootValueBefore": "200000000",
+        "rootValueAfter": "200000000",
+        "rootMaxFeePerTx": "1000000",
+        "rootValueLoss": "0",
+        "externalIn": "9199616481200",
+        "externalOut": "9199613844600",
+        "fee": "2636600"
+      }
+    },
+    {
+      "step": "18-unfreeze-by-succession-installed-set:SIGNED",
+      "at": "2026-09-03T10:30:03.357Z",
+      "status": "SIGNED",
+      "txId": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "requiredApprovals": "2",
+      "satisfiedApprovals": "2",
+      "signerRole": "owner slots"
+    },
+    {
+      "step": "18-unfreeze-by-succession-installed-set:BROADCAST",
+      "at": "2026-09-03T10:30:03.369Z",
+      "txId": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "18-unfreeze-by-succession-installed-set:CHAIN_SEEN",
+      "at": "2026-09-03T10:30:05.381Z",
+      "txId": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6:0",
+      "blockDaaScore": "560726381"
+    },
+    {
+      "step": "18-unfreeze-by-succession-installed-set:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:30:05.382Z",
+      "txId": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6:0",
+          "address": "kaspatest:pzyahsqfj7pnmnvyrayrhts96uzymjyvezuffqmy8z6kffycy9jcj0ataecqn",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560726381"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199613844600",
+          "covenantId": null,
+          "blockDaaScore": "560726381"
+        }
+      ],
+      "consumed": [
+        "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96:0"
+      ]
+    },
+    {
+      "step": "18-unfreeze-by-succession-installed-set:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:30:05.383Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6",
+      "action": "unfreeze",
+      "rootNonce": {
+        "before": "12",
+        "after": "13"
+      },
+      "frozen": {
+        "before": "1",
+        "after": "0"
+      },
+      "ownerM": {
+        "before": "2",
+        "after": "2"
+      },
+      "emergencyK": {
+        "before": "1",
+        "after": "1"
+      },
+      "recoveryM": {
+        "before": "1",
+        "after": "1"
+      },
+      "rootValue": {
+        "before": "200000000",
+        "after": "200000000",
+        "maxAllowedLoss": "1000000",
+        "actualLoss": "0"
+      },
+      "successorOutpoint": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6:0",
+      "successorBlockDaaScore": "560726381"
+    },
+    {
+      "step": "19-vault-owner-recover-terminal:AUTHORIZED",
+      "at": "2026-09-03T10:30:08.657Z",
+      "status": "AUTHORIZED",
+      "txId": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57",
+      "action": "ownerRecover",
+      "terminal": true,
+      "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+      "rootAuthority": {
+        "rootActionName": "authorize",
+        "requiredApprovals": "2",
+        "rootOutpoint": "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6:0",
+        "newStateDigest": "71e2fb791f70e1828706c4bfcdf35e16892a8ca0fadd20983efe57b07b4a8db4"
+      },
+      "accounting": {
+        "token": {
+          "positionBefore": "9800",
+          "spendAmount": "0",
+          "positionAfter": "0",
+          "recipient": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+          "recoveredToRecoveryPk": "9800"
+        },
+        "kas": {
+          "predecessorFeeReserve": "299950000",
+          "reserveConsumed": "0",
+          "successorFeeReserve": "0",
+          "externalIn": "9199613844600",
+          "externalOut": "9199608897600",
+          "externalFunding": "0",
+          "tokenInputKas": "80000000",
+          "tokenSelfCarryKas": "0",
+          "tokenRecipientCarryKas": "80000000",
+          "fee": "4947000",
+          "terminalPayout": "299950000"
+        }
+      },
+      "manifestHash": "6dde47e246e1efca0448c073685ecb4952fab3cbbbf2db8aba4c12bb43726d29",
+      "manifestVerdict": "VERIFIED",
+      "manifestChecks": 40,
+      "feeSompi": "4947000"
+    },
+    {
+      "step": "19-vault-owner-recover-terminal:SIGNED",
+      "at": "2026-09-03T10:30:10.235Z",
+      "status": "SIGNED",
+      "txId": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57",
+      "sighash": "ALL",
+      "signedSlots": [
+        1,
+        2
+      ],
+      "satisfiedApprovals": "2"
+    },
+    {
+      "step": "19-vault-owner-recover-terminal:BROADCAST",
+      "at": "2026-09-03T10:30:10.249Z",
+      "txId": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "19-vault-owner-recover-terminal:CHAIN_SEEN",
+      "at": "2026-09-03T10:30:12.258Z",
+      "txId": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57:0",
+      "blockDaaScore": "560726452"
+    },
+    {
+      "step": "19-vault-owner-recover-terminal:CHAIN_VERIFIED",
+      "at": "2026-09-03T10:30:12.273Z",
+      "txId": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "fee reserve to the pinned cold recoveryPk",
+          "outpoint": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57:0",
+          "address": "kaspatest:qza0w6yupg6437mqgkysx65dre9kshvsnahqutrqrzs5qjdwvnkzvl00ff0tk",
+          "valueSompi": "299950000",
+          "covenantId": null,
+          "blockDaaScore": "560726452"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57:1",
+          "address": "kaspatest:pqv688rg97jrpe3qwxq20nunx5cnek3u62rafwac5m0t26tej3q5qhq3dktdp",
+          "valueSompi": "200000000",
+          "covenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+          "blockDaaScore": "560726452"
+        },
+        {
+          "label": "token position to the pinned cold recoveryPk",
+          "outpoint": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57:2",
+          "address": "kaspatest:ppm6ms4u9trq0qqql34jjzjgpfvtc9v7phz5zvs2eh6nme3zxe9d22227j70a",
+          "valueSompi": "80000000",
+          "covenantId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+          "blockDaaScore": "560726452"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57:3",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9199608897600",
+          "covenantId": null,
+          "blockDaaScore": "560726452"
+        }
+      ],
+      "consumed": [
+        "540533d2adc80c9b22770be8ad686a30a3417cad69b7dbbded0047d4a1bf6d99:0",
+        "b934bc4ff5c45c362bb50964790eb9acb1edab86640611f9c74dd55ed26142f6:0",
+        "e5fe52bb48fecc50b6b16b4f18c203831e9ce30f550e9fdadedcfbf3475ee1ca:1"
+      ]
+    },
+    {
+      "step": "19-vault-owner-recover-terminal:VERIFIED_OUTCOME",
+      "at": "2026-09-03T10:30:12.273Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57",
+      "terminal": true,
+      "feeReserveRecovered": "299950000",
+      "tokensRecovered": "9800",
+      "destination": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+      "destinationAddress": "kaspatest:qza0w6yupg6437mqgkysx65dre9kshvsnahqutrqrzs5qjdwvnkzvl00ff0tk",
+      "note": "recoveryPk is a GENESIS-PINNED template constant, not a session choice",
+      "rootStillLive": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57:1"
+    }
+  ],
+  "negatives": [
+    {
+      "name": "14a-invalid-quorum-M-minus-1",
+      "at": "2026-09-03T10:27:34.158Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a root AUTHORIZE carrying only 2 of the 3 required owner signatures (the abstaining slots carry the canonical placeholder); every present signature is a real SIGHASH_ALL Schnorr signature by a real member",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b: failed to verify the signature script: script ran, but verification failed` data:None",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "rootOutpoint": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0",
+      "requiredApprovals": "3",
+      "suppliedApprovals": "2"
+    },
+    {
+      "name": "14b-wrong-member-outsider-in-slot",
+      "at": "2026-09-03T10:27:35.210Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a root AUTHORIZE whose third slot carries a real Schnorr signature produced by a key that is NOT in the installed owner set; the slot is verified against exactly one key, so the count stays below the threshold",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b: failed to verify the signature script: script ran, but verification failed` data:None",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "rootOutpoint": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0",
+      "requiredApprovals": "3",
+      "outsiderPk": "6a27aedb12c9a3015ecdf2ead78755cfc3ef72d2c60ccd0033da18fbf9979641"
+    },
+    {
+      "name": "14c-duplicate-signature-across-slots",
+      "at": "2026-09-03T10:27:36.299Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "one member's signature copied into three slots: each slot verifies against exactly one distinct owner key, so a duplicated signature can never be counted twice",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b: failed to verify the signature script: script ran, but verification failed` data:None",
+      "txId": "3c99b90bace3d599fe4c2d73a2e394d8e4751f367cb6d0b46c73bafa0f7ab82b",
+      "requiredApprovals": "3"
+    },
+    {
+      "name": "14d-stale-quorum-spent-root-outpoint",
+      "at": "2026-09-03T10:27:38.384Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a DISTINCT, correctly signed FULL-QUORUM root transition referencing the PREVIOUS root outpoint c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:0 (root nonce 7), which was already consumed by the accepted successor — the root outpoint is the organization's freshness kill switch",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction ff8fbb35ad7b4fc9f0c19324b6a4485dfe92ba27b3f431d1fd450306b304d6d0: transaction ff8fbb35ad7b4fc9f0c19324b6a4485dfe92ba27b3f431d1fd450306b304d6d0 is an orphan where orphan is disallowed` data:None",
+      "txId": "ff8fbb35ad7b4fc9f0c19324b6a4485dfe92ba27b3f431d1fd450306b304d6d0",
+      "staleRootOutpoint": "c90010bec42429872f67a82931f074f8ed5c21155a18391aa1060eb036911a3c:0",
+      "staleRootNonce": "7",
+      "liveRootOutpoint": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225:0",
+      "liveRootNonce": "8"
+    },
+    {
+      "name": "14e-root-successor-substituted-with-a-rotation",
+      "at": "2026-09-03T10:27:42.669Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a correctly signed vault owner operation whose ROOT continuation output was replaced with a ROTATION successor (a different owner set) — the rooted vault pins the root's exact successor bytes, so a governance change can never ride inside a vault operation",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 984f73296c25bbf2ab08c6e385798e69637c222884eb8e49a9b276be74a25c9d: failed to verify the signature script: script ran, but verification failed` data:None",
+      "txId": "50b0cd4e04d45e24597d3eda0c5a468a04a5e08a6b2efcfdc2e19bc66b2a8e34",
+      "expectedRootSuccessorDigest": "46e646842d9679688a4be5f5cf2640e7a579e5bbf9af50884f93fe64ca191961",
+      "substitutedOwnerSet": "the owner-recovery set"
+    },
+    {
+      "name": "14f-replay-accepted-bytes",
+      "at": "2026-09-03T10:27:42.670Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "the EXACT bytes of the already-accepted transaction from step 13-governed-unfreeze-3of3 resubmitted — every input it names is consumed, so consensus refuses the replay",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225: transaction a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225 was already accepted by the consensus` data:None",
+      "txId": "a877bed55ac2f8cee97af53743ff9d60ce2c3df43463a464873709bbb4db5225",
+      "originalStep": "13-governed-unfreeze-3of3"
+    },
+    {
+      "name": "14g-delegate-over-cap-spend",
+      "at": "2026-09-03T10:27:45.676Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a fully self-consistent delegated spend of 501 tokens — outputs, covenant-call arguments, successor agent root and the delegate's SIGHASH_ALL signature all agree — whose only policy defect is that 501 exceeds the agent's on-chain tokenMaxPerSpend of 500",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 6e9ef1b816936113a98e771272001fbdad33bf1ac6b36624b1e2d55c46020877: failed to verify the signature script: script ran, but verification failed` data:None",
+      "txId": "6e9ef1b816936113a98e771272001fbdad33bf1ac6b36624b1e2d55c46020877",
+      "spendAmount": "501",
+      "tokenMaxPerSpend": "500",
+      "signer": "the designated delegate key"
+    },
+    {
+      "name": "15-owner-recover-after-idle-delay-before-age",
+      "at": "2026-09-03T10:27:52.513Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "the SAME finalized bytes submitted while the root UTXO is only 49 DAA old (< 600 required by the covenant's relative input-age lock, enforced by consensus check_sequence_lock)",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964: one of the transaction sequence locks conditions was not met` data:None",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "rootUtxoBlockDaaScore": "560724990",
+      "virtualDaaScoreAtSubmit": "560725039",
+      "ageDaa": "49",
+      "requiredAgeDaa": "600",
+      "inputSequence": "600"
+    },
+    {
+      "name": "17-succession-after-idle-delay-before-age",
+      "at": "2026-09-03T10:29:00.933Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "the SAME finalized bytes submitted while the root UTXO is only 47 DAA old (< 600 required by the covenant's relative input-age lock, enforced by consensus check_sequence_lock)",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96: one of the transaction sequence locks conditions was not met` data:None",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "rootUtxoBlockDaaScore": "560725692",
+      "virtualDaaScoreAtSubmit": "560725739",
+      "ageDaa": "47",
+      "requiredAgeDaa": "600",
+      "inputSequence": "600"
+    }
+  ],
+  "ageProofs": [
+    {
+      "name": "15-owner-recover-after-idle-delay",
+      "action": "ownerRecover",
+      "requiredAgeDaa": "600",
+      "inputSequence": "600",
+      "rootUtxoBlockDaaScore": "560724990",
+      "txId": "f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964",
+      "identicalBytes": true,
+      "phaseA": {
+        "virtualDaaScore": "560725039",
+        "ageDaa": "49",
+        "outcome": "REJECTED",
+        "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction f04755cb8b04a44c27042ff92f7b0af0c20b72132192484b75cb35d54fd23964: one of the transaction sequence locks conditions was not met` data:None"
+      },
+      "phaseB": {
+        "virtualDaaScore": "560725626",
+        "ageDaa": "636",
+        "outcome": "ACCEPTED"
+      }
+    },
+    {
+      "name": "17-succession-after-idle-delay",
+      "action": "succession",
+      "requiredAgeDaa": "600",
+      "inputSequence": "600",
+      "rootUtxoBlockDaaScore": "560725692",
+      "txId": "b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96",
+      "identicalBytes": true,
+      "phaseA": {
+        "virtualDaaScore": "560725739",
+        "ageDaa": "47",
+        "outcome": "REJECTED",
+        "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction b42ab8222b05f11fa6a9c502973a9b0100fe89540f5a9788e14ef68a407fbf96: one of the transaction sequence locks conditions was not met` data:None"
+      },
+      "phaseB": {
+        "virtualDaaScore": "560726316",
+        "ageDaa": "624",
+        "outcome": "ACCEPTED"
+      }
+    }
+  ],
+  "notExercised": [],
+  "summary": {
+    "lifecycleStepsAccepted": 19,
+    "negativeValidationsRejected": 9,
+    "ageProofs": 2,
+    "rootCovenantId": "9a654cb0cbf6e67178e0d228bf5fa39ae6aca7655718dcf63166273df135edf6",
+    "vaultCovenantId": "1f18d822bcb71e46a97fea0822f93f5149749b9d5e28ce50dd521bc8ff6f59c2",
+    "tokenFamilyId": "8efcfa17f85034960269f55cbef7aecbd43b769c03fc1a548c8c252f2ceb4f11",
+    "finalRootOutpoint": "6626f2daedc2d5349d5f099706e9c65dea969af446c04584997ab9bf00d1ef57:1",
+    "finalRootState": {
+      "boundOrgId": "82677aac0e72f1e556a67cbdbe686814f4c47722edb66aa182888d62f170212a",
+      "owners": [
+        "ab5d2e79cfd621b1b027ffb24e2453ed7fb571ba9a841ff0e2473466cabd168d",
+        "6b7eb04e07af07b5d82e463660f9e3e4eaf9c854e5aa47391d6daa8e9ac01a35",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "ownerM": "2",
+      "emergencyK": "1",
+      "recoveryM": "1",
+      "frozen": "0",
+      "rootNonce": "14"
+    },
+    "byteFrozen": false,
+    "mainnet": false,
+    "externallyReviewed": false,
+    "claimLabel": "DESIGNED · PROBED · IMPLEMENTED (candidate bytes) · VM-VERIFIED · SDK/PRODUCTION-BYTE-VERIFIED · TESTNET-VERIFIED (candidate)"
+  }
+}

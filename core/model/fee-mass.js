@@ -24,6 +24,20 @@ const RELAY_FEE_DIVISOR = 1000n;
 const BLOCK_COMPUTE_LIMIT = 500_000n;
 const BLOCK_TRANSIENT_LIMIT = 1_000_000n;
 const STANDARD_MASS_CAP = 500_000n;
+/*
+ * rc26 round-7 review R7-08: the node's OTHER standard cap. Before Toccata a
+ * node rejected any transaction whose compute mass OR transient mass exceeded
+ * 100,000 per dimension (rusty-kaspa mining/src/mempool/
+ * check_transaction_standard.rs, MAXIMUM_STANDARD_TRANSACTION_MASS_PRE_TOCCATA;
+ * the cap is dropped 30 minutes before activation). Toccata is active on both
+ * supported networks (consensus/core/src/config/params.rs, v2.0.1: mainnet
+ * DAA 474,165,565, testnet-10 DAA 467,579,632 — both long past), so today the
+ * 500,000 fee-mass cap above is the only standard cap. The legacy cap is
+ * still modelled and enforced FAIL-CLOSED on request so a caller targeting a
+ * pre-activation network (or a fixture proving a margin) can never build a
+ * consensus-valid-but-non-standard transaction silently.
+ */
+const STANDARD_MASS_CAP_PRE_TOCCATA = 100_000n;
 
 // Serialized-size fixed widths.
 const OUTPOINT_SIZE = 36n; // 32 txid + 4 index
@@ -123,8 +137,16 @@ function feeMass(tx) {
  *   minimum_fee = (fee_mass * MINIMUM_RELAY_TRANSACTION_FEE) / 1000
  * with the node's `if minimum_fee == 0 { minimum_fee = relay_fee }` floor.
  */
-function calculateRequiredFee(tx) {
+function calculateRequiredFee(tx, { preToccataStandardCap = false } = {}) {
   const m = feeMass(tx);
+  if (preToccataStandardCap === true) {
+    if (m.computeMass > STANDARD_MASS_CAP_PRE_TOCCATA) {
+      fail(`compute_mass ${m.computeMass} exceeds the pre-Toccata per-dimension standard cap ${STANDARD_MASS_CAP_PRE_TOCCATA}`);
+    }
+    if (m.transientMass > STANDARD_MASS_CAP_PRE_TOCCATA) {
+      fail(`transient_mass ${m.transientMass} exceeds the pre-Toccata per-dimension standard cap ${STANDARD_MASS_CAP_PRE_TOCCATA}`);
+    }
+  }
   if (m.feeMass > STANDARD_MASS_CAP) {
     fail(`fee_mass ${m.feeMass} exceeds the standard mass cap ${STANDARD_MASS_CAP}`);
   }
@@ -232,6 +254,7 @@ function finalizeWithExactFee({ transaction, signAll, changeIndex, totalInputVal
 module.exports = {
   MINIMUM_RELAY_TRANSACTION_FEE,
   STANDARD_MASS_CAP,
+  STANDARD_MASS_CAP_PRE_TOCCATA,
   estimatedSerializedSize,
   computeMass,
   feeMass,

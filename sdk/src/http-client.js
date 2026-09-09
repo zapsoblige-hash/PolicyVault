@@ -58,17 +58,17 @@
  *    a client cannot distinguish "the request never arrived" from "the
  *    request executed and the response was lost", so a library-level
  *    retry of a mutating call is a library-level double-spend risk. What
- *    this client does instead is make CALLER-CONTROLLED retry SAFE:
- *    every mutating call carries an `Idempotency-Key` (yours, or one
- *    generated per call) and the key is handed back to you on both the
- *    result and any thrown error. Retrying with the SAME key is
- *    guaranteed by the server to execute at most once — it replays the
- *    original response instead (server/src/idempotency.js; the funds-
- *    safety property is proven under real concurrency in
- *    sdk/test/postlaunch-idempotency-server.test.js). Retry when YOU
- *    decide to, with the key you already hold. Transport failures
- *    (DNS/connect/abort) surface as PolicyVaultNetworkError, which
- *    likewise carries the key you would reuse.
+ *    this client does instead is preserve caller-controlled recovery:
+ *    POST calls carry an Idempotency-Key unless explicitly opted out;
+ *    results and transport/API errors retain the original key. On routes
+ *    covered by server/src/idempotency.js, retry with that SAME key to
+ *    recover the recorded outcome. Secret-bearing identities, webhooks
+ *    and notifications routes deliberately bypass response replay (their
+ *    one-time secrets must not be persisted). For those routes, inspect
+ *    the existing resource/lifecycle before deciding to retry; a key alone
+ *    does not guarantee at-most-once execution. No route is auto-retried.
+ *    DNS/connect/abort and response-body transport failures all surface
+ *    as PolicyVaultNetworkError with the original key.
  */
 
 const nodeCrypto = require("crypto");
@@ -141,10 +141,11 @@ class PolicyVaultApiError extends Error {
 }
 
 /**
- * The request never produced an HTTP answer (DNS, connect, TLS, timeout,
- * abort). Carries the Idempotency-Key that was sent, because THIS is the
+ * The request never produced a complete HTTP answer (DNS, connect, TLS,
+ * timeout, abort or response-body failure). Carries the Idempotency-Key that was sent, because THIS is the
  * case where you cannot know whether the server executed the call — and
- * replaying with that same key is exactly how you find out safely.
+ * replaying with that same key on an idempotency-supported route recovers
+ * the recorded outcome. Inspect excluded lifecycle routes before retrying.
  */
 class PolicyVaultNetworkError extends Error {
   constructor({ method, path, cause, idempotencyKey }) {
@@ -286,7 +287,7 @@ class PolicyVaultClient {
       payload = JSON.stringify(body);
     }
 
-    let response;
+    let response, text;
     try {
       /* Called through a LOCAL binding, never as `this._fetch(...)`: a
        * browser's global `fetch` throws "Illegal invocation" when its
@@ -296,11 +297,13 @@ class PolicyVaultClient {
        * how a standalone function is expected to be called. */
       const doFetch = this._fetch;
       response = await doFetch(url, { method, headers: requestHeaders, body: payload, signal });
+      // Headers may arrive after a mutation commits, then body transport can
+      // fail. Preserve the SAME uncertainty and key as a pre-header failure.
+      text = await response.text();
     } catch (cause) {
       throw new PolicyVaultNetworkError({ method, path, cause, idempotencyKey: key });
     }
 
-    const text = await response.text();
     let parsed = null;
     if (text) {
       try {
@@ -308,6 +311,12 @@ class PolicyVaultClient {
          * left as strings — see guarantee (2). No reviver, no coercion. */
         parsed = JSON.parse(text);
       } catch {
+        if (response.ok) {
+          // A completed HTTP response with a truncated/invalid API body is
+          // not a usable success result. Retain the same recovery key; never
+          // include the raw response (which could contain a credential).
+          throw new PolicyVaultNetworkError({ method, path, cause: new Error("invalid JSON response after successful HTTP status"), idempotencyKey: key });
+        }
         parsed = null;
       }
     }
@@ -412,6 +421,41 @@ class PolicyVaultClient {
   /** GET /manifests/:hash — a recorded intent manifest + its verified verdict (audit correlation). */
   getManifest(manifestHash, opts) {
     return this.request("GET", `/manifests/${encodeURIComponent(manifestHash)}`, opts);
+  }
+
+  /**
+   * GET /attestations/requests/:requestId — the policyvault-execution-attestation/1
+   * evidence record for one request, plus the shared verifier's own result over it.
+   * Requires scope read:attestations. Read-only; exports evidence, never authority.
+   *
+   * The record is assembled from durable evidence only and is meant to be
+   * re-checked WITHOUT this server: `node tools/attestation-verify.js <file> --chain`.
+   * `format: "ndjson"` returns the line-delimited form verbatim.
+   */
+  getRequestAttestation(requestId, { format, ...opts } = {}) {
+    return this.request("GET", `/attestations/requests/${encodeURIComponent(requestId)}`, {
+      ...opts,
+      query: { ...(format ? { format } : {}) }
+    });
+  }
+
+  /**
+   * GET /attestations/export?vaultId=…|organizationId=…&limit=&format=
+   * — a bounded batch of execution attestations for one vault or one
+   * organization (org scoping only NARROWS to vaults the caller could
+   * already read). Exactly one of vaultId / organizationId is required.
+   * Requires scope read:attestations. Read-only.
+   */
+  exportAttestations({ vaultId, organizationId, limit, format, ...opts } = {}) {
+    return this.request("GET", "/attestations/export", {
+      ...opts,
+      query: {
+        ...(vaultId ? { vaultId } : {}),
+        ...(organizationId ? { organizationId } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+        ...(format ? { format } : {})
+      }
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -644,6 +688,152 @@ class PolicyVaultClient {
   /** POST /identities/:identityId/revoke — invalidates the identity and every credential it ever minted. */
   revokeIdentity(identityId, opts) {
     return this.request("POST", `/identities/${encodeURIComponent(identityId)}/revoke`, opts);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* v0.7 ON-CHAIN ORGANIZATIONAL ROOT                (read:org-roots,   */
+  /*                                                    write:org-roots) */
+  /* ------------------------------------------------------------------ */
+
+  /** GET /org-roots — every organizational root this session can see. */
+  listOrgRoots(opts) {
+    return this.request("GET", "/org-roots", opts);
+  }
+
+  /**
+   * POST /org-roots — root genesis. `{ label?, orgId?, owners: [{ slot,
+   * address|publicKey, label? }], ownerM, emergencyK, recoveryM,
+   * recoveryDelayDaa, successionDelayDaa, successorAddress|null,
+   * rootValueKas, rootMaxFeePerTxKas, signerAddress, funding? }`.
+   * ONE funder signature (POST .../requests/:id/signature), not M-of-N.
+   */
+  createOrgRoot(body, opts) {
+    return this.request("POST", "/org-roots", { ...opts, body });
+  }
+
+  /** GET /org-roots/:rootId — full record + authorityModel + explain. A root not yet chain-proven is 404 (it does not exist as an ORG_ROOT record until its genesis is CHAIN_VERIFIED). */
+  getOrgRoot(rootId, opts) {
+    return this.request("GET", `/org-roots/${encodeURIComponent(rootId)}`, opts);
+  }
+
+  /** GET /org-roots/:rootId/vaults — rooted vault summaries with authorityModel. */
+  listRootedVaults(rootId, opts) {
+    return this.request("GET", `/org-roots/${encodeURIComponent(rootId)}/vaults`, opts);
+  }
+
+  /**
+   * POST /org-roots/:rootId/vaults — rooted-vault genesis. `{ profile?,
+   * label?, descriptor, templateIndex?, agents?, recoveryAddress,
+   * feeReserveKas, signerAddress, funding? }`. ONE funder signature.
+   */
+  createRootedVault(rootId, body, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/vaults`, { ...opts, body });
+  }
+
+  /**
+   * POST /org-roots/:rootId/requests — a root-authorized owner action.
+   * `{ action, params?, vaultOperations?: [{ vaultId, action, params }],
+   * signerAddress }`. At most ONE vault operation per transition
+   * (ONE_VAULT_OPERATION_PER_ROOT_TRANSITION otherwise — the covenant
+   * itself refuses a second rooted vault as a foreign covenant rider).
+   * The initiating signer must be an active owner slot (or, for
+   * `action: "succession"`, the root's pinned successor key).
+   */
+  createOrgRootRequest(rootId, body, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/requests`, { ...opts, body });
+  }
+
+  /** GET /org-roots/:rootId/requests — every request against this root, newest first. */
+  listOrgRootRequests(rootId, opts) {
+    return this.request("GET", `/org-roots/${encodeURIComponent(rootId)}/requests`, opts);
+  }
+
+  /** GET /org-roots/:rootId/requests/:requestId */
+  getOrgRootRequest(rootId, requestId, opts) {
+    return this.request("GET", `/org-roots/${encodeURIComponent(rootId)}/requests/${encodeURIComponent(requestId)}`, opts);
+  }
+
+  /** GET /org-roots/:rootId/requests/:requestId/slot-request/:slot — the signer-request envelope for one owner slot (M-of-N requests only; a succession has no slot). */
+  getOrgRootRequestSlotRequest(rootId, requestId, slot, opts) {
+    return this.request("GET", `/org-roots/${encodeURIComponent(rootId)}/requests/${encodeURIComponent(requestId)}/slot-request/${encodeURIComponent(slot)}`, opts);
+  }
+
+  /** POST /org-roots/:rootId/requests/:requestId/slot-signatures — `{ slot, response }` (one owner's slot-response envelope; foreign key / duplicate slot / mismatched digest / expired -> 4xx closed codes). */
+  submitOrgRootSlotSignature(rootId, requestId, body, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/requests/${encodeURIComponent(requestId)}/slot-signatures`, { ...opts, body });
+  }
+
+  /**
+   * POST /org-roots/:rootId/requests/:requestId/signature — the SINGLE-
+   * SIGNER path (root genesis / rooted-vault genesis / succession),
+   * mirroring wallet-v4's signature route: `{ signedSafeJson }` OR
+   * `{ signatureHex, signerAddress, fuelSignatureScriptHex? }`. Refused
+   * with NOT_A_SINGLE_SIGNER_REQUEST for an M-of-N owner action (use
+   * slot-signatures + finalize instead).
+   */
+  submitOrgRootRequestSignature(rootId, requestId, body, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/requests/${encodeURIComponent(requestId)}/signature`, { ...opts, body });
+  }
+
+  /**
+   * POST /org-roots/:rootId/requests/:requestId/finalize — the M-of-N
+   * finalizer (`{ fuelSignatureScriptHex? }`). UNDER_QUORUM refused with
+   * present/required. Refused with NOT_AN_MOFN_REQUEST for a genesis or
+   * succession request (use POST .../signature instead).
+   */
+  finalizeOrgRootRequest(rootId, requestId, body, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/requests/${encodeURIComponent(requestId)}/finalize`, { ...opts, body: body ?? {} });
+  }
+
+  /** POST /org-roots/:rootId/requests/:requestId/submit — broadcast a SIGNED request; idempotent once CHAIN_VERIFIED. PENDING states (BROADCAST/SIGNED) are never success. */
+  submitOrgRootRequest(rootId, requestId, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/requests/${encodeURIComponent(requestId)}/submit`, opts);
+  }
+
+  /** POST /org-roots/:rootId/requests/:requestId/reject — `{ reason? }`. Hosted-layer withdrawal only; never a chain fact. */
+  rejectOrgRootRequest(rootId, requestId, body, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/requests/${encodeURIComponent(requestId)}/reject`, { ...opts, body: body ?? {} });
+  }
+
+  /** POST /org-roots/:rootId/reconcile — exact chain readback of the root outpoint and every linked rooted vault; advances durable records ONLY on a proven successor. */
+  reconcileOrgRoot(rootId, opts) {
+    return this.request("POST", `/org-roots/${encodeURIComponent(rootId)}/reconcile`, opts);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* /wallet/v7 — delegate spend / token deposit on a rooted vault (no    */
+  /* root input; same build->sign->finalize->submit->reconcile pattern   */
+  /* as /wallet/v4, under the org-roots scopes)                          */
+  /* ------------------------------------------------------------------ */
+
+  /** POST /wallet/v7/requests — `{ vaultId, action: "tokenAgentSpend" | "tokenDeposit", params, signerAddress }`. */
+  createV7Request(body, opts) {
+    return this.request("POST", "/wallet/v7/requests", { ...opts, body });
+  }
+
+  /** GET /wallet/v7/requests?vaultId= */
+  listV7Requests({ vaultId, ...opts } = {}) {
+    return this.request("GET", "/wallet/v7/requests", { ...opts, query: { ...(vaultId !== undefined ? { vaultId } : {}) } });
+  }
+
+  /** GET /wallet/v7/requests/:requestId */
+  getV7Request(requestId, opts) {
+    return this.request("GET", `/wallet/v7/requests/${encodeURIComponent(requestId)}`, opts);
+  }
+
+  /** POST /wallet/v7/requests/:requestId/signature — `{ signedSafeJson }`. */
+  submitV7RequestSignature(requestId, body, opts) {
+    return this.request("POST", `/wallet/v7/requests/${encodeURIComponent(requestId)}/signature`, { ...opts, body });
+  }
+
+  /** POST /wallet/v7/requests/:requestId/submit — LIVE broadcast of a SIGNED v0.7 delegate spend / token deposit. */
+  submitV7Request(requestId, opts) {
+    return this.request("POST", `/wallet/v7/requests/${encodeURIComponent(requestId)}/submit`, opts);
+  }
+
+  /** POST /wallet/v7/requests/:requestId/reject */
+  rejectV7Request(requestId, opts) {
+    return this.request("POST", `/wallet/v7/requests/${encodeURIComponent(requestId)}/reject`, opts);
   }
 }
 

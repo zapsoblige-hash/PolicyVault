@@ -18,6 +18,16 @@
 
 const { kasToSompi } = require("./amounts");
 const { resolveAddressIdentity } = require("./address-identity");
+/*
+ * THE ONE human-duration <-> DAA conversion path (owner UX directive
+ * 2026-09-05 §5): the 10 DAA/second basis (source-verified in
+ * ~/rusty-kaspa/consensus/core/src/config/params.rs, 2026-08-22), the unit
+ * table (1 day = 24 h, 1 week = 7 d), the presets and the product range all
+ * live in core/model/duration-daa.js and are shared verbatim by the browser
+ * bundle and the mobile client. This module keeps its historical API and
+ * error codes; it no longer carries a constant of its own.
+ */
+const durationDaa = require("../../core/model/duration-daa");
 
 function fail(message, code = "UX_NORMALIZE_FAILED") {
   const e = new Error(`ux-normalize-v4: ${message}`);
@@ -25,28 +35,20 @@ function fail(message, code = "UX_NORMALIZE_FAILED") {
   throw e;
 }
 
-// Both operational networks run ~10 DAA/second: testnet-10 AND mainnet use
-// BlockrateParams::new::<10>() (10 blocks/s; Crescendo long activated on
-// both — source-verified 2026-08-22 in
-// ~/rusty-kaspa/consensus/core/src/config/params.rs MAINNET_PARAMS/
-// TESTNET_PARAMS), and the frozen reference policies use periodLengthDaa
-// 864000 for a ~1-day period. DAA→wall-time is APPROXIMATE by
-// protocol nature; the UI communicates it as "≈". This constant is presentation
-// convenience only and never enters consensus.
-const DAA_PER_SECOND = 10n;
+const DAA_PER_SECOND = durationDaa.DAA_PER_SECOND;
 // Practical product units for CUSTOM budget periods (directive: hours/days/weeks).
-const UNIT_SECONDS = Object.freeze({ hour: 3600n, day: 86400n, week: 604800n });
-const PERIOD_PRESETS = Object.freeze({
-  "1h": 3600n * DAA_PER_SECOND,
-  "6h": 21600n * DAA_PER_SECOND,
-  "1d": 86400n * DAA_PER_SECOND,
-  "1w": 604800n * DAA_PER_SECOND
-});
+const UNIT_SECONDS = durationDaa.UNIT_SECONDS;
+const BUDGET_PERIOD_SETTING = durationDaa.DURATION_SETTINGS.budgetPeriod;
+const PERIOD_PRESETS = Object.freeze(Object.fromEntries(BUDGET_PERIOD_SETTING.presets.map((p) => [p.key, BigInt(p.daa)])));
 // Supported PRODUCT range for a budget period (fail closed outside it — never
-// silently clamp): 1 hour .. 53 weeks. Purely an application-layer bound; the
-// covenant itself only requires periodLengthDaa > 0 (u64).
-const MIN_PERIOD_DAA = 3600n * DAA_PER_SECOND; // 1 hour
-const MAX_PERIOD_DAA = 604800n * 53n * DAA_PER_SECOND; // 53 weeks (~1 year)
+// silently clamp): 1 hour .. 53 weeks. Purely an application-layer bound. NOTE
+// (adversarial review 2026-09-03, finding F1): the covenant carries NO
+// periodLengthDaa > 0 check of its own — a zero-length period would make the
+// PERIOD budget vacuous in-covenant; positivity is enforced by the shared-core
+// leaf normalizers (core/model/agent-merkle-v4/v5/v6) and pinned by
+// core/model/test/period-length-positive-invariant.test.js.
+const MIN_PERIOD_DAA = BigInt(BUDGET_PERIOD_SETTING.minDaa); // 1 hour
+const MAX_PERIOD_DAA = BigInt(BUDGET_PERIOD_SETTING.maxDaa); // 53 weeks (~1 year)
 // A safe default per-agent max network fee cap (§10): comfortably above measured
 // v0.4.1 spend fees (~0.037 KAS) without weakening the per-agent fee-cap model.
 const DEFAULT_AGENT_MAX_FEE_PER_TX_KAS = "0.10";
@@ -62,13 +64,13 @@ function budgetPeriodToDaa(period) {
     daa = PERIOD_PRESETS[period];
     if (daa === undefined) fail(`unknown budget-period preset ${JSON.stringify(period)}`, "PERIOD_INVALID");
   } else if (period && typeof period === "object" && period.unit !== undefined) {
-    const unitSecs = UNIT_SECONDS[period.unit];
+    const unitSecs = Object.prototype.hasOwnProperty.call(UNIT_SECONDS, String(period.unit)) ? UNIT_SECONDS[period.unit] : undefined;
     if (unitSecs === undefined) fail(`unknown budget-period unit ${JSON.stringify(period.unit)} — supported: ${Object.keys(UNIT_SECONDS).join(", ")}`, "PERIOD_UNIT_INVALID");
     const raw = String(period.value ?? "").trim();
     if (!/^[0-9]+$/.test(raw)) fail(`budget-period value must be a whole number, got ${JSON.stringify(period.value)}`, "PERIOD_INVALID");
     const value = BigInt(raw);
     if (value <= 0n) fail("budget-period value must be > 0", "PERIOD_INVALID");
-    daa = value * unitSecs * DAA_PER_SECOND;
+    daa = durationDaa.humanToDaa({ value, unit: period.unit });
   } else {
     fail("budget period must be a preset key or { value, unit }", "PERIOD_INVALID");
   }
@@ -82,18 +84,7 @@ function budgetPeriodToDaa(period) {
  * "6 hours", "2 weeks", ...). Presentation convenience only — DAA→wall-time is
  * approximate by protocol nature and this string never enters consensus. */
 function daaToHumanPeriod(periodLengthDaa) {
-  let daa;
-  try { daa = BigInt(String(periodLengthDaa)); } catch { return String(periodLengthDaa); }
-  if (daa <= 0n) return String(periodLengthDaa);
-  const seconds = daa / DAA_PER_SECOND;
-  const units = [["week", 604800n], ["day", 86400n], ["hour", 3600n], ["minute", 60n]];
-  for (const [name, secs] of units) {
-    if (seconds >= secs && seconds % secs === 0n) {
-      const n = seconds / secs;
-      return `${n} ${name}${n === 1n ? "" : "s"}`;
-    }
-  }
-  return `${seconds} seconds`;
+  return durationDaa.daaToHumanPeriod(periodLengthDaa);
 }
 
 function resolveXOnly(config, address, label) {

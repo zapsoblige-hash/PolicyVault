@@ -1,0 +1,1102 @@
+{
+  "schema": "policyvault-testnet-v7-kas-evidence/1",
+  "startedAt": "2026-09-04T01:22:37.002Z",
+  "finishedAt": "2026-09-04T01:24:36.739Z",
+  "dryRun": false,
+  "mainnet": false,
+  "network": {
+    "rpcUrl": "ws://127.0.0.1:18210",
+    "networkId": "testnet-10",
+    "serverVersion": "2.0.1",
+    "isSynced": true,
+    "hasUtxoIndex": true,
+    "virtualDaaScoreAtStart": "561261772"
+  },
+  "covenant": {
+    "before": {
+      "PolicyVault.v0.4.1.sil": "421bfed824cf66a9e989f90c5b86fc7359faa070a5d94aace3c325f35ad1da4e",
+      "PolicyVault.v0.7-root.sil": "69417514f90d61b0281ea673e6fb5a5fd858c2bd50e14a4eb9043d5fdf17f8ce",
+      "PolicyVault.v0.7-kas.sil": "393f2130b48d06ba4d5b29ad8846098dd16ae89ebfd658a2df163f0801ac1d8b"
+    },
+    "after": {
+      "PolicyVault.v0.4.1.sil": "421bfed824cf66a9e989f90c5b86fc7359faa070a5d94aace3c325f35ad1da4e",
+      "PolicyVault.v0.7-root.sil": "69417514f90d61b0281ea673e6fb5a5fd858c2bd50e14a4eb9043d5fdf17f8ce",
+      "PolicyVault.v0.7-kas.sil": "393f2130b48d06ba4d5b29ad8846098dd16ae89ebfd658a2df163f0801ac1d8b"
+    }
+  },
+  "parameters": {
+    "rootKasSompi": "200000000",
+    "vaultProtectedSompi": "10000000000",
+    "vaultFeeReserveSompi": "300000000",
+    "recoveryDelayDaa": "600",
+    "successionDelayDaa": "600",
+    "rootMaxFeePerTxSompi": "1000000",
+    "genesisQuorum": "2-of-3 (ownerM 2, emergencyK 1, recoveryM 1)",
+    "vaultApproverQuorum": "2-of-3 (approvalM 2) — SEPARATE from the root's own M-of-N"
+  },
+  "organization": {
+    "orgId": "3aeae7daa6ca5ee7e7d40e73aa9f41e0c254a04e817fded405500e7129f32d42",
+    "rootCovenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+    "rootTemplate": {
+      "orgId": "3aeae7daa6ca5ee7e7d40e73aa9f41e0c254a04e817fded405500e7129f32d42",
+      "recoveryDelayDaa": "600",
+      "successorPk": "142715675faf8da1ecc4d51e0b9e539fa0d52fdd96ed60dbe99adb15d6b05ad9",
+      "successionDelayDaa": "600",
+      "rootMaxFeePerTx": "1000000"
+    },
+    "rootPins": {
+      "orgRootCovenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+      "rootTemplateVmHash": "3248388855a8168466689094c5015843b53c47b16cf3153d49b103dbe2e58293",
+      "rootPrefixLen": 1,
+      "rootStateLen": 467,
+      "rootSuffixLen": 11077
+    },
+    "rootAddress": "kaspatest:pqmmcjnerpnv0tjpg3ern64f4206pmupejky4sz2mw5dlsrm2vd27g43cwn8g",
+    "vaultCovenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+    "vaultId": "bd4917258e17f49b954d7a8bbcca5b137526b57299779db1089ba63443732db6",
+    "vaultTemplate": {
+      "vaultId": "bd4917258e17f49b954d7a8bbcca5b137526b57299779db1089ba63443732db6",
+      "orgRootCovenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+      "rootTemplateVmHash": "3248388855a8168466689094c5015843b53c47b16cf3153d49b103dbe2e58293",
+      "rootPrefixLen": 1,
+      "rootStateLen": 467,
+      "rootSuffixLen": 11077,
+      "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26"
+    },
+    "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+    "recoveryAddress": "kaspatest:qza0w6yupg6437mqgkysx65dre9kshvsnahqutrqrzs5qjdwvnkzvl00ff0tk",
+    "successorPk": "142715675faf8da1ecc4d51e0b9e539fa0d52fdd96ed60dbe99adb15d6b05ad9"
+  },
+  "steps": [
+    {
+      "step": "connect",
+      "at": "2026-09-04T01:22:37.075Z",
+      "rpcUrl": "ws://127.0.0.1:18210",
+      "networkId": "testnet-10",
+      "serverVersion": "2.0.1",
+      "isSynced": true,
+      "hasUtxoIndex": true,
+      "virtualDaaScoreAtStart": "561261772"
+    },
+    {
+      "step": "lock:ACQUIRED",
+      "at": "2026-09-04T01:22:37.076Z",
+      "path": "~/.policyvault-testnet-live.lock"
+    },
+    {
+      "step": "fuel-primed",
+      "at": "2026-09-04T01:22:37.078Z",
+      "outpoint": "a097bb092ff182f25de5f730ac4bd31c9ccf36f752a1b50562c4782d73e4b703:2",
+      "amountSompi": "9175571883900",
+      "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld"
+    },
+    {
+      "step": "01-root-genesis:AUTHORIZED",
+      "at": "2026-09-04T01:22:37.997Z",
+      "status": "AUTHORIZED",
+      "txId": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f",
+      "rootCovenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+      "stateId": "5cf515c3b469e37a48b4a07abefcb6577f655e4d94af5d5cf509450cf3b43730",
+      "ownerSlots": [
+        {
+          "slot": 1,
+          "index": 0,
+          "publicKey": "8ec4245d6160a3797d84882cc973f20e1cbbaf47b77c46900a5b36afdc245951"
+        },
+        {
+          "slot": 2,
+          "index": 1,
+          "publicKey": "b83130de0d1386592fe7b9f407f5f1ae8f1db91d772e484b3d81df0fa2e88f24"
+        },
+        {
+          "slot": 3,
+          "index": 2,
+          "publicKey": "d2dd684ff080264c3185ff87d357d9b4e1f9c9902ba26d998ac8eb54a610fcd2"
+        }
+      ],
+      "rootPins": {
+        "orgRootCovenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+        "rootTemplateVmHash": "3248388855a8168466689094c5015843b53c47b16cf3153d49b103dbe2e58293",
+        "rootPrefixLen": 1,
+        "rootStateLen": 467,
+        "rootSuffixLen": 11077
+      },
+      "scriptSha256": "7e96d07d3ba7f39602e9bd232a55418db7c759b8ceda7e47fd5b56458495c86f",
+      "feeSompi": "208300"
+    },
+    {
+      "step": "01-root-genesis:SIGNED",
+      "at": "2026-09-04T01:22:37.998Z",
+      "status": "SIGNED",
+      "txId": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f",
+      "sighash": "ALL"
+    },
+    {
+      "step": "01-root-genesis:BROADCAST",
+      "at": "2026-09-04T01:22:38.004Z",
+      "txId": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "01-root-genesis:CHAIN_SEEN",
+      "at": "2026-09-04T01:22:40.008Z",
+      "txId": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f:0",
+      "blockDaaScore": "561261800"
+    },
+    {
+      "step": "01-root-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:22:40.009Z",
+      "txId": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "organizational root",
+          "outpoint": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f:0",
+          "address": "kaspatest:pqmmcjnerpnv0tjpg3ern64f4206pmupejky4sz2mw5dlsrm2vd27g43cwn8g",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561261800"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9175371675600",
+          "covenantId": null,
+          "blockDaaScore": "561261800"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "01-root-genesis:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:22:40.009Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f",
+      "rootCovenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+      "rootNonce": "0"
+    },
+    {
+      "step": "02-vault-genesis:AUTHORIZED",
+      "at": "2026-09-04T01:22:41.820Z",
+      "status": "AUTHORIZED",
+      "txId": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3",
+      "vaultCovenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+      "stateId": "dd23724154dda04b3ac9373e3cf962b2bbf310e5a89aedef183efa8fceba8c95",
+      "orgRootCovenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+      "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26",
+      "initialState": {
+        "protectedValue": "10000000000",
+        "feeReserve": "300000000",
+        "paused": "0",
+        "agentRoot": "bc5a3a97011c934bcdffe9d342b8be6149508be7a0954cd2a71ca0897039a04a",
+        "approverSlots": [
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "approvalM": "0",
+        "policyNonce": "0"
+      },
+      "scriptSha256": "72a3c32c489fa709877ab9921edffaea178577076ee984c5fbc2451717788b3c",
+      "feeSompi": "208300"
+    },
+    {
+      "step": "02-vault-genesis:SIGNED",
+      "at": "2026-09-04T01:22:41.820Z",
+      "status": "SIGNED",
+      "txId": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3",
+      "sighash": "ALL"
+    },
+    {
+      "step": "02-vault-genesis:BROADCAST",
+      "at": "2026-09-04T01:22:41.821Z",
+      "txId": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "02-vault-genesis:CHAIN_SEEN",
+      "at": "2026-09-04T01:22:43.826Z",
+      "txId": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3:0",
+      "blockDaaScore": "561261839"
+    },
+    {
+      "step": "02-vault-genesis:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:22:43.827Z",
+      "txId": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "rooted kas vault",
+          "outpoint": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3:0",
+          "address": "kaspatest:pqxrgs0me9gzd86x3ytrma5xry6h29va5awqpshrkvy0mppq7xwu23nghe2aq",
+          "valueSompi": "10300000000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561261839"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9165071467300",
+          "covenantId": null,
+          "blockDaaScore": "561261839"
+        }
+      ],
+      "consumed": []
+    },
+    {
+      "step": "02-vault-genesis:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:22:43.827Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3",
+      "vaultCovenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+      "pinnedRoot": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+      "protectedValue": "10000000000",
+      "feeReserve": "300000000"
+    },
+    {
+      "step": "03-owner-top-up-reserve:AUTHORIZED",
+      "at": "2026-09-04T01:22:52.360Z",
+      "status": "AUTHORIZED",
+      "txId": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2",
+      "action": "ownerTopUpReserve",
+      "opSelector": 3,
+      "rootAction": 0,
+      "requiredApprovals": "2",
+      "feeSompi": "6536000"
+    },
+    {
+      "step": "03-owner-top-up-reserve:SIGNED",
+      "at": "2026-09-04T01:22:52.363Z",
+      "status": "SIGNED",
+      "txId": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2",
+      "ownerSighash": "ALL",
+      "manifestVerdict": "VERIFIED"
+    },
+    {
+      "step": "03-owner-top-up-reserve:BROADCAST",
+      "at": "2026-09-04T01:22:52.366Z",
+      "txId": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "03-owner-top-up-reserve:CHAIN_SEEN",
+      "at": "2026-09-04T01:22:54.371Z",
+      "txId": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2:0",
+      "blockDaaScore": "561261934"
+    },
+    {
+      "step": "03-owner-top-up-reserve:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:22:54.374Z",
+      "txId": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2:0",
+          "address": "kaspatest:pzr8gs5svuan0p9lrnretcx5epdt2mrzqerwgulrqm8qd5rhe4anz6yqe9kd9",
+          "valueSompi": "10350000000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561261934"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2:1",
+          "address": "kaspatest:pzxdzkkxefd9el25e8v4q9c7kaatw72465zwaxwxr82246kr2t33658mf5ugg",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561261934"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9165014931300",
+          "covenantId": null,
+          "blockDaaScore": "561261934"
+        }
+      ],
+      "consumed": [
+        "0a87a94adf230222e7541829c3b5fea75f8f99aaacad8b47329e33236d276df3:0",
+        "fdaaf1b3e2bb373b91b56807dba460209199bfc9c9c26e2ee09006836351a38f:0"
+      ]
+    },
+    {
+      "step": "03-owner-top-up-reserve:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:22:54.374Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2",
+      "action": "ownerTopUpReserve",
+      "successorState": {
+        "protectedValue": "10000000000",
+        "feeReserve": "350000000",
+        "paused": "0",
+        "agentRoot": "bc5a3a97011c934bcdffe9d342b8be6149508be7a0954cd2a71ca0897039a04a",
+        "approverSlots": [
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "approvalM": "0",
+        "policyNonce": "0"
+      }
+    },
+    {
+      "step": "04-owner-set-approvers:AUTHORIZED",
+      "at": "2026-09-04T01:23:02.731Z",
+      "status": "AUTHORIZED",
+      "txId": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13",
+      "action": "ownerSetApprovers",
+      "opSelector": 1,
+      "rootAction": 0,
+      "requiredApprovals": "2",
+      "feeSompi": "6536000"
+    },
+    {
+      "step": "04-owner-set-approvers:SIGNED",
+      "at": "2026-09-04T01:23:02.733Z",
+      "status": "SIGNED",
+      "txId": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13",
+      "ownerSighash": "ALL",
+      "manifestVerdict": "VERIFIED"
+    },
+    {
+      "step": "04-owner-set-approvers:BROADCAST",
+      "at": "2026-09-04T01:23:02.736Z",
+      "txId": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "04-owner-set-approvers:CHAIN_SEEN",
+      "at": "2026-09-04T01:23:04.739Z",
+      "txId": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13:0",
+      "blockDaaScore": "561262053"
+    },
+    {
+      "step": "04-owner-set-approvers:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:23:04.741Z",
+      "txId": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13:0",
+          "address": "kaspatest:pplnxfp9nm27e8a6ws38wfvxeghshvrljccrxe3jh0dncgw39zztx4e8xxtau",
+          "valueSompi": "10350000000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561262053"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13:1",
+          "address": "kaspatest:pqd8nz60eq7vxw03377m6a2d9v4njnk84fn4zajhnquc3d8nt2hp7h4sv3z8m",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561262053"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9165008395300",
+          "covenantId": null,
+          "blockDaaScore": "561262053"
+        }
+      ],
+      "consumed": [
+        "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2:0",
+        "38a7675004d1926b81a5184df2bfe1f1d134abe8f3c526ac8c1630703d6936e2:1"
+      ]
+    },
+    {
+      "step": "04-owner-set-approvers:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:23:04.742Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13",
+      "action": "ownerSetApprovers",
+      "successorState": {
+        "protectedValue": "10000000000",
+        "feeReserve": "350000000",
+        "paused": "0",
+        "agentRoot": "bc5a3a97011c934bcdffe9d342b8be6149508be7a0954cd2a71ca0897039a04a",
+        "approverSlots": [
+          "bbb8ec1f063522953a4a9f90ff4e849560e0f0597458529ea13b8868f255c7c7",
+          "d5dc059b830fbed01c757e507db08559298e7104a432521c6d580ce7edc11ead",
+          "db776e8adb1c9eaad7b81a32e3a1644383e364f5d4f906dca8f8448c85970409",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "approvalM": "2",
+        "policyNonce": "1"
+      }
+    },
+    {
+      "step": "05-delegate-spend-below-threshold:AUTHORIZED",
+      "at": "2026-09-04T01:23:10.288Z",
+      "status": "AUTHORIZED",
+      "txId": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef",
+      "payAmountSompi": "200000000",
+      "hasRootInput": false
+    },
+    {
+      "step": "05-delegate-spend-below-threshold:SIGNED",
+      "at": "2026-09-04T01:23:10.288Z",
+      "status": "SIGNED",
+      "txId": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef",
+      "sighash": "ALL"
+    },
+    {
+      "step": "05-delegate-spend-below-threshold:BROADCAST",
+      "at": "2026-09-04T01:23:10.290Z",
+      "txId": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "05-delegate-spend-below-threshold:CHAIN_SEEN",
+      "at": "2026-09-04T01:23:12.295Z",
+      "txId": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef:0",
+      "blockDaaScore": "561262138"
+    },
+    {
+      "step": "05-delegate-spend-below-threshold:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:23:12.296Z",
+      "txId": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "recipient payout",
+          "outpoint": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef:0",
+          "address": "kaspatest:qpkz8ryvkwrklsx9wfrvxun2nwjfvp2gggyl0a7t37xd0qdjq5s9vv666n7hp",
+          "valueSompi": "200000000",
+          "covenantId": null,
+          "blockDaaScore": "561262138"
+        },
+        {
+          "label": "vault successor",
+          "outpoint": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef:1",
+          "address": "kaspatest:prdsxash4ehh63nx0hmr80jsdun8u2daj3wu3rvketeu4k757fp5y83kv53qc",
+          "valueSompi": "10149950000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561262138"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9165004311300",
+          "covenantId": null,
+          "blockDaaScore": "561262138"
+        }
+      ],
+      "consumed": [
+        "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13:0"
+      ]
+    },
+    {
+      "step": "05-delegate-spend-below-threshold:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:23:12.297Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef",
+      "hasRootInput": false
+    },
+    {
+      "step": "06-delegate-spend-above-threshold:AUTHORIZED",
+      "at": "2026-09-04T01:23:18.065Z",
+      "status": "AUTHORIZED",
+      "txId": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9",
+      "payAmountSompi": "800000000",
+      "approvalThreshold": "500000000",
+      "approvalM": "2",
+      "satisfiedApprovals": "2"
+    },
+    {
+      "step": "06-delegate-spend-above-threshold:SIGNED",
+      "at": "2026-09-04T01:23:18.066Z",
+      "status": "SIGNED",
+      "txId": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9",
+      "sighash": "ALL",
+      "vaultLevelApprovers": [
+        "db776e8adb1c9eaad7b81a32e3a1644383e364f5d4f906dca8f8448c85970409",
+        "d5dc059b830fbed01c757e507db08559298e7104a432521c6d580ce7edc11ead"
+      ]
+    },
+    {
+      "step": "06-delegate-spend-above-threshold:BROADCAST",
+      "at": "2026-09-04T01:23:18.068Z",
+      "txId": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "06-delegate-spend-above-threshold:CHAIN_SEEN",
+      "at": "2026-09-04T01:23:20.073Z",
+      "txId": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9:0",
+      "blockDaaScore": "561262229"
+    },
+    {
+      "step": "06-delegate-spend-above-threshold:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:23:20.074Z",
+      "txId": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "recipient payout",
+          "outpoint": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9:0",
+          "address": "kaspatest:qpkz8ryvkwrklsx9wfrvxun2nwjfvp2gggyl0a7t37xd0qdjq5s9vv666n7hp",
+          "valueSompi": "800000000",
+          "covenantId": null,
+          "blockDaaScore": "561262229"
+        },
+        {
+          "label": "vault successor",
+          "outpoint": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9:1",
+          "address": "kaspatest:pzyle7haqgytmdkp4jxndzh08even4pcrma8zsqzkwaazzjaa0xz7wkhne6gx",
+          "valueSompi": "9349900000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561262229"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9165000226500",
+          "covenantId": null,
+          "blockDaaScore": "561262229"
+        }
+      ],
+      "consumed": [
+        "695d33e714cf0775c2b691f550008ea5d46baf19244d789a6b47eda0f7e8a2ef:1"
+      ]
+    },
+    {
+      "step": "06-delegate-spend-above-threshold:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:23:20.074Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9",
+      "vaultLevelQuorumSatisfied": true
+    },
+    {
+      "step": "07-owner-set-agent-root:AUTHORIZED",
+      "at": "2026-09-04T01:23:28.447Z",
+      "status": "AUTHORIZED",
+      "txId": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61",
+      "action": "ownerSetAgentRoot",
+      "opSelector": 0,
+      "rootAction": 0,
+      "requiredApprovals": "2",
+      "feeSompi": "6536000"
+    },
+    {
+      "step": "07-owner-set-agent-root:SIGNED",
+      "at": "2026-09-04T01:23:28.448Z",
+      "status": "SIGNED",
+      "txId": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61",
+      "ownerSighash": "ALL",
+      "manifestVerdict": "VERIFIED"
+    },
+    {
+      "step": "07-owner-set-agent-root:BROADCAST",
+      "at": "2026-09-04T01:23:28.451Z",
+      "txId": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "07-owner-set-agent-root:CHAIN_SEEN",
+      "at": "2026-09-04T01:23:30.454Z",
+      "txId": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61:0",
+      "blockDaaScore": "561262331"
+    },
+    {
+      "step": "07-owner-set-agent-root:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:23:30.456Z",
+      "txId": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61:0",
+          "address": "kaspatest:ppwkprah9sqjs8k2l2hfhwgmtuwlqza3g8dhscd4ttk9we37gk4wwgsf3ydvj",
+          "valueSompi": "9349900000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561262331"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61:1",
+          "address": "kaspatest:pqkzzhj7uak00lc0ya0ct396edlx83n48q0qdmxshf4njvd90l4hque29rlhp",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561262331"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9164993690500",
+          "covenantId": null,
+          "blockDaaScore": "561262331"
+        }
+      ],
+      "consumed": [
+        "99e901a1e3619adf0725f5367b094fe01278b0252e7b2e1ef27267625bb4ecd9:1",
+        "f903df3c1b6356a2d174585b0b643938953016daacbb5993e1c6234510ef1d13:1"
+      ]
+    },
+    {
+      "step": "07-owner-set-agent-root:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:23:30.456Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61",
+      "action": "ownerSetAgentRoot",
+      "successorState": {
+        "protectedValue": "9000000000",
+        "feeReserve": "349900000",
+        "paused": "0",
+        "agentRoot": "bc5a3a97011c934bcdffe9d342b8be6149508be7a0954cd2a71ca0897039a04a",
+        "approverSlots": [
+          "bbb8ec1f063522953a4a9f90ff4e849560e0f0597458529ea13b8868f255c7c7",
+          "d5dc059b830fbed01c757e507db08559298e7104a432521c6d580ce7edc11ead",
+          "db776e8adb1c9eaad7b81a32e3a1644383e364f5d4f906dca8f8448c85970409",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "approvalM": "2",
+        "policyNonce": "2"
+      }
+    },
+    {
+      "step": "08-owner-emergency-pause:AUTHORIZED",
+      "at": "2026-09-04T01:23:38.903Z",
+      "status": "AUTHORIZED",
+      "txId": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8",
+      "action": "ownerEmergencyPause",
+      "opSelector": 6,
+      "rootAction": 2,
+      "requiredApprovals": "1",
+      "feeSompi": "6535800"
+    },
+    {
+      "step": "08-owner-emergency-pause:SIGNED",
+      "at": "2026-09-04T01:23:38.904Z",
+      "status": "SIGNED",
+      "txId": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8",
+      "ownerSighash": "ALL",
+      "manifestVerdict": "VERIFIED"
+    },
+    {
+      "step": "08-owner-emergency-pause:BROADCAST",
+      "at": "2026-09-04T01:23:38.907Z",
+      "txId": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "08-owner-emergency-pause:CHAIN_SEEN",
+      "at": "2026-09-04T01:23:40.910Z",
+      "txId": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:0",
+      "blockDaaScore": "561262418"
+    },
+    {
+      "step": "08-owner-emergency-pause:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:23:40.912Z",
+      "txId": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:0",
+          "address": "kaspatest:ppuhtykuhnj7ashdxsp85r4ts356luylxljdtetmrjchyqha0pwtuuq26nmjg",
+          "valueSompi": "9349900000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561262418"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:1",
+          "address": "kaspatest:ppfswmf8r4rcz6s54h6jdvjg4uyxtza4lrfhd3ynf05s73hfkfcgjfjmg2t5g",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561262418"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9164987154700",
+          "covenantId": null,
+          "blockDaaScore": "561262418"
+        }
+      ],
+      "consumed": [
+        "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61:0",
+        "daa3523fda58465aa92b38c1c99e2d41fdd9ac5f2cfd7b002f26e9b7658e3c61:1"
+      ]
+    },
+    {
+      "step": "08-owner-emergency-pause:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:23:40.912Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8",
+      "action": "ownerEmergencyPause",
+      "successorState": {
+        "protectedValue": "9000000000",
+        "feeReserve": "349900000",
+        "paused": "1",
+        "agentRoot": "bc5a3a97011c934bcdffe9d342b8be6149508be7a0954cd2a71ca0897039a04a",
+        "approverSlots": [
+          "bbb8ec1f063522953a4a9f90ff4e849560e0f0597458529ea13b8868f255c7c7",
+          "d5dc059b830fbed01c757e507db08559298e7104a432521c6d580ce7edc11ead",
+          "db776e8adb1c9eaad7b81a32e3a1644383e364f5d4f906dca8f8448c85970409",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "approvalM": "2",
+        "policyNonce": "2"
+      }
+    },
+    {
+      "step": "09-root-unfreeze:AUTHORIZED",
+      "at": "2026-09-04T01:23:43.695Z",
+      "status": "AUTHORIZED",
+      "txId": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40",
+      "rootAction": "unfreeze",
+      "requiredApprovals": "2"
+    },
+    {
+      "step": "09-root-unfreeze:SIGNED",
+      "at": "2026-09-04T01:23:43.696Z",
+      "status": "SIGNED",
+      "txId": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40",
+      "sighash": "ALL"
+    },
+    {
+      "step": "09-root-unfreeze:BROADCAST",
+      "at": "2026-09-04T01:23:43.697Z",
+      "txId": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "09-root-unfreeze:CHAIN_SEEN",
+      "at": "2026-09-04T01:23:45.701Z",
+      "txId": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40:0",
+      "blockDaaScore": "561262462"
+    },
+    {
+      "step": "09-root-unfreeze:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:23:45.702Z",
+      "txId": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "root successor",
+          "outpoint": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40:0",
+          "address": "kaspatest:pplvqa7cevq3d5xe4ujhptmeccy3drzve4z2qvhgfeqfz7kvfzzpzyrn8kyyt",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561262462"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40:1",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9164984518100",
+          "covenantId": null,
+          "blockDaaScore": "561262462"
+        }
+      ],
+      "consumed": [
+        "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:1"
+      ]
+    },
+    {
+      "step": "09-root-unfreeze:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:23:45.702Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40",
+      "frozen": "0"
+    },
+    {
+      "step": "10-owner-unpause:AUTHORIZED",
+      "at": "2026-09-04T01:23:52.250Z",
+      "status": "AUTHORIZED",
+      "txId": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645",
+      "action": "ownerUnpause",
+      "opSelector": 5,
+      "rootAction": 0,
+      "requiredApprovals": "2",
+      "feeSompi": "6536000"
+    },
+    {
+      "step": "10-owner-unpause:SIGNED",
+      "at": "2026-09-04T01:23:52.251Z",
+      "status": "SIGNED",
+      "txId": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645",
+      "ownerSighash": "ALL",
+      "manifestVerdict": "VERIFIED"
+    },
+    {
+      "step": "10-owner-unpause:BROADCAST",
+      "at": "2026-09-04T01:23:52.254Z",
+      "txId": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "10-owner-unpause:CHAIN_SEEN",
+      "at": "2026-09-04T01:23:54.258Z",
+      "txId": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645:0",
+      "blockDaaScore": "561262550"
+    },
+    {
+      "step": "10-owner-unpause:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:23:54.259Z",
+      "txId": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "vault successor",
+          "outpoint": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645:0",
+          "address": "kaspatest:ppwkprah9sqjs8k2l2hfhwgmtuwlqza3g8dhscd4ttk9we37gk4wwgsf3ydvj",
+          "valueSompi": "9349900000",
+          "covenantId": "6792143753142cab6c3c5c6b84339a9774d23e6f0c83de64b31e00d10c07fdad",
+          "blockDaaScore": "561262550"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645:1",
+          "address": "kaspatest:pps8ft88vgernqp6rnkptgxkyawm38kky7xwyp7axpf7qyyzcmkn75swy63x4",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561262550"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9164977982100",
+          "covenantId": null,
+          "blockDaaScore": "561262550"
+        }
+      ],
+      "consumed": [
+        "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:0",
+        "6f75a3c227e30931ffa61a74a19060be0f4fb043375e9799567782f97f63cd40:0"
+      ]
+    },
+    {
+      "step": "10-owner-unpause:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:23:54.259Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645",
+      "action": "ownerUnpause",
+      "successorState": {
+        "protectedValue": "9000000000",
+        "feeReserve": "349900000",
+        "paused": "0",
+        "agentRoot": "bc5a3a97011c934bcdffe9d342b8be6149508be7a0954cd2a71ca0897039a04a",
+        "approverSlots": [
+          "bbb8ec1f063522953a4a9f90ff4e849560e0f0597458529ea13b8868f255c7c7",
+          "d5dc059b830fbed01c757e507db08559298e7104a432521c6d580ce7edc11ead",
+          "db776e8adb1c9eaad7b81a32e3a1644383e364f5d4f906dca8f8448c85970409",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "approvalM": "2",
+        "policyNonce": "2"
+      }
+    },
+    {
+      "step": "12-vault-owner-recover:AUTHORIZED",
+      "at": "2026-09-04T01:24:34.730Z",
+      "status": "AUTHORIZED",
+      "txId": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098",
+      "payoutSompi": "9349900000",
+      "recoveryPk": "baf7689c0a3558fb604589036a8d1e4b685d909f6e0e2c6018a14049ae64ec26"
+    },
+    {
+      "step": "12-vault-owner-recover:SIGNED",
+      "at": "2026-09-04T01:24:34.730Z",
+      "status": "SIGNED",
+      "txId": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098",
+      "sighash": "ALL"
+    },
+    {
+      "step": "12-vault-owner-recover:BROADCAST",
+      "at": "2026-09-04T01:24:34.733Z",
+      "txId": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098",
+      "status": "BROADCAST"
+    },
+    {
+      "step": "12-vault-owner-recover:CHAIN_SEEN",
+      "at": "2026-09-04T01:24:36.736Z",
+      "txId": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098",
+      "status": "CHAIN_SEEN",
+      "firstOutputSeen": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098:0",
+      "blockDaaScore": "561262930"
+    },
+    {
+      "step": "12-vault-owner-recover:CHAIN_VERIFIED",
+      "at": "2026-09-04T01:24:36.738Z",
+      "txId": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098",
+      "status": "CHAIN_VERIFIED",
+      "verified": [
+        {
+          "label": "recovery payout",
+          "outpoint": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098:0",
+          "address": "kaspatest:qza0w6yupg6437mqgkysx65dre9kshvsnahqutrqrzs5qjdwvnkzvl00ff0tk",
+          "valueSompi": "9349900000",
+          "covenantId": null,
+          "blockDaaScore": "561262930"
+        },
+        {
+          "label": "root successor",
+          "outpoint": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098:1",
+          "address": "kaspatest:pzhdl5gygg9nnaww6m8gmr7h8fpzq602jpeyks003y0xl40jmpfz2zttyvy6h",
+          "valueSompi": "200000000",
+          "covenantId": "ddd11a5afdd96ee95e17e3c3e5471dda54f8c1cd5d50a1f120b2fc2937d47a47",
+          "blockDaaScore": "561262930"
+        },
+        {
+          "label": "fuel change",
+          "outpoint": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098:2",
+          "address": "kaspatest:qr2smudek2dvhkq6eae7vwyn2yh0kku6x660m9m5hj6dky27vmgsudplgr4ld",
+          "valueSompi": "9164971531900",
+          "covenantId": null,
+          "blockDaaScore": "561262930"
+        }
+      ],
+      "consumed": [
+        "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645:0",
+        "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645:1"
+      ]
+    },
+    {
+      "step": "12-vault-owner-recover:VERIFIED_OUTCOME",
+      "at": "2026-09-04T01:24:36.738Z",
+      "status": "VERIFIED_OUTCOME",
+      "txId": "aac4fa657c44cd47553e5fe68926765dc742f6f8e882577c67c0f6d8370ff098",
+      "terminal": true,
+      "payoutSompi": "9349900000"
+    }
+  ],
+  "negatives": [
+    {
+      "name": "11a-delegate-over-cap-spend",
+      "at": "2026-09-04T01:24:01.697Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a fully self-consistent delegated spend of 2000000001 sompi — outputs, covenant-call arguments, successor agent root and the delegate's SIGHASH_ALL signature all agree — whose only policy defect is that 2000000001 exceeds the agent's on-chain maxPerSpend of 2000000000",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 61b741ffbf1452069e1a76e8fca34dc9bbd54b23e3672c9a582df7854f11c44c: failed to verify the signature script: script ran, but verification failed` data:None",
+      "spendAmountSompi": "2000000001",
+      "maxPerSpendSompi": "2000000000"
+    },
+    {
+      "name": "11b-vault-approval-shortfall",
+      "at": "2026-09-04T01:24:07.259Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "an above-threshold delegate spend carrying only 1 of the 2 required vault-level approver signatures (the abstaining slot carries the canonical placeholder); this is a SEPARATE M-of-N from the organizational root's own quorum",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 12eaf25fcdb01073d69b19815a357c3d36e96496f8590a346493341e84486191: failed to verify the signature script: script ran, but verification failed` data:None",
+      "requiredApprovals": "2",
+      "suppliedApprovals": "1"
+    },
+    {
+      "name": "11c-wrong-root-path-emergency-selector-under-authorize-root",
+      "at": "2026-09-04T01:24:20.479Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "the EMERGENCY-pause selector's covenant call bytes (opSelector 6) spliced onto a transaction whose ROOT input proves a full-quorum AUTHORIZE (not the lighter FREEZE) — the vault pins WHICH root path ran, not merely that a root is present",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 831e087a1871df95bfe2a474d97f9671aa492c14e4caf14571b3c3d218c613a5: failed to verify the signature script: script ran, but verification failed` data:None",
+      "pauseTxId": "831e087a1871df95bfe2a474d97f9671aa492c14e4caf14571b3c3d218c613a5",
+      "emergencyTxId": "16440411f3a22ae29c6cc469fc1fbee9eacb65655fcc0b87b52152f81be4eab7"
+    },
+    {
+      "name": "11d-owner-op-with-no-root-input",
+      "at": "2026-09-04T01:24:26.243Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a correctly-encoded ownerControl(4 pause) call (no signature of its own — the vault input carries none) with the organizational-root input AND its continuation output both removed; requireRootAuthorization's OpCovInputCount(orgRootCovenantId) == 1 check fails closed with zero root inputs present",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction e0610138bdf61a67098f55d9b7a1f9e2458e199c6074a5584663e5937aef2409: failed to verify the signature script: script ran, but verification failed` data:None",
+      "txId": "831e087a1871df95bfe2a474d97f9671aa492c14e4caf14571b3c3d218c613a5"
+    },
+    {
+      "name": "11e-stale-root-outpoint",
+      "at": "2026-09-04T01:24:29.053Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "a correctly signed, full-quorum AUTHORIZE referencing the PREVIOUS root outpoint 7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:1 (root nonce 4), already consumed by an accepted successor — the root outpoint is the organization's freshness kill switch",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction cce8f8de28f88c47ba8f9f76379a8c0a53d46bf0cbfd16c1010ffde53c2e564f: transaction cce8f8de28f88c47ba8f9f76379a8c0a53d46bf0cbfd16c1010ffde53c2e564f is an orphan where orphan is disallowed` data:None",
+      "staleRootOutpoint": "7df7cba7b6ba8d867b5435d728934635defae27c69519d5d4a38bc1d6b959cf8:1",
+      "liveRootOutpoint": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645:1"
+    },
+    {
+      "name": "11f-replay-accepted-bytes",
+      "at": "2026-09-04T01:24:29.054Z",
+      "classification": "AUTHORIZED TESTNET NEGATIVE-VALIDATION TRANSACTION",
+      "rejected": true,
+      "why": "the EXACT bytes of the already-accepted transaction from step 10-owner-unpause resubmitted — every input it names is consumed, so consensus refuses the replay",
+      "nodeRejection": "RPC Server (remote error) -> code:0  message:`Rejected transaction 624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645: transaction 624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645 was already accepted by the consensus` data:None",
+      "txId": "624df69a910efdf98306665b798d4dd49a58a7b15fcf081f4e1751dbadffd645",
+      "originalStep": "10-owner-unpause"
+    }
+  ],
+  "notExercised": [],
+  "summary": {
+    "stepsRecorded": 69,
+    "negativesRecorded": 6,
+    "dryRun": false,
+    "finalRootNonce": "7"
+  }
+}

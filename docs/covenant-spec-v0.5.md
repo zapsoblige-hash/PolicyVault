@@ -6,8 +6,7 @@ TESTNET-VERIFIED (live testnet-10 lifecycle 2026-09-02, chain-verified,
 `docs/testnet-v5-evidence.json`) + COVENANT-BYTE-FROZEN (owner authorized
 2026-09-02; record `docs/postlaunch/v0.5-covenant-byte-freeze.md`;
 mechanical pin `sdk/test/covenant-freeze-v5.test.js`). NOT production
-(no v0.5 server/API/web surface, no mainnet instance). NOT externally
-reviewed.** The design is frozen (`docs/postlaunch/v0.5-design-freeze.md`).
+(no v0.5 server/API/web surface, no mainnet instance)..** The design is frozen (`docs/postlaunch/v0.5-design-freeze.md`).
 The bytes below are FROZEN: never regenerated or edited in place; any change
 is a new additive version or requires the established freeze-reopen process.
 
@@ -74,7 +73,7 @@ Preimage lengths 125/36/64 are pairwise distinct.
 3. **BINDING B — TRANSACTION-DERIVED VERIFIED TEMPLATE CARRIAGE**: `readInputStateWithTemplate(tokIn, prefixLen, suffixLen, templateVmHash)` proves the token input's revealed redeem (hash + P2SH) BEFORE its state is trusted; the proven prefix/suffix are then sliced out of that input's signature script by pinned geometry (`OpTxInputScriptSigSubstr`) and used to reconstruct both continuation outputs (`validateOutputStateWithTemplate`, which re-verifies the hash at use). Template bytes are never baked into this redeem and never caller-supplied.
 4. Ownership: `prevTok.owner == OpInputCovenantId(self)`, scheme covenant-id, not minter; `selfNew` same owner/scheme, not minter, `!= recipientPk`; `recipientNew.owner == recipientPk`, scheme p2pk, not minter.
 5. TOKEN domain: `spend = recipientNew.amount > 0`; `selfNew.amount >= 0`; `selfNew.amount == prevTok.amount − spend` (exact conservation); leaf membership under `prevState.agentRoot`; `spend ≤ tokenMaxPerSpend`; period accounting (`periodsElapsed ≤ 1000`; rollover requires `tx.time ≥ newStart` and resets spent); `newSpent ≤ tokenPeriodBudget`; `newState.agentRoot ==` fold of the advanced leaf; recipient membership under the leaf's recipient root.
-6. KAS domain: `selfOut.value + recipientOut.value ≥ tokIn.value` (family KAS never leaks); `recipientOut.value ≤ agentMaxCarryKas`; `reserveConsumed = prev.feeReserve − new.feeReserve ∈ [0, agentMaxFeePerTx]`, `≤ txFee()` (≤ 8 in / ≤ 8 out); successor value `== newState.feeReserve`.
+6. KAS domain: `selfOut.value + recipientOut.value ≥ tokIn.value` (family KAS never leaks); `recipientOut.value ≤ agentMaxCarryKas`; `reserveConsumed = prev.feeReserve − new.feeReserve ∈ [0, agentMaxFeePerTx]`, `≤ txFee` (≤ 8 in / ≤ 8 out); successor value `== newState.feeReserve`.
 7. Global continuity: `boundVaultId`, `paused`, `policyNonce` preserved; `descriptorHash != 0`.
 
 ### `ownerControl(prevState, newState, opSelector, ownerSig)`

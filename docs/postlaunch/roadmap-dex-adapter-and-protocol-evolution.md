@@ -188,3 +188,14 @@ mobile layout, dark + light compatibility, prefers-reduced-motion support,
 keyboard accessibility, and focused presentation / accessibility
 regressions. The lane must not touch covenant, transaction construction,
 signer, authentication, or deterministic financial semantics.
+
+## 5. Cross-cutting TODO — MCP usage attribution / telemetry (owner, 2026-09-03)
+
+Recorded as a durable observability item (`mcp-usage-telemetry-todo.md`):
+minimum event schema `MCP client/version → machine identity → tool/action
+→ success/refusal/error → latency → timestamp`; never prompts, bearer
+tokens, private keys, wallet secrets, raw signing material, or unnecessary
+request bodies; aggregates (active identities, calls per tool, outcome
+rates, latency, version distribution, first/last seen, workflow counts) may
+follow. Implemented in a future normal server/observability successor; it
+must not interrupt the v0.6 funds-critical program.

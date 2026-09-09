@@ -48,10 +48,30 @@ const MODULES = [
   "core/explain/intent-explain.js",
   "core/signer/errors.js",
   "core/signer/interface.js",
+  /* UNIVERSAL SIGNER INTERFACE v2 (docs/postlaunch/signer-interface-v2-spec.md):
+   * the ADDITIVE successor vocabulary — declared+negotiated sighash, a
+   * pinned transaction format, PSKT declaration, transport/user-presence,
+   * request/response binding (nonce, expiry, payload digest), replay and
+   * cancellation. v1 above is UNCHANGED and still bundled: both cores run
+   * side by side and refuse each other's version strings by exact
+   * equality. `adapters/lift` carries an existing v1 adapter onto the v2
+   * contract without touching its provider calls; `adapters/kasware` is
+   * the DOM-free KasWare capability profile + probe that
+   * web/signer-kasware-adapter.js composes with them. */
+  "core/signer/v2/errors.js",
+  "core/signer/v2/interface.js",
+  "core/signer/v2/adapters/lift.js",
+  "core/signer/v2/adapters/kasware.js",
   /* F1 browser-portability wave: the byte-native Merkle modules + their
    * core/model dependency closure, for independent in-browser recipient/
    * agent Merkle-root recomputation (web/verify-intent.js). */
   "core/model/amounts.js",
+  /* THE ONE human-duration <-> DAA conversion path (owner UX directive
+   * 2026-09-05 §5): shared verbatim by the SDK (sdk/src/ux-normalize-v4.js),
+   * this bundle (web/setup-ui.js, web/org-root-ui.js) and the mobile client
+   * (vendored bundle). Dependency-free BigInt arithmetic. */
+  "core/model/duration-daa.js",
+  "core/intent/root-script-v7.js",
   "core/model/contract-version.js",
   "core/model/vault-state.js",
   "core/model/recipient-merkle-v3.js",
@@ -70,6 +90,7 @@ const MODULES = [
   "core/model/compute-budget-v4.js",
   "core/model/fee-mass.js",
   "core/model/frozen-tx-v3.js",
+  "core/model/own-get.js",
   "core/model/vault-state-v4.js",
   "core/model/vault-transitions-v4.js",
   /* Residuals wave: the deterministic governance authority-delta
@@ -120,7 +141,72 @@ const MODULES = [
   "core/model/vault-transitions-v5.js",
   "core/model/compute-budget-v5.js",
   "core/intent/token-manifest-v5.js",
-  "core/explain/token-explain.js"
+  "core/explain/token-explain.js",
+  /* G4 (docs/postlaunch/hybrid-core-gap-analysis.md): the M-of-N approval
+   * package commitment modules, so a browser approver can independently
+   * recompute the exact commitment they are approving instead of trusting
+   * the server's rendering of it. `vault-state-v3.js` is bundled ONLY as
+   * approval-package-v3's dependency (its APPROVER_SENTINEL/MAX_APPROVERS
+   * constants) — no v0.3 browser verifier exists; unknown versions still
+   * fail closed. */
+  "core/model/vault-state-v3.js",
+  "core/model/approval-package-v3.js",
+  "core/model/approval-package-v4.js",
+  /* v0.6 ATOMIC-COMPOSABILITY wave (closes gap G3's bundling half,
+   * docs/postlaunch/hybrid-core-gap-analysis.md §4 row 1): the v0.6 model
+   * (state, agent Merkle, swap-venue policy Merkle, transitions incl. the
+   * exact-integer pool quotes the covenant re-derives, template-scaled
+   * budgets), KIP-9 storage mass (also the v0.5 gap — no v0.5 browser flow
+   * used it before now, but it is real shared-core and both v0.5 and v0.6
+   * manifests need it), and the two v0.6 intent manifest families
+   * (controller ops; atomic swaps). Every client (browser here; mobile by
+   * byte-identical sync) consumes THESE rules: no client may treat
+   * indexer/UI pool-price metadata as authoritative. */
+  "core/model/storage-mass.js",
+  "core/model/vault-state-v6.js",
+  "core/model/agent-merkle-v6.js",
+  "core/model/swap-policy-v6.js",
+  "core/model/vault-transitions-v6.js",
+  "core/model/compute-budget-v6.js",
+  "core/intent/token-manifest-v6.js",
+  "core/intent/swap-manifest-v6.js",
+  /* Version-aware fail-closed dispatch (docs/postlaunch/hybrid-core-gap-
+   * analysis.md §3.2): ONE place a browser (or mobile) caller decides which
+   * manifest family describes a build/manifest, instead of re-deriving that
+   * mapping ad hoc. Requires only the sibling core/intent manifest modules
+   * above, so it is portable unchanged. */
+  "core/intent/router.js",
+  /* v0.7 ORGANIZATIONAL M-of-N OWNER ROOT wave
+   * (docs/postlaunch/v0.7-organizational-root-design.md): the owner-set
+   * well-formedness rules WF(S), the root's exact 467-byte consensus-visible
+   * state region (serialize/digest/id), the rooted-vault state family, both
+   * transition families (root-side authority actions; rooted-vault
+   * successor derivation), template-scaled root/vault compute budgets, the
+   * organizational-root + rooted-vault intent manifests, the root
+   * explanation renderer, and the Universal Signer Interface's root-slot
+   * signing helper. A signer or browser approver can independently
+   * recompute the exact root-state digest and successor bytes they are
+   * asked to sign, and WF(S) fails closed identically to the covenant. */
+  "core/model/owner-set-v7.js",
+  "core/model/vault-state-v7-root.js",
+  "core/model/vault-state-v7.js",
+  "core/model/vault-transitions-v7-root.js",
+  "core/model/vault-transitions-v7.js",
+  "core/model/compute-budget-v7.js",
+  "core/intent/vault-script-v7.js",
+  "core/intent/org-root-manifest-v7.js",
+  "core/explain/org-root-explain.js",
+  "core/signer/org-root-slot-v7.js",
+  /* v0.7 hierarchical-delegation rooted profile (Wave 2, Track D candidate) */
+  "core/model/hd-leaf-v7.js",
+  "core/model/compute-budget-v7-hd.js",
+  "core/intent/org-root-manifest-v7-hd.js",
+  "core/explain/hd-vault-explain.js",
+  /* v0.7 rooted KAS safe-payment profile (Wave 2, Track C candidate) */
+  "core/model/vault-state-v7-kas.js",
+  "core/model/vault-transitions-v7-kas.js",
+  "core/model/compute-budget-v7-kas.js",
+  "core/intent/org-root-manifest-v7-kas.js"
 ];
 
 /*
@@ -364,10 +450,24 @@ function generateBundle() {
   parts.push("  var api = Object.freeze({");
   parts.push('    require: function (id) { return load(resolveId("core", "./" + id)); },');
   parts.push('    intent: load("core/intent/index"),');
+  parts.push('    /* Canonical KAS<->sompi (core/model/amounts.js) — the ONLY sanctioned');
+  parts.push('     * client-side amount parser. It was already embedded as the byte-native');
+  parts.push('     * Merkle modules\' dependency closure; exposing it on the api surface is');
+  parts.push('     * what lets web/app.js and web/app-v4.js stop hand-rolling conversions on');
+  parts.push('     * a funds path (app.js used FLOATING POINT: Number(v) * 1e8). */');
+  parts.push('    amounts: load("core/model/amounts"),');
+  parts.push('    /* human duration <-> DAA score: the ONE conversion path (never a UI-local constant) */');
+  parts.push('    durationDaa: load("core/model/duration-daa"),');
+  parts.push('    rootScriptV7: load("core/intent/root-script-v7"),');
+  parts.push('    vaultScriptV7: load("core/intent/vault-script-v7"),');
   parts.push('    explainKas: load("core/explain/kas"),');
   parts.push('    intentExplain: load("core/explain/intent-explain"),');
   parts.push('    signerErrors: load("core/signer/errors"),');
   parts.push('    signerInterface: load("core/signer/interface"),');
+  parts.push('    signerErrorsV2: load("core/signer/v2/errors"),');
+  parts.push('    signerInterfaceV2: load("core/signer/v2/interface"),');
+  parts.push('    signerLiftV2: load("core/signer/v2/adapters/lift"),');
+  parts.push('    signerKasWareProfileV2: load("core/signer/v2/adapters/kasware"),');
   parts.push('    recipientMerkle: load("core/model/recipient-merkle-v3"),');
   parts.push('    agentMerkle: load("core/model/agent-merkle-v4"),');
   parts.push('    computeBudgetV3: load("core/model/compute-budget-v3"),');
@@ -386,7 +486,43 @@ function generateBundle() {
   parts.push('    agentMerkleV5: load("core/model/agent-merkle-v5"),');
   parts.push('    computeBudgetV5: load("core/model/compute-budget-v5"),');
   parts.push('    tokenManifestV5: load("core/intent/token-manifest-v5"),');
-  parts.push('    tokenExplain: load("core/explain/token-explain")');
+  parts.push('    tokenExplain: load("core/explain/token-explain"),');
+  parts.push('    /* G4: M-of-N approval-package commitments */');
+  parts.push('    vaultStateV3: load("core/model/vault-state-v3"),');
+  parts.push('    approvalPackageV3: load("core/model/approval-package-v3"),');
+  parts.push('    approvalPackageV4: load("core/model/approval-package-v4"),');
+  parts.push('    /* v0.6 atomic-composability token controller (model + manifests) */');
+  parts.push('    storageMass: load("core/model/storage-mass"),');
+  parts.push('    vaultStateV6: load("core/model/vault-state-v6"),');
+  parts.push('    agentMerkleV6: load("core/model/agent-merkle-v6"),');
+  parts.push('    swapPolicyV6: load("core/model/swap-policy-v6"),');
+  parts.push('    vaultTransitionsV6: load("core/model/vault-transitions-v6"),');
+  parts.push('    computeBudgetV6: load("core/model/compute-budget-v6"),');
+  parts.push('    controllerManifestV6: load("core/intent/token-manifest-v6"),');
+  parts.push('    swapManifestV6: load("core/intent/swap-manifest-v6"),');
+  parts.push('    /* version-aware fail-closed manifest dispatch */');
+  parts.push('    intentRouter: load("core/intent/router"),');
+  parts.push('    /* v0.7 organizational M-of-N owner root */');
+  parts.push('    ownerSetV7: load("core/model/owner-set-v7"),');
+  parts.push('    vaultStateV7Root: load("core/model/vault-state-v7-root"),');
+  parts.push('    vaultStateV7: load("core/model/vault-state-v7"),');
+  parts.push('    vaultTransitionsV7Root: load("core/model/vault-transitions-v7-root"),');
+  parts.push('    vaultTransitionsV7: load("core/model/vault-transitions-v7"),');
+  parts.push('    computeBudgetV7: load("core/model/compute-budget-v7"),');
+  parts.push('    orgRootManifestV7: load("core/intent/org-root-manifest-v7"),');
+  parts.push('    orgRootExplain: load("core/explain/org-root-explain"),');
+  parts.push('    orgRootSlotV7: load("core/signer/org-root-slot-v7"),');
+  parts.push('    orgRootSignerV7: load("core/signer/org-root-slot-v7"),');
+  parts.push('    /* v0.7 hierarchical-delegation rooted profile (candidate) */');
+  parts.push('    hdLeafV7: load("core/model/hd-leaf-v7"),');
+  parts.push('    computeBudgetV7Hd: load("core/model/compute-budget-v7-hd"),');
+  parts.push('    hdVaultManifestV7: load("core/intent/org-root-manifest-v7-hd"),');
+  parts.push('    hdVaultExplain: load("core/explain/hd-vault-explain"),');
+  parts.push('    /* v0.7 rooted KAS safe-payment profile (candidate) */');
+  parts.push('    vaultStateV7Kas: load("core/model/vault-state-v7-kas"),');
+  parts.push('    vaultTransitionsV7Kas: load("core/model/vault-transitions-v7-kas"),');
+  parts.push('    computeBudgetV7Kas: load("core/model/compute-budget-v7-kas"),');
+  parts.push('    orgRootManifestV7Kas: load("core/intent/org-root-manifest-v7-kas")');
   parts.push("  });");
   parts.push("");
   parts.push('  if (typeof window !== "undefined") window.PolicyVaultCore = api;');

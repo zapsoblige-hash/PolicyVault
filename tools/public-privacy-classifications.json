@@ -1,0 +1,142 @@
+[
+  {
+    "path": "deploy/prod.env.example",
+    "sha256": "d8dd83ba9b0116548426972b1939f51f1a1dafe694ab6105a59d538c7d46d89c",
+    "family": "credential-assignment",
+    "count": 2,
+    "reason": "Reviewed fixture/example credential placeholder; no deployment credential"
+  },
+  {
+    "path": "deploy/prod.env.example",
+    "sha256": "d8dd83ba9b0116548426972b1939f51f1a1dafe694ab6105a59d538c7d46d89c",
+    "family": "forbidden-path",
+    "count": 1,
+    "reason": "Reviewed sanitized environment example; never a populated environment file"
+  },
+  {
+    "path": "deploy/staging.env.example",
+    "sha256": "19cba2adf8493359e1ff0f0f850b9c553cee23e7f3a8c90fa986c311ca441b31",
+    "family": "credential-assignment",
+    "count": 1,
+    "reason": "Reviewed fixture/example credential placeholder; no deployment credential"
+  },
+  {
+    "path": "deploy/staging.env.example",
+    "sha256": "19cba2adf8493359e1ff0f0f850b9c553cee23e7f3a8c90fa986c311ca441b31",
+    "family": "forbidden-path",
+    "count": 1,
+    "reason": "Reviewed sanitized environment example; never a populated environment file"
+  },
+  {
+    "path": "mcp/test/harness.js",
+    "sha256": "f2b0cf69ba84d3b6d297199b70d627807ba0753be649b1d2b21f0268f484178d",
+    "family": "machine-token",
+    "count": 1,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "mcp/test/mcp-discovery-scopes.test.js",
+    "sha256": "01c48de935928adef0d31d36862b698ece55b96ee3ae29652d60cddd8be3b853",
+    "family": "machine-token",
+    "count": 1,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "mcp/test/mcp-schema-hostile.test.js",
+    "sha256": "4fb832d03651a9d8113738313b323cefe91204ed7addde002ceb01b4bd3c0e0e",
+    "family": "machine-token",
+    "count": 3,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "mcp/tools/remote-proof.sh",
+    "sha256": "ff4e9d54ede9a9f7ca9cbe0be965a173f88f066e3ad6b83f5a14508b9dc6b762",
+    "family": "machine-token",
+    "count": 1,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "python/tests/test_secret_redaction.py",
+    "sha256": "c80a5ff403b98c8f6773898f7188cb0a7c16f5764c1efb230d70ac18339ee8a8",
+    "family": "machine-token",
+    "count": 1,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "sdk/test/deploy-pipeline.test.js",
+    "sha256": "0f397e813688ab3ab1201c454953428bd1364df6dcb500915e2b4057569d50a3",
+    "family": "credential-assignment",
+    "count": 1,
+    "reason": "Reviewed fixture/example credential placeholder; no deployment credential"
+  },
+  {
+    "path": "sdk/test/http-client.test.js",
+    "sha256": "00c2a7031e063924a9966a71364be94f7ecf7aa2a91612083442771e01d0f3a2",
+    "family": "machine-token",
+    "count": 2,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "sdk/test/postlaunch-webhooks-events.test.js",
+    "sha256": "ebb80471f88d61232cfcb829d3c0ee5645f6661ca92fc00480cec83de418e56a",
+    "family": "machine-token",
+    "count": 2,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "security/hostile-ai/adapter-authority-boundary.test.js",
+    "sha256": "c2f3f5331b426a6ac4c5c7d80089528eadc77492acb0ebe436bfeb1a8f0df36f",
+    "family": "machine-token",
+    "count": 1,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential"
+  },
+  {
+    "path": "tools/image-privacy-scan.sh",
+    "sha256": "e8a89d12706c1822072849fb2b28eb709613bbcc13e485d2e7b47da8606413bd",
+    "family": "canary",
+    "count": 1,
+    "reason": "Literal scanner canary detection pattern, not a secret"
+  },
+  {
+    "path": "tools/selfhost-acceptance.sh",
+    "sha256": "e36f131bb8bbe495198450c49b2592dd1d791c0f9a47bbe36936703af916801a",
+    "family": "credential-assignment",
+    "count": 1,
+    "reason": "Reviewed fixture/example credential placeholder; no deployment credential"
+  },
+  {
+    "path": "tools/artifact-privacy-scan.py",
+    "sha256": "dbb71c2ed64a5977f2e6d25356798949aa62ebf8b20e71cbc7beb71d1942ed64",
+    "family": "private-worktree",
+    "count": 1,
+    "reason": "The scanner's own pattern definition for the private-worktree family (a regex literal), not a path"
+  },
+  {
+    "path": "tools/artifact-privacy-scan.py",
+    "sha256": "dbb71c2ed64a5977f2e6d25356798949aa62ebf8b20e71cbc7beb71d1942ed64",
+    "family": "canary",
+    "count": 1,
+    "reason": "The scanner's own canary detection pattern literal, not a secret"
+  },
+  {
+    "path": "tools/test_artifact_privacy_scan.py",
+    "sha256": "babbbaa36770de0c25365bc524d7ca63a59360f0d86c5c580f0919f7ce686a90",
+    "family": "private-key-block",
+    "count": 2,
+    "reason": "Unit-test fixture markers exercising the scanner (literal BEGIN PRIVATE KEY header strings inside synthetic archives); no key material"
+  },
+  {
+    "path": "tools/test_artifact_privacy_scan.py",
+    "sha256": "babbbaa36770de0c25365bc524d7ca63a59360f0d86c5c580f0919f7ce686a90",
+    "family": "operator-path",
+    "count": 2,
+    "reason": "Unit-test fixture paths exercising the operator-path family (synthetic /home/<name>/ strings), no real operator path"
+  },
+  {
+    "path": "tools/test_artifact_privacy_scan.py",
+    "sha256": "babbbaa36770de0c25365bc524d7ca63a59360f0d86c5c580f0919f7ce686a90",
+    "family": "canary",
+    "count": 4,
+    "reason": "Unit-test fixture canary strings exercising the scanner, not a secret"
+  }
+]

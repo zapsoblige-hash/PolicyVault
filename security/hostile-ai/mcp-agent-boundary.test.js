@@ -99,7 +99,7 @@ test("M1a H-3 FIXED: a control-character capabilities.apiVersion is rejected (�
       assert.ok(lines[0].includes("tool(s) advertised"), "the diagnostic line was not truncated by an injected newline");
 
       // Bounds still hold: no tool behaviour changes; no overflow.
-      assert.equal(driver.session._toolCount(), 14);
+      assert.equal(driver.session._toolCount(), 19); // 14 v0.4 + 5 v0.7 token/org-root read+build tools (Wave 2)
       assert.ok(!driver.stderrRaw.includes("z".repeat(200)));
     }
   );
@@ -195,16 +195,28 @@ test("M2 HOLDS: a hostile discovery document cannot conjure a sign/submit/approv
 
       // The blueprint list is STATIC adapter source. Discovery can only
       // NARROW it (drop tools whose scopes/features vanished).
-      assert.equal(names.length, 14, "exactly the 14 blueprinted tools");
+      assert.equal(names.length, 19, "exactly the 19 blueprinted tools (14 v0.4 + 5 v0.7 org-root/rooted-vault read+build tools added Wave 2)");
       for (const forbidden of ["sign", "submit", "approve", "broadcast", "key", "export", "seed", "bypass", "override"]) {
         assert.ok(
           !names.some((n) => n.toLowerCase().includes(forbidden)),
           `no tool may expose "${forbidden}" — signing/submission/approval are outside the MCP v1 surface`
         );
       }
-      // Every mutating tool is one of exactly two housekeeping routes.
+      // Every mutating tool BUILDS an unsigned request or REJECTS one —
+      // NONE signs, submits, or broadcasts (signing stays in external signer
+      // custody; submission is a separate, separately-scoped step outside
+      // this tool set). Wave 2 added two build-only v0.7 request tools
+      // (create_org_root_request, create_v7_request); the M2 invariant — no
+      // sign/submit/approve tool on the MCP surface — still holds (asserted
+      // by the forbidden-substring check above and by these routes being
+      // build/reject only).
       const mutating = list.result.tools.filter((t) => t.annotations.readOnlyHint === false).map((t) => t.name).sort();
-      assert.deepEqual(mutating, ["policyvault_create_request", "policyvault_reject_request"]);
+      assert.deepEqual(mutating, [
+        "policyvault_create_org_root_request",
+        "policyvault_create_request",
+        "policyvault_create_v7_request",
+        "policyvault_reject_request"
+      ]);
 
       // And an invented action name is nevertheless accepted into the
       // enum (it came from the server's own ROLE_BY_ACTION export) —

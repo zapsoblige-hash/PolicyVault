@@ -93,10 +93,11 @@ Intended future sequence (release policy UPDATED by the owner,
 2026-08-17): feature complete → security hardened → deployment complete →
 internal production-readiness gates pass → **owner authorizes publication**
 (privacy gate, unchanged) → **explicit owner mainnet authorization** (hard
-human gate, unchanged) → production mainnet launch. An independent
-professional security review is IMPORTANT, PLANNED, and POST-LAUNCH
-ACCEPTABLE — it may occur after launch and is no longer an absolute
-pre-mainnet blocker (it must never be falsely claimed as done). The
+human gate, unchanged) → production mainnet launch. Security assurance at
+every step is the internal program (independent AI falsification review,
+hostile testing, permanent regressions, frozen-byte verification, owner
+human live-workflow acceptance); no external security audit is part of the
+sequence at any stage (owner policy, 2026-09-05). The
 privacy purpose is unchanged: prevent premature disclosure while
 PolicyVault is still being built; the project stays PRIVATE until the
 owner explicitly authorizes publication.

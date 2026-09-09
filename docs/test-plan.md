@@ -66,6 +66,24 @@ regressions, and operational-status UNIT tests.)
 
 ## Standing rules
 
+**Green floors measure what was tested.** A green floor is evidence only for
+the properties its tests actually represent — never for a property no test
+exercises. Motivating example: the rc11 internal security review (2026-09-04)
+found three hosted route families with no tenancy enforcement at all under a
+fully green floor, because every tenancy test exercised only the v0.4
+family. The response is never to weaken green-floor requirements; it is to
+make the missing property representable and represented: GATE 1 — every
+hosted tenant-owned route family carries a foreign-tenant hostile probe
+(foreign LIST/GET/CREATE/MUTATE refused, same-tenant accepted); GATE 2 — the
+mechanical authorization-boundary inventory
+(`server/src/authorization-boundary-inventory.json`,
+`docs/postlaunch/authorization-boundary-inventory.md`,
+`sdk/test/authorization-boundary-inventory.test.js`) fails closed on a
+missing principal, a discarded principal (`void principal` is a lint failure
+unless a documented exception), a bypassed tenancy resolver, an
+un-inventoried route family, a scope drift, or a family without hostile
+evidence.
+
 1. **Production-byte rule.** Any component that can change consensus-visible
    bytes (call encoder, exact-state compiler, state/transaction serializer,
    signed-package finalizer) must have an integration test that drives its
@@ -96,7 +114,7 @@ regressions, and operational-status UNIT tests.)
 7. **SDK test files run serially** (`node --test --test-concurrency=1`,
    the `npm test` script). The sabotage-sensitivity suites neutralize
    guards by REAL in-source mutation with byte-identical restore; under
-   concurrent per-file child processes another file can `require()` a
+   concurrent per-file child processes another file can `require` a
    module inside that mutation window and fail spuriously (observed
    2026-08-23: `live-layer-sabotage-v4_1` §G4's `isDefinitiveSubmitRejection
    → return true` window made `submit-classification-v4_1` §24 classify ""
@@ -140,7 +158,7 @@ CLTV bypass + lock_time boundary rejected), `d_agent_delete_insert_move_rejected
 (structural tree edits rejected). A deliberate-sabotage matrix confirmed 8/8
 funds/authority rules are enforced (each break turns its guard test red, 0 blind
 spots). Production covenant bytes UNCHANGED (SHA256 8f87dea…). MAX-REVIEWED is
-an internal hostile review, not an external audit.
+an internal hostile review, not an audit.
 
 **Checkpoint E (2026-08-18) — high-level SDK construction layer (OFFLINE):**
 the v0.4 transaction-construction SDK now exists and is production-byte proven.

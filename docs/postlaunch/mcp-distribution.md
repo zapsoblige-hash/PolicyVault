@@ -138,7 +138,7 @@ frozen, independently verified bytes.
 
 | Component | Version |
 |---|---|
-| npm package / registry entry | 1.4.2 CANDIDATE (least-privilege discovery corrective; NOT published — owner gate). Published: 1.4.1 (distribution hotfix: self-contained topology); 1.4.0 is BROKEN for standalone npm/npx consumers and is deprecated in favour of >=1.4.1 |
+| npm package / registry entry | **1.5.0 CANDIDATE** (adds the v0.7 organizational-root tool schema fragments and the `x-policyvault-mcp-client` identification header; exact-tarball clean-consumer proof recorded in the v1.9.0 packet; npm publication is a credential-gated step — see the packet for its status). Published: 1.4.2 (least-privilege discovery corrective, 2026-09-02) and 1.4.1; 1.4.0 is BROKEN for standalone npm/npx use (missing sibling `core/`) — never install it.
 | MCP protocol revisions | 2025-11-25, 2025-06-18 |
 | PolicyVault API | `/api/v1` (capability document is the authority; unknown versions fail closed) |
 | Node | ≥ 20 |

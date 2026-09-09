@@ -165,6 +165,7 @@
    "keys": [
     "MINIMUM_RELAY_TRANSACTION_FEE",
     "STANDARD_MASS_CAP",
+    "STANDARD_MASS_CAP_PRE_TOCCATA",
     "calculateRequiredFee",
     "computeMass",
     "describeWasmTransaction",
@@ -176,6 +177,7 @@
    "types": {
     "MINIMUM_RELAY_TRANSACTION_FEE": "bigint",
     "STANDARD_MASS_CAP": "bigint",
+    "STANDARD_MASS_CAP_PRE_TOCCATA": "bigint",
     "calculateRequiredFee": "function",
     "computeMass": "function",
     "describeWasmTransaction": "function",
@@ -2467,12 +2469,12 @@
     "overMaxPerSpend": {
      "threw": true,
      "message": "vault-transitions-v4: agentSpend: payAmount exceeds this agent's maxPerSpend",
-     "code": null
+     "code": "OVER_CAP"
     },
     "overBudget": {
      "threw": true,
      "message": "vault-transitions-v4: agentSpend: spend exceeds this agent's remaining period budget",
-     "code": null
+     "code": "OVER_BUDGET"
     },
     "tooManyPeriods": {
      "threw": true,
@@ -2935,6 +2937,9 @@
    },
    "STANDARD_MASS_CAP": {
     "__bigint__": "500000"
+   },
+   "STANDARD_MASS_CAP_PRE_TOCCATA": {
+    "__bigint__": "100000"
    }
   },
   "small": {

@@ -165,7 +165,7 @@ CREATE TABLE intent_manifests (
   network_id text  NOT NULL,
   key        text  NOT NULL,            -- manifestHash (64-hex)
   value      jsonb NOT NULL,            -- record, §5.2
-  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now,
   PRIMARY KEY (network_id, key)
 );
 CREATE INDEX intent_manifests_request_idx
@@ -253,7 +253,7 @@ CREATE TABLE governance_proposals (
                                         -- (+ proposalDigest cached; every
                                         --  consumer recomputes digest AND
                                         --  classification from content)
-  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now,
   PRIMARY KEY (network_id, key)
 );
 CREATE INDEX governance_proposals_vault_idx
@@ -268,7 +268,7 @@ CREATE TABLE governance_approvals (
   value      jsonb NOT NULL,            -- { schema, proposalId, proposalDigest,
                                         --   approverXOnly, approverAddress,
                                         --   signature, collectedAt }
-  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now,
   PRIMARY KEY (network_id, key)         -- one approval per wallet per digest
 );
 ```

@@ -63,7 +63,7 @@ const EXEMPT = {
   "app.js": [
     188, // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted from 151 by the UX-responsiveness pass, then by the 2026-09-02 console corrective: revalidateAuth() on the canonical session)
     191, // `ui.serverNetwork !== "testnet-10" && ui.serverNetwork !== "mainnet"` — fail-closed validity gate against the two canonical values; untouched per the mission ("do not change gating logic")
-    1314 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10 (shifted by the banner rework + UX-responsiveness pass + the console corrective)
+    1358 // comment explaining the staging-banner fallback explicitly does NOT assume testnet-10 (shifted by the banner rework + UX-responsiveness pass + the console corrective, then by the T4 canonical-amounts migration, then by the Wave 2 integer-sompi org-overview total (canonical parser/renderer instead of a float sum) — line moved, comment byte-identical)
   ],
   // index.html: ZERO hardcoded network names. The banner div ships neutral
   // "VERIFYING NETWORK…" markup (the stale-TESTNET-banner-on-mainnet
@@ -75,7 +75,7 @@ const EXEMPT = {
   "app-v4.js": [
     12, // comment restating the two canonical values (dual-network)
     60, // comment quoting the literal for documentation purposes (shifted by the UX-responsiveness pass: retained-state/epoch helpers)
-    1956 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted by the UX-responsiveness pass, then by the 2026-09-02 console corrective: signed-out read gate + auth-refusal revalidation in renderRetained)
+    3453 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted by the UX-responsiveness pass, the 2026-09-02 console corrective, the TRACK 11 flagship UX pass (noteRefusal + refusal-explain wiring), the T4 canonical-amounts migration, Wave 2 Track B-web's v0.7 organizational-root modal wiring, the Wave 2 sompiToKasDisplay helper (canonical fuel-threshold rendering), and the 2026-09-05 guided-setup successor (create-vault steps, root setup wiring, owner action forms), and the Codex checkpoint-3 corrections (pinned-successor identity, reconcile-outcome interpretation, unresolved-creation signing gate) and the rc19 round-4 remediation (reconcile outcome wording), and the 2026-09-08 launch-scope R7-05/F-6 wiring (rooted-vault owner-operation flow + withdrawal/recovery handling in the request modal — STALE ASSUMPTION: line shift only); comment byte-identical)
   ],
   "wallet.js": [
     90, // normalizeNetwork(): canonical output-value production from an arbitrary provider string (shifted by the 2026-09-02 console corrective: opt-in walletDebugEnabled() helper)
@@ -86,7 +86,7 @@ const EXEMPT = {
     73, // normalizeNetwork(): canonical output-value production (mirrors wallet.js)
     74, // normalizeNetwork(): same
     168, // descriptor networks: ["mainnet","testnet-10"] — lists BOTH supported networks
-    421 // network validity gate against the two canonical values (mirrors app.js) — shifted by the 2026-09-02 console corrective (opt-in walletDebugEnabled() helper)
+    503 // network validity gate against the two canonical values (mirrors app.js) — shifted by the 2026-09-02 console corrective (opt-in walletDebugEnabled() helper), then by the additive createKasWareUsiV2Adapter block (Universal Signer Interface v2)
   ]
 };
 

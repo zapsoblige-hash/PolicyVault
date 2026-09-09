@@ -227,7 +227,7 @@ passes it verbatim to the keyring, and `SimpleKeyring.signMessage` calls
 keyrings sign **Schnorr**; only the Tangem hardware address type
 defaults to ECDSA (`wallet.ts signMessage`, addressType
 `KASPA_TANGEM_44_111111`); callers may force `type: "schnorr"`.
-KasWare also exposes `getPublicKey()` and a `verifyMessage` provider
+KasWare also exposes `getPublicKey` and a `verifyMessage` provider
 method.
 
 **Authoritative semantics (rusty-kaspa `wallet/core/src/message.rs` +
@@ -253,7 +253,7 @@ wrong key reject).
    sees in the KasWare popup is the message itself):
    `PolicyVault authentication\norigin: https://app.policy-vault.org\nnetwork: <networkId>\naddress: <address>\nnonce: <hex>\nissued: <RFC3339>\nThis signature only signs you in. It cannot move funds.`
 3. Browser calls `kasware.signMessage(text, { type: "schnorr" })` and
-   `kasware.getPublicKey()`, then `POST /api/v1/auth/verify`.
+   `kasware.getPublicKey`, then `POST /api/v1/auth/verify`.
 4. Server verification (all fail-closed): nonce exists, unused, unexpired
    (single-use — marked used atomically); message text reconstructs
    EXACTLY server-side (never trusted from the client); pubkey→address

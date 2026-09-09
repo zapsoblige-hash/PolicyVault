@@ -70,14 +70,16 @@ async function loadTransitionClaim(config, outpoint) {
 /*
  * Claim a broadcast by final txid. Idempotent for the same txid.
  */
-async function claimSubmission(config, { txId, vaultId, action }) {
-  await getStore(config).createExclusive(Categories.SUBMISSION_CLAIM, txId, {
+async function claimSubmission(config, { txId, vaultId, action, expected }) {
+  const created = await getStore(config).createExclusive(Categories.SUBMISSION_CLAIM, txId, {
     schema: SUBMISSION_CLAIM_SCHEMA,
     txId,
     vaultId,
     action,
+    ...(expected ? { expected } : {}),
     createdAt: new Date().toISOString()
   });
+  if (expected && !created) fail(`transaction ${txId} already has a submission attempt — reconcile its owning request`);
   return txId;
 }
 

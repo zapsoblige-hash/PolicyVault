@@ -27,6 +27,29 @@
  * never a guessed key). Rotation: a new secret is minted and returned
  * once; the PREVIOUS secret co-signs deliveries for a bounded grace
  * window so consumers can roll without dropping verification.
+ *
+ * OPERATOR AT-REST KEY ROTATION (POLICYVAULT_WEBHOOK_SECRET_KEY itself,
+ * distinct from the per-endpoint secret rotation above — see
+ * docs/postlaunch/webhook-secret-rotation-procedure.md, TRACK 9): every
+ * ACTIVE endpoint's secret envelope is sealed under whatever key was
+ * current at the time it was minted/rotated. Simply swapping
+ * POLICYVAULT_WEBHOOK_SECRET_KEY to a new value therefore makes every
+ * already-stored "aes256gcm/v1" envelope permanently undecryptable under
+ * the new key alone (fail-closed SECRET_UNAVAILABLE on every delivery),
+ * because the envelope carries no key identifier and openSecret() only
+ * ever tried the one current key. The OPTIONAL
+ * POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS (64-hex, same shape) closes
+ * that gap: openSecret() tries the current key first and, only on
+ * failure, falls back to the previous key for a bounded operator-chosen
+ * window — exactly the same current-then-previous shape already used for
+ * per-endpoint secret rotation above, one layer down. This NEVER changes
+ * default behavior (unset = today's exact behavior, including the
+ * existing "wrong key fails closed, no fallback" guarantee) and never
+ * widens what a new envelope is sealed under: sealSecret() always uses
+ * the CURRENT key only. resealSecret() (below) is a pure building block
+ * for an operator-run migration that re-seals every stored envelope
+ * under the new key so POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS can be
+ * removed again — not invoked anywhere in this codebase yet.
  */
 
 const crypto = require("crypto");
@@ -52,13 +75,25 @@ function fail(status, code, message) {
 /* Secret envelopes                                                    */
 /* ------------------------------------------------------------------ */
 
-function atRestKey() {
-  const raw = process.env.POLICYVAULT_WEBHOOK_SECRET_KEY;
+function hexKeyFromEnv(varName) {
+  const raw = process.env[varName];
   if (raw === undefined || raw === "") return null;
   if (!/^[0-9a-f]{64}$/i.test(raw)) {
-    throw fail(500, "WEBHOOK_SECRET_KEY_INVALID", "POLICYVAULT_WEBHOOK_SECRET_KEY must be 64 hex characters (32 bytes) — failing closed");
+    throw fail(500, "WEBHOOK_SECRET_KEY_INVALID", `${varName} must be 64 hex characters (32 bytes) — failing closed`);
   }
   return Buffer.from(raw, "hex");
+}
+
+function atRestKey() {
+  return hexKeyFromEnv("POLICYVAULT_WEBHOOK_SECRET_KEY");
+}
+
+/* Optional fallback decrypt key during an operator-run
+ * POLICYVAULT_WEBHOOK_SECRET_KEY rotation — see the module header and
+ * docs/postlaunch/webhook-secret-rotation-procedure.md. Never used for
+ * sealing (new/rotated secrets always seal under the CURRENT key only). */
+function previousAtRestKey() {
+  return hexKeyFromEnv("POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS");
 }
 
 function sealSecret(secret) {
@@ -70,8 +105,18 @@ function sealSecret(secret) {
   return { v: "aes256gcm/v1", iv: iv.toString("hex"), ct: ct.toString("hex"), tag: cipher.getAuthTag().toString("hex") };
 }
 
+function decryptAes256Gcm(envelope, key) {
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.iv, "hex"));
+  decipher.setAuthTag(Buffer.from(envelope.tag, "hex"));
+  return Buffer.concat([decipher.update(Buffer.from(envelope.ct, "hex")), decipher.final()]).toString("utf8");
+}
+
 /* Envelope -> raw secret. FAIL CLOSED on unknown versions, a missing key,
- * or an undecryptable envelope — never a guess, never plaintext fallback. */
+ * or an undecryptable envelope — never a guess, never plaintext fallback.
+ * The only fallback ever attempted is the explicit, operator-opted-in
+ * POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS during a deliberate at-rest key
+ * rotation (module header) — unset (the default), behavior is byte-for-
+ * byte identical to before this fallback existed. */
 function openSecret(envelope) {
   if (!envelope || typeof envelope !== "object") throw fail(500, "WEBHOOK_SECRET_UNAVAILABLE", "endpoint secret envelope missing — failing closed");
   if (envelope.v === "plain/v1") {
@@ -81,15 +126,31 @@ function openSecret(envelope) {
   if (envelope.v === "aes256gcm/v1") {
     const key = atRestKey();
     if (!key) throw fail(500, "WEBHOOK_SECRET_UNAVAILABLE", "endpoint secret is encrypted at rest but POLICYVAULT_WEBHOOK_SECRET_KEY is not set — failing closed");
+    const prevKey = previousAtRestKey(); // validated eagerly; throws on a malformed override
     try {
-      const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.iv, "hex"));
-      decipher.setAuthTag(Buffer.from(envelope.tag, "hex"));
-      return Buffer.concat([decipher.update(Buffer.from(envelope.ct, "hex")), decipher.final()]).toString("utf8");
+      return decryptAes256Gcm(envelope, key);
     } catch {
-      throw fail(500, "WEBHOOK_SECRET_UNAVAILABLE", "endpoint secret envelope failed authenticated decryption (wrong key or tampering) — failing closed");
+      if (prevKey) {
+        try {
+          return decryptAes256Gcm(envelope, prevKey);
+        } catch {
+          /* fall through to the shared failure below */
+        }
+      }
+      throw fail(500, "WEBHOOK_SECRET_UNAVAILABLE", "endpoint secret envelope failed authenticated decryption under the current key (and the previous key, if configured) — failing closed");
     }
   }
   throw fail(500, "WEBHOOK_SECRET_UNAVAILABLE", `unknown endpoint secret envelope version ${JSON.stringify(envelope.v)} — failing closed`);
+}
+
+/* Re-seals an envelope openable under the current-or-previous at-rest key
+ * so it is sealed under the CURRENT key only. A pure building block for a
+ * future operator-run POLICYVAULT_WEBHOOK_SECRET_KEY rotation migration
+ * (docs/postlaunch/webhook-secret-rotation-procedure.md) — not invoked
+ * anywhere in this codebase yet. Throws exactly like openSecret() if the
+ * envelope cannot be opened under either key. */
+function resealSecret(envelope) {
+  return sealSecret(openSecret(envelope));
 }
 
 function mintSecret() {
@@ -308,5 +369,6 @@ module.exports = {
   validateEndpointUrl,
   insecureLocalAllowed,
   sealSecret,
-  openSecret
+  openSecret,
+  resealSecret
 };

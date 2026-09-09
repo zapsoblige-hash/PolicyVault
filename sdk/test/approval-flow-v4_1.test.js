@@ -102,6 +102,10 @@ after(() => server && server.close());
 async function openApp(role, { prompts = [] } = {}) {
   const html = fs.readFileSync(path.join(__dirname, "..", "..", "web", "index.html"), "utf8").replace(/<script src="[^"]*"><\/script>/g, "");
   const appV4 = fs.readFileSync(path.join(__dirname, "..", "..", "web", "app-v4.js"), "utf8");
+  /* The REAL committed browser core bundle, evaluated FIRST — exactly the
+   * order web/index.html loads it in. app-v4.js reads
+   * window.PolicyVaultCore.amounts for the canonical KAS->sompi parser. */
+  const coreBundle = fs.readFileSync(path.join(__dirname, "..", "..", "web", "core-bundle.js"), "utf8");
   const dom = new JSDOM(html, { url: `${ORIGIN}/`, runScripts: "outside-only", pretendToBeVisual: true });
   const { window } = dom;
   window.fetch = (u, o) => {
@@ -126,6 +130,7 @@ async function openApp(role, { prompts = [] } = {}) {
     subscribe(cb) { listeners.push(cb); cb(snap()); return () => {}; },
     connect() {}, disconnect() {}
   };
+  window.eval(coreBundle);
   window.eval(appV4);
   window.dispatchEvent(new window.Event("DOMContentLoaded"));
   const doc = window.document;
@@ -193,6 +198,15 @@ test("BROWSER: the agent is never offered premature signing; duplicate builds ar
   const spendBtn = await waitFor(() => app.doc.querySelector("[data-spend]"));
   app.click(spendBtn);
   await waitFor(() => app.doc.getElementById("v4-modal").style.display === "flex");
+  // The delegated spend is a real FORM since the flagship UX pass (TRACK 11,
+  // finding D1) — no window.prompt(). Fill it exactly as a user would and
+  // submit; the address still resolves through the server's identity
+  // boundary and the build runs the identical agentSpend flow.
+  const spendForm = await waitFor(() => app.doc.getElementById("v4-spend-form"));
+  spendForm.querySelector('[name="to"]').value = ADDR(RECIP);
+  spendForm.querySelector('[name="amount"]').value = "6";
+  spendForm.dispatchEvent(new app.window.Event("submit", { bubbles: true, cancelable: true }));
+  await waitFor(() => (/Awaiting approvals — 0 of 2/.test(app.doc.getElementById("v4-modal").textContent) ? true : null));
   assert.equal(app.doc.getElementById("v4-confirm"), null, "AWAITING_APPROVALS review offers NO sign action");
   assert.match(app.doc.getElementById("v4-modal").textContent, /Awaiting approvals — 0 of 2/);
   app.click(app.doc.getElementById("v4-cancel"));

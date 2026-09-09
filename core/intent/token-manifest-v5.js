@@ -21,6 +21,7 @@
  */
 
 const { canonicalJsonStringify, computeManifestHashV1 } = require("./canonical");
+const { ownGet } = require("../model/own-get"); // rc12 review R-02: own-property action lookups (prototype keys fail closed)
 const assets = require("../assets");
 const { kcc20 } = assets;
 const { normalizeTokenAgentPolicyV5, verifyTokenAgentProofV5, foldTokenAgentPolicyV5 } = require("../model/agent-merkle-v5");
@@ -75,7 +76,7 @@ function deepFreeze(value) {
 function buildTokenIntentManifest({ build, descriptor, agentPolicy = null, recipients = null }) {
   if (!build || build.contractVersion !== "policyvault-0.5" || (build.kind !== "transition" && build.kind !== "tokenDeposit")) refuse("SCHEMA_INVALID", "a v0.5 transition or tokenDeposit build is required");
   if (build.kind === "tokenDeposit") return buildDepositManifest({ build, descriptor });
-  const info = ACTIONS[build.action];
+  const info = ownGet(ACTIONS, build.action);
   if (!info) refuse("UNKNOWN_ACTION", `unknown v0.5 action ${JSON.stringify(build.action)} — failing closed`);
   const validated = assets.validateAssetDescriptor(descriptor);
   const descriptorHash = assets.computeDescriptorHash(validated);
@@ -188,7 +189,7 @@ function verifyTokenIntentManifest({ manifest, descriptor }) {
     if (manifest.manifestVersion !== TOKEN_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown token manifest version — failing closed");
     const { manifestHash, ...body } = manifest;
     check("manifestHash", computeManifestHashV1(body) === manifestHash, "manifest hash recomputed");
-    const info = ACTIONS[manifest.action?.sdkAction];
+    const info = ownGet(ACTIONS, manifest.action?.sdkAction);
     if (!info) refuse("UNKNOWN_ACTION", "unknown action");
     check("actionRole", info.role === manifest.action.role && info.terminal === manifest.action.terminal, "role/terminal derived from the action table");
 
@@ -271,7 +272,13 @@ function verifyTokenIntentManifest({ manifest, descriptor }) {
         const newStart = periods >= 1n ? policy.periodStartDaa + periods * policy.periodLengthDaa : policy.periodStartDaa;
         const newSpent = periods >= 1n ? spend : policy.tokenPeriodSpent + spend;
         check("spendWithinBudget", newSpent <= policy.tokenPeriodBudget, `period spent ${newSpent} <= budget ${policy.tokenPeriodBudget}`);
-        check("rolloverLock", periods === 0n ? BigInt(manifest.policy.lockTime) === 0n || true : BigInt(frozen.lockTime) >= newStart, "locktime covers the rollover period start");
+        /* I3C-F3 (v0.7 hostile matrix, 2026-09-03): bind the lockTime EXACTLY —
+         * the builder pins lockTime == rollover start (0 without rollover); the
+         * covenant's CLTV only requires >=, so an upward-forged lockTime is
+         * consensus-valid but delays validity (availability tamper). The
+         * verifier must refuse anything but the exact rule value, and the
+         * declared policy lockTime must equal the frozen transaction's. */
+        check("rolloverLock", BigInt(frozen.lockTime) === (periods >= 1n ? newStart : 0n) && BigInt(manifest.policy.lockTime) === BigInt(frozen.lockTime), "lockTime == rollover start (or 0) and equals the declared policy lockTime");
         const after = normalizeStateV5(manifest.stateAfter.state);
         const newRoot = foldTokenAgentPolicyV5({ ...policy, periodStartDaa: newStart, tokenPeriodSpent: newSpent }, proof.siblingsHex, BigInt(proof.pathBits));
         check("successorRootDerived", newRoot === after.agentRoot, "successor agentRoot == single-leaf fold of the advanced leaf");

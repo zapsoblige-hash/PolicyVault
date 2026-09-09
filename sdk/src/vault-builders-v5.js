@@ -67,6 +67,7 @@ const { p2pkScriptHex } = require("./approval-package-v4");
 const { runEncoderV4, PLACEHOLDER_SIG_HEX, MAX_TX_FEE_IO } = require("./vault-builders-v4");
 const assets = require("../../core/assets");
 const { verifiedTokenPosition, compileKcc20Program } = require("./token-program-kcc20");
+const { assertStorageMassWithinLimit } = require("./storage-mass-preflight");
 
 const ORDINARY_SIGSCRIPT_LEN = 66;
 const OWNER_CONTROL_ACTIONS = new Set(["ownerSetAgentRoot", "ownerTopUpReserve", "ownerPause", "ownerUnpause"]);
@@ -457,6 +458,7 @@ function buildV5Transaction({ config, contractVersion, templateInput, stateInput
   if (plan.draft.inputs.length > MAX_TX_FEE_IO || plan.draft.outputs.length > MAX_TX_FEE_IO) fail(`transaction shape exceeds the covenant fee-introspection bound of ${MAX_TX_FEE_IO} inputs/outputs`);
 
   const frozen = normalizeFrozenTxV3(plan.draft);
+  assertStorageMassWithinLimit(frozen, "policyvault-0.5 builder");
   const described = describeFrozenTx(frozen);
   const totalIn = frozen.inputs.reduce((s, i) => s + i.utxo.amount, 0n);
   const totalOut = frozen.outputs.reduce((s, o) => s + o.value, 0n);
@@ -614,6 +616,7 @@ function buildCreateV5({ config, templateInput, initialStateInput, funding, chan
   if (changeValue <= 0n) fail(`funding ${totalFunding} cannot cover the fee reserve ${state.feeReserve} + fee ${requiredFee}`, "INSUFFICIENT_FUEL");
   outputs[1] = { ...outputs[1], value: changeValue };
   const frozen = normalizeFrozenTxV3({ ...draft, outputs });
+  assertStorageMassWithinLimit(frozen, "policyvault-0.5 builder");
   const described = describeFrozenTx(frozen);
   return deepFreeze({
     kind: "genesis",
@@ -726,6 +729,7 @@ function buildTokenDepositV5({ config, descriptor, templateIndex = 0, controller
   if (changeValue <= 0n) fail(`fuel ${fuel.amount} cannot cover fee ${fee}`, "INSUFFICIENT_FUEL");
   outputs[outputs.length - 1] = { ...outputs[outputs.length - 1], value: changeValue };
   const frozen = normalizeFrozenTxV3({ ...draft, outputs });
+  assertStorageMassWithinLimit(frozen, "policyvault-0.5 builder");
   const described = describeFrozenTx(frozen);
   return deepFreeze({
     kind: "tokenDeposit",

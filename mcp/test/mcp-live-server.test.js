@@ -166,7 +166,7 @@ test("live: tool catalog derives from the REAL discovery document (action enum =
     "policyvault_request_status",
     "policyvault_list_requests"
   ]);
-  assert.match(driver.stderrRaw, /8 of 14 tool\(s\) advertised \(discovery: credential-scoped\)/);
+  assert.match(driver.stderrRaw, /8 of 19 tool\(s\) advertised \(discovery: credential-scoped\)/);
   const create = res.result.tools.find((t) => t.name === "policyvault_create_request");
   assert.deepEqual(create.inputSchema.properties.action.enum.sort(), Object.keys(ROLE_BY_ACTION).sort(), "the action enum must equal the SDK export, via the wire, not via retyping");
 });

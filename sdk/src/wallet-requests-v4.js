@@ -1,4 +1,7 @@
 "use strict";
+const { ensureBuildDir } = require("./build-cache");
+const { compileExactStateV4 } = require("./contract-compiler-v4");
+const { ownGet } = require("../../core/model/own-get");
 
 /*
  * Signer-agnostic wallet request pipeline for PolicyVault v0.4
@@ -33,7 +36,7 @@ const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
 const { getStore, Categories } = require("./store");
-const { assertOperationalNetwork } = require("./config");
+const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
 const { CONTRACT_VERSION_V4, resolveV4Abi, normalizeTemplateV4, normalizeStateV4, stateToJsonV4 } = require("./vault-state-v4");
 const { buildAgentTreeV4, generateAgentProofV4, normalizeAgentPolicyV4 } = require("./agent-merkle-v4");
 const { buildRecipientTree } = require("./recipient-merkle-v3");
@@ -53,7 +56,7 @@ const { sompiToKas } = require("./amounts");
 const { appendAudit } = require("./audit");
 const { VaultStatus } = require("./manifest");
 
-const PREFLIGHT_PATH = path.join(__dirname, "..", "..", "tests/vm/target/debug/pv_vm_preflight");
+const { PREFLIGHT_PATH } = require("./vm-preflight"); // shared runner (F-04)
 const REQUEST_SCHEMA_V4 = "policyvault-wallet-request/v4";
 
 const RequestState = Object.freeze({
@@ -131,7 +134,9 @@ async function saveRequest(config, request) {
   return request;
 }
 async function loadRequest(config, requestId) {
-  return getStore(config).read(Categories.REQUEST, requestId);
+  const request = await getStore(config).read(Categories.REQUEST, requestId);
+  if (request && request.requestId !== requestId) throw fail("request identity differs from its storage key", "REQUEST_ID_MISMATCH");
+  return request;
 }
 async function listVaultRequests(config, vaultId) {
   const all = await getStore(config).listValues(Categories.REQUEST);
@@ -404,7 +409,7 @@ async function buildWalletRequestV4({ config, vaultId, action, params = {}, sign
   // controls, but this server-side rejection is the independent backstop.
   if (!manifest.live) throw fail(`vault is ${manifest.status} (closed) — it is read-only history and accepts no further operations`, "VAULT_TERMINAL");
 
-  const requiredRole = ROLE_BY_ACTION[action];
+  const requiredRole = ownGet(ROLE_BY_ACTION, action); // own-property only (F-05)
   if (!requiredRole) throw fail(`unknown action ${action} — failing closed`, "BUILD_FAILED");
 
   const plan = planV4(config, manifest, action, params);
@@ -624,24 +629,10 @@ async function failRequestClosed(config, request, state, errorMessage) {
   await releaseReservationForRequest(config, request);
 }
 
-function runPreflight(finalTx) {
-  if (!fs.existsSync(PREFLIGHT_PATH)) throw fail(`pv_vm_preflight not built: ${PREFLIGHT_PATH}`, "PREFLIGHT_FAILED");
-  const p = path.join(os.tmpdir(), `pv4-preflight-${process.pid}-${crypto.randomUUID()}.json`);
-  fs.writeFileSync(p, JSON.stringify(finalTx), { mode: 0o600 });
-  try {
-    const r = spawnSync(PREFLIGHT_PATH, [p, "0"], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
-    if (r.status !== 0) throw fail(`preflight harness error: ${r.stderr?.trim() ?? r.status}`, "PREFLIGHT_FAILED");
-    let out;
-    try {
-      out = JSON.parse(r.stdout.trim());
-    } catch {
-      throw fail("preflight returned invalid JSON", "PREFLIGHT_FAILED");
-    }
-    return out;
-  } finally {
-    fs.unlinkSync(p);
-  }
-}
+/* F-04: the shared production-VM preflight runner (sdk/src/vm-preflight.js) —
+ * every input (covenant AND fuel) must execute on the real engine before the
+ * request may become PREFLIGHT_VERIFIED. */
+const { preflightAllInputs } = require("./vm-preflight");
 
 /*
  * FINALIZE + PREFLIGHT stage (OFFLINE, no broadcast). Re-authorizes the
@@ -712,6 +703,7 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
 
   let finalized;
   try {
+    ensureBuildDir({ config, buildDir: request.build.encoderBuildDir, recompile: () => compileExactStateV4({ config, template: request.build.template, state: normalizeStateV4(request.build.stateJson), contractVersion: request.build.contractVersion }) }); // F-03: evicted cache entry -> deterministic recompile
     finalized = finalizeV4Transaction({
       build: request.build,
       covenantSignatureHex: covenantSig,
@@ -744,7 +736,7 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   }
 
   // PRODUCTION COVENANT VM PREFLIGHT (no broadcast).
-  const verdict = runPreflight(finalized.finalTransaction);
+  const verdict = preflightAllInputs(finalized.finalTransaction); // F-04: covenant input AND fuel input
   if (verdict.valid !== true) {
     await failRequestClosed(config, request, RequestState.PREFLIGHT_FAILED, `VM preflight rejected: ${verdict.reason ?? "unknown"}`);
     throw fail(request.error, "PREFLIGHT_FAILED");
@@ -815,6 +807,7 @@ async function buildCreateWalletRequestV4({ config, templateInput, initialAgents
     throw fail(e.message, "BUILD_FAILED");
   }
   const abi = resolveV4Abi(contractVersion); // fails closed on unknown versions
+  assertGenerationMainnetCreatable(config, abi.version); // F-02: on mainnet only the v0.4.1 generation may be NEWLY created (v0.4 = non-standard relay)
   const template = normalizeTemplateV4(templateInput);
   // Owner funds + owns genesis.
   assertSignerAuthorizedV4(config, { role: "owner", signerAddress, template, manifest: { agentRegistry: [] }, action: "createVault" });
@@ -880,7 +873,7 @@ async function buildCreateWalletRequestV4({ config, templateInput, initialAgents
       // language; raw DAA values stay read-only under `technical` (the browser
       // renders them under Advanced). Presentation only — the signed bytes are
       // the frozen transaction above, unchanged by any of this.
-      const { daaToHumanPeriod } = require("./ux-normalize-v4");
+      const { describeDaa } = require("../../core/model/duration-daa");
       const approverCount = state.approvers.filter((s) => s !== "00".repeat(32)).length;
       const single = registry.length === 1 ? registry[0] : null;
       return {
@@ -892,7 +885,8 @@ async function buildCreateWalletRequestV4({ config, templateInput, initialAgents
         ...(single
           ? {
               maxPerSpendKas: sompiToKas(BigInt(single.maxPerSpend)),
-              budget: `${sompiToKas(BigInt(single.periodBudget))} KAS approximately every ${daaToHumanPeriod(single.periodLengthDaa)}`,
+              // the same words the setup form shows for this period (rc15 review F-08)
+              budget: `${sompiToKas(BigInt(single.periodBudget))} KAS per period (${describeDaa(single.periodLengthDaa, { largestUnit: "week" }).text})`,
               approvalAboveKas: sompiToKas(BigInt(single.approvalThreshold))
             }
           : {}),
@@ -937,5 +931,6 @@ module.exports = {
   listWalletRequestsV4,
   assertSignerAuthorizedV4,
   planV4,
-  nextRegistry
+  nextRegistry,
+  reviewForBuild
 };

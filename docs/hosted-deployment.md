@@ -26,14 +26,14 @@ preserve the released self-hosted behavior exactly.
 ## 2. Startup order (fail closed — no HTTP before proof)
 
 ```
-configuration validation            loadConfig() — every unlock/refusal
+configuration validation            loadConfig — every unlock/refusal
         ↓
 durable backend OPEN                postgres: connect + schema EXACTLY
                                     current + write-once network stamp
                                     (openPgStore; the server NEVER
                                     auto-migrates)
         ↓
-startup posture validation          validateStartup() — data-root stamp,
+startup posture validation          validateStartup — data-root stamp,
                                     mainnet dev-hook refusals, posture
                                     report (no secrets)
         ↓

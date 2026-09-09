@@ -281,6 +281,88 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* 1b. KasWare on UNIVERSAL SIGNER INTERFACE v2 (additive)             */
+    /* ------------------------------------------------------------------ */
+
+    /*
+     * createKasWareUsiV2Adapter({ win }) — the SAME KasWare adapter above,
+     * carried onto interface v2 (docs/postlaunch/signer-interface-v2-spec.md).
+     *
+     * ADDITIVE AND INERT FOR PRODUCTION: the shipped signing path
+     * (createKasWareSessionAdapter -> core/signer v1 executeSigning) is
+     * UNCHANGED and still what web/app.js consumes. Nothing here alters a
+     * provider call: the v1 adapter object is reused as-is, so
+     * `kw.signMessage(message, { type: "schnorr" })` and
+     * `kw.signPskt({ txJsonString, options: { signInputs } })` are made
+     * with byte-identical arguments. What v2 adds around them is the
+     * capability negotiation and request/response binding the v1
+     * vocabulary could not express.
+     *
+     * THE PROBE IS THE BROWSER LAYER'S JOB. `core/signer/v2/adapters/
+     * kasware.js` is DOM-free: it judges, it does not look. This function
+     * performs the ONE observation — which method names actually exist on
+     * the injected `window.kasware` object — and hands that list to the
+     * profile, which turns it into a probe report. A provider missing
+     * `signPskt` therefore refuses a transaction request BEFORE a popup
+     * opens (CAPABILITY_MISMATCH), instead of failing after a human has
+     * already clicked Sign.
+     *
+     * The live network is read only if the provider is present, and only
+     * through the same `normalizeNetwork` the shipped adapter uses; a
+     * non-canonical label is simply not reported (never coerced).
+     */
+    function observeKasWareProvider(win) {
+      var provider = win ? win.kasware : undefined;
+      if (!provider) return { present: false };
+      var names = core.signerKasWareProfileV2.providerMethodNames();
+      var methods = [];
+      for (var i = 0; i < names.length; i++) {
+        if (typeof provider[names[i]] === "function") methods.push(names[i]);
+      }
+      return { present: true, methods: methods };
+    }
+
+    function createKasWareUsiV2Adapter(options) {
+      options = options || {};
+      if (!core.signerInterfaceV2 || !core.signerLiftV2 || !core.signerKasWareProfileV2) {
+        throw new Error("this core bundle does not carry Universal Signer Interface v2 — regenerate web/core-bundle.js");
+      }
+      var win = options.win !== undefined ? options.win : typeof window !== "undefined" ? window : undefined;
+      var declarations = core.signerKasWareProfileV2.KASWARE_V2_DECLARATIONS;
+      var usiV1 = options.v1Adapter !== undefined ? options.v1Adapter : createKasWareUsiAdapter({ win: win });
+
+      return core.signerLiftV2.liftV1Adapter(usiV1, {
+        sighash: {
+          all: declarations.sighash.all,
+          none: declarations.sighash.none,
+          single: declarations.sighash.single,
+          anyoneCanPay: declarations.sighash.anyoneCanPay
+        },
+        pskt: { supported: declarations.pskt.supported, roles: declarations.pskt.roles.slice() },
+        transactionFormats: declarations.transactionFormats.slice(),
+        userPresence: declarations.userPresence,
+        transport: declarations.transport,
+        cancellation: declarations.cancellation,
+        maxTimeoutMs: declarations.maxTimeoutMs,
+        probeCapabilities: function () {
+          var found = observeKasWareProvider(win);
+          if (found.present) {
+            /* the live network CLAIM, canonicalized exactly as the shipped
+             * adapter does; anything non-canonical is left unreported */
+            try {
+              var raw = win.kasware.getNetwork();
+              if (raw && typeof raw.then !== "function") found.network = normalizeNetwork(raw);
+            } catch (e) {
+              /* an unavailable network claim is simply absent from the
+               * report — the interface re-reads it at the live gate */
+            }
+          }
+          return core.signerKasWareProfileV2.probeKasWareProvider(found);
+        }
+      });
+    }
+
+    /* ------------------------------------------------------------------ */
     /* 2. The session adapter (legacy WalletAdapter surface over the USI)  */
     /* ------------------------------------------------------------------ */
 
@@ -505,6 +587,8 @@
 
     return {
       createKasWareUsiAdapter: createKasWareUsiAdapter,
+      createKasWareUsiV2Adapter: createKasWareUsiV2Adapter,
+      observeKasWareProvider: observeKasWareProvider,
       createKasWareSessionAdapter: createKasWareSessionAdapter,
       LEGACY_CATEGORY: LEGACY_CATEGORY,
       normalizeNetwork: normalizeNetwork

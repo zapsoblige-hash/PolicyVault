@@ -12,7 +12,7 @@
                     │  audit. No keys. No success without │  security
                     │  chain proof.                       │  boundary
                     └───────────────┬───────────────────┘
-                                    │ require()
+                                    │ require
    sdk/  ┌─────────────────────────▼──────────────────────────┐
          │ amounts · vault-state · contract-compiler · manifest │
          │ chain · submission-claim · create/spend/lifecycle/   │

@@ -36,7 +36,7 @@ const crypto = require("crypto");
 const path = require("path");
 const util = require("util");
 
-const { ConformanceHarness, VAULT_A, VAULT_B, missingProbeBinaries } = require("./lib/server-harness");
+const { ConformanceHarness, VAULT_A, VAULT_B, missingProbeBinaries, ROOT } = require("./lib/server-harness");
 const { outcome, pick, prune, assertSameRefusal, assertAllEqual, assertAmountHygiene } = require("./lib/normalize");
 const { ConformanceReport } = require("./lib/report");
 const { allPaths } = require("./paths");
@@ -287,23 +287,29 @@ test("C03: the dry run returns the identical deterministic simulation via every 
     // The simulation pipeline is deterministic: byte-identical bodies.
     assertAllEqual(okBodies, "simulate(agentSpend 1 KAS) body");
     assertAllEqual(refusals, "simulate(over-cap) refusal body");
-    // The over-cap refusal surfaces the builder's message under the
-    // simulate catch-all code (the SDK policy error carries no .code):
-    assert.equal(refusals.js.simulation.refusalReason.code, "SIMULATION_FAILED");
+    // The over-cap refusal surfaces the builder's SPECIFIC closed code
+    // (472918c gave cap refusals `OVER_CAP`; the simulate handler prefers
+    // `e.code` over its SIMULATION_FAILED catch-all, so the precise code is
+    // surfaced verbatim — deterministically across every path):
+    assert.equal(refusals.js.simulation.refusalReason.code, "OVER_CAP");
     assert.match(refusals.js.simulation.refusalReason.message, /maxPerSpend|exceeds/i);
     assert.equal(okBodies.js.simulation.vmPreflight.skipped, true, "dry run must state the skipped VM preflight honestly");
     bag["simulation"] = okBodies.js;
 
-    // Unknown vault: substantive refusal, identical everywhere.
+    // Unknown vault (rc11 review F-03/F-04, hosted mode): a dry run on a vault
+    // the principal cannot reach is the TENANCY refusal — 404 VAULT_NOT_FOUND,
+    // identical for "does not exist" and "exists but foreign" (no existence
+    // oracle) — identical across every path. Before the fix this was a 200
+    // ok:false BUILD_FAILED body, which distinguished foreign from absent.
     const ghost = spendSpec("7e".repeat(32), "100000000");
-    const g = {
-      js: (await js.simulate("six", ghost)).body,
-      python: (await py.simulate("six", ghost)).body,
-      mcp: (await mcp.six.callTool("c03-gh", "policyvault_simulate_request", mcpArgs(ghost))).body
-    };
-    assertAllEqual(g, "simulate(unknown vault) body");
-    assert.equal(g.js.simulation.ok, false);
-    assert.equal(g.js.simulation.refusalReason.code, "BUILD_FAILED");
+    const gJs = await js.simulate("six", ghost);
+    const gPy = await py.simulate("six", ghost);
+    const gMcp = await mcp.six.callTool("c03-gh", "policyvault_simulate_request", mcpArgs(ghost));
+    assert.equal(gJs.ok, false); assert.equal(gJs.httpStatus, 404); assert.equal(gJs.code, "VAULT_NOT_FOUND");
+    assert.equal(gPy.ok, false); assert.equal(gPy.httpStatus, 404); assert.equal(gPy.code, "VAULT_NOT_FOUND");
+    assert.equal(gMcp.ok, false); assert.equal(gMcp.httpStatus, 404, "the MCP tool surfaces the same tenancy refusal (REFUSED envelope, never a transport error)");
+    assert.equal(gMcp.code, "VAULT_NOT_FOUND");
+    assertAllEqual({ js: gJs.body, python: gPy.body }, "simulate(unknown vault) refusal body");
   }, "byte-identical deterministic simulation bodies across paths");
 });
 
@@ -1123,15 +1129,28 @@ test("C16: the MCP catalog and the Python package match their declared capabilit
     assert.ok(o.ok);
     assert.deepEqual(
       o.body.modules,
-      ["__init__.py", "amounts.py", "client.py", "errors.py", "py.typed", "schemas.py", "transport.py"],
+      ["__init__.py", "amounts.py", "client.py", "errors.py", "py.typed", "schemas.py", "transport.py", "webhooks.py"],
       "the Python package grew/lost a module — re-classify the conformance matrix (a local verifier would appear here)"
     );
+    // RE-CLASSIFIED 2026-09-03 (flagship wave 1, Track 9): `webhooks.py` is
+    // the pv1 WEBHOOK SIGNATURE verifier (HMAC over the server-signed event
+    // body + timestamp) — TRANSPORT AUTHENTICITY of an inbound webhook, the
+    // same class as TLS/HMAC checks, NOT local financial verification
+    // (no intent/manifest/successor/fee/sighash semantics; it never decides
+    // whether a transaction is authorized). It exists so an operator can
+    // verify deliveries after a webhook-secret rotation without the JS SDK.
+    // The asymmetry statement is unchanged: Python still defers every
+    // financial verification to the JS core. Exactly the verifier function
+    // and its result dataclass are exempted from the verifier-shaped-surface
+    // guard below; any other `verif*` surface still fails the guard.
+    const TRANSPORT_VERIFIER_ALLOWLIST = new Set(["verify_webhook_signature", "WebhookVerifyResult"]);
     // Local-computation vocabulary only: names shaped like verification /
     // successor derivation / consensus-byte work. Route-call methods such
     // as reconcile_vault (POST /vaults/:id/reconcile — the SERVER does the
     // work) are transport and stay allowed.
     const forbidden = /verif|successor|sighash|fee_mass|feemass|preflight|compile/i;
     for (const attr of [...o.body.clientAttrs, ...o.body.packageAttrs]) {
+      if (TRANSPORT_VERIFIER_ALLOWLIST.has(attr)) continue;
       assert.ok(!forbidden.test(attr), `python surface gained '${attr}' — looks like local verification/derivation, which the Python path must NOT have (asymmetry statement)`);
     }
   }, "package lock: transport-only module set; no verifier-shaped surface", "LIMITATION_ASSERTED");
@@ -1244,9 +1263,9 @@ test("C19: the x402 adapter drives the REAL platform — same-intent build equiv
     });
     assert.equal(overCap.body.status, "REFUSED");
     assert.equal(overCap.body.stage, "simulate");
-    assert.ok(overCap.body.refusalReason && overCap.body.refusalReason.code === "SIMULATION_FAILED", JSON.stringify(overCap.body.refusalReason));
+    assert.ok(overCap.body.refusalReason && overCap.body.refusalReason.code === "OVER_CAP", JSON.stringify(overCap.body.refusalReason));
     assert.equal(await requestCount(VAULT_A), before, "every refusal was PURE — nothing durable");
-  }, "platform refusal envelopes surface verbatim (VAULT_NOT_FOUND, SIMULATION_FAILED); refusals pure");
+  }, "platform refusal envelopes surface verbatim (VAULT_NOT_FOUND, OVER_CAP); refusals pure");
 
   await report.cell(S, "x402-limitations", async () => {
     // Closed caller schema: a caller-supplied idempotency key (or any
@@ -1364,6 +1383,69 @@ test("C20: the AP2 Credential-Provider adapter drives the REAL platform — dire
 /* ---------------------------------------------------------------- */
 /* C17 — amounts-as-strings hygiene over every collected body         */
 /* ---------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------- */
+/* C21 — MCP usage telemetry (Track 7)                                */
+/* ---------------------------------------------------------------- */
+
+test("C21: MCP usage telemetry — OFF by default (zero events); ON records exactly one closed event per real MCP tool call, attributed to the resolved identity, carrying the real adapter's own client header", async () => {
+  const S = "C21-mcp-telemetry";
+  const { Categories, getPlatformStore } = require(path.join(ROOT, "server/src/platform-store"));
+  const mcpTelemetry = require(path.join(ROOT, "server/src/mcp-telemetry"));
+  const store = getPlatformStore(harness.config);
+  const freshSince = (before, after) => {
+    const known = new Set(before.map((e) => e.eventId));
+    return after.filter((e) => !known.has(e.eventId));
+  };
+
+  await report.cell(S, "mcp", async () => {
+    // OFF by default: nothing earlier in this run ever set the flag.
+    const beforeOff = await store.listValues(Categories.MCP_TELEMETRY_EVENT);
+    const off = await mcp.readonly.callTool("c21-off", "policyvault_list_vaults", {});
+    assert.ok(off.ok, "the underlying call is unaffected by telemetry being off");
+    const afterOff = await store.listValues(Categories.MCP_TELEMETRY_EVENT);
+    assert.equal(afterOff.length, beforeOff.length, "no telemetry stored while POLICYVAULT_MCP_TELEMETRY is unset");
+
+    const prevFlag = process.env.POLICYVAULT_MCP_TELEMETRY;
+    process.env.POLICYVAULT_MCP_TELEMETRY = "1";
+    try {
+      // success: exactly one event, real X-PolicyVault-MCP-Client header,
+      // attributed to the resolved machine IDENTITY (never the credential).
+      const beforeOn = await store.listValues(Categories.MCP_TELEMETRY_EVENT);
+      const on = await mcp.readonly.callTool("c21-on", "policyvault_list_vaults", {});
+      assert.ok(on.ok);
+      const fresh = freshSince(beforeOn, await store.listValues(Categories.MCP_TELEMETRY_EVENT));
+      assert.equal(fresh.length, 1, "exactly one telemetry event for the real MCP tool call");
+      const ev = fresh[0];
+      assert.equal(ev.identityId, harness.identityIds.readonly);
+      assert.equal(ev.tool, "vaults.list");
+      assert.equal(ev.method, "GET");
+      assert.equal(ev.outcome, "success");
+      assert.equal(ev.code, null);
+      assert.match(ev.mcpClient, /^policyvault-mcp\/\d+\.\d+\.\d+$/, "the REAL mcp/server.js subprocess sent its own X-PolicyVault-MCP-Client header");
+      assert.ok(!JSON.stringify(ev).includes(harness.tokens.readonly), "the event never carries the credential");
+
+      // refusal: an under-scoped real tool call still records exactly one event.
+      const beforeRefused = await store.listValues(Categories.MCP_TELEMETRY_EVENT);
+      const refused = await mcp.readonly.callTool("c21-refused", "policyvault_audit_feed", {});
+      assert.equal(refused.ok, false);
+      const freshRefused = freshSince(beforeRefused, await store.listValues(Categories.MCP_TELEMETRY_EVENT));
+      assert.equal(freshRefused.length, 1);
+      assert.equal(freshRefused[0].outcome, "refusal");
+      assert.equal(freshRefused[0].code, "SCOPE_FORBIDDEN");
+      assert.equal(freshRefused[0].tool, "audit");
+
+      // the aggregate (SAME read:metrics gate as GET /metrics — no new
+      // authority) reflects this real usage.
+      const agg = await mcpTelemetry.buildTelemetryAggregate(harness.config);
+      const mine = agg.identities.firstLastSeen.find((e) => e.identityId === harness.identityIds.readonly);
+      assert.ok(mine && mine.calls >= 2, JSON.stringify(agg.identities));
+    } finally {
+      if (prevFlag === undefined) delete process.env.POLICYVAULT_MCP_TELEMETRY;
+      else process.env.POLICYVAULT_MCP_TELEMETRY = prevFlag;
+    }
+  });
+});
 
 test("C17: every amount in every response from every path is an integer-sompi decimal string — no floats anywhere", async () => {
   const S = "C17-amount-hygiene";

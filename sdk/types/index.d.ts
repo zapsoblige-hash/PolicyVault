@@ -563,3 +563,183 @@ export declare const tokenExplain: {
   scaled(...args: unknown[]): unknown;
 };
 
+
+/* ===== v0.7 ORGANIZATIONAL M-of-N OWNER ROOT lineage (CANDIDATE: SDK/PRODUCTION-BYTE-VERIFIED, NOT testnet-verified, NOT byte-frozen) =====
+ *
+ * A ROOTED VAULT HAS NO OWNER KEY. An owner operation is valid only when the
+ * same transaction also spends the organizational root, whose own covenant
+ * proved M-of-N (or the lighter emergency quorum for FREEZE), and the vault
+ * pins that root's EXACT successor bytes so it can tell WHICH root path ran.
+ * A delegate spend never touches the root at all.
+ */
+
+/** v0.7 root version tag ("policyvault-0.7-root"). */
+export declare const CONTRACT_VERSION_V7_ROOT: string;
+/** v0.7 rooted payment vault version tag ("policyvault-0.7-payment"). */
+export declare const CONTRACT_VERSION_V7: string;
+/** Resolve a v0.7 root ABI; unknown versions throw (fail closed). */
+export declare function resolveV7RootAbi(contractVersion: string): unknown;
+/** Resolve a v0.7 rooted-vault ABI; unknown versions throw (fail closed). */
+export declare function resolveV7Abi(contractVersion: string): unknown;
+
+/** Owner slots 1..12, WF(S) exactly as PolicyVaultOrgRoot enforces it, the 780-byte signature blob with canonical placeholders and the 65-byte/0x01 SIGHASH_ALL gate, and the action vocabulary with its four authority classes. */
+export declare const ownerSetV7: {
+  OWNER_SLOTS_V7: unknown;
+  SIG_SLOT_LEN_V7: unknown;
+  SIG_BLOB_LEN_V7: unknown;
+  INACTIVE_SLOT_KEY: unknown;
+  PLACEHOLDER_SLOT_HEX_V7: unknown;
+  AUTHORITY_CLASSES_V7: unknown;
+  ROOT_ACTIONS_V7: unknown;
+  ROOT_ACTION_BY_CODE: unknown;
+  resolveRootActionV7(...args: unknown[]): unknown;
+  resolveRootActionCodeV7(...args: unknown[]): unknown;
+  normalizeOwnerSetV7(...args: unknown[]): unknown;
+  activeOwnerSlotsV7(...args: unknown[]): unknown;
+  requiredApprovalsV7(...args: unknown[]): unknown;
+  assembleOwnerSigsBlobV7(...args: unknown[]): unknown;
+  placeholderOwnerSigsBlobV7(...args: unknown[]): unknown;
+  inspectOwnerSigsBlobV7(...args: unknown[]): unknown;
+  normalizeSlotSignatureHex(...args: unknown[]): unknown;
+};
+
+/** The 18-field organizational root state, its EXACT 467-byte state region, the fixed-width 11-byte TAIL (0x01||frozen||0x08||nonce8), canonical parse/serialize, state digest and state id. */
+export declare const vaultStateV7Root: {
+  CONTRACT_VERSION_V7_ROOT: unknown;
+  V7_ROOT_ABIS: unknown;
+  ROOT_STATE_LEN_V7: unknown;
+  ROOT_TAIL_LEN_V7: unknown;
+  ROOT_HEAD_LEN_V7: unknown;
+  ROOT_FROZEN_PUSH_LEN_V7: unknown;
+  ROOT_NONCE_PUSH_LEN_V7: unknown;
+  MAX_ROOT_NONCE_V7: unknown;
+  resolveV7RootAbi(...args: unknown[]): unknown;
+  normalizeRootTemplateV7(...args: unknown[]): unknown;
+  normalizeRootStateV7(...args: unknown[]): unknown;
+  genesisRootStateV7(...args: unknown[]): unknown;
+  serializeRootStateV7(...args: unknown[]): unknown;
+  serializeRootStateHexV7(...args: unknown[]): unknown;
+  parseRootStateV7(...args: unknown[]): unknown;
+  rootStateTailV7(...args: unknown[]): unknown;
+  rootStateTailHexV7(...args: unknown[]): unknown;
+  expectedRootSuccessorTailHexV7(...args: unknown[]): unknown;
+  computeRootStateDigestV7(...args: unknown[]): unknown;
+  computeRootStateIdV7(...args: unknown[]): unknown;
+  rootStateToJsonV7(...args: unknown[]): unknown;
+  rootTemplateToJsonV7(...args: unknown[]): unknown;
+};
+
+/** The rooted payment vault: the frozen v0.5 mutable state verbatim, plus the root pins (orgRootCovenantId, rootTemplateVmHash, root geometry) and the genesis-pinned cold recoveryPk. */
+export declare const vaultStateV7: {
+  CONTRACT_VERSION_V7: unknown;
+  V7_ABIS: unknown;
+  OWNER_OP_SELECTOR_V7: unknown;
+  OWNER_OP_ROOT_AUTHORITY_V7: unknown;
+  ROOT_STATE_LEN_V7: unknown;
+  ROOT_TAIL_LEN_V7: unknown;
+  resolveV7Abi(...args: unknown[]): unknown;
+  resolveOwnerOpAuthorityV7(...args: unknown[]): unknown;
+  normalizeTemplateV7(...args: unknown[]): unknown;
+  normalizeStateV7(...args: unknown[]): unknown;
+  normalizeStateV7ForRecovery(...args: unknown[]): unknown;
+  computeStateIdV7(...args: unknown[]): unknown;
+  stateToJsonV7(...args: unknown[]): unknown;
+  templateToJsonV7(...args: unknown[]): unknown;
+};
+
+/** Deterministic root successors for AUTHORIZE / ROTATE / FREEZE / UNFREEZE / OWNER-RECOVER (D6: lands frozen) / SUCCESSION (D1: primary key must change), plus the root value rule. */
+export declare const vaultTransitionsV7Root: {
+  authorizeSuccessorV7Root(...args: unknown[]): unknown;
+  rotateSuccessorV7Root(...args: unknown[]): unknown;
+  freezeSuccessorV7Root(...args: unknown[]): unknown;
+  unfreezeSuccessorV7Root(...args: unknown[]): unknown;
+  ownerRecoverSuccessorV7Root(...args: unknown[]): unknown;
+  successionSuccessorV7Root(...args: unknown[]): unknown;
+  rootTransitionV7(...args: unknown[]): unknown;
+  assertRootValueRuleV7(...args: unknown[]): unknown;
+};
+
+/** Rooted-vault owner selectors 0..4, break-glass recovery to the pinned recoveryPk, and the delegate spend (the frozen v0.5 math, no root input). */
+export declare const vaultTransitionsV7: {
+  MAX_PERIODS_ELAPSED: unknown;
+  tokenAgentSpendSuccessorV7(...args: unknown[]): unknown;
+  tokenContinuationStatesV7(...args: unknown[]): unknown;
+  setAgentRootSuccessorV7(...args: unknown[]): unknown;
+  topUpReserveSuccessorV7(...args: unknown[]): unknown;
+  pauseSuccessorV7(...args: unknown[]): unknown;
+  emergencyPauseSuccessorV7(...args: unknown[]): unknown;
+  recoverPlanV7(...args: unknown[]): unknown;
+  ownerOpSuccessorV7(...args: unknown[]): unknown;
+};
+
+/** Measured v0.7 compute budgets; the root's priced cost scales with ACTIVE owner slots, the rooted vault's with the pinned root template size. */
+export declare const computeBudgetV7: {
+  V7_BUDGET: unknown;
+  UNITS_PER_BUDGET: unknown;
+  SIGOP_UNITS: unknown;
+  ROOT_TEMPLATE_REFERENCE_BYTES: unknown;
+  requiredBudgetForUnits(...args: unknown[]): unknown;
+  rootScriptUnits(...args: unknown[]): unknown;
+  selectRootComputeBudgetV7(...args: unknown[]): unknown;
+  selectComputeBudgetV7(...args: unknown[]): unknown;
+  selectTokenInputBudgetV7(...args: unknown[]): unknown;
+  assertBudgetSufficientV7(...args: unknown[]): unknown;
+  assertRootBudgetSufficientV7(...args: unknown[]): unknown;
+};
+
+/** Exact live-state compilation of BOTH v0.7 covenants with template identity and a geometry gate that fails closed on any state-region drift. */
+export declare const contractCompilerV7: {
+  compileExactStateV7Root(...args: unknown[]): unknown;
+  compileExactStateV7(...args: unknown[]): unknown;
+  deriveRootPinsV7(...args: unknown[]): unknown;
+  assertRootPinsMatchV7(...args: unknown[]): unknown;
+  constructorArgsV7Root(...args: unknown[]): unknown;
+  constructorArgsV7(...args: unknown[]): unknown;
+  buildLiveStateSourceV7(...args: unknown[]): unknown;
+};
+
+/** Offline build + freeze + finalize for root genesis, every root governance transition, rooted-vault genesis, owner operations, break-glass recovery, delegate spend and token deposit. Builders never broadcast. */
+export declare const vaultBuildersV7: {
+  buildCreateV7Root(...args: unknown[]): unknown;
+  buildV7RootTransaction(...args: unknown[]): unknown;
+  finalizeV7RootTransaction(...args: unknown[]): unknown;
+  buildCreateV7Vault(...args: unknown[]): unknown;
+  buildV7Transaction(...args: unknown[]): unknown;
+  finalizeV7Transaction(...args: unknown[]): unknown;
+  buildTokenDepositV7(...args: unknown[]): unknown;
+  finalizeTokenDepositV7(...args: unknown[]): unknown;
+  rootSuccessorCallJsonV7(...args: unknown[]): unknown;
+  successorCallJsonV7(...args: unknown[]): unknown;
+  OWNER_CONTROL_ACTIONS_V7: unknown;
+  SPEND_ACTIONS_V7: unknown;
+  ROOT_ACTIONS_V7_NAMES: unknown;
+  resolveRootActionV7(...args: unknown[]): unknown;
+};
+
+/** policyvault-org-root-manifest/1 and policyvault-rooted-vault-manifest/1: the signer-visible organizational manifest and its deterministic local verification against the frozen transaction. */
+export declare const orgRootManifestV7: {
+  ORG_ROOT_MANIFEST_VERSION_1: unknown;
+  ROOTED_VAULT_MANIFEST_VERSION_1: unknown;
+  ORG_ROOT_EXPLANATION: unknown;
+  ROOTED_VAULT_ACTIONS: unknown;
+  VERIFIED_STATEMENT: unknown;
+  buildOrgRootIntentManifest(...args: unknown[]): unknown;
+  verifyOrgRootIntentManifest(...args: unknown[]): unknown;
+  buildRootedVaultManifestV7(...args: unknown[]): unknown;
+  verifyRootedVaultManifestV7(...args: unknown[]): unknown;
+  canonicalJsonStringify(...args: unknown[]): unknown;
+  OWNER_SLOTS_V7: unknown;
+  normalizeOwnerSetV7(...args: unknown[]): unknown;
+  normalizeTemplateV7(...args: unknown[]): unknown;
+  serializeRootStateHexV7(...args: unknown[]): unknown;
+};
+
+/** Fail-closed intent-manifest version routing; unknown contract versions are never routed to a default. */
+export declare const intentRouter: {
+  ROUTES: unknown;
+  UNSUPPORTED: unknown;
+  resolveIntentRoute(...args: unknown[]): unknown;
+  routeIntentManifestBuilder(...args: unknown[]): unknown;
+  routeIntentManifestVerifier(...args: unknown[]): unknown;
+  supportedIntentVersions(...args: unknown[]): unknown;
+};

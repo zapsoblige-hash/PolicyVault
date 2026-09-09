@@ -93,6 +93,20 @@
     try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) { /* storage is a convenience, never a requirement */ }
   }
 
+  /* Exact periodLengthDaa -> "about 1 day (exactly 864000 DAA score;
+   * approximate — Kaspa network progress)" through the vendored core. */
+  function describeBudgetPeriod(periodLengthDaa) {
+    if (periodLengthDaa === undefined || periodLengthDaa === null) return "unknown";
+    var core = window.PolicyVaultCore;
+    if (!core || !core.durationDaa) return String(periodLengthDaa) + " DAA score (exact; the packaged core is unavailable, so no approximate duration is shown)";
+    try {
+      var d = core.durationDaa.describeDaa(String(periodLengthDaa), { largestUnit: "week" });
+      return d.text + " (measured using Kaspa network progress, so approximate; exactly " + String(periodLengthDaa) + " DAA score)";
+    } catch (e) {
+      return String(periodLengthDaa) + " DAA score (exact)";
+    }
+  }
+
   function sha256Hex(text) {
     var core = window.PolicyVaultCore;
     if (!core || typeof core.require !== "function") throw new Error("the packaged core bundle is not loaded");
@@ -330,15 +344,21 @@
           return;
         }
         v.agents.forEach(function (a) {
+          /* The same vocabulary as the web setup (owner UX directive
+           * 2026-09-05). The budget period is rendered from the EXACT
+           * periodLengthDaa through the vendored core's ONE conversion path
+           * (window.PolicyVaultCore.durationDaa) — never a local constant;
+           * without it the exact DAA value is shown, never a guess. */
           detailBody.appendChild(el("div", { class: "row" }, [
-            kv("Agent", a.agentAddress || a.agentPk || "(unknown)"),
-            kv("Max per spend (KAS)", a.maxPerSpendKas !== undefined ? String(a.maxPerSpendKas) : "unknown"),
-            kv("Period budget (KAS)", a.periodBudgetKas !== undefined ? String(a.periodBudgetKas) : "unknown"),
-            kv("Period spent (KAS)", a.periodSpentKas !== undefined ? String(a.periodSpentKas) : "unknown"),
+            kv("Agent wallet", a.agentAddress || a.agentPk || "(unknown)"),
+            kv("Maximum per payment (KAS)", a.maxPerSpendKas !== undefined ? String(a.maxPerSpendKas) : "unknown"),
+            kv("Spending budget (KAS)", a.periodBudgetKas !== undefined ? String(a.periodBudgetKas) : "unknown"),
+            kv("Budget period", describeBudgetPeriod(a.periodLengthDaa)),
+            kv("Spent this period (KAS)", a.periodSpentKas !== undefined ? String(a.periodSpentKas) : "unknown"),
             kv("Remaining this period (KAS)", a.remainingBudgetKas !== undefined ? String(a.remainingBudgetKas) : "unknown"),
-            kv("Approval threshold (KAS)", a.approvalThresholdKas !== undefined ? String(a.approvalThresholdKas) : "unknown"),
+            kv("Payments need extra approval above (KAS)", a.approvalThresholdKas !== undefined ? String(a.approvalThresholdKas) : "unknown"),
             kv(
-              "Recipient allowlist",
+              "Allowed recipients (wallets this agent may pay)",
               Array.isArray(a.recipientAddresses) && a.recipientAddresses.length ? a.recipientAddresses.join(", ") : "(none)"
             )
           ]));

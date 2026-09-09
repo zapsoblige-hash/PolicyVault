@@ -212,7 +212,7 @@ test("bounded coordination: a legitimately released REVIEW hold for an over-cap 
   await POST(["risk", "evaluations", evId, "release"], {}); // a human releases the EXACT reviewed intent
   const before = requestFiles().length;
   // …and the released, exact-intent build STILL refuses at the covenant cap.
-  await expectThrow(POST(["wallet", "v4", "requests"], spendBody(V, 25n, { riskEvaluationId: evId })), 422, "BUILD_FAILED");
+  await expectThrow(POST(["wallet", "v4", "requests"], spendBody(V, 25n, { riskEvaluationId: evId })), 422, "OVER_CAP");
   assert.equal(requestFiles().length, before, "no durable request — the covenant cap bounded a released hold");
 });
 

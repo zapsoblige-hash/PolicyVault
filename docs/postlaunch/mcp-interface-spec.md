@@ -355,7 +355,7 @@ Run: `node --test --test-concurrency=1 mcp/test/`.
 
 DESIGNED + IMPLEMENTED + UNIT-TESTED + INTEGRATION-PROVEN (real HTTP
 server, real machine identity + scopes, real silverc build, real
-subprocess stdio). NOT TESTNET-VERIFIED. NOT EXTERNALLY REVIEWED. The
+subprocess stdio). NOT TESTNET-VERIFIED.. The
 dedicated hostile-AI-agent/prompt-injection security review (surface 26)
 remains a separate, unstarted gate and must treat §8 as the attack map,
 not as a completed defense audit.

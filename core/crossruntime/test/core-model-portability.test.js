@@ -46,6 +46,7 @@ const TIER1_FILES = Object.freeze([
   "core/model/vault-state.js",
   "core/model/vault-state-v2.js",
   "core/model/vault-state-v3.js",
+  "core/model/own-get.js",
   "core/model/vault-state-v4.js",
   "core/model/vault-transitions-v3.js",
   "core/model/fee-mass.js",

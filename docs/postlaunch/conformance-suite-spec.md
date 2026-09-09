@@ -56,13 +56,13 @@ the x402/AP2 protocol-adapter paths are REGISTERED and DRIVEN — 5 paths).
   (initialize → initialized → tools/list → tools/call), stdout purity
   asserted on every line.
 - **x402 adapter path** (W4-refinements): the REAL
-  `integrations/x402/service.js createX402Service()` on its own loopback
+  `integrations/x402/service.js createX402Service` on its own loopback
   port with the six-scope credential, driven over real HTTP with
   protocol-correct base64 PAYMENT-REQUIRED headers; the adapter itself
   speaks real HTTP to the one conformance server through
   `integrations/lib/pv-client.js`.
 - **AP2 adapter path** (W4-refinements): the REAL
-  `integrations/ap2/service.js createAp2Service()` (PolicyVault as
+  `integrations/ap2/service.js createAp2Service` (PolicyVault as
   Credential Provider), driven with REAL compact SD-JWT payment mandates
   (ES256 over `node:crypto`, minted by the driver's own issuer/holder
   trust-anchor keys — the operator role, played by the harness the same
@@ -167,7 +167,7 @@ Every driver reduces its native result to
    pipelines (discovery, simulation, refusal envelopes, event pages) are
    compared **deep-equal, byte-for-byte**. Where records embed volatile
    per-record values (uuids, timestamps), comparisons go through
-   `pick()` (stable fields) or `prune()` (volatile keys removed) — never
+   `pick` (stable fields) or `prune` (volatile keys removed) — never
    ad-hoc per-path exceptions.
 4. **Client convenience shapes are documented, not penalized**: the
    Python client returns bare lists where the wire wraps
@@ -274,7 +274,7 @@ C11/C17 hygiene corpora. For the next path:
   A git WORKTREE cannot `cargo build` them (Cargo cannot resolve the
   sibling `../silverscript` path), so they are **copied from the main
   checkout** — the same documented procedure the Python client suite
-  uses. Their absence fails the suite `before()` hook with an explicit
+  uses. Their absence fails the suite `before` hook with an explicit
   ENVIRONMENT message; it is never a driven-surface defect.
 - Requires `python3` on PATH, the kaspa-wasm module at the configured
   `rustyKaspaModule` path, and silverc at the configured `silvercPath`.
@@ -302,7 +302,7 @@ C11/C17 hygiene corpora. For the next path:
 Outcome vocabulary: `PASS`, `LIMITATION_ASSERTED` (green — documented
 absence verified), `FAIL` (the run's tests also fail), `SKIPPED_ENV`
 (environment gap), `N/A`. The artifact is written even when a scenario
-fails (the `after()` hook), so a red run still leaves citable evidence.
+fails (the `after` hook), so a red run still leaves citable evidence.
 The `results/` directory is gitignored; an RC record checks in the
 specific run's copy it cites. The credential-hygiene scenario scans the
 rows before they are written, so the artifact itself is secret-free.
@@ -314,5 +314,27 @@ rows before they are written, so the artifact itself is secret-free.
   covenant compiler + call-encoder in every build) — two consecutive
   fully-green runs on this tree, including the W4 protocol-adapter paths
   (5 paths, 20/20, 79 cells).
-- NOT claimed: live-testnet/live-node behavior (out of scope here),
-  external review.
+- NOT claimed: live-testnet/live-node behavior (out of scope here).
+
+## 12. x402 FACILITATOR conformance (separate matrix; added 2026-09-02)
+
+The x402 facilitator (`integrations/x402-facilitator/`, frozen design
+`x402-facilitator-spec.md` revision 3) is NOT an agent-integration path:
+it never calls the PolicyVault API, holds no machine credential, and
+drives no scenario of §3. It is conformance-tested by its OWN matrix,
+which maps one-to-one onto the frozen spec's hostile matrix (§11) and its
+inbound-authentication rules (§14.1):
+
+| suite | layer | what it proves | count |
+|---|---|---|---|
+| `integrations/test/x402f-design-freeze.test.js` | UNIT (freeze guard) | spec revision 3 + freeze record sha256 pins; frozen constants in code; the closed 35-code set | 6 |
+| `integrations/test/x402f-policy-claims-principals.test.js` | UNIT | `pv-x402-settlement/1` (default 100, hard floor 20, MAX_WINDOW 36,000, depth classification); JSON claim store atomicity (both uniqueness invariants, 8-way race, crash recovery, destination-reuse index, complete-or-absent records); principal / credential model (256-bit CSPRNG, verifier-only persistence, exact match, revocation, expiry, rotation with overlap, closed schema) | 14 |
+| `integrations/test/x402f-hostile.test.js` | ADVERSARIAL | every §11 row through the real facilitator core with a scripted node view: schema / version / scheme / flow / policy / network / asset / amount / address / requirements-mismatch / window refusals (all PURE: zero node calls, zero claims); not-observed → expired; wrong index / recipient; ±1 sompi; covenant / coinbase outputs; outside window; depth ladder incl. the exact-minimum boundary; reorg after CHAIN_SEEN; spent-before-settle; replay (new outpoint / new requirement / identical pair); one tx paying two resources; destination reuse; concurrent claims; restart between verify and claim; transactionHex carriage (tampered id / tampered outputs / garbage); RETRY class (unavailable / unsynced / no index / wrong-network node / malformed entries); token rows (happy path, redeem required, family substitution, template downgrade, owner mismatch, amount, minter, conservation, txid, ECDSA payTo, i64 bound); `/supported` shape + evidence digest | 34 |
+| `integrations/test/x402f-service-integration.test.js` | INTEGRATION / ADVERSARIAL | the real HTTP service: public `/supported` + `/healthz`; 401 `CREDENTIAL_REQUIRED` / `CREDENTIAL_INVALID` before the body is parsed (zero node, zero store); `pvmk_` / session-like / Basic credentials refused; 403 `SCOPE_FORBIDDEN`; **the mandatory cross-principal negative** (A's key cannot verify or settle B's requirement; B's ownership undisclosed; B settles afterwards); origin / network constraints; end-to-end verify → settle → replay over the wire; rotation with overlap + immediate revocation; per-principal rate limit with `Retry-After`; 413 body cap; query-string refusal; 405 / 404; credential hygiene across logs, bodies and files; 400-vs-200 judgement split | 12 |
+| `integrations/test/x402f-claims-pg.test.js` | INTEGRATION (PostgreSQL) | the shared claim store as the single race authority: create / read / replay; both invariants; 16-way races from two store instances on one outpoint and on one requirement; destination-reuse query; evidence in the same row | 6 (REQUIREMENT_NOT_AVAILABLE without `POLICYVAULT_TEST_PG_*`) |
+| `integrations/test/dependency-direction.test.js` rule 5 / 5b | UNIT (structural) | the facilitator imports only `core/**`, `integrations/lib/**`, `sdk/src/chain.js`, `sdk/src/tx-identity.js`; never server / wasm / builders / signers / stores / database drivers; the two SDK leaves are read-only | 2 |
+| `tools/testnet-x402-facilitator-proof.js` | LIVE TESTNET | real KAS + real frozen-v0.5 token payments on the local synced testnet-10 node verified and settled through the real service; negatives re-expressed as facilitator refusals; an authorized testnet negative-validation transaction constructed independently of the PolicyVault application (over-cap agent spend, delegate-signed) rejected by consensus and therefore unobservable; evidence `docs/testnet-x402-facilitator-evidence.json` | evidence file |
+
+Outcome vocabulary is the facilitator's closed reason-code set (spec
+§13), never this suite's §4 vocabulary. Claim labels for the facilitator
+live ONLY in `x402-facilitator-program.md` §3.

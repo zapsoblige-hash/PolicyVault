@@ -35,6 +35,7 @@ const kas = require("./kas");
 const intentExplain = require("./intent-explain");
 const governanceExplain = require("./governance-explain");
 const riskExplain = require("./risk-explain");
+const orgRootExplain = require("./org-root-explain");
 
 module.exports = {
   /* exact KAS rendering (integer math only) */
@@ -66,5 +67,19 @@ module.exports = {
   riskExplain: Object.freeze({
     structured: riskExplain.structured,
     humanReadable: riskExplain.humanReadable
+  }),
+
+  /* v0.7 ORGANIZATIONAL ROOT approval explanations (M-of-N owner quorum:
+   * action + authority class, threshold and expected slots, the root-outpoint
+   * kill switch, every rooted-vault operation in the same transaction, the
+   * fee bounds, and the recovery/succession warnings). A standalone
+   * rooted-vault manifest REFUSES with verifyWithinParent — its authority is
+   * the root input, never a key of its own. */
+  ORG_ROOT_EXPLANATION_VERSION_1: orgRootExplain.ORG_ROOT_EXPLANATION_VERSION_1,
+  ORG_ROOT_EXPLANATION_VERDICTS: orgRootExplain.EXPLANATION_VERDICTS,
+  ROOT_OUTPOINT_KILL_SWITCH_LINE: orgRootExplain.ROOT_OUTPOINT_KILL_SWITCH_LINE,
+  orgRootExplain: Object.freeze({
+    structured: orgRootExplain.structured,
+    humanReadable: orgRootExplain.humanReadable
   })
 };

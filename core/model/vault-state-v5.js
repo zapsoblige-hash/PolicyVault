@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet, describeKey } = require("./own-get");
 
 /*
  * Exact live-state model for a PolicyVault v0.5 TOKEN CONTROLLER instance
@@ -49,9 +50,9 @@ function fail(message, code) {
 }
 
 function resolveV5Abi(contractVersion) {
-  const abi = V5_ABIS[contractVersion];
+  const abi = ownGet(V5_ABIS, contractVersion); // own-property only (F-05)
   if (!abi) {
-    fail(`unknown contract version ${JSON.stringify(contractVersion)} for the v0.5 lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
+    fail(`unknown contract version ${describeKey(contractVersion)} for the v0.5 lineage — failing closed (no cross-version fallback)`, "UNKNOWN_VERSION");
   }
   return abi;
 }

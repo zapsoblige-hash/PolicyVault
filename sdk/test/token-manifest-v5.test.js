@@ -98,6 +98,15 @@ test("token intent manifest: build -> VERIFIED; tampering -> REFUSED with the fa
   assert.ok(names(rehash((m) => { m.policy.recipient = "99".repeat(32); })).some((n) => n === "recipientContinuationReconstructed" || n === "recipientAllowlisted"));
   assert.ok(names(rehash((m) => { m.accounting.kas.fee = "1"; })).includes("feeExact"));
   assert.ok(names(rehash((m) => { m.stateAfter.state.feeReserve = "1"; })).includes("successorOutput"));
+  // I3C-F3: an upward-forged lockTime (consensus-valid, validity delayed) must
+  // be refused by the local verifier — the rule value is exact, never ">=".
+  assert.ok(names(rehash((m) => {
+    const f = JSON.parse(m.transaction.frozenCanonicalJson);
+    f.lockTime = String(BigInt(f.lockTime) + 1000n);
+    m.transaction.frozenCanonicalJson = JSON.stringify(f);
+    m.policy.lockTime = f.lockTime;
+  })).includes("rolloverLock"));
+  assert.ok(names(rehash((m) => { m.policy.lockTime = String(BigInt(m.policy.lockTime) + 1n); })).includes("rolloverLock"));
   assert.ok(names(rehash((m) => { const f = JSON.parse(m.transaction.frozenCanonicalJson); f.outputs[2].value = "1"; m.transaction.frozenCanonicalJson = JSON.stringify(f); })).some((n) => n === "tokenFamilyKasNoLeak" || n === "feeExact"));
   /* descriptor substitution at verification time */
   const swapped = verifyTokenIntentManifest({ manifest, descriptor: { ...descriptor, issuerPowers: { ...descriptor.issuerPowers, freeze: true } } });

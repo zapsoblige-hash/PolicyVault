@@ -35,7 +35,7 @@
   // No independent wallet state: the v0.4.1 app consumes the ONE canonical
   // browser wallet session (window.PolicyVaultWalletSession, owned by the global
   // Wallet panel). It never opens a second provider connection.
-  const state = { address: null, xonly: null, network: null, serverNetwork: null, ready: false, provider: null, auth: null, view: "vaults", statusFilter: "Active", org: "all", renderedOnce: false, orgData: null, openReqs: [], vaultsById: {}, cache: {} };
+  const state = { address: null, xonly: null, network: null, serverNetwork: null, nodeNetwork: null, ready: false, provider: null, auth: null, view: "vaults", statusFilter: "Active", org: "all", renderedOnce: false, orgData: null, openReqs: [], vaultsById: {}, cache: {} };
   /* ---- retained-state identity binding (UX responsiveness pass) ----
    * Views retain their last-good fetched data so returning to a tab paints
    * IMMEDIATELY while an authoritative background refresh runs. Every
@@ -59,7 +59,28 @@
   // Falls back to a neutral phrase before that resolves — never guesses
   // "testnet-10". Display-only; every real network check stays on the
   // session gate (state.ready) and the server.
-  const networkLabel = () => state.serverNetwork || "the configured network";
+  // ORDER MATTERS (TRACK 11): state.nodeNetwork is the NODE's own reported
+  // identity from /network/status — the exact value the signing gate
+  // compares against and the value the top banner derives from — so it is
+  // preferred. state.serverNetwork (/health) is the fallback for the moment
+  // before the node probe resolves, and a neutral phrase is the last
+  // resort: this helper never names a network it was not told.
+  const networkLabel = () => state.nodeNetwork || state.serverNetwork || "the configured network";
+
+  /* ---- WHY signing is disabled (TRACK 11, finding N1) ----
+   * Signing fails closed when the wallet's network and the NODE-reported
+   * network are not the same known value — and that includes the case
+   * where PolicyVault could not read its node's network at all. Both used
+   * to render the same sentence, "switch KasWare to the configured
+   * network", which sends a user to fiddle with their wallet over a
+   * backend/node problem their wallet cannot fix. This is the honest
+   * second case; it mirrors the top banner's fail-closed UNKNOWN and
+   * changes no gate. */
+  const notReadyNodeUnknownHtml = () =>
+    `<b>Network status unknown — signing is disabled.</b> PolicyVault has not confirmed which Kaspa network its node is on, ` +
+    `so it refuses to sign rather than guess. <span class="hint" style="display:inline">This is not a problem with your wallet — ` +
+    `changing networks in KasWare will not clear it. The banner at the top of the page retries on its own; if it stays unknown, ` +
+    `the server's Kaspa node is unreachable.</span>`;
 
   /* ---- BROWSER-LOCAL PRE-SIGN VERIFICATION (PostLaunchUpgradeOG) ----
    * web/verify-intent.js + web/core-bundle.js run the portable shared-core
@@ -139,6 +160,59 @@
     el.style.display = msg ? "block" : "none";
   }
 
+  /* ---- REFUSAL RENDERING (TRACK 11) ----
+   * A refusal used to reach the user as "<action> rejected: CODE <server
+   * message>" — a machine code in a red bar, with no statement of what it
+   * means or what to do next. noteRefusal() keeps that exact summary line
+   * (it is what a support report should quote, and it is what the status
+   * region announces first) and, when web/refusal-explain.js is loaded,
+   * ADDS the closed-table explanation beneath it.
+   *
+   * Nothing about the refusal changes: it is not softened, retried,
+   * downgraded, or worked around, no override is ever offered, and a code
+   * with no closed entry renders the server's message VERBATIM plus an
+   * explicit "no closed explanation" line rather than a guess. A page
+   * served without the module keeps the plain summary (fails closed to
+   * less explanation, never to a wrong one). */
+  const refusalExplain = () => (window.PolicyVaultRefusalExplain && typeof window.PolicyVaultRefusalExplain.renderRefusalHtml === "function" ? window.PolicyVaultRefusalExplain : null);
+  function noteRefusal(prefix, e) {
+    const code = (e && e.code) || "";
+    const message = (e && e.message) || String(e || "refused");
+    const summary = `${prefix}: ${code} ${message}`.replace(/\s+/g, " ").trim();
+    note(summary, "bad");
+    const mod = refusalExplain();
+    const el = $("v4-notice");
+    if (!mod || !el) return;
+    try { el.innerHTML = mod.renderRefusalHtml({ summary, code, message }); }
+    catch { /* the plain summary already stands; an explanation defect must never hide a refusal */ }
+  }
+
+  /* ---- OUTCOME RENDERING — PENDING IS NOT SUCCESS (TRACK 11) ----
+   * A completed flow used to end at "agentSpend: SUBMITTED — txid abc…"
+   * in an amber bar. The amber was correct and the state name was
+   * truthful, but nothing SAID that a broadcast is not a confirmation, so
+   * the most consequential distinction in the product was left for the
+   * user to infer from a colour.
+   *
+   * noteOutcome() keeps the raw state and txid in the summary line
+   * (unchanged, still the thing to quote in a support report) and adds
+   * the state's meaning and next step. The success class is still granted
+   * ONLY by the server's authoritative CHAIN_VERIFIED — and when the
+   * explain module is present it decides that, so an UNRECOGNISED state
+   * can never be presented as success. */
+  function noteOutcome(prefix, state, txId, detail) {
+    const mod = refusalExplain();
+    const verified = mod && typeof mod.isVerifiedOutcome === "function" ? mod.isVerifiedOutcome(state) : state === "CHAIN_VERIFIED";
+    const summary =
+      `${prefix}: ${state}${txId ? ` — txid ${short(txId)}` : ""}${detail ? ` — ${detail}` : ""}` +
+      (verified ? " (relayed + chain-verified)" : " — NOT YET CONFIRMED");
+    note(summary, verified ? "good" : "warn");
+    const el = $("v4-notice");
+    if (!mod || !el || typeof mod.renderOutcomeHtml !== "function") return;
+    try { el.innerHTML = mod.renderOutcomeHtml({ summary, state, txId, detail }); }
+    catch { /* the plain summary already stands */ }
+  }
+
   /* ---- Governance ceremony / risk hold / org-controls UI modules ----
    * (PostLaunchUpgradeOG completion-standard items 1/2/3/6). Each is a
    * separate web/*.js module (never touching web/verify-intent.js or
@@ -150,6 +224,12 @@
   const govUI = () => (window.PolicyVaultGovernanceUI ? window.PolicyVaultGovernanceUI.createModule({ api: { getJSON, postJSON } }) : null);
   const riskUI = () => (window.PolicyVaultRiskUI ? window.PolicyVaultRiskUI.createModule({ api: { getJSON, postJSON } }) : null);
   const orgControlsUI = () => (window.PolicyVaultOrgControlsUI ? window.PolicyVaultOrgControlsUI.createModule({ api: { getJSON, postJSON, resolveXOnly } }) : null);
+  /* v0.7 ON-CHAIN ORGANIZATIONAL ROOT (Wave 2, Track B-web). Requires BOTH
+   * web/org-root-ui.js AND the v0.7 module closure inside window.PolicyVaultCore
+   * (web/core-bundle.js) — a page served without either degrades to the
+   * hosted-organization-only Organizations view (checked at every call site
+   * below), never a broken or half-verified root surface. */
+  const orgRootUI = () => (window.PolicyVaultOrgRootUI && window.PolicyVaultCore && window.PolicyVaultCore.ownerSetV7 ? window.PolicyVaultOrgRootUI.createModule({ api: { getJSON, postJSON, resolveXOnly }, core: window.PolicyVaultCore, setup: window.PolicyVaultSetupUi && window.PolicyVaultCore.durationDaa ? window.PolicyVaultSetupUi.createModule({ core: window.PolicyVaultCore }) : null }) : null);
 
   /* Owner ops are fuel-funded; auto-select the owner's largest ordinary
    * UTXO from the server. Module-scope (not just wireVault-local) so a
@@ -159,6 +239,16 @@
    * governance.js stripExecutionOnlyParams excludes it by design) can
    * re-select fresh fuel exactly like the original action did, instead of
    * silently retrying with a missing/stale UTXO reference. */
+  /* DISPLAY-ONLY KAS rendering through the canonical integer renderer
+   * (core/model/amounts.js sompiToKas via the bundle); never floating point.
+   * Fails closed to the raw sompi string when the core is unavailable. */
+  const sompiToKasDisplay = (sompi) => {
+    const core = typeof window !== "undefined" ? window.PolicyVaultCore : undefined;
+    try {
+      if (core && core.amounts && typeof core.amounts.sompiToKas === "function") return `${core.amounts.sompiToKas(BigInt(String(sompi)))} KAS`;
+    } catch { /* fall through to the fail-closed rendering */ }
+    return `${String(sompi)} sompi`;
+  };
   const withFuel = async (params, minSompi = "200000000") => {
     try {
       // Immediate truthful feedback: the fuel read + build round-trips are
@@ -167,7 +257,7 @@
       note("Preparing transaction…", "warn");
       const { utxos } = await getJSON(`/wallet/fuel/${encodeURIComponent(state.address)}`);
       const u = (utxos || []).find((x) => BigInt(x.amount) > BigInt(minSompi));
-      if (!u) { note(`No ordinary UTXO > ${(Number(minSompi) / 1e8)} KAS at ${short(state.address)} — fund the owner address first.`, "bad"); return null; }
+      if (!u) { note(`No ordinary UTXO > ${sompiToKasDisplay(minSompi)} at ${short(state.address)} — fund the owner address first.`, "bad"); return null; }
       return { ...params, fuel: { outpoint: u.outpoint, amount: u.amount, scriptPublicKeyHex: u.scriptPublicKeyHex } };
     } catch (e) { note(`Could not fetch fuel: ${e.message}`, "bad"); return null; }
   };
@@ -184,6 +274,12 @@
     // re-renders (which, signed in, starts fresh authoritative fetches —
     // the "prefetch after authentication" moment).
     const authChanged = (snap.auth ?? null) !== state.auth;
+    // The NODE-reported network identity (GET /network/status, the same
+    // value the signing gate compares against and the same value the top
+    // banner derives from). Used ONLY to tell the user WHY signing is
+    // disabled — never as a gate of its own. A change of it changes what
+    // the not-ready explanation says, so it counts as a rendered change.
+    const nodeNetChanged = (snap.serverNetwork ?? null) !== state.nodeNetwork;
     const hadXOnly = !!state.xonly;
     state.address = snap.ready ? snap.address : (snap.address || null);
     state.network = snap.network;
@@ -191,6 +287,7 @@
     state.provider = snap.provider;
     state.auth = snap.auth ?? null;
     state.xonly = snap.xonly || null;
+    state.nodeNetwork = snap.serverNetwork ?? null;
     if (changed || authChanged) dropRetainedState();
     // If the session hasn't resolved x-only yet but is ready, resolve it once.
     if (snap.ready && snap.address && !state.xonly) {
@@ -199,12 +296,20 @@
     const box = $("v4-wallet");
     if (box) {
       if (!snap.connected) box.innerHTML = `No wallet connected. <b>Connect KasWare in the Wallet panel above to continue.</b>`;
+      else if (!snap.ready && !state.nodeNetwork) box.innerHTML = notReadyNodeUnknownHtml();
       else if (!snap.ready) box.innerHTML = `Wallet is on <b>${esc(snap.network || "unknown")}</b> — PolicyVault is configured for <b>${esc(networkLabel())}</b>. Switch KasWare to ${esc(networkLabel())} to sign.`;
       else box.innerHTML = `Signing wallet <span class="mono">${esc(snap.address)}</span> · network <b>${esc(snap.network)}</b> · <span class="badge ver">${esc(snap.provider || "wallet")}</span> · <span class="hint" style="display:inline">role is derived per vault below</span>`;
     }
     if (changed) {
       const m = $("v4-modal");
       if (m && m.style.display === "flex") { m.style.display = "none"; note("Wallet changed — the in-progress action was discarded. Rebuild it under the current wallet.", "warn"); }
+      // A built-but-unsigned transaction, a draft review, or a root setup
+      // belongs to the previous identity/network: invalidate them (stale
+      // review/signature rule) — a new build under the current wallet is
+      // required. Drafts are re-created from defaults on the next render.
+      if (state.setup && state.setup.built) note("Wallet or network changed — the transaction built for review was discarded. Review and build it again under the current wallet.", "warn");
+      state.setup = null;
+      state.rootSetup = null;
     }
     // Re-render ONLY when something rendered actually changed (wallet identity/
     // network/readiness, a newly resolved x-only role key, or first paint).
@@ -212,7 +317,7 @@
     // form input and — before the one-time delegated wiring below — accumulated
     // duplicate listeners (the H2 approver-row multiplication bug).
     const xonlyChanged = !!state.xonly !== hadXOnly;
-    if (changed || authChanged || xonlyChanged || !state.renderedOnce) render();
+    if (changed || authChanged || xonlyChanged || nodeNetChanged || !state.renderedOnce) render();
   }
 
   /* Every signing request must carry the CANONICAL FROZEN metadata committed
@@ -264,7 +369,9 @@
       diag.provider = s.provider || "wallet";
       if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
       diag.stage = "C:expected-signer-resolved";
-      if (expectedSigner && s.address !== expectedSigner) throw Object.assign(new Error(`connected wallet ${short(s.address)} is not the expected signer ${short(expectedSigner)}`), { code: "SIGNER_MISMATCH" });
+      // FULL addresses, never short(): this is the message a user compares
+      // against their wallet, and two accounts can share a truncation.
+      if (expectedSigner && s.address !== expectedSigner) throw Object.assign(new Error(`connected wallet ${s.address} is not the expected signer ${expectedSigner}`), { code: "SIGNER_MISMATCH" });
       diag.stage = "D:signInputs-validated";
       assertCanonicalSignInputs(signInputsList);
       // D2: MANDATORY browser verification binding whenever the verification
@@ -292,7 +399,7 @@
       const after = session();
       diag.stage = "I:post-popup-signer-verified";
       if (!after.ready || (expectedSigner && after.address !== expectedSigner)) {
-        throw Object.assign(new Error("wallet account/network changed during signing — refusing to submit a signature from a different identity"), { code: "SIGNER_CHANGED" });
+        throw Object.assign(new Error(`wallet account/network changed during signing — refusing to submit a signature from a different identity (expected ${expectedSigner || "the connected account"}, now ${after.address || "disconnected"})`), { code: "SIGNER_CHANGED" });
       }
       diag.stage = "K:walletSign-returned";
       return signed;
@@ -307,14 +414,35 @@
    * onConfirm === null renders an INFORMATIONAL review (single Close button,
    * no signing action) — used when the durable server state says the request
    * is not signable by this wallet yet (e.g. AWAITING_APPROVALS). */
-  function reviewModal(review, onConfirm, confirmLabel, headline, verification) {
-    const rowsOf = (obj) => Object.entries(obj || {})
-      .filter(([, v]) => v !== null && typeof v !== "object")
-      .map(([k, v]) => `<tr><td class="rk">${esc(k)}</td><td class="rv">${esc(v)}</td></tr>`)
+  /* Friendly labels for the SERVER's canonical review keys (presentation
+   * only — the values are the server's, verbatim; an unknown key keeps its
+   * raw name rather than being hidden or guessed). */
+  const REVIEW_LABELS = Object.freeze({
+    action: "Action", network: "Network", vaultId: "Vault id", depositKas: "Deposit (protected)", reserveKas: "Fee reserve",
+    agentCount: "Agents", maxPerSpendKas: "Maximum per payment", budget: "Spending budget", approvalAboveKas: "Payments need extra approval above",
+    approvalPolicy: "Payment approvers", covenantId: "Covenant id", paymentKas: "Payment", recipientAddress: "Recipient wallet", recipient: "Recipient key",
+    feeKas: "Network fee", feeSompi: "Network fee (sompi)", fundingMode: "Fee paid from", protectedBeforeKas: "Deposit before", protectedAfterKas: "Deposit after",
+    reserveBeforeKas: "Fee reserve before", reserveAfterKas: "Fee reserve after", reserveConsumedKas: "Taken from the fee reserve", externalFuelKas: "Paid from your wallet",
+    recoveredKas: "Returned to the owner", terminal: "Result", approvalsRequired: "Approvals required", policyNonceBefore: "Policy version before", policyNonceAfter: "Policy version after",
+    predecessorStateId: "State id before", successorStateId: "State id after", successorAgentRoot: "Agent registry after", predecessorOutpoint: "Vault output being spent", computeBudget: "Compute budget"
+  });
+  const REVIEW_TECHNICAL_KEYS = new Set(["vaultId", "covenantId", "recipient", "feeSompi", "policyNonceBefore", "policyNonceAfter", "predecessorStateId", "successorStateId", "successorAgentRoot", "predecessorOutpoint", "computeBudget"]);
+  const reviewLabel = (k) => (Object.prototype.hasOwnProperty.call(REVIEW_LABELS, k) ? REVIEW_LABELS[k] : k);
+  const reviewValue = (k, v) => {
+    if (k === "fundingMode") return v === "RESERVE-FUNDED" ? "the vault's fee reserve" : v === "FUEL-FUNDED" ? "your wallet (fuel input)" : String(v);
+    if (/Kas$/.test(k) && typeof v === "string" && v !== "" && !/KAS/.test(v)) return `${v} KAS`;
+    return String(v);
+  };
+  function reviewModal(review, onConfirm, confirmLabel, headline, verification, opts) {
+    const o = opts || {};
+    const rowsOf = (obj, filter) => Object.entries(obj || {})
+      .filter(([k, v]) => v !== null && typeof v !== "object" && (!filter || filter(k)))
+      .map(([k, v]) => `<tr><td class="rk">${esc(reviewLabel(k))}</td><td class="rv">${esc(reviewValue(k, v))}</td></tr>`)
       .join("");
-    const rows = rowsOf(review);
-    const tech = review && review.technical && Object.keys(review.technical).length
-      ? `<details class="adv"><summary>Advanced (technical)</summary><table class="review" style="width:100%">${rowsOf(review.technical)}</table></details>`
+    const rows = rowsOf(review, (k) => !REVIEW_TECHNICAL_KEYS.has(k));
+    const techRows = rowsOf(review, (k) => REVIEW_TECHNICAL_KEYS.has(k)) + (review && review.technical ? rowsOf(review.technical) : "");
+    const tech = techRows
+      ? `<details class="adv"><summary>Technical details (exact protocol values)</summary><table class="review" style="width:100%">${techRows}</table></details>`
       : "";
     // ---- browser verification rendering (PostLaunchUpgradeOG) ----
     // With the verification layer loaded, a signing modal REQUIRES a passing
@@ -353,17 +481,23 @@
     }
     const canConfirm = !!onConfirm && !blocked;
     const actions = canConfirm
-      ? `<div class="modal-actions"><button id="v4-cancel">Cancel</button>` +
-        `<button id="v4-confirm" class="primary">${esc(confirmLabel || "Sign")}</button></div>`
-      : `<div class="modal-actions"><button id="v4-cancel" class="primary">${esc(blocked ? "Close — do not sign" : confirmLabel || "Close")}</button></div>`;
+      ? `<div class="modal-actions"><button id="v4-cancel">${esc(o.cancelLabel || "Cancel")}</button><span class="setup-nav-spacer"></span>` +
+        `<button id="v4-confirm" class="primary">${esc(confirmLabel || "Approve in wallet")}</button></div>`
+      : `<div class="modal-actions"><button id="v4-cancel" class="primary">${esc(blocked ? "Close — do not sign" : o.cancelLabel || confirmLabel || "Close")}</button></div>`;
     const m = $("v4-modal");
     m.innerHTML =
-      `<div class="modal-card" style="max-width:560px;width:92%"><h3>${esc(blocked ? "DO NOT SIGN — verification refused" : headline || "Review — signed exactly as shown")}</h3>` +
-      `<table class="review" style="width:100%">${rows}</table>` + tech + verifyHtml + actions + `</div>`;
+      `<div class="modal-card setup-card" role="dialog" aria-modal="true"><h3>${esc(blocked ? "DO NOT SIGN — verification refused" : headline || "Review — exactly what your wallet will sign")}</h3>` +
+      (canConfirm ? `<div class="f-help">Approving opens your wallet. A wallet signature is not yet a result: PolicyVault then submits the transaction and reports its state until it is verified on the chain.</div>` : "") +
+      `<table class="review" style="width:100%">${rows}</table>` + (o.extraHtml || "") + tech + verifyHtml + actions + `</div>`;
     m.style.display = "flex";
-    $("v4-cancel").onclick = () => { m.style.display = "none"; if (!canConfirm) render(); };
+    $("v4-cancel").onclick = async () => {
+      m.style.display = "none";
+      if (typeof o.onCancel === "function") { try { await o.onCancel(); } catch { /* best-effort */ } return; }
+      if (!canConfirm) render();
+    };
     const confirmBtn = $("v4-confirm");
     if (confirmBtn) confirmBtn.onclick = async () => {
+      confirmBtn.disabled = true; // duplicate submission guard
       m.style.display = "none";
       await onConfirm();
     };
@@ -384,17 +518,16 @@
       note(`${action}: signed — submitting for preflight…`, "warn");
       const done = await postJSON(`/wallet/v4/requests/${request.requestId}/signature`, { signedSafeJson: signed });
       if (done.request.state !== "PREFLIGHT_VERIFIED") {
-        note(`${action}: ${done.request.state}${done.request.error ? " — " + done.request.error : ""}`, "warn");
+        noteOutcome(action, done.request.state, null, done.request.error);
         render();
         return;
       }
       note(`${action}: preflight OK — broadcasting to ${networkLabel()}…`, "warn");
       const sub = await postJSON(`/wallet/v4/requests/${request.requestId}/submit`, {});
-      const ok = sub.request.state === "CHAIN_VERIFIED";
-      note(`${action}: ${sub.request.state} — txid ${short(sub.txId)}${ok ? " (relayed + chain-verified)" : ""}`, ok ? "good" : "warn");
+      noteOutcome(action, sub.request.state, sub.txId, sub.request.error);
       render();
     } catch (e) {
-      note(`${action} failed: ${e.code || ""} ${e.message}`, "bad");
+      noteRefusal(`${action} failed`, e);
     }
   }
 
@@ -449,7 +582,7 @@
       if ((e.code === "RISK_REVIEW_REQUIRED" || e.code === "RISK_DENIED") && riskUI()) {
         return openRiskHold({ vaultId, action, params, confirmLabel, error: e });
       }
-      note(`${action} rejected: ${e.code || ""} ${e.message}`, "bad");
+      noteRefusal(`${action} rejected`, e);
     }
   }
 
@@ -663,373 +796,566 @@
       note(`Approval recorded: ${r.approvals.collected} of ${r.approvals.required}${r.approvals.complete ? " — threshold met; the agent can now sign." : "."}`, "good");
       render(); // N: authoritative progress refreshed from server state
     } catch (e) {
-      note(`Approval rejected${e.walletStage ? "" : ` [stage ${stage}]`}: ${e.code || ""} ${e.message}`, "bad");
+      noteRefusal(`Approval rejected${e.walletStage ? "" : ` [stage ${stage}]`}`, e);
     }
   }
 
-  /* ===================== CREATE VAULT (friendly form) ===================== */
+  /* ===================== CREATE VAULT (guided setup) =====================
+   * Owner UX directive 2026-09-05: a short guided sequence — Basics and
+   * ownership → Agent and recipients → Spending rules → Funding and review —
+   * built from the SHARED setup components (web/setup-ui.js) the
+   * organizational-root setup and the owner action forms reuse. Every step
+   * panel stays in the DOM (inactive ones hidden), so Back / Continue and the
+   * review's Edit links never lose entered values. Every duration goes
+   * through core.durationDaa (the ONE conversion path); every amount through
+   * core.amounts; every address through the server's one address-identity
+   * boundary. The review the wallet signs against is the SERVER's own
+   * review of the frozen build plus this browser's independent
+   * verification — this form only carries intent.
+   * ====================================================================== */
+  const setupUi = () => (window.PolicyVaultSetupUi && window.PolicyVaultCore && window.PolicyVaultCore.durationDaa && window.PolicyVaultCore.amounts
+    ? window.PolicyVaultSetupUi.createModule({ core: window.PolicyVaultCore })
+    : null);
   // v0.4/v0.4.1 frozen consensus model: exactly 10 approver slots. UI limit
   // only mirrors it — the server/SDK independently rejects >10.
   const MAX_APPROVER_ROWS = 10;
-  const PERIOD_PRESET_LABEL = { "1h": "1 hour", "6h": "6 hours", "1d": "1 day", "1w": "1 week" };
-  // Client mirror of the server's supported product range (1 hour .. 53 weeks);
-  // UX only — the server re-validates and stays authoritative.
-  const PERIOD_UNIT_SECONDS = { hour: 3600n, day: 86400n, week: 604800n };
-  const PERIOD_MIN_DAA = 36000n, PERIOD_MAX_DAA = 320544000n, DAA_PER_SEC = 10n;
+  const VAULT_STEPS = Object.freeze([
+    { id: "basics", label: "Basics and ownership" },
+    { id: "agent", label: "Agent and recipients" },
+    { id: "rules", label: "Spending rules" },
+    { id: "funding", label: "Funding and review" }
+  ]);
 
   // Address-example placeholder for the CONFIGURED network (cosmetic only).
   const addrExample = () => (state.serverNetwork === "mainnet" ? "kaspa:..." : "kaspatest:...");
-
-  // A new row is blank BY CONSTRUCTION — it never copies a previous row's value
-  // (autocomplete stays off so the browser cannot re-fill it either).
-  const rowHtml = (kind) =>
-    `<div class="row"><input name="${kind}" class="mono" placeholder="${addrExample()}" autocomplete="off" />` +
-    `<button type="button" class="rm-${kind}">Remove</button></div>`;
   const ferr = (key) => `<div class="ferr" data-err="${key}"></div>`;
 
+  /* The in-progress vault setup: draft values, current step, errors, and
+   * the last SERVER build (kept so a wallet rejection returns to a
+   * recoverable state without rebuilding). Discarded on every identity
+   * change (see updateWallet). */
+  function freshVaultSetup() {
+    const su = setupUi();
+    return { step: 0, draft: su ? su.vaultDraftDefaults() : null, errors: new Map(), built: null, busy: false, unresolved: [], unresolvedError: null, unresolvedChecked: false };
+  }
+
+  /* UX-05 (Codex checkpoint 2): a vault creation whose submit outcome is
+   * uncertain stays a DURABLE server request (SUBMITTING / SUBMITTED /
+   * RECONCILIATION_REQUIRED). The create flow reads that state from the
+   * server on every render — so it survives retries, reloads and repeated
+   * clicks — and refuses to build a replacement until the request is
+   * RECONCILED by chain proof (CHAIN_VERIFIED or NOT_BROADCAST). A status
+   * read never resolves it; an unreadable listing blocks (fail closed). */
+  async function refreshUnresolvedCreations() {
+    const s = vaultSetup();
+    if (!state.ready || !state.address) { s.unresolved = []; s.unresolvedError = null; s.unresolvedChecked = true; return s; }
+    try {
+      const { requests } = await getJSON(`/wallet/v4/requests?unresolved=1&_=${Date.now()}`);
+      s.unresolved = (Array.isArray(requests) ? requests : []).filter((r) => r && r.action === "createVault");
+      s.unresolvedError = null;
+    } catch (err) {
+      s.unresolved = [];
+      s.unresolvedError = `${err.code || ""} ${err.message || err}`.trim();
+    }
+    s.unresolvedChecked = true;
+    return s;
+  }
+  function creationBlocked(s) { return !s.unresolvedChecked || s.unresolvedError !== null || s.unresolved.length > 0; }
+  function unresolvedCreationHtml(s) {
+    const esc_ = (v) => esc(String(v ?? ""));
+    if (s.unresolvedError !== null) {
+      return `<div class="opbanner warn" data-unresolved-create="error"><b>Cannot confirm whether an earlier vault creation is still unresolved</b> (${esc_(s.unresolvedError)}). Building a new vault is disabled until PolicyVault can read your durable requests. <button type="button" data-unresolved-refresh="1">Try again</button></div>`;
+    }
+    if (!s.unresolved.length) return "";
+    return s.unresolved.map((r) => `<div class="opbanner warn" data-unresolved-create="${esc_(r.requestId)}"><b>A vault creation is still unresolved</b> — request <span class="mono">${esc_(r.requestId)}</span>${r.label ? ` ("${esc_(r.label)}")` : ""} is <b>${esc_(r.state)}</b>${r.txId ? ` (transaction <span class="mono">${esc_(r.txId)}</span>)` : ""}. The transaction may or may not have been broadcast. PolicyVault will not build or fund another vault until this one is resolved by chain proof — a status read, a lost response or a missing confirmation never counts as resolved.<div class="actions"><button type="button" class="primary" data-reconcile-create="${esc_(r.requestId)}">Reconcile against the chain</button></div></div>`).join("");
+  }
+  async function reconcileCreation(requestId) {
+    const s = vaultSetup();
+    if (s.busy) return;
+    s.busy = true;
+    rerenderCreate();
+    try {
+      note("Checking the Kaspa DAG for this creation…", "warn");
+      const res = await postJSON(`/wallet/v4/requests/${encodeURIComponent(requestId)}/reconcile`, {});
+      if (res.outcome === "CHAIN_VERIFIED") {
+        noteOutcome("Create vault (reconciled)", res.request.state, res.txId, res.detail);
+        s.built = null; state.setup = null; state.view = "vaults"; state.statusFilter = "Active";
+        render();
+        return;
+      }
+      if (res.outcome === "NOT_BROADCAST") note(`Resolved: ${res.detail}. Nothing left your wallet; you may build a vault again.`, "good");
+      else if (res.outcome === "SUPERSEDED") note(`Resolved: ${res.detail}. This creation can never be mined (its funding was spent by another transaction); you may build a vault again.`, "good");
+      else if (res.outcome === "ADVANCED_UNRESOLVED") note(`Unresolved — the vault EXISTS on chain: ${res.detail}. Do not build another vault; this creation needs manual reconciliation.`, "bad");
+      else note(`Still unresolved (${res.outcome}): ${res.detail}. Do not sign or build again yet.`, "warn");
+    } catch (err) { noteRefusal("Reconciliation did not complete", err); }
+    s.busy = false;
+    await refreshUnresolvedCreations();
+    rerenderCreate();
+  }
+  function vaultSetup() {
+    if (!state.setup || state.setup.kind !== "vault") state.setup = { kind: "vault", ...freshVaultSetup() };
+    return state.setup;
+  }
+
+  /* OWNER AUTHORITY, STATED WHERE IT IS DECIDED (TRACK 11, finding T1;
+   * scoped 2026-09-05). This vault TYPE commits exactly ONE owner key. The
+   * statement is about this vault type — PolicyVault's on-chain
+   * organizational root (Organizations tab) is the separate, real way to
+   * hold shared ownership, so the warning must not become a product-wide
+   * claim that no shared ownership exists. */
+  const ownerStatementHtml = () =>
+    `<div class="opbanner warn" data-owner-authority="1">` +
+    `<b>This wallet becomes the vault's only owner key.</b>` +
+    `<div class="f-help">This vault type (protocol v0.4.1) has no second owner, no owner quorum, and no organizational owner: only this wallet can pause the vault, add or remove agents, set approvers, and close &amp; recover. ` +
+    `Hosted organizations are labels for grouping vaults and grant nobody owner authority. Shared ownership by several people is a different feature — an on-chain organizational root (Organizations tab) — and creating or joining a hosted organization does not provide it. ` +
+    `Approvers set later can approve or refuse an agent's payment — they cannot spend, and they cannot act as the owner. ` +
+    `PolicyVault holds no master key and offers no custodial recovery, so if this key is lost the owner controls are lost with it. Back this wallet up before funding the vault.</div></div>`;
+
   function createView() {
+    const su = setupUi();
+    if (!su) {
+      return `<div class="panel"><h3 style="margin-top:0">Create vault</h3><div class="empty">The setup components did not load in this build — reload the page. Nothing was created.</div></div>`;
+    }
+    const s = vaultSetup();
+    const d = s.draft;
+    const err = (k) => s.errors.get(k) || "";
+    const rowErr = (k) => s.errors.get(k) || {};
+    const F = su.renderField;
+    const hidden = (i) => (i === s.step ? "" : " hidden");
+    const blocked = creationBlocked(s);
+    const panel = (i, inner) => `<section class="setup-step" data-setup-step="${VAULT_STEPS[i].id}"${hidden(i)}><h3>${su.esc(VAULT_STEPS[i].label)}</h3>${inner}${su.renderNav({ index: i, total: VAULT_STEPS.length, finalLabel: blocked ? "Resolve the earlier creation first" : "Build & review exact transaction", busy: s.busy || (blocked && i === VAULT_STEPS.length - 1) })}</section>`;
+
+    const basics =
+      F({ name: "label", label: "Vault name", control: su.textInput({ name: "label", value: d.label, placeholder: "Operations Treasury", maxlength: 120 }), help: "A name for this vault in PolicyVault. It is not written to the chain.", error: err("label"), wide: true }) +
+      `<div class="f f-wide"><div class="f-label">Owner</div><div class="addr-display"><span class="mono" data-owner-address="1">${esc(state.address)}</span> <span class="badge ver">Connected wallet</span> <button type="button" class="quiet addr-copy" data-copy="${esc(state.address)}">Copy</button></div>` +
+      ownerStatementHtml() + `</div>`;
+
+    const agent =
+      F({ name: "agent", label: "Agent wallet", control: su.textInput({ name: "agent", value: d.agent, placeholder: addrExample(), mono: true }), help: `The wallet — often an AI agent or an automated service — allowed to make payments from this vault within the rules on the next step. It cannot change the rules and cannot act as the owner. ${docsLink("agent-delegate")}`, error: err("agent"), wide: true }) +
+      `<div class="f f-wide${err("recipients") ? " f-invalid" : ""}" data-field="recipients"><div class="f-label">Allowed recipients</div>` +
+      su.renderAddressRows({ kind: "recipient", rows: d.recipients, errors: rowErr("recipientRows"), addLabel: "Add recipient", placeholder: addrExample() }) +
+      `<div class="f-help">Wallets this agent is allowed to pay. Enforced by the covenant on Kaspa, not only by this server: a payment to any other wallet is rejected even if the agent signs it directly. ${docsLink("destination-allowlist")}</div>` +
+      `<div class="ferr" data-err="recipients"${err("recipients") ? ' style="display:block"' : ""}>${su.esc(err("recipients"))}</div></div>`;
+
+    const approverCount = (d.approvers || []).filter((r) => r.address && r.address.trim()).length;
+    const rules =
+      `<div class="f-grid">` +
+      F({ name: "maxPerSpend", label: "Maximum per payment", control: su.kasInput({ name: "maxPerSpend", value: d.maxPerSpend, placeholder: "2" }), help: `The most the agent may send in one payment. Enforced by the covenant on every payment, whoever signs it. ${docsLink("per-transaction-limit")}`, error: err("maxPerSpend") }) +
+      F({ name: "budget", label: "Spending budget", control: su.kasInput({ name: "budget", value: d.budget, placeholder: "10" }), help: `The most the agent may send in total during one budget period. Must be at least the maximum per payment. ${docsLink("periodic-budget")}`, error: err("budget") }) +
+      `</div>` +
+      F({ name: "period", label: "Budget period", control: su.renderDurationControl({ name: "period", setting: su.BUDGET_SETTING, selection: d.period }), help: `${su.COPY.BUDGET_WINDOW} ${su.COPY.UNITS}`, error: err("period"), wide: true }) +
+      F({ name: "approvalThreshold", label: "Payments that need extra approval", control: su.kasInput({ name: "approvalThreshold", value: d.approvalThreshold, placeholder: "1" }), help: `Payments <b>above</b> this amount need the approvers below to sign first; payments at or below it the agent signs alone. Enter 0 to require approval for every payment. ${docsLink("approval-threshold")}`, error: err("approvalThreshold") }) +
+      `<div class="f f-wide${err("approvers") ? " f-invalid" : ""}" data-field="approvers"><div class="f-label">Payment approvers <span class="f-opt">(optional)</span></div>` +
+      su.renderAddressRows({ kind: "approver", rows: d.approvers, errors: rowErr("approverRows"), addLabel: "Add approver", placeholder: addrExample(), min: 0, max: MAX_APPROVER_ROWS }) +
+      `<div class="f-help">Wallets that can approve or refuse a payment above the threshold. They cannot spend, and they cannot act as the owner. An approver cannot spend vault funds or act as the owner. Leave empty for an agent-only vault. At most 10, each a distinct wallet. ${docsLink("external-approver")}</div>` +
+      `<div class="ferr" data-err="approvers"${err("approvers") ? ' style="display:block"' : ""}>${su.esc(err("approvers"))}</div></div>` +
+      F({ name: "approvalM", label: "Approvals needed", control: su.renderApprovalSelect({ name: "approvalM", count: approverCount, value: d.approvalM, noun: "approvers", max: MAX_APPROVER_ROWS }), help: approverCount ? `How many of the ${approverCount} approvers must sign a payment above the threshold. Example: 2 of 3 — any two of them. If you remove an approver later, this number is never lowered for you.` : "Add approvers above to choose how many must sign.", error: err("approvalM") }) +
+      su.renderLiveSummary(su.vaultRulesSummary(d), "v4-create-summary");
+
+    const funding =
+      `<div class="f-grid">` +
+      F({ name: "deposit", label: "Deposit", control: su.kasInput({ name: "deposit", value: d.deposit, placeholder: "100" }), help: "The KAS locked in the vault for the agent to spend under the rules. Only the owner can take it back (Close & recover).", error: err("deposit") }) +
+      F({ name: "reserve", label: "Fee reserve", control: su.kasInput({ name: "reserve", value: d.reserve, placeholder: "5" }), help: `Pays the network fee of each agent payment so the deposit is never reduced by fees. When it runs out, agent payments made through PolicyVault stop until the owner tops it up. ${docsLink("fee-reserve")}`, error: err("reserve") }) +
+      `</div>` +
+      `<details class="adv"><summary>Advanced</summary>` +
+      F({ name: "maxFee", label: "Maximum network fee per payment", control: su.kasInput({ name: "maxFee", value: d.maxFee, placeholder: "0.10" }), help: "Caps the fee a single agent payment may take from the reserve. Optional — the default (0.10 KAS) is comfortably above current v0.4.1 payment fees.", error: err("maxFee"), optional: true }) +
+      F({ name: "creationMaxFee", label: "Maximum network fee for creating the vault", control: su.kasInput({ name: "creationMaxFee", value: d.creationMaxFee, placeholder: "1" }), help: "A limit for the ONE creation transaction, separate from the agent's per-payment cap: PolicyVault refuses to ask your wallet to sign if the exact creation fee is above it. Default 1 KAS; the real fee is normally far below 0.01 KAS.", error: err("creationMaxFee") }) +
+      `<div class="f-help">Budget periods and waiting times are counted in Kaspa DAA score; wall-clock durations shown anywhere in this app are approximate.</div>` +
+      `</details>` +
+      `<div id="v4-create-review">${renderVaultDraftReview(su, d)}</div>` +
+      `<div class="f-help">The next screen shows the exact transaction PolicyVault built from these values, re-verified independently by this browser, before your wallet is asked to sign.</div>`;
+
     return (
-      `<div class="panel"><h3 style="margin-top:0">Create vault</h3>` +
-      `<form class="cform" id="v4-create-form" autocomplete="off" novalidate>` +
-      `<div class="full"><label>Vault name</label><input name="label" placeholder="Operations Treasury" />${ferr("label")}</div>` +
-      `<div><label>Deposit (KAS)</label><input name="deposit" placeholder="100" inputmode="decimal" />${ferr("deposit")}</div>` +
-      `<div><label>Fee reserve (KAS)</label><input name="reserve" placeholder="5" inputmode="decimal" />` +
-      `<div class="hint">Pays permitted agent transaction fees without reducing protected principal. ${docsLink("fee-reserve")}</div>${ferr("reserve")}</div>` +
-      `<div class="full"><label>Owner</label><div class="kv-line"><span class="mono">${esc(state.address)}</span> <span class="badge ver">Connected wallet</span></div></div>` +
-      `<div class="full"><label>Initial agent — wallet address</label><input name="agent" class="mono" placeholder="${addrExample()}" autocomplete="off" />${ferr("agent")}` +
-      `<div class="hint">A key the owner authorizes to spend from this vault, bounded by the policy below. ${docsLink("agent-delegate")}</div></div>` +
-      `<div><label>Maximum per transaction (KAS)</label><input name="maxPerSpend" placeholder="2" inputmode="decimal" />${ferr("maxPerSpend")}` +
-      `<div class="hint">Enforced by the covenant on every spend, regardless of who signs it. ${docsLink("per-transaction-limit")}</div></div>` +
-      `<div><label>Budget per period (KAS)</label><input name="budget" placeholder="10" inputmode="decimal" />${ferr("budget")}</div>` +
-      `<div><label>Budget resets approximately every</label><select name="period">` +
-      `<option value="1h">1 hour</option><option value="6h">6 hours</option><option value="1d" selected>1 day</option><option value="1w">1 week</option>` +
-      `<option value="custom">Custom…</option></select>` +
-      `<div class="inline" id="v4-period-custom" style="display:none;margin-top:0.3rem">` +
-      `<input name="periodValue" inputmode="numeric" placeholder="1" style="max-width:90px" />` +
-      `<select name="periodUnit"><option value="hour">hours</option><option value="day">days</option><option value="week">weeks</option></select></div>` +
-      // v4-period-hint's text is REPLACED via .textContent as the period
-      // selector changes (see the input-change handler below) — a link
-      // embedded inside it would be wiped on the first interaction, so the
-      // docs link lives in its own static sibling instead, never touched.
-      `<div class="hint" id="v4-period-hint">Budget resets approximately every 1 day.</div>` +
-      `<div class="hint">A cumulative cap over a recurring window, tracked by the covenant using Kaspa consensus time. ${docsLink("periodic-budget")}</div>${ferr("period")}</div>` +
-      `<div><label>Require approval above (KAS)</label><input name="approvalThreshold" placeholder="1" inputmode="decimal" />` +
-      `<div class="hint">At or below: the agent may sign alone. Above: vault approval policy applies. ${docsLink("approval-threshold")}</div>${ferr("approvalThreshold")}</div>` +
-      `<div class="full"><label>Allowed recipients</label><div class="reclist" id="v4-recipients">` +
-      rowHtml("recipient") +
-      `</div><button type="button" id="v4-add-recipient">+ Add recipient</button>${ferr("recipients")}` +
-      `<div class="hint">The agent may only pay addresses on this list — enforced by the covenant, not just the server. ${docsLink("destination-allowlist")}</div></div>` +
-      `<div class="full"><h4 style="margin:0.6rem 0 0.2rem">Approval policy (optional)</h4>` +
-      `<label>Required approvals (M)</label><input name="approvalM" placeholder="0" inputmode="numeric" style="max-width:120px" />${ferr("approvalM")}` +
-      `<div class="reclist" id="v4-approvers" style="margin-top:0.5rem"></div>` +
-      `<button type="button" id="v4-add-approver">+ Add approver</button>` +
-      ` <span class="hint" id="v4-approver-summary" style="display:inline"></span>` +
-      `<div class="hint">Leave empty for an agent-only vault. Approvers are wallet addresses — at most 10, each distinct. An approver cannot spend vault funds or act as the owner. ${docsLink("external-approver")}</div>${ferr("approvers")}</div>` +
-      `<div class="full"><details class="adv"><summary>Advanced</summary>` +
-      `<div class="cform" style="margin-top:0.6rem">` +
-      `<div><label>Maximum network fee per transaction (KAS)</label><input name="maxFee" placeholder="0.10" inputmode="decimal" /><div class="hint">Optional. Defaults to a safe value for current v0.4.1 fees.</div>${ferr("maxFee")}</div>` +
-      `<div class="full hint">Technical detail: PolicyVault enforces budget periods using Kaspa DAA score, so wall-clock duration is approximate.</div>` +
-      `</div></details></div>` +
-      `<div class="full"><button type="submit" class="primary">Review vault…</button>` +
-      `<span class="hint"> The owner wallet signs the funding transaction after review.</span></div>` +
-      `</form></div>`
+      `<div class="panel setup"><h3 style="margin-top:0">Create vault</h3>` +
+      unresolvedCreationHtml(s) +
+      su.renderStepper({ steps: VAULT_STEPS, current: s.step }) +
+      `<form class="setup-form" id="v4-create-form" autocomplete="off" novalidate>` +
+      panel(0, basics) + panel(1, agent) + panel(2, rules) + panel(3, funding) +
+      `</form>` +
+      (s.built ? `<div class="opbanner warn" data-built-pending="1">An exact transaction was already built from these values and is waiting for your signature. <button type="button" class="primary" id="v4-create-reopen">Open the review again</button> <span class="f-help" style="display:inline">Editing any field discards it.</span></div>` : "") +
+      `</div>`
     );
   }
 
-  /* ---- ONE-TIME delegated row wiring (the approver-row-multiplication fix).
-   * This handler is attached to the persistent #v4-root EXACTLY ONCE at
-   * startup — never inside render() — so re-renders (tab switches, wallet
-   * session updates) can never accumulate duplicate listeners. One click adds
-   * exactly one blank row; at 10 approver rows the add button is disabled and
-   * clicks add nothing (no truncation — the rows simply cannot be created). */
-  function handleCreateRowClick(e) {
-    const t = e.target;
-    if (!t || !t.classList) return;
+  /* The draft review (step 4) with Edit links — the INTENT the server will
+   * build from. The exact-transaction review follows on build. */
+  function renderVaultDraftReview(su, d) {
+    const rows = draftReviewRowsBestEffort(su, d);
+    return (
+      `<h4 class="review-title">Review before building</h4>` +
+      su.renderReviewSection({ title: "Basics and ownership", editStep: 0, rows: rows.basics }) +
+      su.renderReviewSection({ title: "Agent and recipients", editStep: 1, rows: rows.agent }) +
+      su.renderReviewSection({ title: "Spending rules", editStep: 2, rows: rows.rules }) +
+      su.renderReviewSection({ title: "Funding", editStep: 3, rows: rows.funding, note: "The network fee is exact only once the transaction is built; it is shown on the next screen with the total leaving your wallet." })
+    );
+  }
+  /* Synchronous best-effort rows from the raw draft (no address resolution). */
+  function draftReviewRowsBestEffort(su, d) {
+    const v = (x) => (String(x ?? "").trim() || "—");
+    let period = "—";
+    try { const n = su.readDurationSelection(su.BUDGET_SETTING, d.period); period = su.html(`${esc(n.describe.text)} (approximate)<details class="adv f-tech"><summary>Technical detail</summary>exactly ${esc(n.daa)} DAA score</details>`); } catch (e) { period = "not set"; }
+    const approvers = (d.approvers || []).map((r) => (r.address || "").trim()).filter(Boolean);
+    const recipients = (d.recipients || []).map((r) => (r.address || "").trim()).filter(Boolean);
+    const H = su.html;
+    return {
+      basics: [["Vault name", v(d.label)], ["Owner", H(`<span class="mono">${esc(state.address)}</span> — the only owner key of this vault`)]],
+      agent: [["Agent wallet", H(`<span class="mono">${esc(v(d.agent))}</span>`)], ["Allowed recipients", recipients.length ? H(recipients.map((a) => `<span class="mono">${esc(a)}</span>`).join("<br/>")) : "—"]],
+      rules: [
+        ["Maximum per payment", `${v(d.maxPerSpend)} KAS`],
+        ["Spending budget", `${v(d.budget)} KAS per budget period`],
+        ["Budget period", period],
+        ["Payments needing extra approval", `above ${v(d.approvalThreshold)} KAS`],
+        ["Approvals", approvers.length ? H(`${esc(v(d.approvalM))} of ${approvers.length} approvers<br/>${approvers.map((a) => `<span class="mono">${esc(a)}</span>`).join("<br/>")}`) : "none — payments above the threshold are refused"]
+      ],
+      funding: [["Deposit (protected)", `${v(d.deposit)} KAS`], ["Fee reserve", `${v(d.reserve)} KAS`], ["Maximum network fee per payment", d.maxFee && String(d.maxFee).trim() ? `${v(d.maxFee)} KAS` : "0.10 KAS (default)"], ["Network fee limit for creating the vault", d.creationMaxFee && String(d.creationMaxFee).trim() ? `${v(d.creationMaxFee)} KAS` : "1 KAS (default)"]]
+    };
+  }
+
+  /* Read every named control of the create form into the draft. Rows are
+   * read in DOM order; a removed row is simply absent. */
+  function readVaultDraft(f) {
+    const s = vaultSetup();
+    const d = s.draft;
+    const val = (n) => f.querySelector(`[name="${n}"]`)?.value ?? d[n] ?? "";
+    d.label = val("label");
+    d.agent = val("agent");
+    d.maxPerSpend = val("maxPerSpend");
+    d.budget = val("budget");
+    d.approvalThreshold = val("approvalThreshold");
+    d.deposit = val("deposit");
+    d.reserve = val("reserve");
+    d.maxFee = val("maxFee");
+    d.creationMaxFee = val("creationMaxFee");
+    d.approvalM = val("approvalM");
+    const periodSel = f.querySelector('[name="period"]');
+    if (periodSel) d.period = { preset: periodSel.value, customValue: f.querySelector('[name="periodValue"]')?.value ?? "", customUnit: f.querySelector('[name="periodUnit"]')?.value ?? "day", existingDaa: d.period && d.period.existingDaa };
+    const rowsOf = (kind) => [...f.querySelectorAll(`[data-rows="${kind}"] .addr-row`)].map((row) => ({ address: row.querySelector(`[name="${kind}"]`)?.value ?? "", label: row.querySelector(`[name="${kind}Label"]`)?.value ?? "" }));
+    const rec = rowsOf("recipient");
+    if (f.querySelector('[data-rows="recipient"]')) d.recipients = rec.length ? rec : [{ address: "" }];
+    if (f.querySelector('[data-rows="approver"]')) d.approvers = rowsOf("approver");
+    return d;
+  }
+
+  function rerenderCreate() {
+    const root = $("v4-root");
+    if (!root || state.view !== "create") return;
+    root.innerHTML = createView();
+    wireCreateForm();
+  }
+
+  /* ---- ONE-TIME delegated click wiring (the approver-row-multiplication
+   * fix, kept). Attached to the persistent #v4-root EXACTLY ONCE at startup —
+   * never inside render() — so re-renders can never accumulate duplicate
+   * listeners. Row add/remove, Back/Continue, Edit links and Copy all route
+   * through here; each one reads the current values into the draft FIRST so
+   * nothing typed is lost. */
+  async function handleCreateRowClick(e) {
+    const t = e.target && e.target.closest ? e.target.closest("button") : null;
+    if (!t || state.view !== "create") return;
+    const f = $("v4-create-form");
+    const s = vaultSetup();
+    if (!f || !s.draft) return;
+    if (t.hasAttribute("data-reconcile-create")) { await reconcileCreation(t.getAttribute("data-reconcile-create")); return; }
+    if (t.hasAttribute("data-unresolved-refresh")) { await refreshUnresolvedCreations(); rerenderCreate(); return; }
     if (t.id === "v4-add-recipient") {
-      const list = $("v4-recipients");
-      if (list) list.insertAdjacentHTML("beforeend", rowHtml("recipient"));
+      readVaultDraft(f); s.draft.recipients.push({ address: "" }); s.errors.delete("recipients"); s.errors.delete("recipientRows"); rerenderCreate();
     } else if (t.id === "v4-add-approver") {
-      const list = $("v4-approvers");
-      if (list && list.querySelectorAll(".row").length < MAX_APPROVER_ROWS) list.insertAdjacentHTML("beforeend", rowHtml("approver"));
+      readVaultDraft(f);
+      if (s.draft.approvers.length < MAX_APPROVER_ROWS) s.draft.approvers.push({ address: "" });
+      s.errors.delete("approvers"); s.errors.delete("approverRows"); rerenderCreate();
     } else if (t.classList.contains("rm-recipient")) {
-      const list = $("v4-recipients");
-      if (list && list.querySelectorAll(".row").length > 1) t.closest(".row").remove();
+      readVaultDraft(f);
+      const i = Number(t.closest(".addr-row")?.getAttribute("data-row"));
+      if (s.draft.recipients.length > 1) s.draft.recipients.splice(i, 1);
+      s.errors.delete("recipients"); s.errors.delete("recipientRows"); rerenderCreate();
     } else if (t.classList.contains("rm-approver")) {
-      t.closest(".row").remove();
+      readVaultDraft(f);
+      const i = Number(t.closest(".addr-row")?.getAttribute("data-row"));
+      s.draft.approvers.splice(i, 1);
+      // The approval count is NEVER lowered for the user: if it no longer
+      // fits, the select shows it as impossible and asks for a new choice.
+      s.errors.delete("approvers"); s.errors.delete("approverRows"); rerenderCreate();
+    } else if (t.hasAttribute("data-setup-back")) {
+      readVaultDraft(f); s.step = Math.max(0, s.step - 1); rerenderCreate();
+    } else if (t.hasAttribute("data-setup-next")) {
+      readVaultDraft(f);
+      await validateVaultStep(s, VAULT_STEPS[s.step].id);
+      if (![...s.errors.keys()].length) s.step = Math.min(VAULT_STEPS.length - 1, s.step + 1);
+      rerenderCreate();
+    } else if (t.hasAttribute("data-edit-step")) {
+      readVaultDraft(f); s.step = Number(t.getAttribute("data-edit-step")) || 0;
+      // rc15 review F-02: editing after a build abandons that build — withdraw
+      // the server-side request too (best-effort, exactly as Back to edit does)
+      // so open unsigned requests never pile up toward the quota.
+      const abandoned = s.built; s.built = null;
+      if (abandoned && abandoned.request && abandoned.request.requestId) { try { await postJSON(`/wallet/v4/requests/${encodeURIComponent(abandoned.request.requestId)}/reject`, {}); } catch { /* best-effort withdrawal of an unsigned build */ } }
+      rerenderCreate();
+    } else if (t.id === "v4-create-reopen") {
+      if (s.built) openVaultBuildReview(s.built);
+    } else if (t.hasAttribute("data-copy")) {
+      try { await window.navigator.clipboard.writeText(t.getAttribute("data-copy")); note("Address copied.", "good"); } catch { note("Could not access the clipboard — select the address text to copy it.", "warn"); }
     } else {
       return;
     }
-    syncCreateControls();
+    e.preventDefault();
   }
 
-  /* Keep the add-approver button + "M of N" summary in sync with the rows. */
-  function syncCreateControls() {
+  /* Validate ONE step (field-local errors), through the server's address
+   * boundary for addresses. Errors are kept on the setup state so a
+   * re-render shows them beside their fields. */
+  async function validateVaultStep(s, stepId) {
+    const su = setupUi();
+    if (!su) return;
+    s.busy = true;
+    try {
+      const { errors } = await su.validateVaultDraft(s.draft, { resolve: resolveXOnly, step: stepId });
+      s.errors = errors;
+    } finally {
+      s.busy = false;
+    }
+  }
+
+  /* Live controls: the duration effect line, the approvals select, the
+   * summary. Cheap and synchronous; never a network call. */
+  function syncCreateControls(ev) {
     const f = $("v4-create-form");
-    if (!f) return;
-    const addBtn = $("v4-add-approver");
-    const rows = $("v4-approvers") ? $("v4-approvers").querySelectorAll(".row").length : 0;
-    if (addBtn) {
-      addBtn.disabled = rows >= MAX_APPROVER_ROWS;
-      addBtn.title = rows >= MAX_APPROVER_ROWS ? "Maximum of 10 approvers reached" : "";
-    }
-    const configured = $("v4-approvers") ? [...$("v4-approvers").querySelectorAll('[name="approver"]')].filter((i) => i.value.trim()).length : 0;
-    const m = (f.querySelector('[name="approvalM"]')?.value ?? "").trim();
-    const sum = $("v4-approver-summary");
-    if (sum) sum.textContent = configured > 0 ? `${m || "?"} of ${configured} required` : "";
+    const su = setupUi();
+    if (!f || !su) return;
+    const s = vaultSetup();
+    const d = readVaultDraft(f);
+    /* The review block (with its Edit buttons) is REPLACED only when the
+     * draft actually changed, and never on a blur-driven "change" event:
+     * replacing it between mousedown and click would detach the very Edit
+     * button being pressed and swallow the click (real-browser finding,
+     * 2026-09-05 harness). */
+    const snapshot = JSON.stringify(d);
+    const draftChanged = snapshot !== s.lastSyncSnapshot;
+    s.lastSyncSnapshot = snapshot;
+    const isBlurChange = !!(ev && ev.type === "change" && ev.target && ev.target.tagName === "INPUT");
+    // duration: show/hide the custom row + effect line
     const sel = f.querySelector('[name="period"]');
-    const custom = $("v4-period-custom");
-    if (sel && custom) custom.style.display = sel.value === "custom" ? "flex" : "none";
-    const hint = $("v4-period-hint");
-    if (hint && sel) {
-      if (sel.value !== "custom") hint.textContent = `Budget resets approximately every ${PERIOD_PRESET_LABEL[sel.value] || sel.value}.`;
-      else {
-        const n = (f.querySelector('[name="periodValue"]')?.value ?? "").trim();
-        const u = f.querySelector('[name="periodUnit"]')?.value ?? "hour";
-        hint.textContent = /^[0-9]+$/.test(n) && Number(n) > 0 ? `Budget resets approximately every ${n} ${u}${n === "1" ? "" : "s"}.` : "Budget resets approximately every …";
-      }
+    const custom = f.querySelector('[data-duration-custom="period"]');
+    if (sel && custom) custom.hidden = sel.value !== "custom";
+    const eff = f.querySelector('[data-duration-effect="period"]');
+    if (eff) eff.textContent = su.durationEffectText(su.BUDGET_SETTING, d.period);
+    const exact = f.querySelector('[data-duration-exact="period"]');
+    if (exact) exact.textContent = su.durationExactText(su.BUDGET_SETTING, d.period);
+    // approvals select: recompute options from the CURRENT rows, preserving the chosen value
+    const mSel = f.querySelector('[name="approvalM"]');
+    if (mSel) {
+      const count = (d.approvers || []).filter((r) => r.address && r.address.trim()).length;
+      const current = mSel.value;
+      const options = su.approvalOptions(count, "approvers", { max: MAX_APPROVER_ROWS });
+      if (current && !options.some((o) => o.value === current)) options.unshift({ value: current, label: `${current} of ${count} approvers — impossible, choose again` });
+      if (!options.length) options.push({ value: "", label: "add approvers first" });
+      mSel.innerHTML = options.map((o) => `<option value="${esc(o.value)}"${o.value === current ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+      if (!current && options[0]) mSel.value = options[0].value;
+      const box = f.querySelector('.ferr[data-err="approvalM"]');
+      const t = su.thresholdCheck({ count, value: mSel.value, noun: "approvers", label: "Approvals needed", max: MAX_APPROVER_ROWS });
+      if (box && count > 0 && !t.ok) { box.textContent = t.message; box.style.display = "block"; }
+      else if (box && !s.errors.get("approvalM")) { box.textContent = ""; box.style.display = "none"; }
     }
+    const summary = $("v4-create-summary");
+    if (summary && draftChanged) summary.outerHTML = su.renderLiveSummary(su.vaultRulesSummary(d), "v4-create-summary");
+    const review = $("v4-create-review");
+    if (review && s.step === 3 && draftChanged && !isBlurChange) review.innerHTML = renderVaultDraftReview(su, d);
   }
 
   /* Field-local error display: sets/clears .ferr blocks + input highlighting. */
   function showFieldErrors(f, errors) {
-    f.querySelectorAll(".ferr").forEach((el) => { el.textContent = ""; el.classList.remove("show"); });
-    f.querySelectorAll(".invalid").forEach((el) => el.classList.remove("invalid"));
+    f.querySelectorAll(".ferr").forEach((el) => { el.textContent = ""; el.style.display = "none"; });
+    f.querySelectorAll(".f-invalid").forEach((el) => el.classList.remove("f-invalid"));
     for (const [key, err] of errors) {
+      if (typeof err !== "string" && !(err && err.message)) continue;
       const box = f.querySelector(`.ferr[data-err="${key}"]`);
-      if (box) { box.textContent = err.message; box.classList.add("show"); }
-      for (const el of err.inputs || []) el.classList.add("invalid");
+      const message = typeof err === "string" ? err : err.message;
+      if (box) { box.textContent = message; box.style.display = "block"; }
+      const field = f.querySelector(`[data-field="${key}"]`);
+      if (field) field.classList.add("f-invalid");
+      for (const el of (err && err.inputs) || []) el.classList.add("invalid");
     }
-  }
-
-  /*
-   * Pre-Review validation (§ form validation). UX + defense-in-depth ONLY —
-   * the server independently repeats every security-relevant validation and
-   * remains authoritative. Addresses are checked through the server's ONE
-   * address-identity boundary (/identity/resolve-address), which fails closed
-   * on malformed / wrong-network / unsupported-type / bad-checksum input.
-   * Returns { ok, errors: Map(fieldKey -> {message, inputs}), body }.
-   */
-  async function validateCreateForm(f) {
-    const errors = new Map();
-    const bad = (key, message, inputs) => { if (!errors.has(key)) errors.set(key, { message, inputs: inputs || [f.querySelector(`[name="${key}"]`)].filter(Boolean) }); };
-    const v = (n) => (f.querySelector(`[name="${n}"]`)?.value ?? "").trim();
-    const kas = (s) => kasToSompiClient(s);
-
-    const label = v("label");
-    if (!label) bad("label", "Vault name is required.");
-    else if (label.length > 120) bad("label", "Vault name is too long (max 120 characters).");
-
-    const deposit = kas(v("deposit"));
-    if (deposit === null || BigInt(deposit) <= 0n) bad("deposit", "Enter a deposit greater than 0 KAS.");
-    const reserve = kas(v("reserve"));
-    if (reserve === null) bad("reserve", "Enter a fee reserve of 0 KAS or more.");
-
-    const maxPerSpend = kas(v("maxPerSpend"));
-    if (maxPerSpend === null || BigInt(maxPerSpend) <= 0n) bad("maxPerSpend", "Enter a maximum per transaction greater than 0 KAS.");
-    const budget = kas(v("budget"));
-    if (budget === null || BigInt(budget) <= 0n) bad("budget", "Enter a budget greater than 0 KAS.");
-    else if (maxPerSpend !== null && BigInt(budget) < BigInt(maxPerSpend)) bad("budget", "Budget must be at least the maximum per transaction.");
-
-    const threshold = kas(v("approvalThreshold"));
-    if (threshold === null) bad("approvalThreshold", "Enter an approval threshold (0 KAS means every spend needs approval).");
-
-    const maxFee = v("maxFee");
-    if (maxFee && (kas(maxFee) === null || BigInt(kas(maxFee)) <= 0n)) bad("maxFee", "Maximum network fee must be a positive KAS amount.");
-
-    // Budget period: preset, or custom {value, unit} within the product range.
-    const preset = v("period");
-    let budgetPeriod = preset;
-    if (preset === "custom") {
-      const n = v("periodValue");
-      const unit = v("periodUnit") || "hour";
-      if (!/^[0-9]+$/.test(n) || BigInt(n) <= 0n) {
-        bad("period", "Enter a whole number of hours, days, or weeks.", [f.querySelector('[name="periodValue"]')]);
-      } else if (!PERIOD_UNIT_SECONDS[unit]) {
-        bad("period", "Choose hours, days, or weeks.", [f.querySelector('[name="periodUnit"]')]);
-      } else {
-        const daa = BigInt(n) * PERIOD_UNIT_SECONDS[unit] * DAA_PER_SEC;
-        if (daa < PERIOD_MIN_DAA || daa > PERIOD_MAX_DAA) {
-          bad("period", "Budget period must be between 1 hour and 53 weeks.", [f.querySelector('[name="periodValue"]')]);
-        }
-        budgetPeriod = { value: n, unit };
-      }
-    }
-
-    // Address checks share one resolution pass (server-authoritative identity).
-    const cache = new Map();
-    const resolve = async (addr) => {
-      if (!cache.has(addr)) {
-        try { cache.set(addr, { x: await resolveXOnly(addr) }); }
-        catch (err) { cache.set(addr, { err: err.message || "invalid address" }); }
-      }
-      return cache.get(addr);
-    };
-
-    const agentAddr = v("agent");
-    let agentXOnly = null;
-    if (!agentAddr) bad("agent", "Enter the initial agent's wallet address.");
-    else {
-      const r = await resolve(agentAddr);
-      if (r.err) bad("agent", `Agent address rejected: ${r.err}`);
-      else agentXOnly = r.x;
-    }
-
-    // Recipients: at least one; a blank row must be filled or removed; each
-    // address must resolve on the server's configured network.
-    const recipientInputs = [...f.querySelectorAll('[name="recipient"]')];
-    const recipientAddresses = [];
-    const recipientXOnlys = [];
-    const recipientMsgs = [];
-    const recipientBad = [];
-    for (let i = 0; i < recipientInputs.length; i++) {
-      const a = recipientInputs[i].value.trim();
-      if (!a) {
-        if (recipientInputs.length > 1) { recipientMsgs.push(`Recipient ${i + 1}: enter an address or remove the row.`); recipientBad.push(recipientInputs[i]); }
-        continue;
-      }
-      const r = await resolve(a);
-      if (r.err) { recipientMsgs.push(`Recipient ${i + 1}: ${r.err}`); recipientBad.push(recipientInputs[i]); }
-      else { recipientAddresses.push(a); recipientXOnlys.push(r.x); }
-    }
-    if (!recipientMsgs.length && recipientAddresses.length === 0) recipientMsgs.push("Add at least one allowed recipient address.");
-    if (recipientMsgs.length) bad("recipients", recipientMsgs.join(" "), recipientBad.length ? recipientBad : recipientInputs);
-
-    // Approvers: max 10 rows; every configured row must hold a valid address;
-    // duplicates are rejected BOTH as wallet addresses and as resolved x-only
-    // identities; an empty row is never silently counted as configured.
-    const approverInputs = [...f.querySelectorAll('[name="approver"]')];
-    const approverAddresses = [];
-    const approverXOnlys = [];
-    const approverMsgs = [];
-    const approverBad = [];
-    const seenAddr = new Map();
-    const seenX = new Map();
-    if (approverInputs.length > MAX_APPROVER_ROWS) approverMsgs.push(`At most ${MAX_APPROVER_ROWS} approvers are supported.`);
-    for (let i = 0; i < approverInputs.length; i++) {
-      const a = approverInputs[i].value.trim();
-      if (!a) { approverMsgs.push(`Approver ${i + 1}: enter an address or remove the row.`); approverBad.push(approverInputs[i]); continue; }
-      if (seenAddr.has(a)) { approverMsgs.push(`Approver ${i + 1} duplicates approver ${seenAddr.get(a) + 1}.`); approverBad.push(approverInputs[i]); continue; }
-      seenAddr.set(a, i);
-      const r = await resolve(a);
-      if (r.err) { approverMsgs.push(`Approver ${i + 1}: ${r.err}`); approverBad.push(approverInputs[i]); continue; }
-      if (seenX.has(r.x)) { approverMsgs.push(`Approver ${i + 1} is the same signing identity as approver ${seenX.get(r.x) + 1}.`); approverBad.push(approverInputs[i]); continue; }
-      seenX.set(r.x, i);
-      approverAddresses.push(a);
-      approverXOnlys.push(r.x);
-    }
-    if (approverMsgs.length) bad("approvers", approverMsgs.join(" "), approverBad);
-
-    // Required approvals M: 0 <= M <= 10, M <= valid configured approvers,
-    // and M >= 1 whenever approvers are configured. Never inferred.
-    const mRaw = v("approvalM");
-    const configured = approverAddresses.length;
-    let approvalM = null;
-    if (approverInputs.length === 0) {
-      if (mRaw && mRaw !== "0") bad("approvalM", "Add approver rows first, or leave required approvals empty.");
-    } else {
-      if (!/^[0-9]+$/.test(mRaw)) bad("approvalM", "Enter how many approvals are required (a whole number).");
-      else {
-        const m = Number(mRaw);
-        if (m > MAX_APPROVER_ROWS) bad("approvalM", `Required approvals cannot exceed ${MAX_APPROVER_ROWS}.`);
-        else if (m < 1) bad("approvalM", "Required approvals must be at least 1 when approvers are configured.");
-        else if (!errors.has("approvers") && m > configured) bad("approvalM", `Required approvals (${m}) exceeds the ${configured} configured approver${configured === 1 ? "" : "s"}.`);
-        else approvalM = String(m);
-      }
-    }
-
-    if (errors.size) return { ok: false, errors, body: null, context: null };
-    const body = {
-      contractVersion: "policyvault-0.4.1",
-      signerAddress: state.address,
-      vaultId: randomHex32(),
-      label,
-      depositKas: v("deposit"),
-      feeReserveKas: v("reserve"),
-      agent: {
-        agentAddress: agentAddr,
-        maxPerSpendKas: v("maxPerSpend"),
-        budgetKas: v("budget"),
-        budgetPeriod,
-        approvalThresholdKas: v("approvalThreshold"),
-        ...(maxFee ? { maxFeePerTxKas: maxFee } : {}),
-        recipientAddresses
-      }
-    };
-    if (approverAddresses.length) body.approvers = { addresses: approverAddresses, approvalM };
-    // CLIENT-SIDE create context for browser-local genesis verification:
-    // the values THIS browser derived from the user's inputs (the generated
-    // vaultId, typed amounts, the resolved approver/agent/recipient
-    // identities, the typed agent policy) — captured BEFORE the server
-    // ever sees the request. The agent policy fields pin the DISCLOSED
-    // genesis registry tuple (residuals wave: web/verify-intent.js
-    // recomputes the genesis agentRoot from request.initialRegistry and
-    // cross-checks these typed values against the committed tuple).
-    const context = {
-      vaultId: body.vaultId,
-      depositKas: v("deposit"),
-      feeReserveKas: v("reserve"),
-      approvalM: approverAddresses.length ? approvalM : "0",
-      approverXOnlys,
-      agentXOnly,
-      agentMaxPerSpendKas: v("maxPerSpend"),
-      agentBudgetKas: v("budget"),
-      agentApprovalThresholdKas: v("approvalThreshold"),
-      ...(maxFee ? { agentMaxFeePerTxKas: maxFee } : {}),
-      agentRecipientXOnlys: recipientXOnlys,
-      ...(maxFee ? { maxFeeSompi: kas(maxFee) } : {})
-    };
-    return { ok: true, errors, body, context };
   }
 
   /* Wire the freshly rendered create form (the form element is NEW on each
-   * render, so these listeners die with it — row add/remove wiring lives in
-   * the one-time delegated handler above instead). */
+   * render, so these listeners die with it — click wiring lives in the
+   * one-time delegated handler above instead). */
   function wireCreateForm() {
     const f = $("v4-create-form");
     if (!f) return;
-    f.addEventListener("input", () => syncCreateControls());
-    f.addEventListener("change", () => syncCreateControls());
+    f.addEventListener("input", (ev) => syncCreateControls(ev));
+    f.addEventListener("change", (ev) => syncCreateControls(ev));
     syncCreateControls();
     f.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const submitBtn = f.querySelector('button[type="submit"]');
-      if (submitBtn) submitBtn.disabled = true;
+      await buildAndReviewVault(f);
+    });
+  }
+
+  /* BUILD & REVIEW: validate everything, POST the build, verify the frozen
+   * transaction in this browser, and show the exact review. The draft is
+   * never discarded on a refusal; the first step with a problem is shown. */
+  async function buildAndReviewVault(f) {
+    const su = setupUi();
+    const s = vaultSetup();
+    if (!su || s.busy) return;
+    s.busy = true;
+    const submitBtn = f.querySelector("[data-setup-build]");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      readVaultDraft(f);
+      await refreshUnresolvedCreations();
+      if (creationBlocked(s)) { note("An earlier vault creation is still unresolved — reconcile it against the chain before building another vault.", "bad"); rerenderCreate(); return; }
+      note("Checking the form…", "warn");
+      const vaultId = randomHex32();
+      const { ok, errors, body, context } = await su.validateVaultDraft(s.draft, { resolve: resolveXOnly, signerAddress: state.address, vaultId });
+      s.errors = errors;
+      if (!ok) {
+        const order = ["label", "agent", "recipients", "maxPerSpend", "budget", "period", "approvalThreshold", "approvers", "approvalM", "deposit", "reserve", "maxFee", "creationMaxFee"];
+        const stepOf = { label: 0, agent: 1, recipients: 1, maxPerSpend: 2, budget: 2, period: 2, approvalThreshold: 2, approvers: 2, approvalM: 2, deposit: 3, reserve: 3, maxFee: 3, creationMaxFee: 3 };
+        const first = order.find((k) => errors.has(k));
+        if (first !== undefined) s.step = stepOf[first];
+        s.busy = false;
+        rerenderCreate();
+        note("Fix the highlighted fields, then continue.", "bad");
+        return;
+      }
+      let built;
       try {
-        note("Checking the form…", "warn");
-        const { ok, errors, body, context } = await validateCreateForm(f);
-        showFieldErrors(f, errors);
-        if (!ok) { note("Fix the highlighted fields, then Review again.", "bad"); return; }
-        let built;
-        try {
-          note("Building vault…", "warn");
-          built = await postJSON("/wallet/v4/create", body);
-        } catch (err) {
-          note(`Create rejected: ${err.code || ""} ${err.message}`, "bad");
-          return;
-        }
-        const request = built.request;
-        // BROWSER-LOCAL GENESIS VERIFICATION against the client's own form
-        // context (client-generated vaultId, typed deposit/reserve, resolved
-        // approver identities, the connected owner identity).
-        const verification = verifyForSigning({ request, createContext: context, role: "owner" });
-        reviewModal(request.review, async () => {
-          try {
-            note("Waiting for KasWare — review and approve in the wallet popup…", "warn");
-            const signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address, verification);
-            note(`Creating vault — broadcasting genesis to ${networkLabel()}…`, "warn");
-            const done = await postJSON(`/wallet/v4/requests/${request.requestId}/genesis-submit`, { signedSafeJson: signed });
-            const ok2 = done.request.state === "CHAIN_VERIFIED";
-            note(`Vault created: ${done.request.state} — txid ${short(done.txId)}${ok2 ? " (chain-verified)" : ""}`, ok2 ? "good" : "warn");
-            if (ok2) { state.view = "vaults"; state.statusFilter = "Active"; }
-            render();
-          } catch (err) {
-            note(`Create failed: ${err.code || ""} ${err.message}`, "bad");
-          }
-        }, "Sign & create", undefined, verification);
-      } finally {
-        if (submitBtn) submitBtn.disabled = false;
+        note("Building the exact transaction…", "warn");
+        built = await postJSON("/wallet/v4/create", body);
+      } catch (err) {
+        s.busy = false;
+        noteRefusal("Create refused", err);
+        if (err && err.code === "CREATION_UNRESOLVED") { await refreshUnresolvedCreations(); rerenderCreate(); }
+        return; // the draft stays exactly as entered
+      }
+      const request = built.request;
+      // BROWSER-LOCAL GENESIS VERIFICATION against the client's own form
+      // context (client-generated vaultId, typed deposit/reserve, resolved
+      // approver identities, the connected owner identity).
+      const verification = verifyForSigning({ request, createContext: context, role: "owner" });
+      s.built = { request, verification, context };
+      s.busy = false;
+      note("");
+      rerenderCreate();
+      openVaultBuildReview(s.built);
+    } finally {
+      s.busy = false;
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
+
+  /* The exact-transaction review: SERVER review of the frozen build (friendly
+   * labels), the funding breakdown recomputed from the frozen bytes, this
+   * browser's verification, then Sign. Cancel returns to the review step
+   * with the draft intact; the abandoned build is withdrawn best-effort so
+   * it never counts against the open-request quota. */
+  function openVaultBuildReview(built) {
+    const { request, verification } = built;
+    const su = setupUi();
+    const funding = su ? fundingBreakdownHtml(su, request, built.context) : "";
+    reviewModal(request.review, () => signAndSubmitVaultGenesis(built), "Approve in wallet", "Review — exactly what your wallet will sign", verification, {
+      extraHtml: funding,
+      cancelLabel: "Back to edit",
+      onCancel: async () => {
+        const s = vaultSetup();
+        s.built = null;
+        try { await postJSON(`/wallet/v4/requests/${encodeURIComponent(request.requestId)}/reject`, {}); } catch { /* best-effort withdrawal of an unsigned build */ }
+        rerenderCreate();
       }
     });
+  }
+
+  /* Deposit + fee reserve + the EXACT network fee (Σ inputs − Σ outputs of
+   * the frozen unsigned transaction, decoded by the same verifier the
+   * signing gate uses) = total leaving the funding wallet; change returns.
+   * Derived from the existing funding model: the covenant output carries
+   * deposit + reserve in ONE UTXO; the reserve is part of that output, not
+   * an extra debit. */
+  function fundingBreakdownHtml(su, request, context) {
+    const r = request.review || {};
+    const limitSompi = context && context.maxFeeSompi ? String(context.maxFeeSompi) : null;
+    const depositKas = r.depositKas ?? "—";
+    const reserveKas = r.reserveKas ?? "—";
+    let feeKas = null;
+    try {
+      const gate = verifyGate();
+      const dec = gate && typeof gate.decodeUnsignedSafeTransaction === "function" ? gate.decodeUnsignedSafeTransaction(request.transaction.unsignedSafeJson) : null;
+      if (dec && dec.ok) {
+        const tx = dec.transaction;
+        const inSum = tx.inputs.reduce((a, i) => a + BigInt(i.utxo.amount), 0n);
+        const outSum = tx.outputs.reduce((a, o) => a + BigInt(o.value), 0n);
+        feeKas = window.PolicyVaultCore.amounts.sompiToKas(inSum - outSum);
+      }
+    } catch { feeKas = null; }
+    const dep = su.kasToSompi(depositKas), res = su.kasToSompi(reserveKas);
+    const total = dep !== null && res !== null && feeKas !== null ? su.sompiToKas(BigInt(dep) + BigInt(res) + BigInt(su.kasToSompi(feeKas))) : null;
+    return su.renderFundingBreakdown({
+      title: "What leaves your wallet",
+      rows: [
+        { label: "Deposit (protected, spendable by the agent under the rules)", kas: depositKas },
+        { label: "Fee reserve (pays agent payment fees)", kas: reserveKas, note: "held inside the vault output with the deposit" },
+        { label: "Network fee for creating the vault", kas: feeKas === null ? "unknown — verification did not decode the transaction" : feeKas, note: limitSompi ? `exact, from the frozen transaction; your limit for this transaction is ${su.sompiToKas(BigInt(limitSompi))} KAS (the browser refuses to sign above it)` : "exact, from the frozen transaction" }
+      ],
+      total: total !== null ? { label: "Total leaving your wallet", kas: total } : null,
+      note: "Any remaining value of the funding input returns to your wallet as change. The deposit stays spendable only under the rules above; when the fee reserve is used up, agent payments through PolicyVault stop until you top it up."
+    });
+  }
+
+  /* Sign → genesis-submit. A signature is not success; only the server's
+   * CHAIN_VERIFIED renders as such. Wallet rejection or disconnect returns
+   * to the review step with the built request kept (reopen without
+   * rebuilding). An uncertain submission outcome offers a status check of
+   * the EXISTING request before any new transaction. */
+  async function signAndSubmitVaultGenesis(built) {
+    const s = vaultSetup();
+    if (s.busy) return;
+    s.busy = true;
+    const { request, verification } = built;
+    let signed;
+    try {
+      // UX-05 (Codex checkpoint 3): the unresolved-creation invariant holds at
+      // SIGNING too — a request built earlier (another tab, a reload) never
+      // reaches the wallet while ANOTHER creation of this wallet is unresolved.
+      await refreshUnresolvedCreations();
+      const others = s.unresolved.filter((r) => r.requestId !== request.requestId);
+      if (s.unresolvedError !== null || others.length) {
+        s.busy = false;
+        note(s.unresolvedError !== null ? "Cannot confirm whether an earlier vault creation is unresolved — not signing." : `Another vault creation (${others[0].requestId}, ${others[0].state}) is still unresolved — reconcile it before signing this one.`, "bad");
+        rerenderCreate();
+        return;
+      }
+      note("Waiting for your wallet — review and approve in the wallet popup…", "warn");
+      signed = await walletSign(request.transaction.unsignedSafeJson, request.transaction.signInputs, state.address, verification);
+    } catch (err) {
+      s.busy = false;
+      noteRefusal("Signing did not complete — nothing was sent", err);
+      rerenderCreate();
+      return;
+    }
+    try {
+      note(`Approved in your wallet — submitting to ${networkLabel()}… (a signature is not yet a result)`, "warn");
+      const done = await postJSON(`/wallet/v4/requests/${request.requestId}/genesis-submit`, { signedSafeJson: signed });
+      const ok2 = done.request.state === "CHAIN_VERIFIED";
+      noteOutcome("Create vault", done.request.state, done.txId, done.request.error);
+      s.built = null;
+      if (ok2) { state.setup = null; state.view = "vaults"; state.statusFilter = "Active"; }
+      s.busy = false;
+      render();
+    } catch (err) {
+      s.busy = false;
+      // The outcome is UNCERTAIN (the request may or may not have been
+      // broadcast). The durable request stays on the server in an unresolved
+      // state; the create flow now blocks any replacement build until it is
+      // reconciled by chain proof (UX-05). Nothing here may be signed again.
+      noteRefusal("Submission outcome uncertain — do not sign again", err);
+      await refreshUnresolvedCreations();
+      if (!s.unresolved.some((r) => r.requestId === request.requestId) && s.unresolvedError === null) {
+        // the server already knows a terminal outcome for it — show it
+        try { const { request: fresh } = await getJSON(`/wallet/v4/requests/${encodeURIComponent(request.requestId)}?_=${Date.now()}`); noteOutcome("Create vault (durable state)", fresh.state, fresh.txId, fresh.error); if (fresh.state === "CHAIN_VERIFIED") { s.built = null; state.setup = null; state.view = "vaults"; render(); return; } } catch (e2) { noteRefusal("Status read failed", e2); }
+      }
+      rerenderCreate();
+    }
   }
 
   /* ===================== VAULT CARDS (§21 hierarchy) ===================== */
@@ -1051,6 +1377,14 @@
     return s.allAgents || s.agents.includes(agentPk);
   }
 
+  /* "per about 1 day" from the agent's exact periodLengthDaa through the ONE
+   * conversion path; empty when the presentation lacks it or the core is
+   * unavailable (never a guess). */
+  function agentPeriodText(agent) {
+    const core = typeof window !== "undefined" ? window.PolicyVaultCore : undefined;
+    if (!core || !core.durationDaa || !agent || agent.periodLengthDaa === undefined) return "";
+    try { return ` (per ${core.durationDaa.describeDaa(String(agent.periodLengthDaa), { largestUnit: "week" }).text})`; } catch { return ""; }
+  }
   function agentCard(vault, agent) {
     const terminal = isTerminalVault(vault);
     const isThisAgent = state.xonly && state.xonly === agent.agentPk;
@@ -1071,11 +1405,34 @@
         : susp.agents.includes(agent.agentPk)
           ? `<button data-unsuspend="${esc(agent.agentPk)}">Unsuspend (hosted)</button>`
           : `<button class="warn" data-suspend="${esc(agent.agentPk)}">Suspend (hosted)</button>`;
+    /* THE ALLOWLIST IS THE POLICY — SHOW IT (TRACK 11, finding D1).
+     * The recipient addresses are already in the vault presentation this
+     * browser holds (server/src/api.js presents recipientAddresses beside
+     * the x-only recipients, both derived from the root-verified durable
+     * registry). Hiding them meant the one rule a delegate has to satisfy
+     * on every spend was invisible, and the spend flow asked the user to
+     * type an address that "must be in this agent's allowlist" without
+     * ever showing that list. */
+    const allow = Array.isArray(agent.recipientAddresses) ? agent.recipientAddresses : [];
+    const allowBlock = allow.length
+      ? `<details class="adv" data-allowlist="${esc(agent.agentPk)}"><summary>Allowed recipients (${allow.length}) — enforced by the covenant</summary>` +
+        `<div class="hint">This agent can only pay these addresses. The rule is committed on-chain, so it holds even against a transaction submitted straight to a Kaspa node with this agent's key.</div>` +
+        allow.map((a) => `<div class="mono id" style="margin-top:0.25rem">${esc(a)}</div>`).join("") +
+        `</details>`
+      : `<div class="hint" data-allowlist="${esc(agent.agentPk)}" data-allowlist-empty="1">Allowed recipients are not available in this vault view.</div>`;
     return (
       `<div class="field" style="margin-top:0.5rem">` +
       `<div class="k">agent ${isThisAgent ? "(you)" : ""}${terminal ? " (historical)" : ""}${suspMark}</div>` +
-      `<div class="v">cap ${esc(agent.maxPerSpendKas)} KAS · budget ${esc(agent.remainingBudgetKas)}/${esc(agent.periodBudgetKas)} KAS · approval&gt; ${esc(agent.approvalThresholdKas)} KAS ${spend}</div>` +
-      (state.xonly === vault.owner && !terminal ? `<div class="actions"><button data-repolicy="${esc(agent.agentPk)}">Re-policy</button><button data-rotate="${esc(agent.agentPk)}">Rotate key</button><button class="warn" data-remove="${esc(agent.agentPk)}">Remove</button>${suspBtn}</div>` : "") +
+      // WHICH agent (TRACK 11, finding I1). The card showed an agent's
+      // limits but never its identity, so an owner running several agents
+      // could not tell them apart — and could not tell which one a
+      // suspension, a removal, or a re-policy would hit. The address is
+      // already in the presentation (server-derived from the registry's
+      // x-only key); it is shown in full, never truncated.
+      `<div class="mono id" data-agent-identity="${esc(agent.agentPk)}">${esc(agent.agentAddress || agent.agentPk)}</div>` +
+      `<div class="v">max ${esc(agent.maxPerSpendKas)} KAS per payment · ${esc(agent.remainingBudgetKas)} of ${esc(agent.periodBudgetKas)} KAS left this period${agentPeriodText(agent)} · extra approval above ${esc(agent.approvalThresholdKas)} KAS ${spend}</div>` +
+      allowBlock +
+      (state.xonly === vault.owner && !terminal ? `<div class="actions"><button data-repolicy="${esc(agent.agentPk)}">Change rules</button><button data-rotate="${esc(agent.agentPk)}">Rotate key</button><button class="warn" data-remove="${esc(agent.agentPk)}">Remove agent</button>${suspBtn}</div>` : "") +
       `</div>`
     );
   }
@@ -1160,8 +1517,8 @@
       : "";
     const ownerControls = isOwner && !terminal
       ? `<div class="actions"><button data-addagent="${esc(vault.vaultId)}">Add agent</button>` +
-        `<button data-topup="${esc(vault.vaultId)}">Top up principal</button><button data-topupreserve="${esc(vault.vaultId)}">Top up fee reserve</button>` +
-        `<button data-setapprovers="${esc(vault.vaultId)}">Set approvers</button>` +
+        `<button data-topup="${esc(vault.vaultId)}">Top up deposit</button><button data-topupreserve="${esc(vault.vaultId)}">Top up fee reserve</button>` +
+        `<button data-setapprovers="${esc(vault.vaultId)}">Set payment approvers</button>` +
         (live.paused ? `<button data-unpause="${esc(vault.vaultId)}">Unpause</button>` : `<button data-pause="${esc(vault.vaultId)}">Pause</button>`) +
         docsHintIcon("pause-and-revoke", "Pause: the owner's immediate, break-glass freeze on a vault, independent of any hosted workflow.") +
         suspAllBtn +
@@ -1177,10 +1534,10 @@
     const grid = terminal
       ? `<div class="kv-line" style="margin-top:0.4rem">This vault is closed${vault.status === "RECOVERED" ? " — remaining funds were recovered to the owner at closure (see Details / Activity for the terminal transaction)" : " — its terminal state could not be automatically classified; see Details / Activity"}. It is read-only history.</div>`
       : `<div class="grid">` +
-        `<div class="field"><div class="k">Protected</div><div class="v">${esc(live.protectedValueKas || "—")} KAS</div></div>` +
+        `<div class="field"><div class="k">Deposit (protected)</div><div class="v">${esc(live.protectedValueKas || "—")} KAS</div></div>` +
         `<div class="field"><div class="k">Fee reserve</div><div class="v">${esc(live.feeReserveKas || "—")} KAS</div></div>` +
         `<div class="field"><div class="k">Agents</div><div class="v">${(vault.agents || []).length}</div></div>` +
-        `<div class="field"><div class="k">Approvals</div><div class="v">${esc(live.approvalM || "0")}-of-${approverCount}</div></div>` +
+        `<div class="field"><div class="k">Payment approvers</div><div class="v">${approverCount ? `${esc(live.approvalM || "0")} of ${approverCount} must approve` : "none"}</div></div>` +
         `</div>`;
     return (
       `<div class="vault" data-vault="${esc(vault.vaultId)}">` +
@@ -1197,6 +1554,11 @@
         .join("") +
       `</select></div>` +
       suspensionBanner(vault) +
+      (Array.isArray(vault.approverAddresses) && vault.approverAddresses.filter(Boolean).length
+        ? `<details class="adv" data-approvers="${esc(vault.vaultId)}"><summary>Payment approvers (${vault.approverAddresses.filter(Boolean).length}) — ${esc(live.approvalM || "0")} must approve a payment above an agent's threshold</summary>` +
+          `<div class="hint">Approvers can approve or refuse such a payment; they cannot spend, and they cannot act as the owner.</div>` +
+          vault.approverAddresses.filter(Boolean).map((a) => `<div class="mono id" style="margin-top:0.25rem">${esc(a)}</div>`).join("") + `</details>`
+        : "") +
       (vault.agents || []).map((a) => agentCard(vault, a)).join("") +
       openRequests.map((r) => approvalRequestCard(vault, r)).join("") +
       // Open governance proposals awaiting ceremony (item 1 persistent
@@ -1260,12 +1622,14 @@
     // Not ready = not connected OR not on the server's configured network ->
     // no privileged actions.
     if (!state.ready) {
-      root.innerHTML = state.address
-        ? `<div class="empty">Wallet is not on ${esc(networkLabel())}. Signing is disabled until you switch KasWare to ${esc(networkLabel())}.</div>`
-        : `<div class="empty">Connect KasWare in the Wallet panel above to begin.</div>`;
+      root.innerHTML = !state.address
+        ? `<div class="empty">Connect KasWare in the Wallet panel above to begin.</div>`
+        : !state.nodeNetwork
+          ? `<div class="empty">${notReadyNodeUnknownHtml()}</div>`
+          : `<div class="empty">Wallet is not on ${esc(networkLabel())}. Signing is disabled until you switch KasWare to ${esc(networkLabel())}.</div>`;
       return;
     }
-    if (state.view === "create") { root.innerHTML = createView(); wireCreateForm(); return; }
+    if (state.view === "create") { await refreshUnresolvedCreations(); root.innerHTML = createView(); wireCreateForm(); return; }
     if (state.view === "orgs") { await renderOrgsView(root, stale); return; }
     if (state.view === "activity") { await renderActivityView(root, stale); return; }
     if (state.view === "support") { await renderSupportView(root, stale); return; }
@@ -1458,14 +1822,25 @@
             catch { controlsByOrg.set(o.orgId, null); }
           }));
         }
-        return { data, vaults, controlsByOrg };
+        // On-chain organizational roots (Wave 2, Track B-web): a SEPARATE
+        // authority plane from the hosted-organization metadata above.
+        // Best-effort — a page served without web/org-root-ui.js or an
+        // older server with no /org-roots route degrades to the
+        // hosted-organization-only view (never a broken half-render).
+        const rootUI = orgRootUI();
+        let orgRoots = [];
+        if (rootUI) {
+          try { orgRoots = (await rootUI.fetchOrgRoots()).orgRoots || []; }
+          catch { orgRoots = []; }
+        }
+        return { data, vaults, controlsByOrg, orgRoots };
       },
       paint: paintOrgsView
     });
   }
 
   function paintOrgsView(root, fetched, refreshing) {
-    const { data, vaults, controlsByOrg } = fetched;
+    const { data, vaults, controlsByOrg, orgRoots } = fetched;
     state.orgData = data;
     const labelOf = new Map((vaults || []).filter(Boolean).map((v) => [v.vaultId, v.label || short(v.vaultId)]));
     const assignments = data.assignments || {};
@@ -1543,16 +1918,25 @@
         membersBlock + controlsBlock + `</div>`
       );
     };
+    // v0.7 ON-CHAIN ORGANIZATIONAL ROOT (Wave 2, Track B-web, contract §0/§3):
+    // rendered by web/org-root-ui.js — a SEPARATE authority plane from the
+    // hosted-organization metadata below. Absent when the module or the v0.7
+    // core bundle closure is not loaded (never a broken half-render).
+    const rootUI = orgRootUI();
+    const onChainRootSectionHtml = rootUI ? rootUI.renderOnChainRootSummaryHtml(orgRoots) : "";
+
     root.innerHTML =
       (refreshing ? refreshingChip : "") +
-      `<div class="panel"><h3 style="margin-top:0">Organizations</h3>` +
-      `<div class="hint">Organizations are off-chain application metadata: they group vaults for display and grant NO Kaspa covenant authority. Archive hides an organization from normal selectors (recoverable); Delete is permanent and only possible once no vaults are assigned.</div>` +
+      onChainRootSectionHtml +
+      `<div class="panel"><h3 style="margin-top:0">Hosted organization (grouping &amp; roles — no on-chain authority)</h3>` +
+      `<div class="hint">Organizations are off-chain application metadata: they group vaults for display and grant NO Kaspa covenant authority — not owner authority, not approver authority, and no recovery path. Each vault still has exactly one on-chain owner key, and covenant approvers are set on the vault itself. Archive hides an organization from normal selectors (recoverable); Delete is permanent and only possible once no vaults are assigned.</div>` +
       `<div class="org-assign" style="margin-top:0.7rem"><input id="v4-org-new-name" placeholder="New organization name" style="max-width:280px" /> <button id="v4-org-create-btn" class="primary">Create organization</button></div></div>` +
       (act.length ? act.map(orgRow).join("") : `<div class="empty">No active organizations.</div>`) +
       (arch.length ? `<h3 style="margin:1.2rem 0 0.6rem">Archived organizations</h3>` + arch.map(orgRow).join("") : "") +
       (corrupt.length ? `<div class="panel"><b>Metadata problems:</b> ${corrupt.map((c) => `${esc(c.orgId)} — ${esc(c.error)}`).join("; ")}</div>` : "");
     wireOrgs(root);
     wireOrgAssign(root);
+    if (rootUI) wireOrgRoots(root, rootUI, orgRoots);
   }
 
   function wireOrgs(root) {
@@ -1698,6 +2082,736 @@
     }));
   }
 
+  /* ================================================================
+   * v0.7 ON-CHAIN ORGANIZATIONAL ROOT — modal flows (Wave 2, Track B-web).
+   * Every rendering call goes through window.PolicyVaultOrgRootUI
+   * (web/org-root-ui.js); this block only wires the DOM and reuses the
+   * SAME wallet session / walletSign-adapter pattern the rest of this file
+   * already uses (session().adapter.signInputs). No amount here is ever
+   * parsed with anything but the core bundle's canonical parsers.
+   * ================================================================ */
+
+  /* A caught error's display code, through org-root-ui's mapping of the
+   * contract's closed v0.7 vocabulary — falls back to the raw code when
+   * the module is unavailable, never invents one. */
+  function noteRootRefusal(prefix, e, rootUI) {
+    const code = rootUI && typeof rootUI.displayCodeFor === "function" ? rootUI.displayCodeFor(e) : (e && e.code) || "";
+    noteRefusal(prefix, Object.assign(new Error((e && e.message) || String(e || "refused")), { code }));
+  }
+
+  /* The in-progress organizational-root setup (owner UX directive
+   * 2026-09-05): Owners → Approval rules → Emergency access → Funding →
+   * Review governance. Values live in a draft; every step panel stays in
+   * the modal (inactive ones hidden), so Back / Continue / Edit never lose
+   * entered values. Discarded on every identity change (updateWallet). */
+  const ROOT_STEP_IDS = ["owners", "approvals", "emergency", "funding", "review"];
+  function rootSetup(rootUI) {
+    if (!state.rootSetup) {
+      const su = setupUi();
+      state.rootSetup = { step: 0, draft: su ? su.rootDraftDefaults(state.address) : null, errors: new Map(), built: null, busy: false };
+    }
+    if (rootUI) state.rootSetup.ui = rootUI;
+    return state.rootSetup;
+  }
+
+  function wireOrgRoots(root, rootUI, orgRoots) {
+    const btn = $("v4-orgroot-create-btn");
+    if (btn) btn.onclick = () => openOrgRootWizard(rootUI);
+    root.querySelectorAll("[data-viewroot]").forEach((b) => (b.onclick = () => openOrgRootDetail(rootUI, b.getAttribute("data-viewroot"))));
+    void orgRoots;
+  }
+
+  /* Read every named control of the root setup form into the draft. */
+  function readRootDraft(f) {
+    const s = rootSetup();
+    const d = s.draft;
+    const val = (n, fallback) => { const el = f.querySelector(`[name="${n}"]`); return el ? el.value : fallback; };
+    const checked = (n, fallback) => { const el = f.querySelector(`[name="${n}"]`); return el ? !!el.checked : fallback; };
+    d.label = val("label", d.label);
+    d.ownerM = val("ownerM", d.ownerM);
+    d.emergencyK = val("emergencyK", d.emergencyK);
+    d.recoveryEnabled = checked("recoveryEnabled", d.recoveryEnabled);
+    d.recoveryM = val("recoveryM", d.recoveryM);
+    d.successionEnabled = checked("successionEnabled", d.successionEnabled);
+    d.successorAddress = val("successorAddress", d.successorAddress);
+    d.rootValueKas = val("rootValueKas", d.rootValueKas);
+    d.rootMaxFeePerTxKas = val("rootMaxFeePerTxKas", d.rootMaxFeePerTxKas);
+    d.signerAddress = state.address || d.signerAddress;
+    for (const k of ["recoveryDelay", "successionDelay"]) {
+      const sel = f.querySelector(`[name="${k}"]`);
+      if (sel) d[k] = { preset: sel.value, customValue: val(`${k}Value`, ""), customUnit: val(`${k}Unit`, "day") };
+    }
+    const rowsEl = f.querySelector('[data-rows="owner"]');
+    if (rowsEl) {
+      d.owners = [...rowsEl.querySelectorAll(".addr-row")].map((row) => {
+        const keyEl = row.querySelector('[name="ownerKey"]');
+        const keyMode = !!(keyEl && !keyEl.hidden);
+        return {
+          address: keyMode ? "" : (row.querySelector('[name="owner"]')?.value ?? ""),
+          label: row.querySelector('[name="ownerLabel"]')?.value ?? "",
+          publicKey: keyMode ? (keyEl.value ?? "") : "",
+          keyMode
+        };
+      });
+      if (!d.owners.length) d.owners = [{ address: "", label: "", publicKey: "" }];
+    }
+    return d;
+  }
+
+  function rerenderRootWizard() {
+    const s = rootSetup();
+    const m = $("v4-modal");
+    if (!m || !s.ui || !s.draft) return;
+    m.innerHTML = `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-orgroot-title">` +
+      s.ui.renderGenesisSetupHtml({ draft: s.draft, step: s.step, errors: s.errors, connectedAddress: state.address, busy: s.busy, network: networkLabel() }) +
+      (s.built ? `<div class="opbanner warn" data-built-pending="1">A governance root transaction was already built from these values and is waiting for your signature. <button type="button" class="primary" id="v4-orgroot-reopen">Open the review again</button> <span class="f-help" style="display:inline">Editing any field discards it.</span></div>` : "") +
+      `</div>`;
+    m.style.display = "flex";
+    const f = m.querySelector("[data-orgroot-wizard]");
+    if (f) {
+      f.addEventListener("input", (ev) => syncRootControls(ev));
+      f.addEventListener("change", (ev) => syncRootControls(ev));
+      f.addEventListener("submit", async (e) => { e.preventDefault(); await buildAndReviewRoot(); });
+      syncRootControls();
+      const first = f.querySelector('section[data-setup-step]:not([hidden]) input, section[data-setup-step]:not([hidden]) select');
+      if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* focus is a nicety */ } }
+    }
+  }
+
+  /* Live controls inside the root wizard: duration effect lines, threshold
+   * selects recomputed from the CURRENT owner rows (never lowered), enable
+   * toggles, the summary. Synchronous; never a network call. */
+  function syncRootControls(ev) {
+    const m = $("v4-modal");
+    const f = m && m.querySelector ? m.querySelector("[data-orgroot-wizard]") : null;
+    const s = rootSetup();
+    const su = setupUi();
+    if (!f || !su || !s.ui) return;
+    const d = readRootDraft(f);
+    const snapshot = JSON.stringify(d);
+    const draftChanged = snapshot !== s.lastSyncSnapshot;
+    s.lastSyncSnapshot = snapshot;
+    const isBlurChange = !!(ev && ev.type === "change" && ev.target && ev.target.tagName === "INPUT");
+    for (const [name, setting] of [["recoveryDelay", su.RECOVERY_SETTING], ["successionDelay", su.SUCCESSION_SETTING]]) {
+      const sel = f.querySelector(`[name="${name}"]`);
+      const custom = f.querySelector(`[data-duration-custom="${name}"]`);
+      if (sel && custom) custom.hidden = sel.value !== "custom";
+      const eff = f.querySelector(`[data-duration-effect="${name}"]`);
+      if (eff) eff.textContent = su.durationEffectText(setting, d[name]);
+      const exact = f.querySelector(`[data-duration-exact="${name}"]`);
+      if (exact) exact.textContent = su.durationExactText(setting, d[name]);
+    }
+    const count = d.owners.filter((r) => (r.address && r.address.trim()) || (r.publicKey && r.publicKey.trim())).length;
+    const m0 = /^[0-9]+$/.test(String(d.ownerM)) ? Number(d.ownerM) : 0;
+    const refill = (name, max, label) => {
+      const sel = f.querySelector(`[name="${name}"]`);
+      if (!sel) return;
+      const current = sel.value;
+      const options = su.approvalOptions(count, "owners", { max });
+      if (current && !options.some((o) => o.value === current)) options.unshift({ value: current, label: `${current} of ${count} owners — impossible, choose again` });
+      if (!options.length) options.push({ value: "", label: "add owners first" });
+      sel.innerHTML = options.map((o) => `<option value="${esc(o.value)}"${o.value === current ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+      if (!current && options[0]) sel.value = options[0].value;
+      const box = f.querySelector(`.ferr[data-err="${name}"]`);
+      const t = su.thresholdCheck({ count, value: sel.value, noun: "owners", label, max });
+      if (box && !s.errors.get(name)) { box.textContent = count > 0 && !t.ok ? t.message : ""; box.style.display = count > 0 && !t.ok ? "block" : "none"; }
+    };
+    refill("ownerM", undefined, "Owners needed to approve changes");
+    refill("emergencyK", m0 || undefined, "Owners needed for an emergency freeze");
+    refill("recoveryM", m0 || undefined, "Owners needed to recover control");
+    const recBox = f.querySelector("[data-recovery-fields]");
+    if (recBox) recBox.hidden = !d.recoveryEnabled;
+    const sucBox = f.querySelector("[data-succession-fields]");
+    if (sucBox) sucBox.hidden = !d.successionEnabled;
+    // The explanation under each toggle follows the toggle and the chosen
+    // waiting period live (it is the explanation, not decoration).
+    const recHelp = f.querySelector('[data-help="recovery"]');
+    if (recHelp) recHelp.textContent = s.ui.recoveryHelpText(d);
+    const sucHelp = f.querySelector('[data-help="succession"]');
+    if (sucHelp) sucHelp.textContent = s.ui.successionHelpText(d);
+    const summary = f.querySelector("[data-live-summary]");
+    if (summary && draftChanged) summary.outerHTML = su.renderLiveSummary(su.rootRulesSummary(d), "v4-orgroot-summary");
+    const review = f.querySelector("#v4-orgroot-review");
+    if (review && s.step === 4 && draftChanged && !isBlurChange) review.innerHTML = s.ui.renderGenesisDraftReviewHtml({ draft: d, connectedAddress: state.address });
+  }
+
+  /* Delegated click wiring for the root wizard inside #v4-modal — attached
+   * ONCE at startup (never per render), so re-renders cannot stack
+   * listeners. Every navigation reads the current values into the draft
+   * FIRST so nothing typed is lost. */
+  async function handleModalSetupClick(e) {
+    const t = e.target && e.target.closest ? e.target.closest("button") : null;
+    if (!t) return;
+    const m = $("v4-modal");
+    const f = m && m.querySelector ? m.querySelector("[data-orgroot-wizard]") : null;
+    const s = state.rootSetup;
+    if (!f || !s || !s.draft) return;
+    const su = setupUi();
+    if (t.id === "v4-add-owner") {
+      readRootDraft(f); if (s.draft.owners.length < 12) s.draft.owners.push({ address: "", label: "", publicKey: "" }); s.errors.delete("owners"); s.errors.delete("ownerRows"); rerenderRootWizard();
+    } else if (t.classList.contains("rm-owner")) {
+      readRootDraft(f);
+      const i = Number(t.closest(".addr-row")?.getAttribute("data-row"));
+      if (s.draft.owners.length > 1) s.draft.owners.splice(i, 1); else s.draft.owners = [{ address: "", label: "", publicKey: "" }];
+      // Thresholds are NEVER lowered for the user — the selects flag an
+      // impossible value and ask for an explicit choice.
+      s.errors.delete("owners"); s.errors.delete("ownerRows"); rerenderRootWizard();
+    } else if (t.hasAttribute("data-keytoggle")) {
+      readRootDraft(f);
+      const i = Number(t.getAttribute("data-keytoggle"));
+      const row = s.draft.owners[i];
+      // Advanced: a row is EITHER a wallet address OR a public key; toggling
+      // clears the other form so a stale value can never be sent.
+      if (row) s.draft.owners[i] = row.keyMode ? { ...row, keyMode: false, publicKey: "" } : { ...row, keyMode: true, address: "" };
+      rerenderRootWizard();
+    } else if (t.hasAttribute("data-use-connected")) {
+      readRootDraft(f);
+      const empty = s.draft.owners.findIndex((r) => !(r.address && r.address.trim()) && !(r.publicKey && r.publicKey.trim()));
+      if (empty >= 0) s.draft.owners[empty] = { address: state.address, label: s.draft.owners[empty].label || "", publicKey: "" };
+      else if (!s.draft.owners.some((r) => r.address === state.address) && s.draft.owners.length < 12) s.draft.owners.push({ address: state.address, label: "", publicKey: "" });
+      else note("The connected wallet is already an owner.", "warn");
+      rerenderRootWizard();
+    } else if (t.hasAttribute("data-setup-back")) {
+      readRootDraft(f); s.step = Math.max(0, s.step - 1); rerenderRootWizard();
+    } else if (t.hasAttribute("data-setup-next")) {
+      readRootDraft(f);
+      if (su && s.ui) {
+        s.busy = true;
+        try { s.errors = (await s.ui.validateGenesisDraft(s.draft, { step: ROOT_STEP_IDS[s.step], connectedAddress: state.address })).errors; }
+        finally { s.busy = false; }
+      }
+      if (![...s.errors.keys()].length) s.step = Math.min(ROOT_STEP_IDS.length - 1, s.step + 1);
+      rerenderRootWizard();
+    } else if (t.hasAttribute("data-edit-step")) {
+      readRootDraft(f); s.step = Number(t.getAttribute("data-edit-step")) || 0;
+      const abandoned = s.built; s.built = null; // rc15 review F-02: withdraw the abandoned build (best-effort)
+      if (abandoned && abandoned.request) { try { await s.ui.rejectRequest(abandoned.request.rootCovenantId, abandoned.request.id, "withdrawn before signing"); } catch { /* best-effort */ } }
+      rerenderRootWizard();
+    } else if (t.hasAttribute("data-setup-cancel")) {
+      readRootDraft(f);
+      if (s.built) { try { await s.ui.rejectRequest(s.built.request.rootCovenantId, s.built.request.id, "withdrawn before signing"); } catch { /* best-effort */ } }
+      state.rootSetup = null;
+      m.style.display = "none";
+      render();
+    } else if (t.id === "v4-orgroot-reopen") {
+      if (s.built) openRootBuildReview(s.built);
+    } else if (t.hasAttribute("data-copy")) {
+      try { await window.navigator.clipboard.writeText(t.getAttribute("data-copy")); note("Address copied.", "good"); } catch { note("Could not access the clipboard — select the address text to copy it.", "warn"); }
+    } else {
+      return;
+    }
+    e.preventDefault();
+  }
+
+  /* (b) ROOT SETUP — guided steps → exact governance review (rendered from
+   * the SERVER's genesis summary cross-checked against the locally
+   * normalized rules, plus the technical exact-policy panel) → funder signs
+   * → PENDING (never success) → reconcile → live. */
+  function openOrgRootWizard(rootUI) {
+    state.rootSetup = null;
+    const s = rootSetup(rootUI);
+    if (!s.draft) { note("The setup components did not load in this build — reload the page.", "bad"); return; }
+    rerenderRootWizard();
+  }
+
+  async function buildAndReviewRoot() {
+    const s = rootSetup();
+    const m = $("v4-modal");
+    const f = m && m.querySelector ? m.querySelector("[data-orgroot-wizard]") : null;
+    if (!s.ui || !f || s.busy) return;
+    s.busy = true;
+    try {
+      readRootDraft(f);
+      note("Checking the governance rules…", "warn");
+      const v = await s.ui.validateGenesisDraft(s.draft, { connectedAddress: state.address });
+      s.errors = v.errors;
+      if (!v.ok) {
+        const stepOf = { owners: 0, ownerM: 1, emergencyK: 2, recoveryM: 2, recoveryDelay: 2, successorAddress: 2, successionDelay: 2, rootValueKas: 3, rootMaxFeePerTxKas: 3, signerAddress: 3, label: 3 };
+        const first = ["owners", "ownerM", "emergencyK", "recoveryM", "recoveryDelay", "successorAddress", "successionDelay", "rootValueKas", "rootMaxFeePerTxKas", "signerAddress", "label"].find((k) => v.errors.has(k));
+        if (first !== undefined) s.step = stepOf[first];
+        s.busy = false;
+        rerenderRootWizard();
+        note("Fix the highlighted fields, then continue.", "bad");
+        return;
+      }
+      let created;
+      try {
+        note("Building the governance root transaction…", "warn");
+        created = await s.ui.createGenesisRequest(v.form);
+      } catch (err) {
+        s.busy = false;
+        noteRootRefusal("Governance root refused", err, s.ui);
+        return; // the draft stays exactly as entered
+      }
+      const crossCheck = s.ui.genesisCrossCheck({ summary: created.request.manifest, norm: created.preview });
+      s.built = { request: created.request, preview: created.preview, form: v.form, crossCheck };
+      s.busy = false;
+      note("");
+      rerenderRootWizard();
+      openRootBuildReview(s.built);
+    } finally {
+      s.busy = false;
+    }
+  }
+
+  /* The exact governance review + sign. Cancel returns to the review step
+   * with the draft intact (the abandoned build is withdrawn best-effort). */
+  function openRootBuildReview(built) {
+    const s = rootSetup();
+    const m = $("v4-modal");
+    if (!s.ui || !m) return;
+    const { request, preview, crossCheck } = built;
+    const canSign = crossCheck.ok;
+    m.innerHTML =
+      `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-orgroot-review-title">` +
+      `<h3 id="v4-orgroot-review-title" style="margin-top:0">${canSign ? "Review governance — exactly what your wallet will sign" : "DO NOT SIGN — the built transaction does not match the reviewed rules"}</h3>` +
+      s.ui.renderGenesisReviewHtml({ norm: preview, summary: request.manifest, crossCheck, connectedAddress: state.address }) +
+      `<div class="modal-actions"><button type="button" id="v4-orgroot-review-back">Back to edit</button><span class="setup-nav-spacer"></span>` +
+      (canSign ? `<button type="button" class="primary" id="v4-orgroot-confirm">Approve in wallet</button>` : `<button type="button" class="primary" id="v4-orgroot-review-back2">Close — do not sign</button>`) +
+      `</div></div>`;
+    m.style.display = "flex";
+    const back = async () => {
+      s.built = null;
+      try { await s.ui.rejectRequest(request.rootCovenantId, request.id, "withdrawn before signing"); } catch { /* best-effort */ }
+      s.step = 4;
+      rerenderRootWizard();
+    };
+    $("v4-orgroot-review-back").onclick = back;
+    const back2 = $("v4-orgroot-review-back2");
+    if (back2) back2.onclick = back;
+    const confirm = $("v4-orgroot-confirm");
+    if (confirm) confirm.onclick = async () => {
+      if (s.busy) return;
+      s.busy = true;
+      confirm.disabled = true;
+      try {
+        const sess = session();
+        if (!sess.ready || !sess.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+        if (sess.address !== built.form.signerAddress) throw Object.assign(new Error(`connected wallet ${sess.address} is not the funding wallet ${built.form.signerAddress}`), { code: "SIGNER_MISMATCH" });
+        note("Waiting for your wallet — review and approve the creation transaction…", "warn");
+        let signed;
+        try {
+          signed = await s.ui.signGenesisRequest({ request, adapter: sess.adapter, network: sess.network, expectedSignerAddress: built.form.signerAddress, connectedXOnly: state.xonly, crossCheck: built.crossCheck, norm: built.preview });
+        } catch (err) {
+          s.busy = false;
+          noteRootRefusal("Signing did not complete — nothing was sent", err, s.ui);
+          rerenderRootWizard(); // recoverable: the built request is kept, reopen without rebuilding
+          return;
+        }
+        note(`Governance root: ${signed.request.state} — submitting for broadcast…`, "warn");
+        try {
+          const sub = await s.ui.submitRequest(request.rootCovenantId, request.id, signed.request);
+          noteOutcome("Organizational root creation", sub.request.state, sub.txId, sub.request.error);
+          state.rootSetup = null;
+          m.style.display = "none";
+          render();
+        } catch (err) {
+          s.busy = false;
+          noteRootRefusal("Submission outcome uncertain — do not sign again; open the root and use Verify state (reconcile) first", err, s.ui);
+          m.style.display = "none";
+          render();
+        }
+      } catch (err) {
+        s.busy = false;
+        noteRootRefusal("Organizational root creation failed", err, s.ui);
+        confirm.disabled = false;
+      }
+    };
+  }
+
+  /* (c) ROOT DETAIL + (f) DANGEROUS ACTIONS confirmation before a request
+   * for rotate/unfreeze/ownerRecover/succession is even created. The
+   * current node DAA (best effort) lets the detail say how far a
+   * recovery/succession wait has progressed — as an ESTIMATE; eligibility
+   * is decided by the chain. */
+  async function openOrgRootDetail(rootUI, rootId) {
+    const m = $("v4-modal");
+    m.innerHTML = `<div class="modal-card" style="max-width:640px;width:92%"><h3 style="margin-top:0">Loading organizational root…</h3></div>`;
+    m.style.display = "flex";
+    let orgRoot;
+    let currentDaa = null;
+    let rootedVaults = null; // R7-05: the presented summaries of the root's vaults (null = could not be loaded → no control offered)
+    let pendingRequest = null; // F-6: the pending request record (reservation guidance names it and its authorized next step)
+    try {
+      ({ orgRoot } = await rootUI.fetchOrgRoot(rootId));
+      const [daaRes, vaultsRes, pendingRes] = await Promise.all([
+        getJSON("/network/status").then((r) => r.virtualDaaScore ?? null).catch(() => null),
+        (orgRoot.vaults || []).length ? rootUI.fetchRootedVaults(rootId).then((r) => (Array.isArray(r.vaults) ? r.vaults : null)).catch(() => null) : Promise.resolve([]),
+        orgRoot.pendingRequestId ? rootUI.fetchRequest(rootId, orgRoot.pendingRequestId).then((r) => r.request || null).catch(() => null) : Promise.resolve(null)
+      ]);
+      currentDaa = daaRes; rootedVaults = vaultsRes; pendingRequest = pendingRes;
+    } catch (err) {
+      note(`Could not load organizational root: ${err.code || ""} ${err.message}`, "bad");
+      m.style.display = "none";
+      return;
+    }
+    m.innerHTML =
+      `<div class="modal-card setup-card" role="dialog" aria-modal="true">` +
+      rootUI.renderRootDetailHtml(orgRoot, { viewerXOnly: state.xonly, viewerAddress: state.address, currentDaa, rootedVaults, pendingRequest }) +
+      (orgRoot.pendingRequestId ? `<button data-vieworequest="${esc(orgRoot.pendingRequestId)}" class="primary">Open the pending request</button>` : "") +
+      `<div class="modal-actions"><button id="v4-orgroot-detail-close">Close</button></div></div>`;
+    $("v4-orgroot-detail-close").onclick = () => { m.style.display = "none"; render(); };
+    m.querySelectorAll("[data-vieworequest]").forEach((b) => (b.onclick = () => openOrgRootRequestModal(rootUI, orgRoot, b.getAttribute("data-vieworequest"))));
+    m.querySelectorAll("[data-rootaction]").forEach((b) => (b.onclick = () => openOrgRootActionFlow(rootUI, orgRoot, b.getAttribute("data-rootaction"))));
+    /* R7-05: rooted-vault owner operations start HERE, from the vault's own panel, as ROOT REQUESTS. */
+    m.querySelectorAll("[data-rootvaultop]").forEach((b) => (b.onclick = () => {
+      const vault = Array.isArray(rootedVaults) ? rootedVaults.find((v) => v && v.vaultId === b.getAttribute("data-vault")) : null;
+      if (!vault) { note("This vault's current state is not loaded — reload before starting an owner operation.", "bad"); return; }
+      openRootedVaultOpFlow(rootUI, orgRoot, vault, b.getAttribute("data-rootvaultop"), { currentDaa });
+    }));
+    const rc = m.querySelector("[data-rootreconcile]");
+    if (rc) rc.onclick = async () => {
+      try {
+        const res = await rootUI.reconcileRoot(rootId);
+        const d = rootUI.describeReconcileOutcome(res); // UX-09: the NESTED reconciliation status decides the message — never a green label by default
+        note(d.text, d.level);
+      } catch (err) { noteRootRefusal("Verify state failed", err, rootUI); }
+      openOrgRootDetail(rootUI, rootId);
+    };
+  }
+
+  /* R7-05 (owner-approved browser initiation, launch scope 2026-09-08): a
+   * rooted-vault OWNER operation — change agent rules / top up the fee
+   * reserve / pause / unpause / emergency-pause / close & recover — started
+   * from the vault's panel on the root detail. The browser collects the
+   * operation's parameters (validated locally through the SAME core
+   * normalizers the SDK builder runs), the server builds ONE root request
+   * carrying ONE vaultOperations entry, and the request then follows the
+   * ordinary M-of-N path (review → own-slot approvals → fee-payer finalize →
+   * submit → verify). The draft stays exactly as entered after a refusal;
+   * a double click cannot create two requests (busy latch + disabled
+   * control); the dangerous close & recover needs its typed phrase. */
+  function readVaultOpDraft(f, op, draft, rootUI) {
+    const info = rootUI.vaultOpInfo(op);
+    const val = (n, fallback) => { const el = f.querySelector(`[name="${n}"]`); return el ? el.value : fallback; };
+    if (!info) return draft;
+    if (info.form === "topUp") draft.amountKas = val("amount", draft.amountKas);
+    else if (info.form === "agents") {
+      draft.agents = [...f.querySelectorAll("[data-agent-row]")].map((row) => {
+        const i = row.getAttribute("data-agent-row");
+        const g = (k, fb) => { const el = row.querySelector(`[name="agent-${i}-${k}"]`); return el ? el.value : fb; };
+        return { existing: g("existing", "0") === "1", agentKey: g("agentKey", ""), tokenMaxPerSpend: g("tokenMaxPerSpend", ""), tokenPeriodBudget: g("tokenPeriodBudget", ""), periodLengthDaa: g("periodLengthDaa", ""), periodStartDaa: g("periodStartDaa", "0"), tokenPeriodSpent: g("tokenPeriodSpent", "0"), agentMaxFeePerTxKas: g("agentMaxFeePerTxKas", ""), agentMaxCarryKas: g("agentMaxCarryKas", ""), recipients: g("recipients", "") };
+      });
+    } else draft.typed = val("typed", draft.typed);
+    return draft;
+  }
+  async function openRootedVaultOpFlow(rootUI, orgRoot, vault, op, { currentDaa = null } = {}) {
+    const m = $("v4-modal");
+    const su = setupUi();
+    const info = rootUI.vaultOpInfo(op);
+    if (!info || !su || !m) { note(!info ? `Unsupported vault operation ${op} — failing closed.` : "The setup components did not load in this build — reload the page.", "bad"); return; }
+    const avail = rootUI.vaultOpAvailability({ op, vault, orgRoot, viewerXOnly: state.xonly, networkId: orgRoot.networkId || null });
+    if (!avail.enabled) { note(`${info.label} is not available: ${avail.reason}`, "bad"); return; }
+    let draft;
+    try { draft = rootUI.vaultOpDraftFrom({ op, vault, currentDaa }); } catch (err) { noteRootRefusal(`${info.label} refused`, err, rootUI); return; }
+    let errors = new Map();
+    let busy = false;
+    const paint = () => {
+      m.innerHTML = `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-vaultop-title">` + rootUI.renderVaultOpFormHtml({ op, vault, orgRoot, draft, errors, connectedAddress: state.address, currentDaa }) + `</div>`;
+      m.style.display = "flex";
+      const f = m.querySelector("[data-vaultop-form]");
+      if (!f) return;
+      const first = f.querySelector('input:not([type="hidden"]), textarea, select');
+      if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* nicety */ } }
+      f.querySelectorAll("[data-vaultop-cancel]").forEach((b) => (b.onclick = () => { m.style.display = "none"; openOrgRootDetail(rootUI, orgRoot.rootCovenantId); }));
+      const addBtn = f.querySelector("#v4-add-agent");
+      if (addBtn) addBtn.onclick = () => { readVaultOpDraft(f, op, draft, rootUI); draft.agents.push(rootUI.vaultOpDraftFrom({ op, vault: { agents: [] }, currentDaa }).agents[0]); errors.delete("agentRows"); paint(); };
+      f.querySelectorAll("[data-remove-agent]").forEach((b) => (b.onclick = () => { readVaultOpDraft(f, op, draft, rootUI); draft.agents.splice(Number(b.getAttribute("data-remove-agent")), 1); errors.delete("agentRows"); paint(); }));
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        busy = true;
+        const submitBtn = f.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          readVaultOpDraft(f, op, draft, rootUI);
+          const v = await rootUI.validateVaultOpDraft({ op, draft, vault, currentDaa });
+          errors = v.errors;
+          if (!v.ok) { busy = false; paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
+          note(`Preparing ${info.label.toLowerCase()} — PolicyVault is building the exact transaction…`, "warn");
+          let request;
+          try {
+            request = await rootUI.createRootRequest(orgRoot, { action: info.rootAction, params: {}, vaultOperations: [v.vaultOperation], signerAddress: state.address });
+          } catch (err) {
+            busy = false;
+            noteRootRefusal(`${info.label} refused — nothing was created`, err, rootUI);
+            paint(); // the draft stays exactly as entered
+            return;
+          }
+          note(`${info.label}: request created — waiting for owner approvals; nothing has changed on-chain.`, "warn");
+          openOrgRootRequestModal(rootUI, orgRoot, request.id, request);
+        } catch (err) {
+          busy = false;
+          noteRootRefusal(`${info.label} failed`, err, rootUI);
+          paint();
+        }
+      });
+    };
+    paint();
+  }
+
+  /* UX-10 (Codex checkpoint 2): sign + submit a succession request as the
+   * designated successor. Used when the request is created and again from
+   * the request detail to RESUME the same durable request after a wallet
+   * rejection, a disconnect, a reload or a reopen. */
+  async function signSuccessionRequest(rootUI, orgRoot, request, signerAddress) {
+    const m = $("v4-modal");
+    const s = session();
+    try {
+      if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+      const signed = await rootUI.signSingleSignerRequest({ request, adapter: s.adapter, network: s.network, expectedSignerAddress: signerAddress || state.address, connectedXOnly: state.xonly });
+      note(`${rootUI.actionLabel("succession")}: ${signed.request.state} — submitting…`, "warn");
+      const sub = await rootUI.submitRequest(orgRoot.rootCovenantId, request.id, signed.request);
+      noteOutcome(rootUI.actionLabel("succession"), sub.request.state, sub.txId, sub.request.error);
+      m.style.display = "none";
+      render();
+    } catch (err) {
+      noteRootRefusal("Succession approval did not complete — the request is kept; reopen it to continue", err, rootUI);
+      openOrgRootRequestModal(rootUI, orgRoot, request.id);
+    }
+  }
+
+  /* (d) create a root action request. Change owners / recover control /
+   * succession collect a new owner set first through the SAME owner rows
+   * and "k of N owners" selects as the setup (never comma-delimited text).
+   * (f) every dangerous action requires the exact typed confirmation
+   * before anything is created. */
+  async function openOrgRootActionFlow(rootUI, orgRoot, action) {
+    const m = $("v4-modal");
+    const NEEDS_NEW_SET = action === "rotate" || action === "ownerRecover" || action === "succession";
+
+    async function proceed(params) {
+      if (rootUI.isDangerousAction(action)) {
+        const delayDaa = action === "ownerRecover"
+          ? (orgRoot.template && orgRoot.template.recoveryDelayDaa)
+          : action === "succession" ? (orgRoot.template && orgRoot.template.successionDelayDaa) : null;
+        m.innerHTML =
+          `<div class="modal-card setup-card" role="dialog" aria-modal="true">` +
+          rootUI.renderDangerousConfirmHtml({ action, rootLabel: orgRoot.label || orgRoot.rootCovenantId, delayDaa, orgRoot }) +
+          `<div class="f" style="margin-top:0.6rem"><label class="f-label" for="v4-orgroot-typed">Type the confirmation phrase</label><input id="v4-orgroot-typed" class="mono" placeholder="${esc(rootUI.dangerousConfirmPhrase(action))}" autocomplete="off" /></div>` +
+          `<div class="modal-actions"><button id="v4-orgroot-danger-cancel">Cancel</button><span class="setup-nav-spacer"></span><button id="v4-orgroot-danger-confirm" class="warn">${esc(rootUI.actionLabel(action))}</button></div></div>`;
+        m.style.display = "flex";
+        $("v4-orgroot-danger-cancel").onclick = () => { m.style.display = "none"; openOrgRootDetail(rootUI, orgRoot.rootCovenantId); };
+        $("v4-orgroot-danger-confirm").onclick = async () => {
+          const typed = $("v4-orgroot-typed").value;
+          if (!rootUI.typedConfirmationMatches(action, typed)) {
+            note(`Type exactly "${rootUI.dangerousConfirmPhrase(action)}" to continue.`, "bad");
+            return;
+          }
+          await createAndOpen(params);
+        };
+        return;
+      }
+      await createAndOpen(params);
+    }
+
+    async function createAndOpen(params) {
+      try {
+        note(`Preparing ${rootUI.actionLabel(action).toLowerCase()} request…`, "warn");
+        const signerAddress = action === "succession" ? (params && params.successorAddress) || state.address : state.address;
+        const request = await rootUI.createRootRequest(orgRoot, { action, params: (params && params.params) || {}, signerAddress });
+        note(`${rootUI.actionLabel(action)}: request created — waiting for owner approvals; nothing has changed on-chain.`, "warn");
+        if (action === "succession") {
+          // single-signer path (the pinned successor key, not the owner blob).
+          // UX-10: the DURABLE request is created first; a wallet rejection or
+          // disconnect while signing keeps it, and the successor resumes it
+          // from the request detail (no duplicate creation).
+          await signSuccessionRequest(rootUI, orgRoot, request, signerAddress);
+        } else {
+          openOrgRootRequestModal(rootUI, orgRoot, request.id, request);
+        }
+      } catch (err) { noteRootRefusal(`${rootUI.actionLabel(action)} failed`, err, rootUI); }
+    }
+
+    if (!NEEDS_NEW_SET) { await proceed(null); return; }
+
+    // New owner set — the same owner rows + "k of N owners" selects as setup.
+    const su = setupUi();
+    if (!su) { note("The setup components did not load in this build — reload the page.", "bad"); return; }
+    const draft = rootUI.newOwnerSetDraftFrom(orgRoot, { action, connectedAddress: state.address });
+    let errors = new Map();
+    const paint = () => {
+      m.innerHTML = `<div class="modal-card setup-card" role="dialog" aria-modal="true">` + rootUI.renderNewOwnerSetHtml({ action, orgRoot, draft, errors, connectedAddress: state.address }) + `</div>`;
+      m.style.display = "flex";
+      const f = m.querySelector("[data-orgroot-newset]");
+      const read = () => {
+        const rowsEl = f.querySelector('[data-rows="owner"]');
+        if (rowsEl) draft.owners = [...rowsEl.querySelectorAll(".addr-row")].map((row) => ({ address: row.querySelector('[name="owner"]')?.value ?? "", label: row.querySelector('[name="ownerLabel"]')?.value ?? "", publicKey: row.querySelector('[name="ownerKey"]') && !row.querySelector('[name="ownerKey"]').hidden ? row.querySelector('[name="ownerKey"]').value : "" }));
+        for (const k of ["ownerM", "emergencyK", "recoveryM", "successorAddress"]) { const el = f.querySelector(`[name="${k}"]`); if (el) draft[k] = el.value; }
+        const rec = f.querySelector('[name="recoveryEnabled"]'); if (rec) draft.recoveryEnabled = !!rec.checked;
+      };
+      const sync = () => {
+        read();
+        const count = draft.owners.filter((r) => (r.address && r.address.trim()) || (r.publicKey && r.publicKey.trim())).length;
+        const m0 = /^[0-9]+$/.test(String(draft.ownerM)) ? Number(draft.ownerM) : 0;
+        for (const [name, max] of [["ownerM", undefined], ["emergencyK", m0 || undefined], ["recoveryM", m0 || undefined]]) {
+          const sel = f.querySelector(`[name="${name}"]`);
+          if (!sel) continue;
+          const current = sel.value;
+          const options = su.approvalOptions(count, "owners", { max });
+          if (current && !options.some((o) => o.value === current)) options.unshift({ value: current, label: `${current} of ${count} owners — impossible, choose again` });
+          if (!options.length) options.push({ value: "", label: "add owners first" });
+          sel.innerHTML = options.map((o) => `<option value="${esc(o.value)}"${o.value === current ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+          if (!current && options[0]) sel.value = options[0].value;
+        }
+        const recBox = f.querySelector("[data-recovery-fields]"); if (recBox) recBox.hidden = !draft.recoveryEnabled;
+        const recHelp = f.querySelector('[data-help="recovery"]'); if (recHelp) recHelp.textContent = rootUI.newOwnerSetRecoveryHelp(draft, orgRoot);
+        const summary = f.querySelector("[data-live-summary]"); if (summary) summary.outerHTML = su.renderLiveSummary(rootUI.newOwnerSetSummary(draft, orgRoot), "v4-newset-summary");
+      };
+      f.addEventListener("input", sync);
+      f.addEventListener("change", sync);
+      sync();
+      m.querySelectorAll("button").forEach((b) => {
+        b.onclick = async (e) => {
+          if (b.id === "v4-add-owner") { e.preventDefault(); read(); if (draft.owners.length < 12) draft.owners.push({ address: "", label: "", publicKey: "" }); errors.delete("owners"); errors.delete("ownerRows"); paint(); }
+          else if (b.classList.contains("rm-owner")) { e.preventDefault(); read(); const i = Number(b.closest(".addr-row")?.getAttribute("data-row")); if (draft.owners.length > 1) draft.owners.splice(i, 1); errors.delete("owners"); errors.delete("ownerRows"); paint(); }
+          else if (b.hasAttribute("data-keytoggle")) { e.preventDefault(); read(); const i = Number(b.getAttribute("data-keytoggle")); const row = draft.owners[i]; if (row) draft.owners[i] = b.textContent.trim() === "Use public key" ? { ...row, address: "", publicKey: "", keyMode: true } : { ...row, publicKey: "", keyMode: false }; paint(); }
+          else if (b.hasAttribute("data-use-connected")) { e.preventDefault(); read(); const empty = draft.owners.findIndex((r) => !(r.address && r.address.trim()) && !(r.publicKey && r.publicKey.trim())); if (empty >= 0) draft.owners[empty] = { address: state.address, label: draft.owners[empty].label || "", publicKey: "" }; else if (draft.owners.length < 12) draft.owners.push({ address: state.address, label: "", publicKey: "" }); paint(); }
+          else if (b.hasAttribute("data-setup-cancel")) { e.preventDefault(); m.style.display = "none"; openOrgRootDetail(rootUI, orgRoot.rootCovenantId); }
+        };
+      });
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        read();
+        try {
+          const v = await rootUI.validateNewOwnerSetDraft(draft, { action, orgRoot });
+          errors = v.errors;
+          if (!v.ok) { paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
+          await proceed({ params: v.params, successorAddress: draft.successorAddress });
+        } catch (err) {
+          noteRootRefusal(`${rootUI.actionLabel(action)} refused`, err, rootUI);
+        }
+      });
+    };
+    paint();
+  }
+
+  /* (d) REQUEST review + M-of-N SLOT SIGNING. Own slot only, through the
+   * signer adapter; other owners' envelopes are imported (paste / file).
+   * Finalize offered only when present >= required; submit only after
+   * SIGNED. */
+  /* the successor a succession request installs as its sole owner (x-only), or null */
+  /* rc18 review R3-03 / Codex UX-10: succession is authorized by the root's
+   * PINNED successor key (the manifest's root template; the durable root
+   * record as a cross-check), independent of the owner set it installs. */
+  function successionSignerOf(request, orgRoot) {
+    const fromManifest = request && request.manifest && request.manifest.root && request.manifest.root.template ? String(request.manifest.root.template.successorPk || "").toLowerCase() : "";
+    const fromRoot = orgRoot && orgRoot.template ? String(orgRoot.template.successorPk || "").toLowerCase() : "";
+    const pinned = fromManifest || fromRoot;
+    if (!/^[0-9a-f]{64}$/.test(pinned) || pinned === "00".repeat(32)) return null;
+    if (fromManifest && fromRoot && fromManifest !== fromRoot) return null; // the request and the root disagree — offer nothing
+    return pinned;
+  }
+  async function openOrgRootRequestModal(rootUI, orgRoot, requestId, preloaded) {
+    const m = $("v4-modal");
+    async function repaint() {
+      let request = preloaded;
+      preloaded = null;
+      if (!request) {
+        try { ({ request } = await rootUI.fetchRequest(orgRoot.rootCovenantId, requestId)); }
+        catch (err) { note(`Could not load request: ${err.code || ""} ${err.message}`, "bad"); m.style.display = "none"; return; }
+      }
+      let currentDaa = null;
+      try { currentDaa = (await getJSON("/network/status")).virtualDaaScore ?? null; } catch { currentDaa = null; }
+      const s = session();
+      const mySlot = (request.slots || []).find((sl) => sl.publicKey && state.xonly && sl.publicKey.toLowerCase() === state.xonly.toLowerCase());
+      m.innerHTML =
+        `<div class="modal-card setup-card" role="dialog" aria-modal="true">` +
+        rootUI.renderRequestDetailHtml(request, { orgRoot, viewerXOnly: state.xonly, viewerAddress: state.address, currentDaa }) +
+        (mySlot && mySlot.status === "PENDING" && request.state === "AUTHORIZED" // rc16 review N-02: approvals only while AUTHORIZED
+          ? `<div class="actions"><button id="v4-orgroot-signmyslot" class="primary" data-slot="${esc(mySlot.slot)}">Approve in wallet (your owner slot ${esc(mySlot.slot)})</button></div>`
+          : "") +
+        (request.action === "succession" && request.state === "AUTHORIZED" && successionSignerOf(request, orgRoot) && state.xonly && successionSignerOf(request, orgRoot) === String(state.xonly).toLowerCase() // UX-10: the PINNED successor resumes the durable request
+          ? `<div class="actions"><button id="v4-orgroot-signsuccession" class="primary">Approve in wallet (designated successor)</button><div class="f-help">This is the same succession request you started; approving it again does not create a second one.</div></div>`
+          : "") +
+        rootUI.renderRequestReviewHtml(request) +
+        `<details class="adv"><summary>Import another owner's signed approval (paste JSON)</summary><div class="f" style="margin-top:0.4rem"><label class="f-label" for="v4-orgroot-import">Signed approval envelope</label>` +
+        `<textarea id="v4-orgroot-import" rows="3" class="mono"></textarea>` +
+        `<div class="f-help">Approvals collected on another device are pasted here. PolicyVault checks the envelope against this exact request before anything is stored.</div>` +
+        `<button type="button" id="v4-orgroot-import-btn">Import approval</button></div></details>` +
+        `<div class="modal-actions"><button id="v4-orgroot-request-close">Close</button></div></div>`;
+      m.style.display = "flex";
+      $("v4-orgroot-request-close").onclick = () => { m.style.display = "none"; render(); };
+      const succBtn = $("v4-orgroot-signsuccession");
+      if (succBtn) succBtn.onclick = async () => { succBtn.disabled = true; await signSuccessionRequest(rootUI, orgRoot, request, state.address); };
+      const signBtn = $("v4-orgroot-signmyslot");
+      if (signBtn) signBtn.onclick = async () => {
+        signBtn.disabled = true;
+        try {
+          if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+          if (request.state !== "AUTHORIZED") throw Object.assign(new Error(`this request is ${request.state} — owner approvals are only collected while it is AUTHORIZED`), { code: "REQUEST_NOT_SIGNABLE" }); // rc16 review N-02
+          note(`Fetching your owner slot ${mySlot.slot} signing request…`, "warn");
+          const slotEnvelope = await rootUI.fetchSlotRequest(orgRoot.rootCovenantId, requestId, mySlot.slot);
+          note("Waiting for your wallet — review and approve your owner signature…", "warn");
+          const response = await rootUI.signOwnSlot({
+            request, slotEnvelope, adapter: s.adapter, connectedXOnly: state.xonly, network: s.network, expectedSignerAddress: state.address
+          });
+          await rootUI.postSlotSignature(orgRoot.rootCovenantId, requestId, mySlot.slot, response);
+          note(`Your approval (owner slot ${mySlot.slot}) was recorded. This is not yet a transaction — the request needs all required approvals, then finalize and submit.`, "good");
+        } catch (err) { noteRootRefusal("Approval did not complete — nothing was sent", err, rootUI); }
+        repaint();
+      };
+      const importBtn = $("v4-orgroot-import-btn");
+      if (importBtn) importBtn.onclick = async () => {
+        const raw = $("v4-orgroot-import").value;
+        const v = rootUI.validateImportedEnvelope(request, raw);
+        if (!v.ok) { noteRootRefusal("Import refused", Object.assign(new Error(v.message), { code: v.code }), rootUI); return; }
+        try {
+          await rootUI.postSlotSignature(orgRoot.rootCovenantId, requestId, v.slot, v.response);
+          note(`Imported the approval for owner slot ${v.slot}.`, "good");
+        } catch (err) { noteRootRefusal("Import failed", err, rootUI); }
+        repaint();
+      };
+      const finBtn = m.querySelector("[data-rootfinalize]");
+      if (finBtn) finBtn.onclick = async () => {
+        finBtn.disabled = true;
+        try {
+          if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+          note("Waiting for your wallet — approve the network-fee input signature…", "warn");
+          const res = await rootUI.finalizeRequest(orgRoot.rootCovenantId, requestId, request, { adapter: s.adapter, network: s.network, expectedSignerAddress: state.address, connectedXOnly: state.xonly });
+          note(`Finalized — ${res.request.state}. Not yet broadcast: use Submit to send it to ${networkLabel()}.`, "good");
+        } catch (err) { noteRootRefusal("Finalize did not complete — nothing was sent", err, rootUI); }
+        repaint();
+      };
+      const subBtn = m.querySelector("[data-rootsubmit]");
+      if (subBtn) subBtn.onclick = async () => {
+        subBtn.disabled = true;
+        try {
+          const res = await rootUI.submitRequest(orgRoot.rootCovenantId, requestId, request);
+          noteOutcome(rootUI.actionLabel(request.action || request.kind), res.request.state, res.txId, res.request.error);
+        } catch (err) { noteRootRefusal("Submit failed — outcome uncertain; use Verify state on the root before submitting again", err, rootUI); }
+        repaint();
+      };
+      /* F-6: withdrawal is offered only for an unsigned, never-attempted request (org-root-ui withdrawEligibility); the
+       * server re-decides (CANNOT_REJECT otherwise). A failed, refused or unknown result is shown as such and the request
+       * stays open — success is claimed only from the server's own REFUSED answer. */
+      const rejBtn = m.querySelector("[data-rootreject]");
+      if (rejBtn) rejBtn.onclick = async () => {
+        if (!window.confirm("Withdraw this request?\n\nIt is unsigned and was never sent: withdrawing releases only this request's reservation of the root (and of the vault it names). Nothing is broadcast; the root is unchanged.")) return;
+        rejBtn.disabled = true;
+        let outcome = null;
+        try { outcome = await rootUI.rejectRequest(orgRoot.rootCovenantId, requestId, "withdrawn by an owner"); }
+        catch (err) { noteRootRefusal("Withdraw did not complete — the request and its reservation are kept", err, rootUI); repaint(); return; }
+        const st = outcome && outcome.request ? outcome.request.state : null;
+        if (st === "REFUSED") { note("Request withdrawn: its reservation is released; the root is unchanged.", "good"); m.style.display = "none"; render(); return; }
+        note(`Withdraw returned an unexpected result (${st || "no request state"}) — treated as NOT withdrawn; reload to see the durable state.`, "bad");
+        repaint();
+      };
+      /* F-6: an attempted / uncertain request's ONLY path is outcome recovery — the same root reconciliation as Verify state. */
+      const recBtn = m.querySelector("[data-rootreconcile-request]");
+      if (recBtn) recBtn.onclick = async () => {
+        recBtn.disabled = true;
+        try {
+          const res = await rootUI.reconcileRoot(orgRoot.rootCovenantId);
+          const d = rootUI.describeReconcileOutcome(res);
+          note(d.text, d.level);
+        } catch (err) { noteRootRefusal("Verify state failed — the outcome stays unknown", err, rootUI); }
+        repaint();
+      };
+    }
+    await repaint();
+  }
+
   /* ===================== ACTIVITY (first-class audit surface) =============
    * Durable audit events, clearly separated into CHAIN events (transactions
    * verified against Kaspa) and METADATA events (off-chain application data
@@ -1793,8 +2907,6 @@
     };
   }
 
-  const promptKas = (m) => { const v = window.prompt(m); if (v === null) return null; return v.trim() || null; };
-
   /* ---- hosted agent suspend/unsuspend (fullscale surface 21 web
    * composition; POST /vaults/:id/agent-suspensions) ----
    * COORDINATION CONTROL ONLY — NEVER A COVENANT CONTROL. The confirm
@@ -1839,18 +2951,155 @@
     render();
   }
 
+
+  /* ===================== SPEND (delegated request) =====================
+   * TRACK 11, finding D1 (HIGH). The delegated spend — the most-used
+   * action in the product — used to be a chain of two window.prompt()
+   * dialogs: "Recipient wallet address (must be in this agent's
+   * allowlist):" followed by "Spend amount (KAS):". That is an adoption
+   * failure three times over: the allowlist the first prompt refers to
+   * was never shown, so the user had to already know an allowed address
+   * by heart; nothing was validated against the agent's own limits until
+   * the server refused; and a native prompt chain has no labels, no
+   * error recovery, and nothing to read on a 375 px screen.
+   *
+   * This is the same flow with a real form. It is PRESENTATION AND
+   * DEFENSE-IN-DEPTH ONLY:
+   *   - the recipient options are the vault presentation's own
+   *     recipientAddresses (the allowlist the covenant commits to), and
+   *     the chosen ADDRESS is still resolved through the server's one
+   *     address-identity boundary — the browser never substitutes a
+   *     paired x-only for the address the human read;
+   *   - the local amount checks mirror limits the covenant enforces and
+   *     the server re-derives; they can only REFUSE EARLIER, never
+   *     permit. Every one of them is repeated authoritatively downstream;
+   *   - it ends in the identical runFlow(vaultId, "agentSpend", ...) call
+   *     with the identical params, so review, browser verification, the
+   *     approvals workflow and signing are untouched.
+   */
+  function spendFormHtml(vault, agent) {
+    const allow = Array.isArray(agent.recipientAddresses) ? agent.recipientAddresses : [];
+    const recipientField = allow.length
+      ? `<label for="v4-spend-to">Pay</label>` +
+        `<select id="v4-spend-to" name="to">` +
+        allow.map((a, i) => `<option value="${esc(a)}"${i === 0 ? " selected" : ""}>${esc(a)}</option>`).join("") +
+        `</select>` +
+        `<div class="hint">Only these addresses are payable by this agent — the allowlist is committed on-chain and enforced by the covenant.</div>`
+      : `<label for="v4-spend-to">Pay (wallet address)</label>` +
+        `<input id="v4-spend-to" name="to" class="mono" placeholder="${addrExample()}" autocomplete="off" />` +
+        `<div class="hint">This vault view did not include the agent's allowed recipients, so the address cannot be offered as a choice here. The covenant still enforces the allowlist: an address outside it is refused.</div>`;
+    return (
+      `<div class="modal-card" style="max-width:560px;width:92%" role="dialog" aria-modal="true" aria-labelledby="v4-spend-title">` +
+      `<h3 id="v4-spend-title" style="margin-top:0">Send from ${esc(vault.label || short(vault.vaultId))}</h3>` +
+      `<div class="kv-line">Signing as this vault's agent <span class="mono">${esc(state.address)}</span></div>` +
+      `<div class="grid" style="margin:0.6rem 0">` +
+      `<div class="field"><div class="k">Max per transaction</div><div class="v">${esc(agent.maxPerSpendKas)} KAS</div></div>` +
+      `<div class="field"><div class="k">Remaining this period</div><div class="v">${esc(agent.remainingBudgetKas)} KAS</div></div>` +
+      `<div class="field"><div class="k">Approval required above</div><div class="v">${esc(agent.approvalThresholdKas)} KAS</div></div>` +
+      `</div>` +
+      `<form class="cform" id="v4-spend-form" autocomplete="off" novalidate>` +
+      `<div class="full">${recipientField}${ferr("to")}</div>` +
+      `<div class="full"><label for="v4-spend-amount">Amount (KAS)</label>` +
+      `<input id="v4-spend-amount" name="amount" inputmode="decimal" placeholder="0.00" />${ferr("amount")}` +
+      `<div class="hint" id="v4-spend-note"></div></div>` +
+      `<div class="full modal-actions"><button type="button" id="v4-spend-cancel">Cancel</button>` +
+      `<button type="submit" class="primary">Review payment…</button></div>` +
+      `</form>` +
+      `<div class="hint" style="margin-top:0.6rem">These checks are a convenience. Every limit here is enforced by the covenant on Kaspa and re-derived by the server — nothing you enter can raise them.</div>` +
+      `</div>`
+    );
+  }
+
+  /* Local pre-checks. Returns a Map(fieldKey -> {message, inputs}) in the
+   * same shape showFieldErrors() already renders for the create form. */
+  function validateSpendForm(f, agent) {
+    const errors = new Map();
+    const bad = (key, message, el) => { if (!errors.has(key)) errors.set(key, { message, inputs: [el].filter(Boolean) }); };
+    const toEl = f.querySelector('[name="to"]');
+    const amtEl = f.querySelector('[name="amount"]');
+    const to = (toEl && toEl.value ? String(toEl.value) : "").trim();
+    const amountKas = (amtEl && amtEl.value ? String(amtEl.value) : "").trim();
+    if (!to) bad("to", "Choose or enter a recipient address.", toEl);
+    const sompi = kasToSompiClient(amountKas);
+    if (!amountKas) bad("amount", "Enter an amount in KAS.", amtEl);
+    else if (sompi === null || BigInt(sompi) <= 0n) bad("amount", "Enter an amount greater than 0 KAS (up to 8 decimal places).", amtEl);
+    else {
+      const cap = kasToSompiClient(agent.maxPerSpendKas);
+      const left = kasToSompiClient(agent.remainingBudgetKas);
+      if (cap !== null && BigInt(sompi) > BigInt(cap)) {
+        bad("amount", `Above this agent's maximum per transaction (${agent.maxPerSpendKas} KAS). The covenant refuses it.`, amtEl);
+      } else if (left !== null && BigInt(sompi) > BigInt(left)) {
+        bad("amount", `Above this agent's remaining budget for the current period (${agent.remainingBudgetKas} KAS). The covenant refuses it.`, amtEl);
+      }
+    }
+    return { ok: errors.size === 0, errors, to, sompi };
+  }
+
+  /* Live, honest note under the amount: what WILL happen at this value. */
+  function spendFormNote(f, vault, agent) {
+    const el = $("v4-spend-note");
+    if (!el) return;
+    const amountKas = (f.querySelector('[name="amount"]')?.value ?? "").trim();
+    const sompi = kasToSompiClient(amountKas);
+    if (!amountKas || sompi === null || BigInt(sompi) <= 0n) { el.textContent = ""; return; }
+    const threshold = kasToSompiClient(agent.approvalThresholdKas);
+    const required = Number((vault.live && vault.live.approvalM) || 0);
+    if (threshold !== null && BigInt(sompi) > BigInt(threshold)) {
+      el.textContent = required > 0
+        ? `Above the approval threshold: this creates an approval request needing ${required} approval${required === 1 ? "" : "s"} before you can sign it.`
+        : "Above the approval threshold: this vault's approval policy applies before it can be signed.";
+    } else {
+      el.textContent = "At or below the approval threshold: you can sign this yourself.";
+    }
+  }
+
+  function openSpendForm(vault, agent) {
+    const m = $("v4-modal");
+    if (!m) return;
+    m.innerHTML = spendFormHtml(vault, agent);
+    m.style.display = "flex";
+    const close = () => { m.style.display = "none"; };
+    const cancel = $("v4-spend-cancel");
+    if (cancel) cancel.onclick = close;
+    const f = $("v4-spend-form");
+    if (!f) return;
+    const first = f.querySelector('[name="to"]');
+    if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* focus is a nicety */ } }
+    f.addEventListener("input", () => spendFormNote(f, vault, agent));
+    f.addEventListener("change", () => spendFormNote(f, vault, agent));
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submitBtn = f.querySelector('button[type="submit"]');
+      const { ok, errors, to, sompi } = validateSpendForm(f, agent);
+      showFieldErrors(f, errors);
+      if (!ok) return;
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        // The chosen ADDRESS is resolved through the server's one
+        // address-identity boundary, exactly as the typed address was:
+        // the identity that gets spent to is derived from the string the
+        // human read, never from a pairing this browser was handed.
+        let recipientX;
+        try { recipientX = await resolveXOnly(to); }
+        catch (err) { showFieldErrors(f, new Map([["to", { message: `Recipient address rejected: ${err.message}`, inputs: [f.querySelector('[name="to"]')] }]])); return; }
+        close();
+        await runFlow(vault.vaultId, "agentSpend", { agentPk: agent.agentPk, recipient: recipientX, payAmountSompi: sompi }, "Sign spend");
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
   function wireVault(root) {
-    root.querySelectorAll("[data-spend]").forEach((b) => (b.onclick = async () => {
+    root.querySelectorAll("[data-spend]").forEach((b) => (b.onclick = () => {
       const agentPk = b.getAttribute("data-spend");
-      const recipient = window.prompt("Recipient wallet address (must be in this agent's allowlist):");
-      const payKas = promptKas("Spend amount (KAS):");
-      if (!recipient || !payKas) return;
-      let recipientX;
-      try { recipientX = await resolveXOnly(recipient.trim()); } catch (e) { note(`Recipient address invalid: ${e.message}`, "bad"); return; }
-      const payAmountSompi = kasToSompiClient(payKas);
-      if (payAmountSompi === null) { note("Invalid spend amount.", "bad"); return; }
       const vaultId = b.closest("[data-vault]").getAttribute("data-vault");
-      runFlow(vaultId, "agentSpend", { agentPk, recipient: recipientX, payAmountSompi }, "Sign spend");
+      const vault = state.vaultsById[vaultId];
+      const agent = vault && (vault.agents || []).find((a) => a.agentPk === agentPk);
+      // Fail closed on display too: without the agent's own presented
+      // policy there is nothing truthful to show, so nothing is offered.
+      if (!vault || !agent) { note("This agent's current policy is not loaded — reload before spending.", "bad"); render(); return; }
+      openSpendForm(vault, agent);
     }));
     // ---- pending approval-request actions (server-state-driven) ----
     const openReq = (id) => (state.openReqs || []).find((r) => r.requestId === id);
@@ -1887,68 +3136,316 @@
       openGovernanceCeremony({ proposalId: b.getAttribute("data-govopen") });
     }));
     const vid = (b) => b.closest("[data-vault]").getAttribute("data-vault");
-    const kasParam = async (b, prompt, key, action, label) => {
-      const kas = promptKas(prompt); if (!kas) return;
-      const sompi = kasToSompiClient(kas); if (sompi === null) { note("Invalid amount.", "bad"); return; }
-      const p = await withFuel({ [key]: sompi }); if (p) runFlow(vid(b), action, p, label);
-    };
-    root.querySelectorAll("[data-pause]").forEach((b) => (b.onclick = async () => { const p = await withFuel({}); if (p) runFlow(vid(b), "ownerPause", p, "Sign pause"); }));
-    root.querySelectorAll("[data-unpause]").forEach((b) => (b.onclick = async () => { const p = await withFuel({}); if (p) runFlow(vid(b), "ownerUnpause", p, "Sign unpause"); }));
+    root.querySelectorAll("[data-pause]").forEach((b) => (b.onclick = async () => {
+      if (!window.confirm("Pause this vault?\n\nEvery agent's payments stop immediately once the pause is confirmed on-chain — this is the covenant's own pause, enforced on Kaspa. You review and sign the transaction in your wallet. Unpause any time.")) return;
+      const p = await withFuel({}); if (p) runFlow(vid(b), "ownerPause", p, "Approve in wallet");
+    }));
+    root.querySelectorAll("[data-unpause]").forEach((b) => (b.onclick = async () => { const p = await withFuel({}); if (p) runFlow(vid(b), "ownerUnpause", p, "Approve in wallet"); }));
     // ---- hosted agent suspend/unsuspend (surface 21; coordination-only) ----
     root.querySelectorAll("[data-suspend]").forEach((b) => (b.onclick = () => suspendUpdate(vid(b), { op: "suspend", agentPk: b.getAttribute("data-suspend") })));
     root.querySelectorAll("[data-unsuspend]").forEach((b) => (b.onclick = () => suspendUpdate(vid(b), { op: "unsuspend", agentPk: b.getAttribute("data-unsuspend") })));
     root.querySelectorAll("[data-suspendall]").forEach((b) => (b.onclick = () => suspendUpdate(b.getAttribute("data-suspendall"), { op: "suspend", allAgents: true })));
     root.querySelectorAll("[data-unsuspendall]").forEach((b) => (b.onclick = () => suspendUpdate(b.getAttribute("data-unsuspendall"), { op: "unsuspend", allAgents: true })));
-    root.querySelectorAll("[data-topup]").forEach((b) => (b.onclick = () => kasParam(b, "Top up principal (KAS):", "topUpAmountSompi", "ownerTopUp", "Sign top-up")));
-    root.querySelectorAll("[data-topupreserve]").forEach((b) => (b.onclick = () => kasParam(b, "Top up fee reserve (KAS):", "topUpReserveAmountSompi", "ownerTopUpReserve", "Sign reserve top-up")));
-    root.querySelectorAll("[data-recover]").forEach((b) => (b.onclick = async () => { if (!window.confirm("Close and recover this vault? This is terminal.")) return; const p = await withFuel({}); if (p) runFlow(vid(b), "ownerRecover", p, "Sign recovery"); }));
-    root.querySelectorAll("[data-remove]").forEach((b) => (b.onclick = async () => { const p = await withFuel({ agentPk: b.getAttribute("data-remove") }); if (p) runFlow(vid(b), "removeAgent", p, "Sign agent removal"); }));
+    /* Top-ups: a labelled amount form (no native prompt), through the same
+     * fuel-funded owner flow. The deposit and the reserve are explained
+     * where the amount is entered. */
+    root.querySelectorAll("[data-topup]").forEach((b) => (b.onclick = () => openAmountForm({
+      title: "Top up the deposit",
+      label: "Amount to add to the deposit",
+      help: "Adds KAS to the protected deposit the agents may spend under the vault's rules. Only the owner can take it back (Close & recover). The network fee comes from your wallet, not from the vault.",
+      onSubmit: async (sompi) => { const p = await withFuel({ topUpAmountSompi: sompi }); if (p) runFlow(vid(b), "ownerTopUp", p, "Approve in wallet"); }
+    })));
+    root.querySelectorAll("[data-topupreserve]").forEach((b) => (b.onclick = () => openAmountForm({
+      title: "Top up the fee reserve",
+      label: "Amount to add to the fee reserve",
+      help: "The fee reserve pays the network fee of each agent payment so the deposit is never reduced by fees. When it is used up, agent payments made through PolicyVault stop until it is topped up.",
+      onSubmit: async (sompi) => { const p = await withFuel({ topUpReserveAmountSompi: sompi }); if (p) runFlow(vid(b), "ownerTopUpReserve", p, "Approve in wallet"); }
+    })));
+    /* Owner recovery is TERMINAL and moves every remaining sompi. The old
+     * confirmation ("Close and recover this vault? This is terminal.")
+     * named neither the destination, the amount, nor the effect on the
+     * vault's agents — for the one irreversible funds operation an owner
+     * can take (TRACK 11, finding W1). "Vault recovery" transfers the
+     * vault's funds; it is NOT the organizational root's "recover control"
+     * (a governance change) — the two are named differently on purpose. */
+    root.querySelectorAll("[data-recover]").forEach((b) => (b.onclick = async () => {
+      const v = state.vaultsById[vid(b)];
+      const amount = v && v.live && v.live.protectedValueKas ? `${v.live.protectedValueKas} KAS of deposit` : "the vault's remaining deposit";
+      const reserve = v && v.live && v.live.feeReserveKas ? ` plus the ${v.live.feeReserveKas} KAS fee reserve` : "";
+      if (!window.confirm(
+        `Close this vault permanently and withdraw ${amount}${reserve} to the owner wallet ${state.address}?\n\n` +
+        `This is irreversible. The vault ends: every agent loses access immediately, the policy and its budgets stop existing, ` +
+        `and the vault cannot be reopened — a new vault would have to be created and funded.\n\n` +
+        `You will review the exact transaction and sign it in your wallet before anything is broadcast.`
+      )) return;
+      const p = await withFuel({});
+      if (p) runFlow(vid(b), "ownerRecover", p, "Approve in wallet");
+    }));
+    root.querySelectorAll("[data-remove]").forEach((b) => (b.onclick = async () => {
+      if (!window.confirm("Remove this agent?\n\nThe agent loses the ability to pay from this vault once the change is confirmed on-chain. Its remaining budget disappears with it. You review and sign the transaction in your wallet.")) return;
+      const p = await withFuel({ agentPk: b.getAttribute("data-remove") }); if (p) runFlow(vid(b), "removeAgent", p, "Approve in wallet");
+    }));
     root.querySelectorAll("[data-verify]").forEach((b) => (b.onclick = async () => {
-      try { const r = await postJSON(`/vaults/${vid(b)}/reconcile`, {}); note(`Verify: ${r.reconcile.status}`, "good"); render(); } catch (e) { note(`Verify failed: ${e.message}`, "bad"); }
+      try { const r = await postJSON(`/vaults/${vid(b)}/reconcile`, {}); note(`Verify state: ${r.reconcile.status}`, "good"); render(); } catch (e) { note(`Verify state failed: ${e.message}`, "bad"); }
     }));
-    // add/re-policy/rotate agent: friendly prompts (addresses + KAS), resolved to
-    // the canonical agent object client-side (the OWNER authorizes it by signing);
-    // periodStartDaa comes from the authoritative node DAA, periodSpent = 0.
-    const agentFromPrompts = async () => {
-      try {
-        const agentAddress = window.prompt("Agent wallet address:"); if (!agentAddress) return null;
-        const maxKas = promptKas("Maximum per transaction (KAS):"); if (!maxKas) return null;
-        const budgetKas = promptKas("Budget per period (KAS):"); if (!budgetKas) return null;
-        const recips = window.prompt("Allowed recipient wallet addresses (comma-separated):"); if (!recips) return null;
-        const thresholdKas = promptKas("Require approval above (KAS):") || "0";
-        const maxPerSpend = kasToSompiClient(maxKas), periodBudget = kasToSompiClient(budgetKas), approvalThreshold = kasToSompiClient(thresholdKas);
-        if (maxPerSpend === null || periodBudget === null || approvalThreshold === null) { note("Invalid KAS amount.", "bad"); return null; }
-        const agentPk = await resolveXOnly(agentAddress.trim());
-        const recipients = [];
-        for (const r of recips.split(",").map((s) => s.trim()).filter(Boolean)) recipients.push(await resolveXOnly(r));
-        if (!recipients.length) { note("At least one recipient address is required.", "bad"); return null; }
-        const { virtualDaaScore } = await getJSON("/network/status");
-        return { agentPk, maxPerSpend, periodBudget, periodLengthDaa: "864000", periodStartDaa: String(virtualDaaScore), periodSpent: "0", approvalThreshold, agentMaxFeePerTx: "10000000", recipients };
-      } catch (e) { note(`Agent input invalid: ${e.message}`, "bad"); return null; }
-    };
-    root.querySelectorAll("[data-addagent]").forEach((b) => (b.onclick = async () => { const a = await agentFromPrompts(); if (!a) return; const p = await withFuel({ agent: a }); if (p) runFlow(vid(b), "addAgent", p, "Sign add-agent"); }));
-    root.querySelectorAll("[data-repolicy]").forEach((b) => (b.onclick = async () => { const a = await agentFromPrompts(); if (!a) return; const p = await withFuel({ agentPk: b.getAttribute("data-repolicy"), agent: a }); if (p) runFlow(vid(b), "rePolicyAgent", p, "Sign re-policy"); }));
-    root.querySelectorAll("[data-rotate]").forEach((b) => (b.onclick = async () => { const a = await agentFromPrompts(); if (!a) return; const p = await withFuel({ agentPk: b.getAttribute("data-rotate"), agent: a }); if (p) runFlow(vid(b), "rotateAgent", p, "Sign key rotation"); }));
-    root.querySelectorAll("[data-setapprovers]").forEach((b) => (b.onclick = async () => {
-      try {
-        const raw = window.prompt("Approver wallet addresses (comma-separated):"); if (!raw) return;
-        const approvers = [];
-        for (const a of raw.split(",").map((s) => s.trim()).filter(Boolean)) approvers.push(await resolveXOnly(a));
-        const approvalM = promptKas("Required approvals (M):") || String(approvers.length);
-        const p = await withFuel({ newApprovers: { approvers, approvalM } });
-        if (p) runFlow(vid(b), "ownerSetApprovers", p, "Sign set-approvers");
-      } catch (e) { note(`Approver input invalid: ${e.message}`, "bad"); }
-    }));
+    // Add agent / change an agent's rules / rotate an agent's key: the SAME
+    // agent-policy form the vault setup uses (no prompt chains, no
+    // comma-delimited lists, no DAA entry). An existing agent's exact
+    // budget period is kept unchanged unless deliberately edited.
+    root.querySelectorAll("[data-addagent]").forEach((b) => (b.onclick = () => openAgentPolicyForm({ vault: state.vaultsById[vid(b)], mode: "add" })));
+    root.querySelectorAll("[data-repolicy]").forEach((b) => (b.onclick = () => openAgentPolicyForm({ vault: state.vaultsById[vid(b)], mode: "repolicy", agentPk: b.getAttribute("data-repolicy") })));
+    root.querySelectorAll("[data-rotate]").forEach((b) => (b.onclick = () => openAgentPolicyForm({ vault: state.vaultsById[vid(b)], mode: "rotate", agentPk: b.getAttribute("data-rotate") })));
+    root.querySelectorAll("[data-setapprovers]").forEach((b) => (b.onclick = () => openSetApproversForm(state.vaultsById[vid(b)])));
   }
 
-  /* Client-side KAS→sompi is display convenience only; the SERVER re-derives and
-   * validates every consensus-visible amount. Returns a digit string or null. */
+  /* ===================== OWNER ACTION FORMS (shared components) ==========
+   * Replace the former window.prompt chains (add agent = 5 prompts, set
+   * approvers = comma-separated addresses + "Required approvals (M)",
+   * top-ups) with the same labelled, validated components the guided
+   * setup uses. Presentation and defense-in-depth only: every value is
+   * re-derived by the server and enforced by the covenant; each flow ends
+   * in the identical runFlow(...) call with the identical params.
+   * ====================================================================== */
+
+  function openAmountForm({ title, label, help, onSubmit }) {
+    const su = setupUi();
+    const m = $("v4-modal");
+    if (!su || !m) { note("The setup components did not load in this build — reload the page.", "bad"); return; }
+    m.innerHTML =
+      `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-amount-title"><h3 id="v4-amount-title" style="margin-top:0">${esc(title)}</h3>` +
+      `<form class="setup-form" id="v4-amount-form" autocomplete="off" novalidate>` +
+      su.renderField({ name: "amount", label, control: su.kasInput({ name: "amount", placeholder: "0.00" }), help: esc(help), wide: true }) +
+      `<div class="modal-actions"><button type="button" id="v4-amount-cancel">Cancel</button><span class="setup-nav-spacer"></span><button type="submit" class="primary">Review…</button></div></form></div>`;
+    m.style.display = "flex";
+    $("v4-amount-cancel").onclick = () => { m.style.display = "none"; };
+    const f = $("v4-amount-form");
+    const first = f.querySelector('[name="amount"]');
+    if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* nicety */ } }
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const sompi = su.kasToSompi(f.querySelector('[name="amount"]')?.value ?? "");
+      if (sompi === null || BigInt(sompi) <= 0n) { showFieldErrors(f, new Map([["amount", "Enter a KAS amount greater than 0 (up to 8 decimals)."]])); return; }
+      m.style.display = "none";
+      await onSubmit(sompi);
+    });
+  }
+
+  /* Agent policy form for add / change rules / rotate key. Prefilled from
+   * the presented agent (exact values: the live periodLengthDaa is offered
+   * as "Keep current value" and round-trips UNCHANGED unless edited). */
+  function openAgentPolicyForm({ vault, mode, agentPk }) {
+    const su = setupUi();
+    const m = $("v4-modal");
+    if (!su || !m || !vault) { note("This vault's current state is not loaded — reload before changing it.", "bad"); return; }
+    const existing = agentPk ? (vault.agents || []).find((a) => a.agentPk === agentPk) : null;
+    if (mode !== "add" && !existing) { note("This agent's current policy is not loaded — reload before changing it.", "bad"); return; }
+    const titles = { add: "Add an agent", repolicy: "Change this agent's rules", rotate: "Rotate this agent's key" };
+    const draft = {
+      agent: mode === "repolicy" ? (existing.agentAddress || "") : "",
+      recipients: existing && Array.isArray(existing.recipientAddresses) && existing.recipientAddresses.length ? existing.recipientAddresses.map((a) => ({ address: a })) : [{ address: "" }],
+      maxPerSpend: existing ? existing.maxPerSpendKas : "",
+      budget: existing ? existing.periodBudgetKas : "",
+      period: existing && existing.periodLengthDaa ? { preset: "existing", customValue: "", customUnit: "day", existingDaa: existing.periodLengthDaa } : { preset: su.BUDGET_SETTING.defaultPreset, customValue: "", customUnit: "day" },
+      approvalThreshold: existing ? existing.approvalThresholdKas : "",
+      maxFee: existing && existing.agentMaxFeePerTxKas ? existing.agentMaxFeePerTxKas : ""
+    };
+    let errors = new Map();
+    const paint = () => {
+      const err = (k) => errors.get(k) || "";
+      const rowErr = (k) => errors.get(k) || {};
+      const F = su.renderField;
+      const agentField = mode === "repolicy"
+        ? `<div class="f f-wide"><div class="f-label">Agent wallet</div><div class="addr-display"><span class="mono">${esc(existing.agentAddress || existing.agentPk)}</span></div><div class="f-help">Changing the rules keeps the same agent key. The new rules replace the old ones, and the budget period restarts from the network position at which the change is built (not from its confirmation).</div></div>`
+        : F({ name: "agent", label: mode === "rotate" ? "New agent wallet" : "Agent wallet", control: su.textInput({ name: "agent", value: draft.agent, placeholder: addrExample(), mono: true }), help: mode === "rotate" ? `Replaces the agent key <span class="mono">${esc(existing.agentAddress || existing.agentPk)}</span>. The old key loses access once the change is confirmed on-chain; the rules below apply to the new key.` : "The wallet allowed to make payments from this vault within the rules below. It cannot change the rules and cannot act as the owner.", error: err("agent"), wide: true });
+      m.innerHTML =
+        `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-agent-title"><h3 id="v4-agent-title" style="margin-top:0">${esc(titles[mode])}</h3>` +
+        `<div class="f-help">Vault ${esc(vault.label || short(vault.vaultId))}. The owner (you) authorizes this change by signing; the covenant enforces the new rules on every payment.</div>` +
+        `<form class="setup-form" id="v4-agent-form" autocomplete="off" novalidate>` +
+        agentField +
+        `<div class="f f-wide${err("recipients") ? " f-invalid" : ""}" data-field="recipients"><div class="f-label">Allowed recipients</div>` +
+        su.renderAddressRows({ kind: "recipient", rows: draft.recipients, errors: rowErr("recipientRows"), addLabel: "Add recipient", placeholder: addrExample() }) +
+        `<div class="f-help">Wallets this agent is allowed to pay — enforced by the covenant on Kaspa.</div><div class="ferr" data-err="recipients"${err("recipients") ? ' style="display:block"' : ""}>${esc(err("recipients"))}</div></div>` +
+        `<div class="f-grid">` +
+        F({ name: "maxPerSpend", label: "Maximum per payment", control: su.kasInput({ name: "maxPerSpend", value: draft.maxPerSpend, placeholder: "2" }), help: "The most the agent may send in one payment.", error: err("maxPerSpend") }) +
+        F({ name: "budget", label: "Spending budget", control: su.kasInput({ name: "budget", value: draft.budget, placeholder: "10" }), help: "The most the agent may send in total during one budget period.", error: err("budget") }) +
+        `</div>` +
+        F({ name: "period", label: "Budget period", control: su.renderDurationControl({ name: "period", setting: su.BUDGET_SETTING, selection: draft.period }), help: `${su.COPY.BUDGET_WINDOW} ${su.COPY.UNITS}`, error: err("period"), wide: true }) +
+        F({ name: "approvalThreshold", label: "Payments that need extra approval", control: su.kasInput({ name: "approvalThreshold", value: draft.approvalThreshold, placeholder: "1" }), help: `Payments <b>above</b> this amount need the vault's approvers (${esc(String(vault.live && vault.live.approvalM || "0"))} of ${(vault.approverSlots || []).filter((s) => s !== "00".repeat(32)).length} currently) to sign first; at or below it the agent signs alone.`, error: err("approvalThreshold"), wide: true }) +
+        `<details class="adv"><summary>Advanced</summary>` + F({ name: "maxFee", label: "Maximum network fee per payment", control: su.kasInput({ name: "maxFee", value: draft.maxFee, placeholder: "0.10" }), help: "Caps the fee a single payment may take from the fee reserve. Optional (default 0.10 KAS).", error: err("maxFee"), optional: true }) + `</details>` +
+        su.renderLiveSummary(su.vaultRulesSummary({ ...draft, approvers: [], approvalM: "" }), "v4-agent-summary") +
+        `<div class="modal-actions"><button type="button" id="v4-agent-cancel">Cancel</button><span class="setup-nav-spacer"></span><button type="submit" class="primary">Review…</button></div></form></div>`;
+      m.style.display = "flex";
+      const f = $("v4-agent-form");
+      const read = () => {
+        const val = (n) => f.querySelector(`[name="${n}"]`)?.value ?? draft[n] ?? "";
+        if (mode !== "repolicy") draft.agent = val("agent");
+        draft.maxPerSpend = val("maxPerSpend"); draft.budget = val("budget"); draft.approvalThreshold = val("approvalThreshold"); draft.maxFee = val("maxFee");
+        const sel = f.querySelector('[name="period"]');
+        if (sel) draft.period = { preset: sel.value, customValue: f.querySelector('[name="periodValue"]')?.value ?? "", customUnit: f.querySelector('[name="periodUnit"]')?.value ?? "day", existingDaa: draft.period.existingDaa };
+        const rowsEl = f.querySelector('[data-rows="recipient"]');
+        if (rowsEl) { const rows = [...rowsEl.querySelectorAll(".addr-row")].map((row) => ({ address: row.querySelector('[name="recipient"]')?.value ?? "" })); draft.recipients = rows.length ? rows : [{ address: "" }]; }
+      };
+      const sync = () => {
+        read();
+        const sel = f.querySelector('[name="period"]'); const custom = f.querySelector('[data-duration-custom="period"]');
+        if (sel && custom) custom.hidden = sel.value !== "custom";
+        const eff = f.querySelector('[data-duration-effect="period"]'); if (eff) eff.textContent = su.durationEffectText(su.BUDGET_SETTING, draft.period);
+        const exact = f.querySelector('[data-duration-exact="period"]'); if (exact) exact.textContent = su.durationExactText(su.BUDGET_SETTING, draft.period);
+        const summary = $("v4-agent-summary"); if (summary) summary.outerHTML = su.renderLiveSummary(su.vaultRulesSummary({ ...draft, approvers: [], approvalM: "" }), "v4-agent-summary");
+      };
+      f.addEventListener("input", sync); f.addEventListener("change", sync); sync();
+      $("v4-agent-cancel").onclick = () => { m.style.display = "none"; };
+      m.querySelectorAll("button").forEach((b) => {
+        if (b.id === "v4-add-recipient") b.onclick = (e) => { e.preventDefault(); read(); draft.recipients.push({ address: "" }); errors.delete("recipients"); errors.delete("recipientRows"); paint(); };
+        else if (b.classList.contains("rm-recipient")) b.onclick = (e) => { e.preventDefault(); read(); const i = Number(b.closest(".addr-row")?.getAttribute("data-row")); if (draft.recipients.length > 1) draft.recipients.splice(i, 1); errors.delete("recipients"); errors.delete("recipientRows"); paint(); };
+      });
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        read();
+        const submitBtn = f.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          const d = { ...draft, agent: mode === "repolicy" ? (existing.agentAddress || "") : draft.agent, approvers: [], approvalM: "", label: "x", deposit: "1", reserve: "0" };
+          const stepsToCheck = ["agent", "rules"];
+          let bad = false;
+          errors = new Map();
+          // UX-04: validate against the vault's ACTUAL approver configuration
+          // (this change never touches approvers; a 0 KAS threshold is valid
+          // exactly when the vault has payment approvers)
+          const sentinel0 = "00".repeat(32);
+          const existingApprovers = { count: (vault.approverSlots || []).filter((x) => x !== sentinel0).length, approvalM: vault.live && vault.live.approvalM ? String(vault.live.approvalM) : "0" };
+          for (const st of stepsToCheck) {
+            const { errors: errs } = await su.validateVaultDraft(d, { resolve: resolveXOnly, step: st, existingApprovers });
+            for (const [k, v] of errs) { errors.set(k, v); bad = true; }
+          }
+          // repolicy: an agent whose presentation lacks an address still resolves through agentPk
+          if (mode === "repolicy" && errors.get("agent") && !existing.agentAddress) { errors.delete("agent"); bad = [...errors.keys()].length > 0; }
+          if (bad) { paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
+          const full = await su.validateVaultDraft(d, { resolve: resolveXOnly, signerAddress: state.address, vaultId: vault.vaultId, existingApprovers });
+          if (!full.ok) { errors = full.errors; paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
+          const n = full.normalized;
+          const agentPkResolved = mode === "repolicy" ? existing.agentPk : n.agentXOnly;
+          const { virtualDaaScore } = await getJSON("/network/status");
+          const agent = {
+            agentPk: agentPkResolved,
+            maxPerSpend: su.kasToSompi(n.maxPerSpendKas),
+            periodBudget: su.kasToSompi(n.budgetKas),
+            periodLengthDaa: n.period.daa,
+            periodStartDaa: String(virtualDaaScore),
+            periodSpent: "0",
+            approvalThreshold: su.kasToSompi(n.approvalThresholdKas),
+            agentMaxFeePerTx: su.kasToSompi(n.maxFeeKas || "0.10"),
+            recipients: n.recipientXOnlys
+          };
+          m.style.display = "none";
+          const p = await withFuel(mode === "add" ? { agent } : { agentPk: existing.agentPk, agent });
+          if (!p) return;
+          const action = mode === "add" ? "addAgent" : mode === "repolicy" ? "rePolicyAgent" : "rotateAgent";
+          runFlow(vault.vaultId, action, p, "Approve in wallet");
+        } catch (err) {
+          noteRefusal(`${titles[mode]} refused`, err);
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
+    };
+    paint();
+  }
+
+  /* Set payment approvers: rows + "k of N approvers" (no comma-separated
+   * prompt, no "(M)"). The current approvers are shown by address when the
+   * server presents them, and the count is never lowered on the user's
+   * behalf when a row is removed. */
+  function openSetApproversForm(vault) {
+    const su = setupUi();
+    const m = $("v4-modal");
+    if (!su || !m || !vault) { note("This vault's current state is not loaded — reload before changing it.", "bad"); return; }
+    const sentinel = "00".repeat(32);
+    const currentAddrs = Array.isArray(vault.approverAddresses) ? vault.approverAddresses.filter(Boolean) : [];
+    const currentCount = (vault.approverSlots || []).filter((s) => s !== sentinel).length;
+    const draft = { approvers: currentAddrs.length ? currentAddrs.map((a) => ({ address: a })) : [], approvalM: vault.live && vault.live.approvalM ? String(vault.live.approvalM) : "" };
+    let errors = new Map();
+    const paint = () => {
+      const err = (k) => errors.get(k) || "";
+      const count = draft.approvers.filter((r) => r.address && r.address.trim()).length;
+      m.innerHTML =
+        `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-appr-title"><h3 id="v4-appr-title" style="margin-top:0">Set payment approvers</h3>` +
+        `<div class="f-help">Vault ${esc(vault.label || short(vault.vaultId))} — currently ${esc(String(vault.live && vault.live.approvalM || "0"))} of ${currentCount} approvers${currentCount && !currentAddrs.length ? " (their addresses are not in this vault view; enter the full new list)" : ""}. Approvers can approve or refuse a payment above an agent's threshold; they cannot spend, and they cannot act as the owner. The new list REPLACES the old one.</div>` +
+        `<form class="setup-form" id="v4-appr-form" autocomplete="off" novalidate>` +
+        `<div class="f f-wide${err("approvers") ? " f-invalid" : ""}" data-field="approvers"><div class="f-label">Payment approvers</div>` +
+        su.renderAddressRows({ kind: "approver", rows: draft.approvers, errors: errors.get("approverRows") || {}, addLabel: "Add approver", placeholder: addrExample(), min: 0, max: MAX_APPROVER_ROWS }) +
+        `<div class="f-help">At most 10, each a distinct wallet. Once a vault has payment approvers, the protocol (v0.4.1) cannot take it back to having none — at least one approver must remain. A vault created without approvers can add some here.</div>` +
+        `<div class="ferr" data-err="approvers"${err("approvers") ? ' style="display:block"' : ""}>${esc(err("approvers"))}</div></div>` +
+        su.renderField({ name: "approvalM", label: "Approvals needed", control: su.renderApprovalSelect({ name: "approvalM", count, value: draft.approvalM, noun: "approvers", max: MAX_APPROVER_ROWS }), help: count ? `How many of the ${count} approvers must sign a payment above the threshold. If you removed an approver, this number was not changed for you — choose it deliberately.` : "Add approvers above to choose how many must sign.", error: err("approvalM") }) +
+        `<div class="modal-actions"><button type="button" id="v4-appr-cancel">Cancel</button><span class="setup-nav-spacer"></span><button type="submit" class="primary">Review…</button></div></form></div>`;
+      m.style.display = "flex";
+      const f = $("v4-appr-form");
+      const read = () => {
+        const rowsEl = f.querySelector('[data-rows="approver"]');
+        if (rowsEl) draft.approvers = [...rowsEl.querySelectorAll(".addr-row")].map((row) => ({ address: row.querySelector('[name="approver"]')?.value ?? "" }));
+        draft.approvalM = f.querySelector('[name="approvalM"]')?.value ?? draft.approvalM;
+      };
+      const sync = () => {
+        read();
+        const mSel = f.querySelector('[name="approvalM"]');
+        if (!mSel) return;
+        const count2 = draft.approvers.filter((r) => r.address && r.address.trim()).length;
+        const current = mSel.value;
+        const options = su.approvalOptions(count2, "approvers", { max: MAX_APPROVER_ROWS });
+        if (current && !options.some((o) => o.value === current)) options.unshift({ value: current, label: `${current} of ${count2} approvers — impossible, choose again` });
+        if (!options.length) options.push({ value: "", label: "add approvers first" });
+        mSel.innerHTML = options.map((o) => `<option value="${esc(o.value)}"${o.value === current ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+        if (!current && options[0]) mSel.value = options[0].value;
+      };
+      f.addEventListener("input", sync); f.addEventListener("change", sync); sync();
+      $("v4-appr-cancel").onclick = () => { m.style.display = "none"; };
+      m.querySelectorAll("button").forEach((b) => {
+        if (b.id === "v4-add-approver") b.onclick = (e) => { e.preventDefault(); read(); if (draft.approvers.length < MAX_APPROVER_ROWS) draft.approvers.push({ address: "" }); errors = new Map(); paint(); };
+        else if (b.classList.contains("rm-approver")) b.onclick = (e) => { e.preventDefault(); read(); const i = Number(b.closest(".addr-row")?.getAttribute("data-row")); if (draft.approvers.length > 1) draft.approvers.splice(i, 1); else { draft.approvers = [{ address: "" }]; errors = new Map([["approvers", "At least one approver must remain: the protocol cannot return a vault to no approvers."]]); } if (draft.approvers.length > 1 || !errors.size) errors = new Map(); paint(); };
+      });
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        read();
+        try {
+          const d = { ...su.vaultDraftDefaults(), approvers: draft.approvers, approvalM: draft.approvalM, maxPerSpend: "1", budget: "1", approvalThreshold: "1" };
+          const { errors: errs } = await su.validateVaultDraft(d, { resolve: resolveXOnly, step: "rules" });
+          errors = new Map([...errs].filter(([k]) => k === "approvers" || k === "approverRows" || k === "approvalM"));
+          // UX-07: the covenant cannot transition to a zero-approver set
+          // (ownerSetApprovers requires 1 <= approvalM <= activeCount) — refuse
+          // an empty list HERE instead of promising a removal that would be
+          // refused by the core/covenant after the wallet signed.
+          if (!draft.approvers.some((r) => r.address && r.address.trim())) errors.set("approvers", "At least one approver is required: the protocol (v0.4.1) cannot return a vault to no approvers after creation.");
+          if (errors.size) { paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
+          const approvers = [];
+          for (const r of draft.approvers) if (r.address && r.address.trim()) approvers.push(await resolveXOnly(r.address.trim()));
+          const approvalM = approvers.length ? String(Number(draft.approvalM)) : "0";
+          m.style.display = "none";
+          const p = await withFuel({ newApprovers: { approvers, approvalM } });
+          if (p) runFlow(vault.vaultId, "ownerSetApprovers", p, "Approve in wallet");
+        } catch (err) { noteRefusal("Set approvers refused", err); }
+      });
+    };
+    paint();
+  }
+
+  /* Client-side KAS→sompi. The SERVER still re-derives and validates every
+   * consensus-visible amount, and the browser verifier still recomputes it
+   * before signing — but the client no longer carries its OWN amount grammar:
+   * this delegates to core/model/amounts.js `kasToSompi`
+   * (`window.PolicyVaultCore.amounts`), the same integer-only parser the SDK,
+   * the server and the covenant accounting use, which additionally enforces
+   * the canonical MAX_SOMPI ceiling the hand-rolled version lacked. Returns a
+   * digit string, or null (fail closed) for anything the canonical grammar
+   * refuses. Parity with the previous implementation is pinned vector-by-vector
+   * by web/test/client-amounts-parity.test.js. */
   function kasToSompiClient(kas) {
-    const s = String(kas).trim();
-    if (!/^\d+(\.\d{1,8})?$/.test(s)) return null;
-    const [intPart, frac = ""] = s.split(".");
-    const sompi = BigInt(intPart) * 100000000n + BigInt((frac + "00000000").slice(0, 8));
-    return sompi > 0n ? sompi.toString() : (sompi === 0n ? "0" : null);
+    const core = typeof window !== "undefined" ? window.PolicyVaultCore : undefined;
+    if (!core || !core.amounts || typeof core.amounts.kasToSompi !== "function") return null;
+    try {
+      return core.amounts.kasToSompi(String(kas).trim()).toString();
+    } catch {
+      return null;
+    }
   }
 
   window.addEventListener("DOMContentLoaded", () => {
@@ -1964,6 +3461,10 @@
     // longer stack duplicate listeners, so one click adds exactly one row.
     const root = $("v4-root");
     if (root) root.addEventListener("click", handleCreateRowClick);
+    // Same ONE-TIME delegation for the guided setups rendered inside the
+    // modal (organizational root): the container persists across renders.
+    const modal = $("v4-modal");
+    if (modal && typeof modal.addEventListener === "function") modal.addEventListener("click", handleModalSetupClick);
     const supportLink = document.getElementById("footer-support-link");
     if (supportLink) supportLink.onclick = (e) => { e.preventDefault(); state.view = "support"; render(); window.scrollTo(0, 0); };
     // Consume the ONE canonical wallet session. There is no v0.4.1-specific
@@ -1992,6 +3493,25 @@
     _runFlow: runFlow,
     _openGovernanceCeremony: openGovernanceCeremony,
     _openRiskHold: openRiskHold,
-    _suspendUpdate: suspendUpdate
+    _suspendUpdate: suspendUpdate,
+    // TRACK 11 spend-form internals (browser test layer only): let the
+    // regression suite prove the allowlist rendering, the local limit
+    // pre-checks, and that the form still ends in the SAME agentSpend
+    // runFlow call with the SAME params.
+    _spendFormHtml: spendFormHtml,
+    _validateSpendForm: validateSpendForm,
+    _openSpendForm: openSpendForm,
+    _agentCard: agentCard,
+    // Guided setup internals (browser test layer only): the create view,
+    // the setup state, the owner action forms, and the funding breakdown.
+    _createView: createView,
+    _vaultSetup: vaultSetup,
+    _readVaultDraft: readVaultDraft,
+    _openAgentPolicyForm: openAgentPolicyForm,
+    _openSetApproversForm: openSetApproversForm,
+    _openAmountForm: openAmountForm,
+    _fundingBreakdownHtml: fundingBreakdownHtml,
+    _handleCreateRowClick: handleCreateRowClick,
+    _handleModalSetupClick: handleModalSetupClick
   };
 })();

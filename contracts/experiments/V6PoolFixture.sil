@@ -1,0 +1,155 @@
+pragma silverscript ^0.1.0;
+
+/*
+ * V6 POOL FIXTURE — NOT A POLICYVAULT PRODUCT, NOT PRODUCTION, NOT AN
+ * ENDORSED VENUE. The constant-product pool covenant used as the approved
+ * external pool for the v0.6 atomic-composability VM suite and the
+ * testnet-10 live proof (test assets only). Shape follows the published
+ * KaspaKaha KCC20 AMM reference (MIT, testnet-10): the pool UTXO holds the
+ * KAS reserve as its output value, OWNS a KCC20 reserve note through
+ * covenant-id ownership (scheme 0x02), locates that note by family scan +
+ * hash-verified template read, checks the constant-product invariant with
+ * a bps fee, requires a protocol-fee P2PK output, and pins its own
+ * successor value. BOTH directions: sellSwap (trader deposits tokens, takes
+ * KAS) and buySwap (trader deposits KAS, takes tokens). The fixture never
+ * cares where the trader's proceeds go — that is the trader's (PolicyVault's)
+ * envelope to enforce. State layout = policyvault-swap-venue-profile/1
+ * constant-product model: kasReserve, tokenReserve, feeBps, nonce.
+ */
+contract V6PoolFixture(
+    byte[32] tokenId,
+    int kcc20PrefixLen,
+    int kcc20SuffixLen,
+    byte[32] kcc20Hash,
+    byte[] kcc20Prefix,
+    byte[] kcc20Suffix,
+    pubkey protocolFeePk,
+    int protocolFeeBps,
+    int initKasReserve,
+    int initTokenReserve,
+    int initFeeBps,
+    int initNonce
+) {
+    int kasReserve = initKasReserve;
+    int tokenReserve = initTokenReserve;
+    int feeBps = initFeeBps;
+    int nonce = initNonce;
+
+    struct KCC20State {
+        byte[32] ownerIdentifier;
+        byte identifierType;
+        int amount;
+        bool isMinter;
+    }
+
+    byte constant IDENTIFIER_COVENANT_ID = 0x02;
+
+    /* locate OUR reserve note among the token family inputs (bounded scan)
+     * and return its amount; exactly one such note must exist */
+    function ownReserveAmount() : (int) {
+        byte[32] self = OpInputCovenantId(this.activeInputIndex);
+        int total = OpCovInputCount(tokenId);
+        require(total >= 1);
+        require(total <= 4);
+        int matches = 0;
+        int reserveAmount = 0;
+        for (n, 0, total, 4) {
+            int si = OpCovInputIdx(tokenId, n);
+            KCC20State s = readInputStateWithTemplate(si, kcc20PrefixLen, kcc20SuffixLen, kcc20Hash);
+            if (s.ownerIdentifier == self) {
+                if (s.identifierType == IDENTIFIER_COVENANT_ID) {
+                    matches = matches + 1;
+                    reserveAmount = s.amount;
+                }
+            }
+        }
+        require(matches == 1);
+        return reserveAmount;
+    }
+
+    function requireReserveContinuation(KCC20State reserveNew, int reserveOutIdx, int amount) {
+        byte[32] self = OpInputCovenantId(this.activeInputIndex);
+        require(reserveNew.ownerIdentifier == self);
+        require(reserveNew.identifierType == IDENTIFIER_COVENANT_ID);
+        require(!reserveNew.isMinter);
+        require(reserveNew.amount == amount);
+        validateOutputStateWithTemplate(OpCovOutputIdx(tokenId, reserveOutIdx), reserveNew, kcc20Prefix, kcc20Suffix, kcc20Hash);
+    }
+
+    function requireProtocolFee(int feeOutIdx, int base) {
+        require(tx.outputs[feeOutIdx].scriptPubKey == new ScriptPubKeyP2PK(protocolFeePk));
+        int protoFee = (base * protocolFeeBps + 9999) / 10000;
+        require(tx.outputs[feeOutIdx].value >= protoFee);
+    }
+
+    function requireSuccessorValue(int exact) {
+        int succIdx = OpAuthOutputIdx(this.activeInputIndex, 0);
+        require(tx.outputs[succIdx].value == exact);
+    }
+
+    /* SELL: the trader deposits `amountIn` tokens into the pool's reserve
+     * note and takes KAS out of the pool UTXO. */
+    #[covenant.singleton]
+    function sellSwap(
+        State prevState,
+        State newState,
+        int amountIn,
+        int reserveOutIdx,
+        int feeOutIdx,
+        KCC20State reserveNew
+    ) {
+        require(amountIn > 0);
+        require(newState.feeBps == prevState.feeBps);
+        require(newState.nonce == prevState.nonce + 1);
+        (int reserveAmount) = ownReserveAmount();
+        require(reserveAmount == prevState.tokenReserve);
+
+        /* constant product with a bps fee on the token side */
+        int feeTok = (amountIn * prevState.feeBps + 9999) / 10000;
+        int netIn = amountIn - feeTok;
+        require(netIn > 0);
+        int oldK = prevState.kasReserve * prevState.tokenReserve;
+        require(newState.tokenReserve == prevState.tokenReserve + amountIn);
+        require(newState.kasReserve > 0);
+        require(newState.kasReserve * (prevState.tokenReserve + netIn) >= oldK);
+        int kasOut = prevState.kasReserve - newState.kasReserve;
+        require(kasOut >= 0);
+
+        requireReserveContinuation(reserveNew, reserveOutIdx, prevState.tokenReserve + amountIn);
+        requireProtocolFee(feeOutIdx, kasOut);
+        requireSuccessorValue(newState.kasReserve);
+    }
+
+    /* BUY: the trader deposits `kasIn` KAS into the pool UTXO and takes
+     * tokens out of the pool's reserve note. */
+    #[covenant.singleton]
+    function buySwap(
+        State prevState,
+        State newState,
+        int kasIn,
+        int reserveOutIdx,
+        int feeOutIdx,
+        KCC20State reserveNew
+    ) {
+        require(kasIn > 0);
+        require(newState.feeBps == prevState.feeBps);
+        require(newState.nonce == prevState.nonce + 1);
+        (int reserveAmount) = ownReserveAmount();
+        require(reserveAmount == prevState.tokenReserve);
+
+        /* constant product with a bps fee on the KAS side */
+        int feeKas = (kasIn * prevState.feeBps + 9999) / 10000;
+        int netIn = kasIn - feeKas;
+        require(netIn > 0);
+        int oldK = prevState.kasReserve * prevState.tokenReserve;
+        require(newState.kasReserve == prevState.kasReserve + kasIn);
+        require(newState.tokenReserve > 0);
+        require(newState.tokenReserve * (prevState.kasReserve + netIn) >= oldK);
+        int tokensOut = prevState.tokenReserve - newState.tokenReserve;
+        require(tokensOut > 0);
+
+        requireReserveContinuation(reserveNew, reserveOutIdx, newState.tokenReserve);
+        requireProtocolFee(feeOutIdx, kasIn);
+        requireSuccessorValue(newState.kasReserve);
+    }
+}

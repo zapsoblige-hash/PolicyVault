@@ -113,7 +113,7 @@ test("E3: agentSpend fail-closed matrix", () => {
   // stale/foreign proof
   assert.throws(() => agentSpendSuccessorV4(state({ agentRoot: "cd".repeat(32) }), spendArgs()), /does not verify/);
   // over per-spend cap (pay == cap is legal and covered elsewhere)
-  assert.throws(() => agentSpendSuccessorV4(s, spendArgs({ payAmount: "20000000001" })), /maxPerSpend/);
+  assert.throws(() => agentSpendSuccessorV4(s, spendArgs({ payAmount: "20000000001" })), (e) => /maxPerSpend/.test(e.message) && e.code === "OVER_CAP");
   // over period budget
   {
     const spent = buildAgentTreeV4([policy(0x30, { periodSpent: "49000000000" })]);
@@ -126,7 +126,7 @@ test("E3: agentSpend fail-closed matrix", () => {
           payAmount: "2000000000",
           reserveConsumed: "0"
         }),
-      /period budget/
+      (e) => /period budget/.test(e.message) && e.code === "OVER_BUDGET"
     );
   }
   // periodsElapsed out of range

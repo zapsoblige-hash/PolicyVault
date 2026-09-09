@@ -158,9 +158,13 @@ class DryRunTest(LiveServerTest):
         self.assertIn("code", simulation["refusalReason"])
 
     def test_an_unknown_vault_is_a_substantive_refusal(self):
-        body = self.pv.simulate(self.simulate_spec(vault_id="7e" * 32))
-        self.assertFalse(body["simulation"]["ok"])
-        self.assertEqual(body["simulation"]["refusalReason"]["code"], "BUILD_FAILED")
+        # Since the hosted build-authority / tenancy remediation (rc11) an unknown vault is refused BEFORE any build
+        # with the non-oracle 404 ``VAULT_NOT_FOUND`` (an unknown vault and a stranger's vault are indistinguishable),
+        # which the client raises as the typed ``NotFoundError`` — a closed, substantive refusal, not a transport failure.
+        with self.assertRaises(NotFoundError) as caught:
+            self.pv.simulate(self.simulate_spec(vault_id="7e" * 32))
+        self.assertEqual(caught.exception.status, 404)
+        self.assertEqual(caught.exception.code, "VAULT_NOT_FOUND")
 
     def test_a_malformed_vault_id_never_reaches_the_wire(self):
         with self.assertRaises(ValidationError):

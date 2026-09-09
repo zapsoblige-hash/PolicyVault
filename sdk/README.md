@@ -48,7 +48,7 @@ is consumed in-repo (`server/`, `web/`, `tools/`, the test suites).
 Claim labels for this package, per the project's progress-reporting
 discipline: **DESIGNED + IMPLEMENTED + UNIT-TESTED + INTEGRATION-TESTED**
 (the client is exercised against a real spawned PolicyVault HTTP server).
-Not TESTNET-VERIFIED as a package, not externally reviewed, not audited.
+Not TESTNET-VERIFIED as a package.
 
 ### Packaging caveat (known, not yet resolved)
 
@@ -73,11 +73,11 @@ const client = createClient({
 });
 
 // 1. Ask the server what it can do — never assume a deployment's shape.
-const caps = await client.capabilities();
+const caps = await client.capabilities;
 console.log(caps.networkId, caps.contract.supportedCovenantVersions);
 
 // 2. Look around.
-const { vaults } = await client.listVaults();
+const { vaults } = await client.listVaults;
 
 // 3. DRY RUN before anything real (see "Dry-run first" below).
 const { simulation } = await client.simulate({
@@ -130,7 +130,7 @@ credential (`pvmk_…`) is sent as `Authorization: Bearer`.
   widen what tenancy already allows. Unmapped routes are **deny-by-default** —
   a route added later is unreachable by any machine identity until a human
   classifies it. Grant the smallest set that works;
-  `client.capabilities().scopes` lists them with descriptions.
+  `client.capabilities.scopes` lists them with descriptions.
 - `ownerPause` / `ownerRecover` additionally require `request:break-glass` on
   top of `request:build`. (An API-surface conservatism — the covenant's own
   owner-signature requirement is unaffected either way.)
@@ -197,7 +197,7 @@ What it does instead is make **your** retry safe. Hold the key, decide to
 retry, and reuse it:
 
 ```js
-let key = randomIdempotencyKey();
+let key = randomIdempotencyKey;
 for (let attempt = 0; attempt < 3; attempt++) {
   try {
     return await client.submitRequest(requestId, { idempotencyKey: key });
@@ -383,6 +383,33 @@ verifier) and `tokenExplain`. Token amounts are atomic-unit strings and are
 never KAS; the KAS fee reserve is a separate accounting domain end to end.
 The v0.5 covenant is VM-verified but not byte-frozen, not testnet-verified,
 and not deployed; unknown versions still fail closed everywhere.
+
+### v0.7 organizational M-of-N owner root (CANDIDATE — not production)
+
+Additive exports for the v0.7 ORGANIZATIONAL ROOT lineage
+(`docs/postlaunch/v0.7-organizational-root-design.md`):
+`CONTRACT_VERSION_V7_ROOT`, `CONTRACT_VERSION_V7`, `resolveV7RootAbi`,
+`resolveV7Abi`, and the namespaces `ownerSetV7`, `vaultStateV7Root`,
+`vaultStateV7`, `vaultTransitionsV7Root`, `vaultTransitionsV7`,
+`computeBudgetV7`, `contractCompilerV7`, `vaultBuildersV7`,
+`orgRootManifestV7` (the `policyvault-org-root-manifest/1` builder +
+deterministic local verifier) and `intentRouter` (fail-closed manifest
+version routing).
+
+The authority model in one line: **a rooted vault has no owner key.** An
+owner operation is valid only when the same transaction ALSO spends the
+organization's root covenant, whose own script proved M-of-N (or the lighter
+emergency quorum for a freeze), and the vault pins that root's exact
+successor bytes so it can tell which root path ran. A delegate spend never
+touches the root at all. Owner approvals are collected out of band into a
+fixed 780-byte slot blob, so the exact-fee freeze survives signature
+collection; approvals are bound to the root's outpoint and to the exact
+transaction (SIGHASH_ALL), and there is deliberately no expiry — spending the
+root outpoint is what invalidates every collected approval at once.
+
+Both v0.7 covenants are CANDIDATES: VM-verified and SDK/production-byte
+verified, **not** byte-frozen, **not** testnet-verified, **not** externally
+reviewed, and not deployed. Unknown versions still fail closed everywhere.
 
 ## Not exported (and why)
 

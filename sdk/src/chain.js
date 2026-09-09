@@ -74,7 +74,9 @@ function covenantAddress(config, scriptBytes) {
 /*
  * Fetch the UTXOs currently held by an address. Returns normalized
  * entries: { outpoint: {transactionId, index}, amount: BigInt,
- * scriptPublicKeyHex, covenantId|null, blockDaaScore }.
+ * scriptPublicKeyHex, covenantId|null, blockDaaScore, isCoinbase }.
+ * `isCoinbase` is the node's boolean when present and null when the RPC
+ * entry does not carry it (consumers that need it fail closed on null).
  */
 async function getAddressUtxos(rpc, address) {
   const response = await rpc.getUtxosByAddresses({ addresses: [address] });
@@ -91,7 +93,8 @@ async function getAddressUtxos(rpc, address) {
       amount: BigInt(utxo.amount),
       scriptPublicKeyHex: typeof scriptHexRaw === "string" ? scriptHexRaw.toLowerCase() : null,
       covenantId: utxo.covenantId ? String(utxo.covenantId).toLowerCase() : null,
-      blockDaaScore: utxo.blockDaaScore !== undefined ? BigInt(utxo.blockDaaScore) : null
+      blockDaaScore: utxo.blockDaaScore !== undefined ? BigInt(utxo.blockDaaScore) : null,
+      isCoinbase: typeof utxo.isCoinbase === "boolean" ? utxo.isCoinbase : null
     };
   });
 }

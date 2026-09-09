@@ -83,6 +83,27 @@ function vaultRoles(loaded) {
   } else if (loaded.version === "v1") {
     add(owner, m.template && m.template.owner);
     add(delegates, m.policy && m.policy.delegate);
+  } else if (loaded.version === "v5" || loaded.version === "v6") {
+    /* rc11 review F-04: v0.5 / v0.6 token controllers — a single on-chain
+     * owner (template.owner) plus the registered agent keys. */
+    add(owner, m.template && m.template.owner);
+    for (const entry of m.agentRegistry || []) add(agents, entry.policy ? entry.policy.agentPk : entry.agentPk);
+  } else if (loaded.version === "v7") {
+    /* v0.7 rooted vault: its OWNERS are the organizational root's active
+     * owner slots (see rootedVaultRoles, which resolves the root record);
+     * here only the vault-local agents are derivable. */
+    for (const entry of m.agentRegistry || []) add(agents, entry.policy ? entry.policy.agentPk : entry.agentPk);
+  } else if (loaded.version === "v7hd") {
+    /* v0.7-payment-hd candidate: every delegation-forest leaf key at every
+     * level is an agent participant; owners come from the root record. */
+    const walk = (nodes) => {
+      for (const node of nodes || []) {
+        add(agents, node && node.leaf && node.leaf.pk);
+        walk(node && node.kids);
+      }
+    };
+    const forest = m.forest;
+    walk(Array.isArray(forest) ? forest : forest && Array.isArray(forest.nodes) ? forest.nodes : []);
   }
   return { owner, agents, approvers, delegates };
 }
@@ -226,6 +247,136 @@ function requireOrgAccess(config, org, principal, need = "read") {
   return org;
 }
 
+/* ------------------------------------------------------------------ */
+/* rc11 internal security review F-04 (2026-09-04): ON-CHAIN ORGANIZATIONAL  */
+/* ROOTS and ROOTED VAULTS.                                                   */
+/*                                                                            */
+/* TENANT ROOT for an org root = the wallets the ROOT COVENANT ITSELF binds:  */
+/* the active owner slots of its CURRENT state (durable record, normalized     */
+/* through the shared core) plus the pinned successor key (read-only until a  */
+/* succession). A hosted /organizations role is NEVER consulted (hosted org   */
+/* != on-chain root). Rooted vaults inherit their OWNERS from the root and add */
+/* their own agent keys. Default deny; foreign objects are 404 (no oracle).   */
+/* ------------------------------------------------------------------ */
+
+const ZERO_KEY = "0".repeat(64);
+
+function xOnlyOfAddress(config, address) {
+  if (typeof address !== "string") return null;
+  try {
+    return require("../../sdk/src/address-identity").resolveAddressIdentity(config, address).xOnlyPubkey;
+  } catch {
+    return null;
+  }
+}
+
+/* Active owner slot keys + pinned successor of an ORG_ROOT record. */
+function orgRootParticipants(root) {
+  const owners = new Set();
+  const successor = new Set();
+  if (!root || typeof root !== "object") return { owners, successor, all: new Set() };
+  let listed = null;
+  try {
+    const { normalizeRootStateV7 } = require("../../core/model/vault-state-v7-root");
+    const { activeOwnerSlotsV7 } = require("../../core/model/owner-set-v7");
+    listed = activeOwnerSlotsV7(normalizeRootStateV7(root.state)).map((s) => s.publicKey);
+  } catch {
+    listed = null; // malformed durable state: fall back to the recorded slots only
+  }
+  const keys = listed !== null ? listed : (root.slots || []).map((s) => s && s.publicKey);
+  for (const k of keys) if (typeof k === "string" && /^[0-9a-f]{64}$/.test(k) && k !== ZERO_KEY) owners.add(k.toLowerCase());
+  const succ = root.template && root.template.successorPk;
+  if (typeof succ === "string" && /^[0-9a-f]{64}$/.test(succ) && succ !== ZERO_KEY) successor.add(succ.toLowerCase());
+  return { owners, successor, all: new Set([...owners, ...successor]) };
+}
+
+/* need: "read" (any participant) | "owner" (an ACTIVE owner slot). */
+function orgRootAccessAllowed(config, root, principal, need) {
+  if (!config.tenancyEnforced) return true;
+  if (!principal || !root) return false;
+  if (root.networkId !== undefined && root.networkId !== principal.networkId) return false;
+  const { owners, all } = orgRootParticipants(root);
+  return need === "owner" ? owners.has(principal.xOnlyPubkey) : all.has(principal.xOnlyPubkey);
+}
+
+/*
+ * ORG_ROOT_REQUEST access: any root participant, or the request's own creator
+ * (the genesis funder before the root record exists). Mutation (signature,
+ * slot-signature, finalize, submit, reject): an ACTIVE owner slot or the
+ * creator; the pinned successor only for a succession request.
+ */
+function orgRootRequestAccessAllowed(config, request, root, principal) {
+  if (!config.tenancyEnforced) return true;
+  if (!principal || !request) return false;
+  const creator = xOnlyOfAddress(config, request.createdBy ?? request.signerAddress);
+  if (creator && creator === principal.xOnlyPubkey) return true;
+  return root ? orgRootAccessAllowed(config, root, principal, "read") : false;
+}
+function orgRootRequestMutationAllowed(config, request, root, principal) {
+  if (!config.tenancyEnforced) return true;
+  if (!principal || !request) return false;
+  const creator = xOnlyOfAddress(config, request.createdBy ?? request.signerAddress);
+  if (creator && creator === principal.xOnlyPubkey) return true;
+  if (!root) return false;
+  const { owners, successor } = orgRootParticipants(root);
+  if (owners.has(principal.xOnlyPubkey)) return true;
+  return request.action === "succession" && successor.has(principal.xOnlyPubkey);
+}
+
+function requireOrgRootAccess(config, root, principal, need = "read") {
+  if (!root) throw tenancyError("ROOT_NOT_FOUND", "no such organizational root", 404);
+  if (!orgRootAccessAllowed(config, root, principal, need)) {
+    if (need === "owner" && orgRootAccessAllowed(config, root, principal, "read")) {
+      throw tenancyError("NOT_AN_ACTIVE_SLOT", "this action requires an active owner slot of the organizational root", 403);
+    }
+    throw tenancyError("ROOT_NOT_FOUND", "no such organizational root", 404);
+  }
+  return root;
+}
+
+/*
+ * ROOTED VAULT roles (v7 / v7hd): owners = the root's active slots (durable
+ * root record resolved by covenant id), agents = the vault's own registry /
+ * forest leaves. Returns the same shape as vaultRoles plus the root.
+ */
+async function rootedVaultRoles(config, loaded) {
+  const roles = vaultRoles(loaded);
+  let root = null;
+  const rootId = loaded && loaded.manifest && loaded.manifest.orgRootCovenantId;
+  if (typeof rootId === "string") {
+    try {
+      root = await require("../../sdk/src/wallet-requests-v7").loadOrgRoot(config, rootId);
+    } catch {
+      root = null;
+    }
+  }
+  if (root) for (const k of orgRootParticipants(root).owners) roles.owner.add(k);
+  return { ...roles, root };
+}
+
+/* Vault access for a loaded manifest of ANY generation (async because rooted
+ * vaults resolve their root). need: "read" | "owner" | "build". */
+async function anyVaultAccessAllowed(config, loaded, principal, need) {
+  if (!config.tenancyEnforced) return true;
+  if (!principal || !loaded) return false;
+  if (loaded.manifest && loaded.manifest.networkId !== undefined && loaded.manifest.networkId !== principal.networkId) return false;
+  const roles = loaded.version === "v7" || loaded.version === "v7hd" ? await rootedVaultRoles(config, loaded) : vaultRoles(loaded);
+  const key = principal.xOnlyPubkey;
+  if (need === "owner") return roles.owner.has(key);
+  if (need === "build") return roles.owner.has(key) || roles.agents.has(key) || roles.delegates.has(key);
+  return roles.owner.has(key) || roles.agents.has(key) || roles.approvers.has(key) || roles.delegates.has(key);
+}
+
+async function requireAnyVaultAccess(config, loaded, principal, need = "read") {
+  if (!loaded) throw tenancyError("VAULT_NOT_FOUND", "no such vault", 404);
+  if (!(await anyVaultAccessAllowed(config, loaded, principal, need))) {
+    const known = await anyVaultAccessAllowed(config, loaded, principal, "read");
+    if (need !== "read" && known) throw tenancyError("VAULT_FORBIDDEN", need === "owner" ? "owner action requires the vault owner wallet" : "this wallet holds no build authority on this vault", 403);
+    throw tenancyError("VAULT_NOT_FOUND", "no such vault", 404);
+  }
+  return loaded;
+}
+
 module.exports = {
   vaultRoles,
   vaultParticipants,
@@ -235,5 +386,14 @@ module.exports = {
   requestMutationAllowed,
   requireVaultAccess,
   requireOrgAccess,
-  tenancyError
+  tenancyError,
+  orgRootParticipants,
+  orgRootAccessAllowed,
+  orgRootRequestAccessAllowed,
+  orgRootRequestMutationAllowed,
+  requireOrgRootAccess,
+  rootedVaultRoles,
+  anyVaultAccessAllowed,
+  requireAnyVaultAccess,
+  xOnlyOfAddress
 };

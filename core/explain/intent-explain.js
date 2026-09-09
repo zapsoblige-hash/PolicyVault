@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet } = require("../model/own-get");
 
 /*
  * PolicyVault Transaction Intent Manifest — EXPLANATIONS (v1).
@@ -532,7 +533,7 @@ function structured(input) {
       return {
         index,
         kind,
-        destinationKind: OUTPUT_DESTINATIONS[kind],
+        destinationKind: ownGet(OUTPUT_DESTINATIONS, kind),
         destinationXOnly,
         value,
         description: outputDescription(kind, value.kas, destinationXOnly)

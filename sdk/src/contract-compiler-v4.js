@@ -1,4 +1,5 @@
 "use strict";
+const { enforceBuildCacheBound, minimizeArtifactFile, touchCacheEntry } = require("./build-cache");
 
 /*
  * Exact live-state compiler for the PolicyVault v0.4 covenant (FROZEN ABI).
@@ -154,7 +155,11 @@ function compileExactStateV4({ config, template, state, contractVersion }) {
   writeExactOrAssert(argsPath, argsJson);
 
   if (!fs.existsSync(artifactPath)) {
+    enforceBuildCacheBound(config, { keep: buildDir }); // F-03: bounded cache, LRU eviction, never ENOSPC
     runSilverc({ silvercPath: config.silvercPath, sourcePath, constructorArgsPath: argsPath, outputPath: artifactPath });
+    minimizeArtifactFile(artifactPath, config); // F-03: keep only what consumers read (script/state_layout/name/version)
+  } else {
+    touchCacheEntry(artifactPath);
   }
 
   let artifact;

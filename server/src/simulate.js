@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet } = require("../../core/model/own-get");
 
 /*
  * Dry-run / simulation for v0.4 wallet-request building (completion-
@@ -37,7 +38,6 @@ const { loadManifestV4 } = require("../../sdk/src/manifest-v4");
 const { resolveV4Abi, stateToJsonV4 } = require("../../sdk/src/vault-state-v4");
 const { buildV4Transaction } = require("../../sdk/src/vault-builders-v4");
 const { resolveAddressIdentity, requiredAddressPrefix } = require("../../sdk/src/address-identity");
-const { sompiToKas } = require("../../sdk/src/amounts");
 const wr4 = require("../../sdk/src/wallet-requests-v4");
 const { deriveAndVerify } = require("../../core/intent/bridge/derive");
 const { HIGH_LEVEL_TO_SDK } = require("../../core/intent");
@@ -56,35 +56,18 @@ function fail(status, code, message) {
   return e;
 }
 
-/* Same structured summary shape as wallet-requests-v4.js reviewForBuild,
- * reconstructed here from the SAME build.accounting the real path uses
- * (that function itself is not exported — see the file header). Purely a
- * KAS-formatting presenter; no financial arithmetic happens here. */
-function reviewFromBuild(build) {
-  const acc = build.accounting;
-  const out = {
-    feeKas: sompiToKas(BigInt(acc.fee)),
-    feeSompi: acc.fee,
-    computeBudget: build.computeBudget,
-    protectedBeforeKas: sompiToKas(BigInt(acc.predecessorProtected)),
-    reserveBeforeKas: sompiToKas(BigInt(acc.predecessorFeeReserve))
-  };
-  if (!build.successorState) {
-    out.terminal = "VAULT CLOSED — protected value + fee reserve return to the owner wallet";
-    out.recoveredKas = sompiToKas(BigInt(acc.terminalPayout));
-    out.protectedAfterKas = "0";
-    out.reserveAfterKas = "0";
-  } else {
-    out.protectedAfterKas = sompiToKas(BigInt(acc.successorProtected));
-    out.reserveAfterKas = sompiToKas(BigInt(acc.successorFeeReserve));
-    out.reserveConsumedKas = sompiToKas(BigInt(acc.reserveConsumed));
-    out.externalFuelKas = sompiToKas(BigInt(acc.externalIn));
-  }
-  if (build.payment) {
-    out.paymentKas = sompiToKas(BigInt(build.payment.value));
-    out.fundingMode = build.hasFuelInput ? "FUEL-FUNDED" : "RESERVE-FUNDED";
-  }
-  return out;
+/*
+ * G6 (docs/postlaunch/hybrid-core-gap-analysis.md): this used to be a
+ * hand-maintained re-statement of wallet-requests-v4.js's reviewForBuild,
+ * field for field, because that function was not exported — a genuine
+ * duplication risk (the dry run and the real request path could drift in
+ * what they show a human). reviewForBuild is now exported and called
+ * directly: the simulation's `review` field is the SAME presenter the
+ * real request path uses, over the SAME build.accounting, so there is
+ * exactly one implementation to keep correct. Purely a KAS-formatting
+ * presenter; no financial arithmetic happens here or there. */
+function reviewFromBuild(config, manifest, build) {
+  return wr4.reviewForBuild(config, manifest, build);
 }
 
 /*
@@ -114,7 +97,7 @@ async function simulateWalletRequestV4(config, { vaultId, action, params, signer
     resolveV4Abi(manifest.contractVersion); // fails closed on a non-v0.4-family contract
     if (!manifest.live) throw fail(422, "VAULT_TERMINAL", `vault is ${manifest.status} (closed) — it is read-only history and accepts no further operations`);
 
-    const requiredRole = wr4.ROLE_BY_ACTION[action];
+    const requiredRole = ownGet(wr4.ROLE_BY_ACTION, action); // own-property only (F-05)
     if (!requiredRole) throw fail(422, "BUILD_FAILED", `unknown action ${action} — failing closed`);
 
     // Instant hosted-layer suspend (surface 21 residual): the dry run
@@ -173,7 +156,7 @@ async function simulateWalletRequestV4(config, { vaultId, action, params, signer
         }
         const intent = buildRiskIntent({
           config, vaultId, action, params: safeParams, signerAddress, signerXOnly: signerXOnlyForRisk,
-          sdkAction: HIGH_LEVEL_TO_SDK[action] ?? action
+          sdkAction: ownGet(HIGH_LEVEL_TO_SDK, action) ?? action
         });
         const adapters = buildAdaptersFromConfig(controls.risk);
         const composeConfig = {
@@ -232,7 +215,7 @@ async function simulateWalletRequestV4(config, { vaultId, action, params, signer
       ok: true,
       governance: governanceReport,
       risk: riskReport,
-      review: reviewFromBuild(build),
+      review: reviewFromBuild(config, manifest, build),
       intent: {
         manifestHash: intentManifest.manifestHash,
         verdict: verification.verdict,

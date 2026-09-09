@@ -92,19 +92,21 @@ test("migrations 001..007 apply in order exactly once; idempotent re-run; future
   // docs/postlaunch/webhooks-events-spec.md) joined the migration set, and
   // 007_agent_suspensions.sql (hosted-layer agent suspend — fullscale
   // surface 21 residual; docs/postlaunch/hosted-agent-suspend.md) after
-  // them; this count is a mechanical fact about the build, updated for
-  // that reason only.
-  assert.deepEqual(files.map((m) => m.version), [1, 2, 3, 4, 5, 6, 7, 8, 9], "this build ships migrations 001..009 (008 = audit chain, 009 = notifications)");
+  // them, then 008 (audit chain) / 009 (notifications) / 010 (MCP usage
+  // telemetry, config-gated OFF) / 011 (v0.7 ON-CHAIN ORGANIZATIONAL ROOT
+  // records — org_roots + org_root_requests, Wave 2 Track B); this count
+  // is a mechanical fact about the build, updated for that reason only.
+  assert.deepEqual(files.map((m) => m.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], "this build ships migrations 001..011 (008 = audit chain, 009 = notifications, 010 = MCP usage telemetry, 011 = v0.7 org roots)");
 
   const first = await pool.query("SELECT version, name, checksum FROM schema_migrations ORDER BY version");
-  assert.deepEqual(first.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(first.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.equal(first.rows[0].name, "001_initial_hosted_schema.sql");
   assert.equal(first.rows[0].checksum, files[0].checksum, "001's recorded checksum equals the frozen file's bytes");
 
   // re-run: no-op, nothing re-applied, applied_at rows unchanged in count
   await runMigrations(pool);
   const second = await pool.query("SELECT count(*)::int AS n FROM schema_migrations");
-  assert.equal(second.rows[0].n, 9);
+  assert.equal(second.rows[0].n, 11);
   await assertSchemaCurrent(pool); // no throw
 
   // future-version discipline unchanged
@@ -220,11 +222,17 @@ test("MANDATORY live-PG regression: intent manifest write -> jsonb read -> canon
   });
 
   const { handle } = require("../../server/src/api");
+  // F-03 (rc11 review): a hosted build requires a principal with build authority — the agent signs in.
+  const kaspaMod = require(config.rustyKaspaModule);
+  const ch = await handle(config, "POST", ["auth", "challenge"], {}, { walletAddress: ADDR(agentA) }, {});
+  const sig = kaspaMod.signMessage({ message: ch.body.challenge.message, privateKey: agentA.toString() });
+  const verified = await handle(config, "POST", ["auth", "verify"], {}, { nonce: ch.body.challenge.nonce, signature: sig, publicKey: agentA.toPublicKey().toString().toLowerCase() }, {});
+  const agentCookie = verified.headers["Set-Cookie"].split(";")[0];
   const built = await handle(config, "POST", ["wallet", "v4", "requests"], {}, {
     vaultId: VAULT_ID, action: "agentSpend",
     params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) },
     signerAddress: ADDR(agentA)
-  });
+  }, { headers: { cookie: agentCookie } });
   assert.equal(built.status, 201);
   const manifestHash = built.body.request.manifestHash;
   assert.match(manifestHash, /^[0-9a-f]{64}$/);

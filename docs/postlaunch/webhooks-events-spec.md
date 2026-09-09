@@ -88,7 +88,7 @@ the mutation.
 | `request.rejected` | action, state | the signer declined in the wallet / cancelled |
 
 **There is deliberately NO "submitted but unproven" success event.**
-`submitTransaction()` returning is not success in PolicyVault; the event
+`submitTransaction` returning is not success in PolicyVault; the event
 stream refuses to claim an unproven broadcast. A crash-after-broadcast
 surfaces later through reconciliation (`vault.reconciled`). Legacy v0.2
 routes emit no events (documented limitation; poll `/audit` for those).
@@ -227,16 +227,16 @@ secret you hold. Reference implementation (tested):
 ```js
 const crypto = require("crypto");
 function verifyPolicyVaultWebhook({ header, rawBody, secret,
-    nowSeconds = Math.floor(Date.now() / 1000), toleranceSeconds = 300 }) {
+    nowSeconds = Math.floor(Date.now / 1000), toleranceSeconds = 300 }) {
   let version = null, timestamp = null; const signatures = [];
   for (const part of String(header ?? "").split(",")) {
     const eq = part.indexOf("="); if (eq < 1) return { ok: false, reason: "MALFORMED_HEADER" };
-    const k = part.slice(0, eq).trim(), v = part.slice(eq + 1).trim();
+    const k = part.slice(0, eq).trim, v = part.slice(eq + 1).trim;
     if (k === "v") version = v; else if (k === "t") timestamp = v; else if (k === "s") signatures.push(v);
   }
   if (version !== "pv1") return { ok: false, reason: "UNSUPPORTED_SCHEME" };
   if (!/^\d{1,12}$/.test(timestamp ?? "") || !signatures.length) return { ok: false, reason: "MALFORMED_HEADER" };
-  const expected = crypto.createHmac("sha256", secret).update(`${timestamp}.${rawBody}`, "utf8").digest();
+  const expected = crypto.createHmac("sha256", secret).update(`${timestamp}.${rawBody}`, "utf8").digest;
   const matched = signatures.some((s) => /^[0-9a-f]{64}$/.test(s) &&
     crypto.timingSafeEqual(Buffer.from(s, "hex"), expected));
   if (!matched) return { ok: false, reason: "SIGNATURE_MISMATCH" };

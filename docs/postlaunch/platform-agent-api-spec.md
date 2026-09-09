@@ -2,7 +2,7 @@
 # discovery, versioned schemas, origin policy
 
 Status: IMPLEMENTED + UNIT/INTEGRATION-TESTED (real `server/src/api.js`
-`handle()`, real HTTP server for the origin-policy properties, real
+`handle`, real HTTP server for the origin-policy properties, real
 PostgreSQL for backend parity). Not yet TESTNET-VERIFIED or subjected to
 a dedicated hostile-AI-agent/prompt-injection review (completion-standard
 surface 26, out of this worker's scope). Covers `FULLSCALE_COMPLETION_
@@ -110,7 +110,7 @@ never mint, widen, or revoke its own or a sibling's authority.
 
 ### 1.4 Enforcement point
 
-`server/src/api.js` `handle()` resolves the principal once
+`server/src/api.js` `handle` resolves the principal once
 (`requestAuthPrincipal`, extended — see §6) and, ONLY when it is a
 machine principal, checks the wallet-session-only exclusion and the
 required scope list BEFORE calling `dispatchRoute` (the renamed, byte-
@@ -233,7 +233,7 @@ wherever a real exported constant already exists rather than retyped as
 prose: `apiVersion` (`api-version.js`), `contract.supportedCovenantVersions`
 (`core/intent` `SUPPORTED_COVENANT_VERSIONS`), `actions.v4` (`sdk/src/
 wallet-requests-v4.js` `ROLE_BY_ACTION`, literally enumerated), `scopes`
-(`scopes.js` `SCOPES`, the SAME array `handle()` enforces against),
+(`scopes.js` `SCOPES`, the SAME array `handle` enforces against),
 `schemas` (every schemaVersion string this build understands), `limits`
 (the live `config.requestProtection` rate limits/quotas/semaphores), and
 `features` (booleans computed from the live config — e.g.
@@ -345,7 +345,7 @@ consequence of adding a real new migration.
 ## 9. Claim labels
 
 DESIGNED + IMPLEMENTED + UNIT-TESTED + INTEGRATION-PROVEN (real
-`handle()`, real HTTP server, real PostgreSQL where applicable). NOT
+`handle`, real HTTP server, real PostgreSQL where applicable). NOT
 TESTNET-VERIFIED. NOT independently reviewed for hostile-AI-agent/
 prompt-injection concerns (completion-standard surface 26 — out of this
 worker's scope; note for whichever surface owns it: this surface's

@@ -46,7 +46,13 @@ const Categories = Object.freeze({
    * server/src/audit-chain.js). key = "head" — one record per network/
    * data root. An append-time anchor + truncation tripwire; the chained
    * audit records themselves are the verification truth. */
-  AUDIT_CHAIN: "platform-audit-chain"
+  AUDIT_CHAIN: "platform-audit-chain",
+  /* MCP usage telemetry (Track 7; migration 010; server/src/
+   * mcp-telemetry.js). key = eventId (uuid) — CREATE-ONLY, one row per
+   * recorded MCP-tool-shaped invocation. Config-gated OFF by default;
+   * see mcp-telemetry.js for the closed event schema and privacy
+   * contract (never credentials, keys, signatures, or bodies). */
+  MCP_TELEMETRY_EVENT: "platform-mcp-telemetry-event"
 });
 
 const CATEGORY_DIR = Object.freeze({
@@ -54,7 +60,8 @@ const CATEGORY_DIR = Object.freeze({
   [Categories.MACHINE_CREDENTIAL]: "credentials",
   [Categories.IDEMPOTENCY]: "idempotency",
   [Categories.AGENT_SUSPENSION]: "agent-suspensions",
-  [Categories.AUDIT_CHAIN]: "audit-chain"
+  [Categories.AUDIT_CHAIN]: "audit-chain",
+  [Categories.MCP_TELEMETRY_EVENT]: "mcp-telemetry-events"
 });
 
 const CATEGORY_TABLE = Object.freeze({
@@ -62,7 +69,8 @@ const CATEGORY_TABLE = Object.freeze({
   [Categories.MACHINE_CREDENTIAL]: "machine_credentials",
   [Categories.IDEMPOTENCY]: "idempotency_records",
   [Categories.AGENT_SUSPENSION]: "agent_suspensions",
-  [Categories.AUDIT_CHAIN]: "audit_chain_state"
+  [Categories.AUDIT_CHAIN]: "audit_chain_state",
+  [Categories.MCP_TELEMETRY_EVENT]: "mcp_telemetry_events"
 });
 
 class PlatformStoreError extends Error {

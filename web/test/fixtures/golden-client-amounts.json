@@ -1,0 +1,392 @@
+{
+  "schema": "policyvault-web-client-amounts-golden/1",
+  "capturedFrom": "the ORIGINAL web/app.js + web/app-v4.js client parsers, before the canonical-amounts migration",
+  "originalSources": {
+    "web/app.js:promptSompi": {
+      "sha256": "285aef24665e35f18435f0751191beee78316fda4ac3134b54591bdf0b866979",
+      "bytes": 290,
+      "usesFloatingPoint": true
+    },
+    "web/app.js:promptCheck": {
+      "sha256": "3035fd4782f9536232707508a0786f6b387e032a5f49c3862b190c30b9b3a82e",
+      "bytes": 218,
+      "usesFloatingPoint": true
+    },
+    "web/app-v4.js:kasToSompiClient": {
+      "sha256": "befcbceeecddcaf344d68f3223bd1753b3bc93e426f35a8b8711f65c9ed50f66",
+      "bytes": 330,
+      "usesFloatingPoint": false
+    }
+  },
+  "vectors": [
+    {
+      "input": "1",
+      "originalPrompt": "100000000",
+      "originalKasToSompiClient": "100000000",
+      "canonical": {
+        "ok": true,
+        "value": "100000000"
+      }
+    },
+    {
+      "input": "0",
+      "originalPrompt": null,
+      "originalKasToSompiClient": "0",
+      "canonical": {
+        "ok": true,
+        "value": "0"
+      }
+    },
+    {
+      "input": "0.1",
+      "originalPrompt": "10000000",
+      "originalKasToSompiClient": "10000000",
+      "canonical": {
+        "ok": true,
+        "value": "10000000"
+      }
+    },
+    {
+      "input": "1.5",
+      "originalPrompt": "150000000",
+      "originalKasToSompiClient": "150000000",
+      "canonical": {
+        "ok": true,
+        "value": "150000000"
+      }
+    },
+    {
+      "input": "1.23456789",
+      "originalPrompt": "123456789",
+      "originalKasToSompiClient": "123456789",
+      "canonical": {
+        "ok": true,
+        "value": "123456789"
+      }
+    },
+    {
+      "input": "12",
+      "originalPrompt": "1200000000",
+      "originalKasToSompiClient": "1200000000",
+      "canonical": {
+        "ok": true,
+        "value": "1200000000"
+      }
+    },
+    {
+      "input": "0.00000001",
+      "originalPrompt": "1",
+      "originalKasToSompiClient": "1",
+      "canonical": {
+        "ok": true,
+        "value": "1"
+      }
+    },
+    {
+      "input": "100000000",
+      "originalPrompt": "10000000000000000",
+      "originalKasToSompiClient": "10000000000000000",
+      "canonical": {
+        "ok": true,
+        "value": "10000000000000000"
+      }
+    },
+    {
+      "input": "21000000",
+      "originalPrompt": "2100000000000000",
+      "originalKasToSompiClient": "2100000000000000",
+      "canonical": {
+        "ok": true,
+        "value": "2100000000000000"
+      }
+    },
+    {
+      "input": "1.00000000",
+      "originalPrompt": "100000000",
+      "originalKasToSompiClient": "100000000",
+      "canonical": {
+        "ok": true,
+        "value": "100000000"
+      }
+    },
+    {
+      "input": "007",
+      "originalPrompt": "700000000",
+      "originalKasToSompiClient": "700000000",
+      "canonical": {
+        "ok": true,
+        "value": "700000000"
+      }
+    },
+    {
+      "input": "0.10000000",
+      "originalPrompt": "10000000",
+      "originalKasToSompiClient": "10000000",
+      "canonical": {
+        "ok": true,
+        "value": "10000000"
+      }
+    },
+    {
+      "input": "999999999",
+      "originalPrompt": "99999999900000000",
+      "originalKasToSompiClient": "99999999900000000",
+      "canonical": {
+        "ok": true,
+        "value": "99999999900000000"
+      }
+    },
+    {
+      "input": " 1.5 ",
+      "originalPrompt": "150000000",
+      "originalKasToSompiClient": "150000000",
+      "canonical": {
+        "ok": true,
+        "value": "150000000"
+      }
+    },
+    {
+      "input": "1.",
+      "originalPrompt": "100000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1.\""
+      }
+    },
+    {
+      "input": ".5",
+      "originalPrompt": "50000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \".5\""
+      }
+    },
+    {
+      "input": "1.123456789",
+      "originalPrompt": "112345679",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1.123456789\""
+      }
+    },
+    {
+      "input": "-1",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"-1\""
+      }
+    },
+    {
+      "input": "+1",
+      "originalPrompt": "100000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"+1\""
+      }
+    },
+    {
+      "input": "1e3",
+      "originalPrompt": "100000000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1e3\""
+      }
+    },
+    {
+      "input": "1E3",
+      "originalPrompt": "100000000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1E3\""
+      }
+    },
+    {
+      "input": "0x10",
+      "originalPrompt": "1600000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"0x10\""
+      }
+    },
+    {
+      "input": "1_000",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1_000\""
+      }
+    },
+    {
+      "input": "NaN",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"NaN\""
+      }
+    },
+    {
+      "input": "Infinity",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"Infinity\""
+      }
+    },
+    {
+      "input": "-Infinity",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"-Infinity\""
+      }
+    },
+    {
+      "input": "",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"\""
+      }
+    },
+    {
+      "input": " ",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \" \""
+      }
+    },
+    {
+      "input": "1,5",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1,5\""
+      }
+    },
+    {
+      "input": "1.5e2",
+      "originalPrompt": "15000000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1.5e2\""
+      }
+    },
+    {
+      "input": "0.1000000000000000055511151231257827",
+      "originalPrompt": "10000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"0.1000000000000000055511151231257827\""
+      }
+    },
+    {
+      "input": "9007199254740993",
+      "originalPrompt": "900719925474099200000000",
+      "originalKasToSompiClient": "900719925474099300000000",
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount exceeds maximum representable sompi"
+      }
+    },
+    {
+      "input": "90071992547.40993",
+      "originalPrompt": "9007199254740993024",
+      "originalKasToSompiClient": "9007199254740993000",
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount exceeds maximum representable sompi"
+      }
+    },
+    {
+      "input": "29000000000",
+      "originalPrompt": "2900000000000000000",
+      "originalKasToSompiClient": "2900000000000000000",
+      "canonical": {
+        "ok": true,
+        "value": "2900000000000000000"
+      }
+    },
+    {
+      "input": "29000000001",
+      "originalPrompt": "2900000000099999744",
+      "originalKasToSompiClient": "2900000000100000000",
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount exceeds maximum representable sompi"
+      }
+    },
+    {
+      "input": "1000000000000",
+      "originalPrompt": "100000000000000000000",
+      "originalKasToSompiClient": "100000000000000000000",
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount exceeds maximum representable sompi"
+      }
+    },
+    {
+      "input": "٣",
+      "originalPrompt": null,
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"٣\""
+      }
+    },
+    {
+      "input": " 1.5",
+      "originalPrompt": "150000000",
+      "originalKasToSompiClient": "150000000",
+      "canonical": {
+        "ok": true,
+        "value": "150000000"
+      }
+    },
+    {
+      "input": "0.000000001",
+      "originalPrompt": "0",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"0.000000001\""
+      }
+    },
+    {
+      "input": "00.5",
+      "originalPrompt": "50000000",
+      "originalKasToSompiClient": "50000000",
+      "canonical": {
+        "ok": true,
+        "value": "50000000"
+      }
+    },
+    {
+      "input": "1.0000000000",
+      "originalPrompt": "100000000",
+      "originalKasToSompiClient": null,
+      "canonical": {
+        "ok": false,
+        "error": "amounts: amount is not a valid KAS decimal string: \"1.0000000000\""
+      }
+    }
+  ]
+}

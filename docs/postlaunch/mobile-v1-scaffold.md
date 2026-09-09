@@ -6,7 +6,7 @@ Android device or simulator has executed this payload, no App Store or
 Play submission has been prepared, and no signing transport is functional
 end to end. Per-piece claim labels are in §1 and the honest
 verified/unverified split is in §5. Nothing here is TESTNET-VERIFIED,
-PRODUCTION-HARDENED, EXTERNALLY REVIEWED, or AUDITED.
+PRODUCTION-HARDENED, or HUMAN-ACCEPTED.
 
 This implements wave M0–M1 (partial) of
 `docs/postlaunch/mobile-architecture-decision.md`, which remains the

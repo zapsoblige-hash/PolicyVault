@@ -169,10 +169,35 @@
       keys = SIGNING_REQUEST_KEYS;
     }
 
+    /* The emitted TEXT is what actually crosses the gap, so it is
+     * serialized from the document DIRECTLY — never through a
+     * JSON.stringify replacer ARRAY. A replacer array filters property
+     * names at EVERY nesting level, so passing the document's closed key
+     * list silently stripped `index` and `sighashType` out of each
+     * `signInputs` entry and shipped `signInputs: [{}]` to the offline
+     * signer. That is precisely the defect class recorded in
+     * core/signer/interface.js (a reconstructed signing entry without
+     * sighashType), and the offline signer refuses such a document —
+     * fail-closed, but a broken flow.
+     *
+     * The closed key set and its fixed order come from the object literal
+     * above; they are ASSERTED here rather than imposed by a serializer
+     * trick, so a future edit that adds or reorders a key is caught
+     * instead of being silently filtered away. */
+    var emitted = Object.keys(doc);
+    if (emitted.length !== keys.length) {
+      return fail("AIRGAP_DOCUMENT_INVALID", "the signing document does not carry exactly the offline signer's closed key set — refusing");
+    }
+    for (var ki = 0; ki < keys.length; ki++) {
+      if (emitted[ki] !== keys[ki]) {
+        return fail("AIRGAP_DOCUMENT_INVALID", "the signing document's key order drifted from the offline signer's closed schema — refusing");
+      }
+    }
+
     return {
       ok: true,
       document: doc,
-      documentText: JSON.stringify(doc, keys, 2) + "\n",
+      documentText: JSON.stringify(doc, null, 2) + "\n",
       unsignedSafeJson: unsignedSafeJson,
       txId: txId.value
     };

@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "policyvault-testnet-v7-http-e2e-evidence/1",
+  "dryRun": false,
+  "networkId": "testnet-10",
+  "startedAt": "2026-09-03T17:11:48.819Z",
+  "steps": [
+    {
+      "step": "root-genesis-built",
+      "at": "2026-09-03T17:11:49.830Z",
+      "requestId": "b7bd748b-68f0-4c56-9bda-55b6098836e2",
+      "rootCovenantId": "dac3d1724b412641b30d921e37a3cd93e373f2c1edcd102feabf9613b01990ed"
+    },
+    {
+      "step": "root-genesis-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:11:51.884Z",
+      "txId": "08ead12f4b1601635ff65774dd5644555b20b391d04199e4a8a2244b82cf1700"
+    },
+    {
+      "step": "reconcile-after-root-genesis",
+      "at": "2026-09-03T17:11:51.889Z",
+      "root": {
+        "status": "CONSISTENT",
+        "rootCovenantId": "dac3d1724b412641b30d921e37a3cd93e373f2c1edcd102feabf9613b01990ed"
+      },
+      "vaults": []
+    },
+    {
+      "step": "kcc20-issuance-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:11:53.902Z",
+      "txId": "6534a5c2528488cc0afcbe6345bc9b3ab4b836202987c80ef019141a05baa34f",
+      "tokenCovenantId": "d2ba0f708c9b3cd7ff1caee54bbca8a6f1d513a49557f529a82bab3a30c7ed11",
+      "supply": "100000"
+    },
+    {
+      "step": "rooted-vault-genesis-built",
+      "at": "2026-09-03T17:11:54.573Z",
+      "requestId": "09cd92ad-bb2c-45b1-9c38-e8e0320109c8"
+    },
+    {
+      "step": "rooted-vault-genesis-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:11:56.626Z",
+      "txId": "df140fdc59e5d72899debf92d14d3d2e4b89304e87b6edef5a18be53454980cd",
+      "vaultId": "0633c8bcba4fe2e72afd85b49e23f5110b0ecae5e08c1a4e70f428403d598864"
+    },
+    {
+      "step": "deposit-built",
+      "at": "2026-09-03T17:11:56.761Z",
+      "requestId": "615b9e62-176d-426f-b5df-fe7057d3bb39"
+    },
+    {
+      "step": "deposit-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:11:58.877Z",
+      "txId": "142f75d8e8de5b9d1047503a2796c7d1de4dd17c6215454233bc47efe2da8bb4"
+    },
+    {
+      "step": "delegate-spend-built",
+      "at": "2026-09-03T17:12:00.200Z",
+      "requestId": "b58c5863-0a20-4001-b385-984af25b87a3",
+      "vaultCovenantId": "1842e9e99f09ce480035c90da31b6e64a3a28508e689955f6520abd21b916b7e"
+    },
+    {
+      "step": "delegate-spend-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:12:02.884Z",
+      "txId": "dc0dffc657622d19fca84cec4261d98ca2829fa0461ce4474580b188979c0ea7"
+    },
+    {
+      "step": "owner-op-built",
+      "at": "2026-09-03T17:12:06.080Z",
+      "requestId": "7f14005e-4743-43eb-b201-9d006c283a8c",
+      "requiredApprovals": "2"
+    },
+    {
+      "step": "owner-op-2-of-3-signed",
+      "at": "2026-09-03T17:12:06.112Z",
+      "slot1": "kaspatest:qpsrtr2tmw54nu5ee6n8xhj2lgm8tvxgccjqpxv3dvtyz8s3r3qhsuhe6a7uk",
+      "slot2Remote": "kaspatest:qq8psftwlcr3j6tdrs5v4sdulwds0dym98rsa0ua2n8ugu8kkc67u2relrvkd"
+    },
+    {
+      "step": "owner-op-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:12:09.747Z",
+      "txId": "8028bae102dc26e32c0f715a2547959d5e1728fe2b951973a662411c20eece85"
+    },
+    {
+      "step": "emergency-freeze-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:12:14.698Z",
+      "txId": "2da46baa93d137e44271a90e058fbae8cbee18372e99550ffc1ffac2331916bf"
+    },
+    {
+      "step": "unfreeze-CHAIN_VERIFIED",
+      "at": "2026-09-03T17:12:19.628Z",
+      "txId": "7df379061e804c17ccc549f4e92bb211cdc3ca407a06f6426a549b345b4ca857"
+    },
+    {
+      "step": "final-reconcile",
+      "at": "2026-09-03T17:12:19.636Z",
+      "root": {
+        "status": "CONSISTENT",
+        "rootCovenantId": "dac3d1724b412641b30d921e37a3cd93e373f2c1edcd102feabf9613b01990ed"
+      },
+      "vaults": [
+        {
+          "status": "CONSISTENT",
+          "vaultId": "0633c8bcba4fe2e72afd85b49e23f5110b0ecae5e08c1a4e70f428403d598864"
+        }
+      ]
+    }
+  ],
+  "node": {
+    "rpcUrl": "ws://127.0.0.1:18210",
+    "networkId": "testnet-10",
+    "isSynced": true,
+    "hasUtxoIndex": true
+  },
+  "verdict": "LIVE_PASS",
+  "rootCovenantId": "dac3d1724b412641b30d921e37a3cd93e373f2c1edcd102feabf9613b01990ed",
+  "vaultId": "0633c8bcba4fe2e72afd85b49e23f5110b0ecae5e08c1a4e70f428403d598864"
+}

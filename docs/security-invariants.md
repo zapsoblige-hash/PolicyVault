@@ -72,7 +72,7 @@ PolicyVault software (defense in depth, not the security boundary).
 
 Every invariant carries a status label that never collapses:
 DESIGNED → IMPLEMENTED → UNIT-TESTED → VM-VERIFIED → TESTNET-VERIFIED →
-PRODUCTION-HARDENED → EXTERNALLY REVIEWED → AUDITED.
+PRODUCTION-HARDENED → INTERNALLY-REVIEWED → HUMAN-ACCEPTED.
 
 Current status: all invariants **DESIGNED** (2026-08-11).
 

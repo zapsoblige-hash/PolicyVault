@@ -29,7 +29,7 @@ interface is not shaped around KasWare:
 | Consent | human clicks per request | operator invocation of the command IS the approval |
 | Key custody | extension keyring | operator's local keyfile (mode 600) |
 | Transport | in-page provider calls | local files in / JSON out; **no network I/O at all** |
-| Discovery | provider injection | keyfile presence (`detect()`) |
+| Discovery | provider injection | keyfile presence (`detect`) |
 | Events / multi-account | yes | none (declared `false`, refused by negotiation when required) |
 
 Both adapters pass the SAME v1 gates: `validateAdapter`, registry
@@ -47,7 +47,7 @@ it: the adapter's outward surface is exactly the v1 interface — claims
 has no vocabulary through which secret material could travel (spec §3).
 
 - The keyfile is created only by the adapter's own `generate` helper
-  (kaspa-wasm `Keypair.random()` — never a homemade scheme, never a
+  (kaspa-wasm `Keypair.random` — never a homemade scheme, never a
   seed phrase; the adapter refuses seed phrases structurally by having
   no input that accepts one).
 - File mode 600 is enforced twice: at creation (`O_EXCL` + mode 0600 +
@@ -129,7 +129,7 @@ Offline guarantee: no network transport is loaded anywhere in
 adapter.js/cli.js (static scan in `cli.test.js`; the kaspa-wasm load is
 isolated behind a lazy injection point — `kaspaModule` handle,
 `kaspaModulePath`, `PV_CLI_SIGNER_KASPA_MODULE`, or the same default
-path `loadConfig().rustyKaspaModule` uses — precisely so the adapter
+path `loadConfig.rustyKaspaModule` uses — precisely so the adapter
 never imports `sdk/src/chain.js`, which installs a global WebSocket
 transport at require time).
 
@@ -141,14 +141,14 @@ path — the REAL `server/src/auth.js` `HostedAuthService` with its real
 `MemoryAuthStore`, `resolveAddressIdentity`, and kaspa-wasm
 `verifyMessage` (the exact call at auth.js:437), unmodified:
 
-1. `createChallenge()` issues the production 7-line challenge for the
+1. `createChallenge` issues the production 7-line challenge for the
    CLI key's address;
 2. the CLI adapter signs it through `executeSigning` (and, in a second
    test, the CLI **binary** signs the challenge bytes from a file);
-3. `verify()` reconstructs the message server-side, re-derives x-only
+3. `verify` reconstructs the message server-side, re-derives x-only
    from the submitted 66-hex compressed provider key, binds it to the
    challenge address, verifies the Schnorr signature, and mints a real
-   session — `resolveSession()` then returns the CLI wallet as the
+   session — `resolveSession` then returns the CLI wallet as the
    authenticated principal.
 4. Negatives hold: tampered signature → `AUTH_SIGNATURE_INVALID`;
    another key's pubkey → `AUTH_ADDRESS_MISMATCH`; nonce single-use
@@ -183,7 +183,7 @@ is future work (see gaps).
    default kaspad/bitcoind key material). No passphrase encryption yet;
    an encrypted keyfile format would be an additive
    `policyvault-cli-signer-keyfile/2`. Memory hygiene is best-effort:
-   `disconnect()` drops the key handle, but neither JS strings nor
+   `disconnect` drops the key handle, but neither JS strings nor
    wasm-held copies can be provably zeroed.
 5. **`sign-tx` trusts its request file's transaction bytes** — by
    design the signer signs exactly the frozen bytes it is handed (the

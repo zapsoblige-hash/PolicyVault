@@ -1495,11 +1495,10 @@
 
       /* The initial agent policy the user TYPED must be the one committed:
        * the browser create flow commits exactly one agent, whose identity,
-       * limits, and allowlist are pinned to the form context wherever the
-       * context carries them (period NORMALIZATION — human period to DAA,
-       * node-derived periodStartDaa — stays server-side by design; those
-       * two disclosed fields are bound by the root recomputation above and
-       * shown under review.technical). */
+       * limits, allowlist and (UX-01) budget period are pinned to the form
+       * context wherever the context carries them (only the node-derived
+       * periodStartDaa stays server-side: it is bound by the root
+       * recomputation above and shown under review.technical). */
       if (create.agentXOnly !== undefined && create.agentXOnly !== null) {
         crossCheck(genesisPolicies.length === 1, "the genesis request's initialRegistry commits " + genesisPolicies.length + " agents; this browser requested exactly one");
         crossCheck(genesisPolicies[0].agentPk === hex64(create.agentXOnly, "createContext.agentXOnly"), "the genesis registry's initial agent differs from the agent address you entered");
@@ -1509,6 +1508,17 @@
       }
       if (create.agentBudgetKas !== undefined && create.agentBudgetKas !== null) {
         crossCheck(genesisPolicies.length === 1 && genesisPolicies[0].periodBudget === kasToSompi(create.agentBudgetKas, "createContext.agentBudgetKas").toString(), "the genesis registry's period budget differs from the one you entered");
+      }
+      /* UX-01 (Codex checkpoint 2): the budget period is normalized in the
+       * browser through the ONE core duration path and carried here as the
+       * EXACT periodLengthDaa; the committed policy leaf must equal it. A
+       * server that substitutes a different period — even with a perfectly
+       * consistent registry commitment and state id — is refused before the
+       * wallet is ever invoked. (periodStartDaa remains node-derived: it is
+       * the chain position at build time, not a user choice.) */
+      if (create.agentPeriodLengthDaa !== undefined && create.agentPeriodLengthDaa !== null) {
+        var expectedPeriod = digitsToBigInt(String(create.agentPeriodLengthDaa), "createContext.agentPeriodLengthDaa").toString();
+        crossCheck(genesisPolicies.length === 1 && genesisPolicies[0].periodLengthDaa === expectedPeriod, "the genesis registry's budget period (" + (genesisPolicies[0] ? genesisPolicies[0].periodLengthDaa : "?") + " DAA) differs from the period you chose (" + expectedPeriod + " DAA)");
       }
       if (create.agentApprovalThresholdKas !== undefined && create.agentApprovalThresholdKas !== null) {
         crossCheck(genesisPolicies.length === 1 && genesisPolicies[0].approvalThreshold === kasToSompi(create.agentApprovalThresholdKas, "createContext.agentApprovalThresholdKas").toString(), "the genesis registry's approval threshold differs from the one you entered");
@@ -1822,6 +1832,142 @@
       return codes.sort();
     }
 
+    /* ---------------- version-aware manifest verification (v0.5/v0.6/v0.7) ---------------- */
+
+    /*
+     * A HONEST, MECHANICALLY-DERIVED explanation for a manifest family that
+     * has no bespoke narrative renderer yet (v0.6 controller/swap — G9,
+     * docs/postlaunch/hybrid-core-gap-analysis.md). Every line is either the
+     * verdict itself or one recomputed check name/detail — never invented
+     * prose, and a REFUSED verification never renders as approved.
+     */
+    function genericManifestLines(manifestVersion, verification) {
+      var lines = [];
+      if (verification.verdict === "VERIFIED") {
+        lines.push("VERIFIED: " + manifestVersion + " manifest independently re-verified in this browser.");
+        if (verification.statement) lines.push(verification.statement);
+      } else {
+        lines.push("!! DO NOT SIGN !!");
+        lines.push("BROWSER VERIFICATION REFUSED — " + manifestVersion + " manifest failed independent in-browser verification.");
+      }
+      var checks = verification.checks || [];
+      for (var i = 0; i < checks.length; i++) {
+        var c = checks[i];
+        lines.push((c.ok ? "PASS " : "FAIL ") + c.name + (c.detail ? ": " + c.detail : ""));
+      }
+      return lines;
+    }
+
+    /*
+     * verifyManifestBeforeSigning(args) -> outcome (TOTAL: never throws).
+     *
+     * The router-dispatched counterpart to verifyBeforeSigning (which is the
+     * v0.4/v0.4.1-only path above and is byte-unmodified by this function's
+     * addition): routes an ALREADY-BUILT manifest through the bundled
+     * core/intent/router.js to the verifier that owns its exact
+     * manifestVersion — policyvault-0.5 (token controller), policyvault-0.6
+     * (controller ops + atomic swaps — two manifest families selected by the
+     * manifest's own manifestVersion), policyvault-0.7-root (organizational
+     * root). A policyvault-0.7-payment (rooted-vault) manifest has no
+     * standalone verifier by design — its authority IS the organizational
+     * root input that carries it — and is refused VERIFY_WITHIN_PARENT,
+     * never silently accepted alone. Any manifestVersion the router does not
+     * recognize is refused UNKNOWN_MANIFEST_VERSION. Unknown versions are
+     * NEVER routed to a default.
+     *
+     * args = { manifest, descriptor, descriptors, currentDaaScore, ... }
+     * (passed through unchanged to core/intent/router.js verifyManifest,
+     * which forwards it to the exact verifier the manifestVersion owns).
+     *
+     * outcome shape matches verifyBeforeSigning's: { ok, verdict, lines,
+     * structured, manifest, manifestHash, txId, unsignedSafeJson,
+     * refusalCodes, failures, checks, notes }. txId/unsignedSafeJson are
+     * always null here: this entry point verifies a manifest object, not a
+     * decoded unsignedSafeJson payload (there is no browser-side v0.5/v0.6/
+     * v0.7 build-and-decode pipeline in this file).
+     */
+    function verifyManifestBeforeSigning(args) {
+      try {
+        if (!core || !core.intentRouter) {
+          return refusalOutcome([{ code: "CORE_UNAVAILABLE", detail: "the browser core bundle (web/core-bundle.js) is not loaded, or does not carry core/intent/router — independent verification cannot run" }]);
+        }
+        if (!isPlainObject(args) || !isPlainObject(args.manifest)) {
+          return refusalOutcome([{ code: "VERIFY_INPUT_INVALID", detail: "verifyManifestBeforeSigning requires an arguments object carrying a manifest" }]);
+        }
+        var manifestVersion = args.manifest.manifestVersion;
+
+        var verification;
+        try {
+          verification = core.intentRouter.verifyManifest(args);
+        } catch (e) {
+          /* router-level fail-closed refusals: UNKNOWN_MANIFEST_VERSION,
+           * VERIFY_WITHIN_PARENT, SCHEMA_INVALID — never routed to a default */
+          var routeCode = e && typeof e.code === "string" && /^[A-Z][A-Z0-9_]*$/.test(e.code) ? e.code : "BROWSER_VERIFIER_INTERNAL";
+          return refusalOutcome([{ code: routeCode, detail: (e && e.message) || String(e) }]);
+        }
+
+        /* A dedicated renderer (core.tokenExplain / core.orgRootExplain) is
+         * written assuming a well-formed manifest and may itself throw on a
+         * malformed/incomplete one (e.g. it reads manifest.accounting.kas
+         * unconditionally). That must never destroy the ALREADY-COMPUTED
+         * `verification` result above — an explain rendering failure falls
+         * back to the generic, checks-derived lines rather than collapsing
+         * the whole outcome into an uninformative internal error. */
+        var structured = null, lines = null;
+        try {
+          if (core.tokenManifestV5 && manifestVersion === core.tokenManifestV5.TOKEN_MANIFEST_VERSION_1 && core.tokenExplain && isPlainObject(args.descriptor)) {
+            var tokenDoc = core.tokenExplain.explainTokenIntent({ manifest: args.manifest, descriptor: args.descriptor });
+            structured = tokenDoc;
+            lines = [];
+            for (var si = 0; si < tokenDoc.sections.length; si++) {
+              lines.push("== " + tokenDoc.sections[si].title + " ==");
+              lines = lines.concat(tokenDoc.sections[si].lines);
+            }
+          } else if (core.orgRootManifestV7 && manifestVersion === core.orgRootManifestV7.ORG_ROOT_MANIFEST_VERSION_1 && core.orgRootExplain) {
+            var explainArgs = { manifest: args.manifest, descriptors: args.descriptors, redeemScripts: args.redeemScripts };
+            structured = core.orgRootExplain.structured(explainArgs);
+            lines = core.orgRootExplain.humanReadable(explainArgs).slice();
+          }
+        } catch (explainError) {
+          structured = null;
+          lines = null;
+        }
+        if (structured === null || lines === null) {
+          structured = deepFreeze({ manifestVersion: manifestVersion, verdict: verification.verdict, checks: verification.checks, failures: verification.failures, manifestHash: verification.manifestHash || null });
+          lines = genericManifestLines(String(manifestVersion), verification);
+        }
+
+        var ok = verification.verdict === "VERIFIED" || verification.verdict === "VERIFIED_EXACT";
+        var failures = [];
+        var vf = verification.failures || [];
+        for (var fi = 0; fi < vf.length; fi++) failures.push({ code: vf[fi].name || vf[fi].code || "REFUSED", detail: vf[fi].detail || "" });
+        if (!ok && failures.length === 0) failures.push({ code: "REFUSED", detail: "verification refused without detail" });
+
+        return deepFreeze({
+          ok: ok,
+          verdict: ok ? "VERIFIED_EXACT" : "REFUSED",
+          refusalCodes: uniqueCodes(failures),
+          failures: failures,
+          lines: lines.slice ? lines.slice() : lines,
+          structured: structured,
+          manifest: args.manifest,
+          manifestHash: verification.manifestHash || null,
+          txId: null,
+          unsignedSafeJson: null,
+          checks: verification.checks || null,
+          notes: []
+        });
+      } catch (e) {
+        if (e && e.browserRefusal) {
+          return refusalOutcome([{ code: e.code, detail: e.detail }]);
+        }
+        if (e && typeof e.code === "string" && /^[A-Z][A-Z0-9_]*$/.test(e.code)) {
+          return refusalOutcome([{ code: e.code, detail: (e.message || e.code) }]);
+        }
+        return refusalOutcome([{ code: "BROWSER_VERIFIER_INTERNAL", detail: "in-browser manifest verification failed internally: " + ((e && e.message) || String(e)) + " — an error is never a pass" }]);
+      }
+    }
+
     return Object.freeze({
       CLIENT_MAX_FEE_SOMPI: CLIENT_MAX_FEE_SOMPI,
       decodeUnsignedSafeTransaction: function (json, known) {
@@ -1833,7 +1979,8 @@
           return { ok: false, code: "BROWSER_VERIFIER_INTERNAL", detail: (e && e.message) || String(e) };
         }
       },
-      verifyBeforeSigning: verifyBeforeSigning
+      verifyBeforeSigning: verifyBeforeSigning,
+      verifyManifestBeforeSigning: verifyManifestBeforeSigning
     });
   }
 

@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet } = require("../../core/model/own-get");
 
 /*
  * PolicyVault backend API (versioned, machine-readable errors).
@@ -219,6 +220,11 @@ async function presentVaultV4(config, manifest, { virtualDaa } = {}) {
   if (manifest.live) {
     const state = manifest.live.state;
     base.approverSlots = [...state.approvers];
+    /* Presentation only (owner UX directive 2026-09-05): the approver
+     * addresses beside the x-only slots, exactly as agents' recipient
+     * addresses are presented — derived from the root-verified durable
+     * state by the same addressOf; an inactive slot presents as null. */
+    base.approverAddresses = state.approvers.map((a) => (a === "00".repeat(32) ? null : addressOf(config, a)));
     base.approvalM = state.approvalM.toString();
     base.activeApproverCount = state.activeApproverCount;
     base.live = {
@@ -268,6 +274,25 @@ async function organizationRef(config, vaultId) {
     metadataError = "CORRUPT_METADATA";
   }
   return { orgId: assignment.orgId, name, group: assignment.group, ...(metadataError ? { metadataError } : {}) };
+}
+
+/*
+ * CALLER-SUPPLIED vault ids on the v1/v2/v4 route families (rc11 internal
+ * security review F-04 follow-up, 2026-09-04): loadAnyManifest FAILS CLOSED
+ * on newer schemas (v5/v6/v7/HD live on their own route families) by
+ * throwing. A caller-supplied id of another generation must answer the same
+ * non-oracle 404 as an unknown id — never an unhandled 500 that
+ * distinguishes "exists with another schema" from "does not exist" (and
+ * never before the hosted principal check). Storage/driver errors still
+ * propagate unchanged.
+ */
+async function loadVaultOrNull(config, vaultId) {
+  try {
+    return await loadAnyManifest(config, vaultId);
+  } catch (error) {
+    if (error && error.code === "MANIFEST_SCHEMA_UNKNOWN") return null;
+    throw error;
+  }
 }
 
 /* Version-aware presenter: dispatch on the stored manifest schema. */
@@ -341,6 +366,38 @@ function presentRequest(request) {
  * (the reject route) or completion frees quota.
  */
 const OPEN_REQUEST_STATES = new Set(["BUILT", "AWAITING_APPROVALS"]);
+/* UX-05 (Codex checkpoint 3): ONE unresolved genesis per signer. The signer
+ * is compared by its CANONICAL identity (x-only public key), never by the
+ * address string (rc18 review R3-05: a re-spelled address is the same wallet).
+ * `exceptRequestId` lets a request pass its own submission. */
+async function assertNoUnresolvedCreation(config, signerAddress, exceptRequestId) {
+  const wr4 = require("../../sdk/src/wallet-requests-v4");
+  const submit4 = require("../../sdk/src/wallet-submit-v4");
+  const { resolveAddressIdentity } = require("../../sdk/src/address-identity");
+  const identityOf = (a) => { try { return resolveAddressIdentity(config, String(a ?? "").trim()).xOnlyPubkey.toLowerCase(); } catch { return null; } };
+  const me = identityOf(signerAddress);
+  if (!me) throw apiError(400, "BAD_SIGNER", "signerAddress is not a valid address for this network");
+  const unresolved = (await wr4.listWalletRequestsV4(config, { states: submit4.UNRESOLVED_GENESIS_STATES }))
+    .filter((r) => r.kind === "genesis" && r.requestId !== exceptRequestId && identityOf(r.signerAddress) === me);
+  if (unresolved.length) {
+    const u = unresolved[0];
+    throw apiError(409, "CREATION_UNRESOLVED", `a previous vault creation (request ${u.requestId}, ${u.state}) has not been resolved yet — reconcile it before building or submitting another vault`, { requestId: u.requestId, state: u.state, vaultId: u.vaultId, txId: u.txId ?? null });
+  }
+}
+/* per-signer serialization for the check-then-act paths of vault creation
+ * (create / genesis-submit / reconcile). Process-local: the ONE-replica rule
+ * (owner policy) makes it effective for the hosted deployment. */
+const signerLocks = new Map();
+async function withSignerLock(signerAddress, fn) {
+  const key = String(signerAddress ?? "").trim().toLowerCase();
+  const prev = signerLocks.get(key) || Promise.resolve();
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const chained = prev.then(() => gate);
+  signerLocks.set(key, chained);
+  await prev;
+  try { return await fn(); } finally { release(); if (signerLocks.get(key) === chained) signerLocks.delete(key); }
+}
 async function assertOpenRequestQuota(config, { vaultId, signerAddress }) {
   const quota = config.requestProtection.openRequestQuota;
   const { getStore, Categories } = require("../../sdk/src/store");
@@ -416,52 +473,96 @@ function authServiceFor(config) {
  */
 async function handle(config, method, segments, query, body, ctx = {}) {
   const { isPublicRoute, isWalletSessionOnlyRoute, requiredScopesFor } = require("./scopes");
+  const telemetryStartedAtMs = Date.now();
   let principal = null;
-  if (!isPublicRoute(method, segments)) {
-    // required:false — an ABSENT credential is fine here (routes make
-    // their own required/optional decisions exactly as before); an
-    // explicitly PRESENTED but INVALID one (bad cookie or bad machine
-    // token) still throws from inside requestAuthPrincipal regardless of
-    // this flag for a machine credential (see its own doc comment) —
-    // never silently downgraded to "no one".
-    principal = await requestAuthPrincipal(config, ctx, { required: false });
-  }
-  if (principal && principal.isMachine) {
-    if (isWalletSessionOnlyRoute(method, segments)) {
-      throw apiError(403, "MACHINE_IDENTITY_ROUTE_FORBIDDEN", "this route is wallet-session-only and is never reachable by a machine identity");
+  try {
+    if (!isPublicRoute(method, segments)) {
+      // required:false — an ABSENT credential is fine here (routes make
+      // their own required/optional decisions exactly as before); an
+      // explicitly PRESENTED but INVALID one (bad cookie or bad machine
+      // token) still throws from inside requestAuthPrincipal regardless of
+      // this flag for a machine credential (see its own doc comment) —
+      // never silently downgraded to "no one".
+      principal = await requestAuthPrincipal(config, ctx, { required: false });
     }
-    const requiredScopes = requiredScopesFor(method, segments, body);
-    if (requiredScopes === null) {
-      throw apiError(403, "SCOPE_FORBIDDEN", "this route is not reachable by any machine-identity scope (deny-by-default)");
+    if (principal && principal.isMachine) {
+      if (isWalletSessionOnlyRoute(method, segments)) {
+        throw apiError(403, "MACHINE_IDENTITY_ROUTE_FORBIDDEN", "this route is wallet-session-only and is never reachable by a machine identity");
+      }
+      const requiredScopes = requiredScopesFor(method, segments, body);
+      if (requiredScopes === null) {
+        throw apiError(403, "SCOPE_FORBIDDEN", "this route is not reachable by any machine-identity scope (deny-by-default)");
+      }
+      const missing = requiredScopes.filter((s) => !principal.scopes.includes(s));
+      if (missing.length) {
+        throw apiError(403, "SCOPE_FORBIDDEN", `this operation requires scope(s) ${missing.join(", ")}, which this credential does not hold`);
+      }
     }
-    const missing = requiredScopes.filter((s) => !principal.scopes.includes(s));
-    if (missing.length) {
-      throw apiError(403, "SCOPE_FORBIDDEN", `this operation requires scope(s) ${missing.join(", ")}, which this credential does not hold`);
+    // /webhooks create/rotate responses carry a ONE-TIME signing secret,
+    // and /identities create/mint responses carry the ONE-TIME machine
+    // bearer token; idempotency records persist responses verbatim, so
+    // these routes are excluded from Idempotency-Key replay — a plaintext
+    // credential must never be written into idempotency_records
+    // (conservative: the caller simply gets no replay dedup on these
+    // mutations; a retried create mints a fresh identity/credential the
+    // owner can revoke, which is a nuisance, never a secret at rest).
+    // /notifications rule creation ACCEPTS a caller-supplied channel HMAC
+    // secret in the body — same conservative exclusion (rule responses are
+    // secret-stripped, but a secret-carrying mutation gets no replay dedup
+    // rather than any chance of a secret at rest outside its sealed
+    // envelope).
+    const secretBearingRoute = segments[0] === "webhooks" || segments[0] === "identities" || segments[0] === "notifications";
+    let result;
+    if (method === "POST" && !secretBearingRoute && ctx.headers && typeof ctx.headers.idempotencyKey === "string" && ctx.headers.idempotencyKey.length > 0) {
+      const { withIdempotency } = require("./idempotency");
+      result = await withIdempotency(
+        config,
+        { rawKey: ctx.headers.idempotencyKey, principal, method, segments, query, body },
+        () => dispatchRoute(config, method, segments, query, body, ctx)
+      );
+    } else {
+      result = await dispatchRoute(config, method, segments, query, body, ctx);
     }
+    await recordMcpTelemetrySafe(config, { principal, method, segments, ctx, startedAtMs: telemetryStartedAtMs, status: result && result.status, responseBody: result && result.body });
+    return result;
+  } catch (error) {
+    await recordMcpTelemetrySafe(config, { principal, method, segments, ctx, startedAtMs: telemetryStartedAtMs, status: error && error.status, code: error && error.code });
+    throw error;
   }
-  // /webhooks create/rotate responses carry a ONE-TIME signing secret,
-  // and /identities create/mint responses carry the ONE-TIME machine
-  // bearer token; idempotency records persist responses verbatim, so
-  // these routes are excluded from Idempotency-Key replay — a plaintext
-  // credential must never be written into idempotency_records
-  // (conservative: the caller simply gets no replay dedup on these
-  // mutations; a retried create mints a fresh identity/credential the
-  // owner can revoke, which is a nuisance, never a secret at rest).
-  // /notifications rule creation ACCEPTS a caller-supplied channel HMAC
-  // secret in the body — same conservative exclusion (rule responses are
-  // secret-stripped, but a secret-carrying mutation gets no replay dedup
-  // rather than any chance of a secret at rest outside its sealed
-  // envelope).
-  const secretBearingRoute = segments[0] === "webhooks" || segments[0] === "identities" || segments[0] === "notifications";
-  if (method === "POST" && !secretBearingRoute && ctx.headers && typeof ctx.headers.idempotencyKey === "string" && ctx.headers.idempotencyKey.length > 0) {
-    const { withIdempotency } = require("./idempotency");
-    return withIdempotency(
-      config,
-      { rawKey: ctx.headers.idempotencyKey, principal, method, segments, query, body },
-      () => dispatchRoute(config, method, segments, query, body, ctx)
-    );
+}
+
+/*
+ * MCP USAGE TELEMETRY hook (Track 7; server/src/mcp-telemetry.js). Fires
+ * once per finished request that resolved to a MACHINE credential
+ * principal — the broader "any programmatic caller authenticated with a
+ * machine bearer token" surface, of which the MCP adapter (mcp/) is one
+ * caller among several, distinguished by the X-PolicyVault-MCP-Client
+ * header it sets (mcp/src/http.js; threaded into ctx.headers.mcpClient by
+ * server/src/server.js). Config-gated OFF by default
+ * (mcp-telemetry.js telemetryEnabled()) and COMPLETELY FAILURE-ISOLATED —
+ * this never throws and never affects the response it observes (both the
+ * env-flag check and the store write happen behind mcp-telemetry.js's own
+ * try/catch; this wrapper adds a second, belt-and-suspenders layer).
+ */
+async function recordMcpTelemetrySafe(config, { principal, method, segments, ctx, startedAtMs, status, code, responseBody }) {
+  try {
+    if (!principal || principal.isMachine !== true) return; // cheap short-circuit before even requiring the module
+    const { telemetryEnabled, recordMcpToolInvocation } = require("./mcp-telemetry");
+    if (!telemetryEnabled()) return;
+    const requestId = responseBody && typeof responseBody === "object" && typeof responseBody.requestId === "string" ? responseBody.requestId : null;
+    await recordMcpToolInvocation(config, {
+      principal,
+      method,
+      segments,
+      status,
+      code,
+      requestId,
+      latencyMs: Date.now() - startedAtMs,
+      mcpClientHeader: ctx && ctx.headers ? ctx.headers.mcpClient : undefined
+    });
+  } catch {
+    /* telemetry must never fail a request */
   }
-  return dispatchRoute(config, method, segments, query, body, ctx);
 }
 
 async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
@@ -534,6 +635,31 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       throw apiError(400, "BAD_FORMAT", 'format must be "json" or "prometheus"');
     }
     return { status: 200, body: doc };
+  }
+
+  /*
+   * GET /mcp-telemetry — MCP USAGE TELEMETRY AGGREGATE (Track 7;
+   * server/src/mcp-telemetry.js; docs/postlaunch/mcp-usage-telemetry-todo.md).
+   * Privacy-minimizing, config-gated, OFF BY DEFAULT
+   * (POLICYVAULT_MCP_TELEMETRY unset/"off"): when off, THE ROUTE DOES NOT
+   * EXIST — 404 MCP_TELEMETRY_DISABLED, no events are ever recorded or
+   * served. When on: an aggregate, non-secret usage document computed on
+   * read from the durable per-invocation event store (active machine
+   * identities, calls/day, tools used, refusal/error distribution,
+   * p50/p95 latency, client/version distribution, first/last seen per
+   * identity) — never prompts, credentials, keys, signatures, or
+   * transaction bytes (mcp-telemetry.js privacy contract). SAME access
+   * model as GET /metrics — NO NEW AUTHORITY, NO NEW SCOPE: hosted mode
+   * requires an authenticated principal; machine credentials additionally
+   * need the existing read:metrics scope (scopes.js).
+   */
+  if (method === "GET" && segments.length === 1 && segments[0] === "mcp-telemetry") {
+    const mcpTelemetry = require("./mcp-telemetry");
+    if (!mcpTelemetry.telemetryEnabled()) {
+      throw apiError(404, "MCP_TELEMETRY_DISABLED", "MCP usage telemetry is disabled (set POLICYVAULT_MCP_TELEMETRY=1 to enable)");
+    }
+    if (config.tenancyEnforced) await requestAuthPrincipal(config, ctx, { required: true });
+    return { status: 200, body: await mcpTelemetry.buildTelemetryAggregate(config) };
   }
 
   /*
@@ -807,6 +933,38 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     }
   }
 
+  /*
+   * F-03 / F-04: the legacy v0.2 pipeline (testnet-only, production-disabled
+   * creation) applies the SAME hosted build-authority rule as v4: a principal
+   * is required, the genesis signer must be the principal, and a transition
+   * may only be built by a covenant participant (owner / delegate) for a
+   * participant signer of that same vault. Self-hosted mode unchanged.
+   */
+  const requireLegacyBuildAuthority = async ({ vaultId, signerAddress, genesis = false }) => {
+    if (!config.tenancyEnforced) return null;
+    const principal = await requestAuthPrincipal(config, ctx, { required: true });
+    let signerXOnly = null;
+    try {
+      signerXOnly = require("../../sdk/src/address-identity").resolveAddressIdentity(config, signerAddress).xOnlyPubkey;
+    } catch {
+      signerXOnly = null;
+    }
+    if (!signerXOnly) throw apiError(400, "BAD_SIGNER", "signerAddress is not a valid address for this network");
+    if (genesis) {
+      if (signerXOnly !== principal.xOnlyPubkey) throw apiError(403, "SIGNER_NOT_PRINCIPAL", "hosted mode: a genesis request is built only by the wallet that will fund and sign it");
+      return principal;
+    }
+    const { requireVaultAccess, vaultRoles } = require("./tenancy");
+    const loaded = await loadVaultOrNull(config, vaultId);
+    requireVaultAccess(config, loaded, principal, "read");
+    const { owner, delegates } = vaultRoles(loaded);
+    const key = principal.xOnlyPubkey;
+    if (!owner.has(key) && !delegates.has(key)) throw apiError(403, "REQUEST_FORBIDDEN", "no build authority on this vault");
+    if (!owner.has(signerXOnly) && !delegates.has(signerXOnly)) throw apiError(403, "SIGNER_NOT_PARTICIPANT", "signerAddress is not a covenant participant of this vault");
+    if (!owner.has(key) && signerXOnly !== key) throw apiError(403, "SIGNER_NOT_PRINCIPAL", "a delegate builds requests only for its own key");
+    return principal;
+  };
+
   // ---- Wallet request pipeline (browser signing flow) ----
   const walletRequests = require("../../sdk/src/wallet-requests-v2");
 
@@ -823,6 +981,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (typeof signerAddress !== "string" || !signerAddress.startsWith("kaspatest:")) {
       throw apiError(400, "BAD_SIGNER", "signerAddress must be a testnet address");
     }
+    await requireLegacyBuildAuthority({ signerAddress, genesis: true }); // F-03/F-04 (hosted mode)
     // Fail closed with a precise diagnosis when a client sends a raw
     // 33-byte compressed provider pubkey (KasWare getPublicKey form) as
     // the owner: normalization belongs at the wallet-adapter boundary,
@@ -852,6 +1011,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (typeof signerAddress !== "string" || !signerAddress.startsWith("kaspatest:")) {
       throw apiError(400, "BAD_SIGNER", "signerAddress must be a testnet address");
     }
+    await requireLegacyBuildAuthority({ vaultId, signerAddress }); // F-03/F-04 (hosted mode)
     await assertOpenRequestQuota(config, { vaultId, signerAddress });
     try {
       const request = await walletRequests.buildWalletRequestV2({ config, vaultId, action, params: params ?? {}, signerAddress });
@@ -869,7 +1029,8 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (typeof signedSafeJson !== "string" || !signedSafeJson.trim()) {
       throw apiError(400, "BAD_SIGNATURE", "signedSafeJson is required");
     }
-    await requireRequestAccess(config, ctx, await walletRequests.loadRequest(config, requestId));
+    await requireRequestSigner(config, ctx, await walletRequests.loadRequest(config, requestId)); // rc13 review N-02 (legacy v0.2 family): signer only
+    requireSignedSafeJsonShape(signedSafeJson);
     try {
       const request = await walletRequests.attachWalletSignatureV2({ config, requestId, signedSafeJson });
       return { status: 200, body: { request: presentRequest(request) } };
@@ -1030,7 +1191,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
      * fail open.
      */
     const assertAgentNotSuspended = async ({ vaultId, action, agentPk, signerAddress, stage }) => {
-      if (wr4.ROLE_BY_ACTION[action] !== "agent") return;
+      if (ownGet(wr4.ROLE_BY_ACTION, action) !== "agent") return;
       const agentPks = [];
       if (typeof agentPk === "string" && /^[0-9a-f]{64}$/.test(agentPk)) agentPks.push(agentPk);
       if (typeof signerAddress === "string") {
@@ -1050,6 +1211,56 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     const requiredPrefix = `${require("../../sdk/src/address-identity").requiredAddressPrefix(config.networkId)}:`;
     const badSignerMsg = (field) => `${field} must be a ${config.networkId} address (${requiredPrefix}...)`;
     const badSigner = (a) => typeof a !== "string" || !a.startsWith(requiredPrefix);
+
+    /*
+     * F-03 / F-04 (rc11 internal review): HOSTED BUILD AUTHORITY. In hosted
+     * mode a build/create/simulate is an act OF A TENANT: it consumes the
+     * signer wallet's open-request quota, lands in that wallet's inbox and
+     * materialises a compiled artifact. It therefore requires a principal and
+     * is authorized from DURABLE COVENANT FACTS only (never a caller-supplied
+     * identity assertion):
+     *   - genesis (no manifest yet): the signer must BE the principal;
+     *   - existing vault: the principal must be a covenant participant with
+     *     BUILD authority (owner / agent / delegate — approver-only never),
+     *     and the named signer must be a participant of that SAME vault;
+     *     a non-owner may only build for itself, the OWNER may build for its
+     *     own vault's agents (the documented owner-minted machine-credential
+     *     flow builds agent spends the agent then signs externally).
+     * Foreign principals get the tenancy 404 (never an existence oracle).
+     * Self-hosted mode (tenancy disabled) is unchanged.
+     */
+    const requireBuildAuthority = async ({ vaultId, signerAddress, genesis = false, simulate = false }) => {
+      if (!config.tenancyEnforced) return null;
+      const principal = await requestAuthPrincipal(config, ctx, { required: true });
+      let signerXOnly = null;
+      try {
+        signerXOnly = require("../../sdk/src/address-identity").resolveAddressIdentity(config, signerAddress).xOnlyPubkey;
+      } catch {
+        signerXOnly = null;
+      }
+      if (!signerXOnly) throw apiError(400, "BAD_SIGNER", badSignerMsg("signerAddress"));
+      if (genesis) {
+        if (signerXOnly !== principal.xOnlyPubkey) throw apiError(403, "SIGNER_NOT_PRINCIPAL", "hosted mode: a genesis request is built only by the wallet that will fund and sign it — signerAddress must be the signed-in wallet (or the machine credential's creating wallet)");
+        return principal;
+      }
+      const { requireVaultAccess, vaultRoles } = require("./tenancy");
+      const loaded = await loadVaultOrNull(config, vaultId);
+      requireVaultAccess(config, loaded, principal, "read"); // foreign / missing -> 404
+      const { owner, agents, delegates } = vaultRoles(loaded);
+      const key = principal.xOnlyPubkey;
+      const isOwner = owner.has(key);
+      if (!isOwner && !agents.has(key) && !delegates.has(key)) {
+        throw apiError(403, "REQUEST_FORBIDDEN", "this wallet may review this vault but holds no build authority on it (approver-only participants never build requests)");
+      }
+      if (simulate) return principal; // a simulation persists nothing: the SIGNER is the thing being simulated (it reports its own refusal)
+      if (!owner.has(signerXOnly) && !agents.has(signerXOnly) && !delegates.has(signerXOnly)) {
+        throw apiError(403, "SIGNER_NOT_PARTICIPANT", "signerAddress is not a covenant participant of this vault — a request is never built into a stranger's inbox");
+      }
+      if (!isOwner && signerXOnly !== key) {
+        throw apiError(403, "SIGNER_NOT_PRINCIPAL", "an agent/delegate builds requests only for its own key; only the vault owner may build for its registered agents");
+      }
+      return principal;
+    };
 
     /*
      * Versioned platform schemas (completion-standard surface 23;
@@ -1078,8 +1289,28 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (method === "POST" && segments.length === 3 && segments[2] === "create") {
       const { templateInput, initialAgents, initialState, signerAddress, funding, label, contractVersion, vaultId, depositKas, feeReserveKas, agent, approvers } = body ?? {};
       assertSchemaVersion(body);
+      // F-01: the ONLY route that accepts a caller-supplied contractVersion. It must be
+      // ABSENT or a STRING naming a v0.4-family ABI (own property); prototype-chain keys,
+      // arrays, numbers and unknown strings are refused HERE with the closed
+      // unknown-version code — never routed to a default generation.
+      if (contractVersion !== undefined) {
+        if (typeof contractVersion !== "string") throw apiError(422, "UNKNOWN_VERSION", "contractVersion must be a string naming a supported covenant version — failing closed");
+        try {
+          require("../../sdk/src/vault-state-v4").resolveV4Abi(contractVersion);
+        } catch (e) {
+          throw apiError(422, "UNKNOWN_VERSION", e.message);
+        }
+      }
       if (badSigner(signerAddress)) throw apiError(400, "BAD_SIGNER", badSignerMsg("signerAddress"));
+      await requireBuildAuthority({ signerAddress, genesis: true }); // F-03/F-04: hosted mode binds the genesis signer to the principal
       await assertOpenRequestQuota(config, { signerAddress });
+      // UX-05 (Codex checkpoint 2/3): a wallet with a genesis whose submit outcome
+      // is still UNRESOLVED (SUBMITTING / SUBMITTED / RECONCILIATION_REQUIRED)
+      // may not build and fund a replacement vault until that request is
+      // reconciled (POST /wallet/v4/requests/:id/reconcile) — never resolved
+      // by a status GET, a lost response or the absence of a confirmation.
+      // Serialized per signer with genesis-submit (check-then-act under races).
+      await withSignerLock(signerAddress, () => assertNoUnresolvedCreation(config, signerAddress, null));
       try {
         if (agent) {
           // ---- friendly schema -> canonical, server-authoritative ----
@@ -1145,6 +1376,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       if (typeof vaultId !== "string" || !/^[0-9a-f]{64}$/.test(vaultId)) throw apiError(400, "BAD_VAULT_ID", "vaultId must be 32-byte hex");
       if (typeof action !== "string" || !action) throw apiError(400, "BAD_ACTION", "action is required");
       if (badSigner(signerAddress)) throw apiError(400, "BAD_SIGNER", badSignerMsg("signerAddress"));
+      await requireBuildAuthority({ vaultId, signerAddress }); // F-03/F-04: hosted build authority from durable covenant facts
       // Instant hosted-layer suspend gate (agent-role actions only; PURE
       // refusal — nothing durable exists yet, no fees, no chain work).
       await assertAgentNotSuspended({ vaultId, action, agentPk: params && params.agentPk, signerAddress, stage: "build this request" });
@@ -1173,7 +1405,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         // the SDK DOES know but the governance matrix does not is refused
         // by classifyActionV4 — a new operation can never be silently
         // ungoverned.
-        if (gvManifest && gvManifest.live && wr4.ROLE_BY_ACTION[action]) {
+        if (gvManifest && gvManifest.live && ownGet(wr4.ROLE_BY_ACTION, action)) {
           const gate = governance.classifyActionV4(config, gvManifest, action, params ?? {}); // unknown/malformed -> fail closed
           const breakGlass = gate.breakGlass === true;
           const { orgId, controls } = breakGlass ? { orgId: null, controls: null } : await controlsForVault(config, vaultId);
@@ -1201,7 +1433,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
             const { HIGH_LEVEL_TO_SDK } = require("../../core/intent");
             riskGate = await riskSvc.gateOperationRisk({
               config, vaultId, orgId, controls, action, params: params ?? {},
-              signerAddress, signerXOnly, sdkAction: HIGH_LEVEL_TO_SDK[action] ?? action, riskEvaluationId
+              signerAddress, signerXOnly, sdkAction: ownGet(HIGH_LEVEL_TO_SDK, action) ?? action, riskEvaluationId
             });
           }
         }
@@ -1227,6 +1459,9 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (method === "POST" && segments.length === 3 && segments[2] === "simulate") {
       assertSchemaVersion(body);
       assertClosedBody(body, ["schemaVersion", "vaultId", "action", "params", "signerAddress"], "the v4 simulate body");
+      if (typeof body?.vaultId !== "string" || !/^[0-9a-f]{64}$/.test(body.vaultId)) throw apiError(400, "BAD_VAULT_ID", "vaultId must be 32-byte hex");
+      if (badSigner(body?.signerAddress)) throw apiError(400, "BAD_SIGNER", badSignerMsg("signerAddress"));
+      await requireBuildAuthority({ vaultId: body.vaultId, signerAddress: body.signerAddress, simulate: true }); // F-03: a simulation compiles too (principal must hold build authority)
       const { simulateWalletRequestV4 } = require("./simulate");
       const simulation = await simulateWalletRequestV4(config, body ?? {});
       return { status: 200, body: v4Body({ simulation }) };
@@ -1262,13 +1497,14 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       const { signedSafeJson } = body ?? {};
       if (typeof signedSafeJson !== "string" || !signedSafeJson.trim()) throw apiError(400, "BAD_SIGNATURE", "signedSafeJson is required");
       const pendingRequest = await wr4.loadRequest(config, segments[3]);
-      await requireRequestMutation(config, ctx, pendingRequest);
+      await requireRequestSigner(config, ctx, pendingRequest); // rc13 review N-02: 404 foreign, 403 non-signer participant
       if (pendingRequest) {
         // Instant hosted-layer suspend gate: a request built BEFORE the
         // suspension must not finalize while suspended.
         await assertAgentNotSuspended({ vaultId: pendingRequest.vaultId, action: pendingRequest.action, agentPk: pendingRequest.agentPk, signerAddress: pendingRequest.signerAddress, stage: "finalize this request" });
       }
       await assertManifestGate(pendingRequest); // manifest-stamped requests must re-verify VERIFIED_EXACT
+      requireSignedSafeJsonShape(signedSafeJson); // rc13 review N-02: closed 400 BEFORE the SDK, AFTER the documented suspend/manifest refusals
       try {
         const request = await wr4.finalizeWalletRequestV4({ config, requestId: segments[3], signedSafeJson });
         await require("./events").safeEmitPlatformEvent(config, {
@@ -1347,10 +1583,21 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       if (typeof signedSafeJson !== "string" || !signedSafeJson.trim()) throw apiError(400, "BAD_SIGNATURE", "signedSafeJson is required");
       const submit4 = require("../../sdk/src/wallet-submit-v4");
       const pendingGenesis = await wr4.loadRequest(config, segments[3]);
-      await requireRequestMutation(config, ctx, pendingGenesis);
+      await requireRequestSigner(config, ctx, pendingGenesis); // rc13 review N-02
       await assertManifestGate(pendingGenesis); // genesis manifests re-verify before broadcast too
+      requireSignedSafeJsonShape(signedSafeJson); // rc13 review N-02: closed 400 before the SDK
+      // UX-05 (Codex checkpoint 3): the unresolved-creation invariant is enforced at
+      // SUBMISSION too (a request built before another creation became unresolved,
+      // a second tab, a replay), serialized per signer so concurrent submits cannot
+      // both pass the check. The guard's 409 CREATION_UNRESOLVED propagates as-is
+      // (it is a refusal BEFORE submission — no broadcast, no request.failed event,
+      // the prebuilt request stays BUILT), so it sits outside the submit try/catch.
+      let guardError = null;
       try {
-        const result = await submit4.submitCreateWalletRequestV4({ config, requestId: segments[3], signedSafeJson });
+        const result = await withSignerLock(pendingGenesis ? pendingGenesis.signerAddress : "", async () => {
+          try { await assertNoUnresolvedCreation(config, pendingGenesis ? pendingGenesis.signerAddress : "", segments[3]); } catch (e) { guardError = e; throw e; }
+          return submit4.submitCreateWalletRequestV4({ config, requestId: segments[3], signedSafeJson });
+        });
         require("./metrics").noteNodeGate(true); // chain proof = the node answered (passive observation)
         const { safeEmitPlatformEvent } = require("./events");
         await safeEmitPlatformEvent(config, {
@@ -1367,6 +1614,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         });
         return { status: 200, body: v4Body({ request: presentRequest(result.request), txId: result.txId }) };
       } catch (error) {
+        if (guardError && error === guardError) throw error; // 409 CREATION_UNRESOLVED, untouched
         const request = await wr4.loadRequest(config, segments[3]);
         if (request) {
           await require("./events").safeEmitPlatformEvent(config, {
@@ -1380,6 +1628,19 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         e.extra = { request: request ? presentRequest(request) : null };
         throw e;
       }
+    }
+
+    // POST /wallet/v4/requests/:id/reconcile  -> UX-05: resolve an UNRESOLVED
+    // genesis by chain proof (CHAIN_VERIFIED / NOT_BROADCAST / PENDING); never
+    // by a status read. Signer-only (the funder), exactly like genesis-submit.
+    if (method === "POST" && segments.length === 5 && segments[2] === "requests" && segments[4] === "reconcile") {
+      const submit4 = require("../../sdk/src/wallet-submit-v4");
+      const pending = await wr4.loadRequest(config, segments[3]);
+      await requireRequestSigner(config, ctx, pending);
+      if (!pending) throw apiError(404, "REQUEST_NOT_FOUND", `no request ${segments[3]}`);
+      if (pending.kind !== "genesis") throw apiError(409, "NOT_A_GENESIS", "only a vault-creation request is reconciled here");
+      const out = await withSignerLock(pending.signerAddress, () => submit4.reconcileCreateWalletRequestV4({ config, requestId: segments[3] }));
+      return { status: 200, body: v4Body({ request: presentRequest(out.request), outcome: out.outcome, detail: out.detail, txId: out.request.txId ?? null }) };
     }
 
     // POST /wallet/v4/requests/:id/reject
@@ -1401,7 +1662,8 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     // approval UI from this server state, never from its own memory.
     // open=1 -> the pre-finalize actionable states (AWAITING_APPROVALS, BUILT).
     if (method === "GET" && segments.length === 3 && segments[2] === "requests") {
-      const states = query?.open ? [wr4.RequestState.AWAITING_APPROVALS, wr4.RequestState.BUILT] : undefined;
+      // unresolved=1 -> genesis requests whose submit outcome is still uncertain (UX-05)
+      const states = query?.unresolved ? require("../../sdk/src/wallet-submit-v4").UNRESOLVED_GENESIS_STATES : query?.open ? [wr4.RequestState.AWAITING_APPROVALS, wr4.RequestState.BUILT] : undefined;
       const listed = await wr4.listWalletRequestsV4(config, { ...(query?.vaultId ? { vaultId: query.vaultId } : {}), ...(states ? { states } : {}) });
       // Hosted: scope to the principal's own requests (participant-or-signer);
       // the client-supplied vaultId can only narrow, never widen.
@@ -1468,7 +1730,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       const { vaultId, action, params, expiresInMs } = body ?? {};
       if (typeof vaultId !== "string" || !/^[0-9a-f]{64}$/.test(vaultId)) throw apiError(400, "BAD_VAULT_ID", "vaultId must be 32-byte hex");
       if (typeof action !== "string" || !action) throw apiError(400, "BAD_ACTION", "action is required");
-      const loaded = await loadAnyManifest(config, vaultId);
+      const loaded = await loadVaultOrNull(config, vaultId);
       // Proposing is a vault-OWNER act (hosted); 404 hides foreign vaults.
       requireVaultAccess(config, loaded, principal, "owner");
       if (loaded.version !== "v4") throw apiError(422, "UNSUPPORTED_VERSION", "governance proposals cover the v0.4 family (legacy v0.2 policy ops are out of scope — docs/postlaunch/server-integration.md)");
@@ -1584,6 +1846,129 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         txId: record.txId
       }
     };
+  }
+
+
+  /*
+   * ---- EXPORTABLE EXECUTION ATTESTATIONS (evidence products) ----
+   *
+   * GET /attestations/requests/:requestId
+   * GET /attestations/export?vaultId=…|organizationId=…&limit=&format=
+   *
+   * A policyvault-execution-attestation/1 record is ASSEMBLED from durable
+   * evidence that already exists (the wallet request, the G-2-checked
+   * intent-manifest record re-verified NOW, the chain-proof receipt, the
+   * vault manifest, the org assignment) — server/src/attestations.js is
+   * explicit that it creates no second source of financial truth, dials no
+   * node, never synthesizes VERIFIED_OUTCOME, and signs nothing.
+   *
+   * These routes are EVIDENCE EXPORT, never authority: an attestation
+   * changes nothing, authorizes nothing, and is worth exactly what an
+   * independent reader can re-check with tools/attestation-verify.js
+   * against a Kaspa node of their own choosing. The response therefore
+   * always carries the shared verifier's own result over the record the
+   * server just produced — including any warnings about facts the durable
+   * records do not carry.
+   *
+   * Tenancy: the same participant scoping as every other read (foreign or
+   * missing objects 404 — no existence oracle). Machine credentials need
+   * the dedicated deny-by-default scope read:attestations (scopes.js).
+   * format=ndjson returns the line-delimited batch verbatim.
+   */
+  if (method === "GET" && segments[0] === "attestations") {
+    const attest = require("../../core/attest");
+    const attestations = require("./attestations");
+    const format = query?.format ?? "json";
+    if (format !== "json" && format !== "ndjson") {
+      throw apiError(400, "BAD_FORMAT", 'format must be "json" or "ndjson"');
+    }
+    const present = (record) => {
+      const verification = attest.verifyAttestation(record);
+      return {
+        attestation: record,
+        verification: {
+          verifierVersion: verification.verifierVersion,
+          verdict: verification.verdict,
+          chainConfirmed: verification.chainConfirmed,
+          failureCodes: verification.failureCodes,
+          warnings: verification.structural.warnings.map((w) => ({ code: w.code, path: w.path }))
+        },
+        summary: attest.attestationSummary.structured(record, verification)
+      };
+    };
+    const ndjson = (records) => ({
+      status: 200,
+      rawBody: attest.exportAttestationBatchNdjson(records),
+      headers: { "Content-Type": "application/x-ndjson; charset=utf-8" }
+    });
+
+    // GET /attestations/requests/:requestId
+    if (segments.length === 3 && segments[1] === "requests") {
+      const wr4 = require("../../sdk/src/wallet-requests-v4");
+      const request = await wr4.loadRequest(config, segments[2]);
+      await requireRequestAccess(config, ctx, request); // hosted: 401 unauth / 404 foreign|missing
+      if (!request) throw apiError(404, "REQUEST_NOT_FOUND", `no request ${segments[2]}`);
+      const { attestation } = await attestations.buildAttestationForRequest(config, request);
+      if (format === "ndjson") return ndjson([attestation]);
+      return { status: 200, body: present(attestation) };
+    }
+
+    // GET /attestations/export?vaultId=…|organizationId=…
+    if (segments.length === 2 && segments[1] === "export") {
+      const limit = clampLimit(query?.limit, 50, 200);
+      const vaultIdQuery = typeof query?.vaultId === "string" ? query.vaultId : null;
+      const orgIdQuery = typeof query?.organizationId === "string" ? query.organizationId : null;
+      if ((vaultIdQuery === null) === (orgIdQuery === null)) {
+        throw apiError(400, "ATTESTATION_SCOPE_REQUIRED", "exactly one of vaultId or organizationId is required");
+      }
+      const { vaultAccessAllowed, requireVaultAccess, requireOrgAccess } = require("./tenancy");
+      const principal = await requestAuthPrincipal(config, ctx, { required: config.tenancyEnforced });
+
+      let vaultIds = [];
+      if (vaultIdQuery !== null) {
+        const loaded = await loadAnyManifest(config, vaultIdQuery).catch(() => null);
+        if (!loaded) throw apiError(404, "VAULT_NOT_FOUND", "no such vault");
+        if (config.tenancyEnforced) requireVaultAccess(config, loaded, principal, "read"); // foreign -> 404
+        vaultIds = [vaultIdQuery];
+      } else {
+        const orgs = require("../../sdk/src/organization");
+        const org = await orgs.loadOrganization(config, orgIdQuery);
+        if (!org) throw apiError(404, "ORG_NOT_FOUND", "no such organization");
+        if (config.tenancyEnforced) requireOrgAccess(config, org, principal, "read");
+        const assignments = await orgs.loadAssignments(config);
+        const assigned = Object.entries(assignments.assignments ?? {})
+          .filter(([, a]) => a && a.orgId === orgIdQuery)
+          .map(([vaultId]) => vaultId)
+          .sort();
+        /* Org membership NARROWS to the vaults this principal could already
+         * read: an org row never widens covenant-participant scoping. */
+        for (const vaultId of assigned) {
+          const loaded = await loadAnyManifest(config, vaultId).catch(() => null);
+          if (!loaded) continue;
+          if (!config.tenancyEnforced || vaultAccessAllowed(config, loaded, principal, "read")) vaultIds.push(vaultId);
+        }
+      }
+
+      const records = [];
+      for (const vaultId of vaultIds) {
+        if (records.length >= limit) break;
+        const built = await attestations.buildAttestationsForVault(config, vaultId, { limit: limit - records.length });
+        records.push(...built);
+      }
+      if (format === "ndjson") return ndjson(records);
+      return {
+        status: 200,
+        body: {
+          attestationVersion: attest.ATTESTATION_VERSION_1,
+          count: records.length,
+          batchDigest: records.length > 0 ? attest.computeBatchDigest(records) : null,
+          vaults: vaultIds,
+          records: records.map(present)
+        }
+      };
+    }
+
+    throw apiError(404, "NOT_FOUND", "unknown attestations route");
   }
 
   /*
@@ -1948,6 +2333,25 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     }
   }
 
+  // ---- v0.7 ON-CHAIN ORGANIZATIONAL ROOT (docs/postlaunch/v0.7-app-
+  // surface-contract.md §2) — consensus-enforced M-of-N root authority,
+  // distinct from the OFF-CHAIN "Organizations" grouping just below.
+  // Hosted organization admins get NO root authority from this route:
+  // server/src/org-roots.js never consults /organizations membership; the
+  // initiating signer must be an active owner slot (or, for succession,
+  // the pinned successor key) of the on-chain root itself.
+  if (segments[0] === "org-roots" || (segments[0] === "wallet" && segments[1] === "v7")) {
+    return require("./org-roots").dispatch(config, method, segments, query, body, ctx);
+  }
+
+  // ---- v0.5 (FROZEN token controller) / v0.6 (FROZEN optional-atomic-
+  // composability controller) wallet request surfaces (Wave 2 Track E;
+  // docs/postlaunch/v0.7-app-surface-contract.md §6.1). Same self-
+  // contained orchestration discipline as /wallet/v7 above.
+  if (segments[0] === "wallet" && (segments[1] === "v5" || segments[1] === "v6")) {
+    return require("./wallet-token-surface").dispatchWalletTokenSurface(config, method, segments, query, body, ctx);
+  }
+
   // ---- Organizations (OFF-CHAIN application metadata; never authority) ----
   if (segments[0] === "organizations") {
     const org = require("../../sdk/src/organization");
@@ -1964,7 +2368,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       if (error.assignedVaultIds) e.extra = { assignedVaultIds: error.assignedVaultIds };
       return e;
     };
-    const vaultExists = async (vaultId) => (await loadAnyManifest(config, vaultId)) !== null;
+    const vaultExists = async (vaultId) => (await loadVaultOrNull(config, vaultId)) !== null;
     const assignedVaultIds = async (orgId) => {
       const record = await org.loadAssignments(config); // throws on corruption (surfaced as 422)
       return Object.entries(record.assignments)
@@ -2071,7 +2475,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         await scopedOrg(orgId, "owner");
         if (config.tenancyEnforced) {
           const { requireVaultAccess } = require("./tenancy");
-          requireVaultAccess(config, await loadAnyManifest(config, body?.vaultId), principal, "owner");
+          requireVaultAccess(config, await loadVaultOrNull(config, body?.vaultId), principal, "owner");
         }
         const assignment = await org.assignVault(config, {
           vaultId: body?.vaultId,
@@ -2171,7 +2575,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (!/^[0-9a-f]{64}$/.test(vaultId)) throw apiError(400, "BAD_VAULT_ID", "vaultId must be 32-byte hex");
     const suspensions = require("./agent-suspensions");
     const { requireVaultAccess } = require("./tenancy");
-    const loaded = await loadAnyManifest(config, vaultId);
+    const loaded = await loadVaultOrNull(config, vaultId);
     const principal = await requestAuthPrincipal(config, ctx, { required: config.tenancyEnforced });
     if (method === "GET") {
       requireVaultAccess(config, loaded, principal, "read"); // foreign/missing -> 404
@@ -2215,12 +2619,14 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
   // force/override/claim-deletion inputs exist or are accepted.
   if (method === "POST" && segments.length === 3 && segments[0] === "vaults" && segments[2] === "reconcile") {
     const vaultId = segments[1];
-    const loaded = await loadAnyManifest(config, vaultId);
     // Reconcile is a hosted OWNER action (it can advance the durable
     // manifest against chain proof) — tenancy-gated so a principal cannot
-    // drive reconciliation on a vault it does not own.
+    // drive reconciliation on a vault it does not own. Principal FIRST, then
+    // the tolerant load (an id of another generation is a plain 404).
     const { requireVaultAccess } = require("./tenancy");
-    requireVaultAccess(config, loaded, await requestAuthPrincipal(config, ctx, { required: config.tenancyEnforced }), "owner");
+    const reconcilePrincipal = await requestAuthPrincipal(config, ctx, { required: config.tenancyEnforced });
+    const loaded = await loadVaultOrNull(config, vaultId);
+    requireVaultAccess(config, loaded, reconcilePrincipal, "owner");
     if (!loaded) {
       throw apiError(404, "VAULT_NOT_FOUND", `no vault ${vaultId}`);
     }
@@ -2263,17 +2669,21 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
   // GET /vaults — hosted mode tenant-scopes the list server-side to the
   // principal's covenant-participant vaults (never a frontend filter).
   if (method === "GET" && segments.length === 1 && segments[0] === "vaults") {
+    // rc12 internal review R-01: principal FIRST (401 before any store work),
+    // and a record of another generation (v0.5/v0.6/v0.7/HD live on their own
+    // route families) is simply not part of THIS family's listing — never a
+    // 500 that every caller, unauthenticated included, could trigger.
+    const listPrincipal = config.tenancyEnforced ? await requestAuthPrincipal(config, ctx, { required: true }) : null;
     const ids = await listVaultIds(config);
-    let vaults = await Promise.all(ids.map((id) => presentAny(config, id)));
-    if (config.tenancyEnforced) {
-      const { vaultAccessAllowed } = require("./tenancy");
-      const principal = await requestAuthPrincipal(config, ctx, { required: true });
-      const filtered = [];
-      for (const id of ids) {
-        const loaded = await loadAnyManifest(config, id);
-        if (vaultAccessAllowed(config, loaded, principal, "read")) filtered.push(await presentAny(config, id));
+    const vaults = [];
+    for (const id of ids) {
+      const loaded = await loadVaultOrNull(config, id);
+      if (!loaded) continue;
+      if (config.tenancyEnforced) {
+        const { vaultAccessAllowed } = require("./tenancy");
+        if (!vaultAccessAllowed(config, loaded, listPrincipal, "read")) continue;
       }
-      vaults = filtered;
+      vaults.push(await presentAny(config, id));
     }
     return { status: 200, body: { vaults } };
   }
@@ -2281,11 +2691,14 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
   // GET /vaults/:id  and  /vaults/:id/status | /audit
   if (method === "GET" && segments.length >= 2 && segments[0] === "vaults") {
     const vaultId = segments[1];
-    const loaded = await loadAnyManifest(config, vaultId);
-    // Hosted tenancy: a non-participant gets 404 (existence hidden).
+    // Hosted tenancy: principal FIRST (401 before any lookup), then a
+    // non-participant — or an id of another generation — gets 404
+    // (existence hidden).
+    const readPrincipal = config.tenancyEnforced ? await requestAuthPrincipal(config, ctx, { required: true }) : null;
+    const loaded = await loadVaultOrNull(config, vaultId);
     if (config.tenancyEnforced) {
       const { requireVaultAccess } = require("./tenancy");
-      requireVaultAccess(config, loaded, await requestAuthPrincipal(config, ctx, { required: true }), "read");
+      requireVaultAccess(config, loaded, readPrincipal, "read");
     }
     if (!loaded) {
       throw apiError(404, "VAULT_NOT_FOUND", `no vault ${vaultId}`);
@@ -2301,14 +2714,24 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         const daa = await getVirtualDaaScore(rpc);
         const body = await presentAny(config, vaultId, { virtualDaa: daa });
         if (manifest.live) {
+          // rc13 review N-01: dispatch on the manifest's OWN generation — a v0.4.x
+          // manifest has `template` (not `policy`); the v1 policy path threw for the
+          // production generation and surfaced as a 500 to the owner.
           const compiled =
-            loaded.version === "v2"
-              ? require("../../sdk/src/contract-compiler-v2").compileExactStateV2({
+            loaded.version === "v4"
+              ? require("../../sdk/src/contract-compiler-v4").compileExactStateV4({
                   config,
                   template: manifest.template,
-                  state: manifest.live.state
+                  state: manifest.live.state,
+                  contractVersion: manifest.contractVersion
                 })
-              : compileExactState({ config, policy: manifest.policy, state: manifest.live.state });
+              : loaded.version === "v2"
+                ? require("../../sdk/src/contract-compiler-v2").compileExactStateV2({
+                    config,
+                    template: manifest.template,
+                    state: manifest.live.state
+                  })
+                : compileExactState({ config, policy: manifest.policy, state: manifest.live.state });
           const address = covenantAddress(config, compiled.scriptBytes);
           const resp = await rpc.getUtxosByAddresses({ addresses: [address] });
           body.live.chainConfirmed = (resp.entries ?? []).some((e) => {
@@ -2438,6 +2861,43 @@ async function requireRequestAccess(config, ctx, request) {
  * is their approval signature alone, never the request lifecycle
  * (external-approver incident, 2026-08-27). Non-participants keep the
  * 404 non-oracle from resolveRequestAccess above. */
+/*
+ * rc13 review N-02: a signature-bearing route (v4 `signature`, `genesis-submit`)
+ * is reachable ONLY by the wallet that is the request's signer. Any other
+ * participant (an agent on the owner's request, the owner on an agent's) could
+ * otherwise burn the request into the terminal SIGNATURE_INVALID state with one
+ * malformed byte — only the signer's wallet can produce a valid signature, so
+ * nobody else has a legitimate reason to reach the finalizer. Foreign wallets
+ * still get the non-oracle 404 from requireRequestMutation first.
+ */
+async function requireRequestSigner(config, ctx, request) {
+  const principal = await requireRequestMutation(config, ctx, request);
+  if (!config.tenancyEnforced || !request) return principal;
+  let signerXOnly = null;
+  try {
+    signerXOnly = require("../../sdk/src/address-identity").resolveAddressIdentity(config, request.signerAddress).xOnlyPubkey;
+  } catch {
+    signerXOnly = null;
+  }
+  if (!signerXOnly || signerXOnly !== principal.xOnlyPubkey) {
+    throw apiError(403, "NOT_THE_SIGNER", "only the wallet that signs this request may attach its signature");
+  }
+  return principal;
+}
+
+/* rc13 review N-02 / rc12 review R-08 (v4 family): a malformed wallet payload answers a CLOSED 400 BAD_SIGNATURE before any state can change. */
+function requireSignedSafeJsonShape(signedSafeJson) {
+  let parsed;
+  try {
+    parsed = JSON.parse(signedSafeJson);
+  } catch {
+    throw apiError(400, "BAD_SIGNATURE", "signedSafeJson must be the wallet's signed Safe JSON transaction");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray(parsed.inputs) || parsed.inputs.length === 0 || !parsed.inputs.every((i) => i && typeof i === "object")) {
+    throw apiError(400, "BAD_SIGNATURE", "signedSafeJson must carry a non-empty inputs[] array of signed inputs");
+  }
+}
+
 async function requireRequestMutation(config, ctx, request) {
   const { principal, loadedVault } = await resolveRequestAccess(config, ctx, request);
   if (!config.tenancyEnforced) return principal;

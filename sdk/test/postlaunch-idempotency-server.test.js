@@ -45,7 +45,17 @@ const AGENT = KEY(0xe2);
 const RECIP = KEY(0xe3);
 const VAULT_ID = "5b".repeat(32);
 
-const POST = (segs, body, headers) => handle(config, "POST", segs, {}, body, { headers: headers ?? {} });
+/* F-03 (rc11 review): hosted builds require a principal with build authority.
+ * The OWNER (A) signs in once and is the default principal for every call —
+ * the owner may build for its own registered agent (documented flow). */
+let ownerCookie = null;
+const POST = (segs, body, headers) => handle(config, "POST", segs, {}, body, { headers: { ...(ownerCookie ? { cookie: ownerCookie } : {}), ...(headers ?? {}) } });
+async function signInOwner() {
+  const ch = await POST(["auth", "challenge"], { walletAddress: ADDR(A) });
+  const sig = kaspa.signMessage({ message: ch.body.challenge.message, privateKey: A.toString() });
+  const v = await POST(["auth", "verify"], { nonce: ch.body.challenge.nonce, signature: sig, publicKey: A.toPublicKey().toString().toLowerCase() });
+  ownerCookie = v.headers["Set-Cookie"].split(";")[0];
+}
 const requestFiles = () => (fs.existsSync(path.join(dataRoot, "requests")) ? fs.readdirSync(path.join(dataRoot, "requests")) : []);
 
 async function seedVault() {
@@ -80,6 +90,7 @@ const spendBody = (amountKas, extra = {}) => ({
 
 test("setup: seed a real v0.4 vault", async () => {
   await seedVault();
+  await signInOwner();
 });
 
 /* ---- direct unit tests of withIdempotency (precise, fast) ---- */
@@ -220,7 +231,7 @@ test("end-to-end: header-absent behavior is byte-identical to before (no idempot
 
 test("end-to-end FUNDS-SAFETY PROOF: two concurrent identical POSTs with the same Idempotency-Key create exactly ONE durable wallet-request", async () => {
   const before = requestFiles().length;
-  const headers = { authorization: undefined, cookie: undefined, idempotencyKey: "spend-once-key-1" };
+  const headers = { idempotencyKey: "spend-once-key-1" };
   const body = spendBody(3n);
   // allSettled — NOT Promise.all: both calls must be fully awaited to
   // completion before this test returns (Promise.all would propagate the

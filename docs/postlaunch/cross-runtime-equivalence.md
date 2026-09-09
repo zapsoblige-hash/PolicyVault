@@ -22,12 +22,12 @@ file under test is consumed read-only, exactly as committed.
 | # | Runtime | How it's instantiated | What it covers |
 |---|---|---|---|
 | 1 | **Node direct** | `require("core/...")` in this process's own V8 realm | The reference implementation |
-| 2 | **Browser bundle** | The COMMITTED `web/core-bundle.js`, evaluated via `vm.Script(...).runInContext(...)` inside a fresh `vm.Context` shaped like a browser global (`window === globalThis === self`; `crypto.getRandomValues` backed by Node's WebCrypto; **no** `require`/`module`/`process`/`Buffer`) | The exact `window.PolicyVaultCore` branch a real page executes — not the `module.exports` CommonJS escape hatch a plain `require()` would take |
+| 2 | **Browser bundle** | The COMMITTED `web/core-bundle.js`, evaluated via `vm.Script(...).runInContext(...)` inside a fresh `vm.Context` shaped like a browser global (`window === globalThis === self`; `crypto.getRandomValues` backed by Node's WebCrypto; **no** `require`/`module`/`process`/`Buffer`) | The exact `window.PolicyVaultCore` branch a real page executes — not the `module.exports` CommonJS escape hatch a plain `require` would take |
 | 3 | **CLI signer core path** | The REAL `core/signer/adapters/cli/adapter.js`, constructed with a synthetic (never-read) keyfile path, exercised up to (not through) its lazy kaspa-wasm boundary | The descriptor/negotiation surface this materially-different signer shares with core/signer/interface.js, the same module the bundle embeds |
 | 3′ | **Core-model probe** (forward-looking, not "the bundle") | An analogous `vm.Context`, generalized to load an EXPLICIT list of `core/model/*.js` files not (yet) in the bundle's reviewed module set | Whether those files would already run unmodified in a browser today |
 
 Runtime 2 is reached exclusively through `core/crossruntime/sandbox.js`
-`loadCommittedBundleInBrowserGlobal()`; runtime 3′ through the same
+`loadCommittedBundleInBrowserGlobal`; runtime 3′ through the same
 file's `loadCoreFilesInSandbox(relPaths)`, a generalization of
 `web/tools/build-core-bundle.js`'s own loader technique to an arbitrary
 explicit file list (it is not a second bundle generator; nothing it
@@ -86,11 +86,11 @@ All byte-identical unless noted.
 |---|---|---|
 | Intent manifest canonical bytes + `computeManifestHashV1` | **BYTE-IDENTICAL** | 11/11 fixture actions; representation-independence (reversed key order + JSON round-trip) proven cross-runtime too, not just within one runtime |
 | `verifyIntentManifest` verdict + detector codes | **BYTE-IDENTICAL** | 11/11 clean passes; 3 policy-invalid adversarial test manifests (recipient substitution, fee inflation, hidden authority expansion) refuse with identical sorted code sets and identical per-detector pass/fail vectors, in fixed detector order |
-| `core/explain` structured() + humanReadable() | **BYTE-IDENTICAL** | 7 representative fixtures, a REFUSED rendering, and a fabricated-`{ok:true}` re-verification-refusal case |
-| SHA-256 (shim vs `node:crypto`) | **BYTE-IDENTICAL** | 22/22 vectors, three-way (node:crypto, core/intent Node, bundle shim); chunked `update()` matches single-call; fail-closed refusal surface (non-string update, non-hex digest, sha512) confirmed to genuinely narrow vs. `node:crypto`'s wider real surface |
+| `core/explain` structured + humanReadable | **BYTE-IDENTICAL** | 7 representative fixtures, a REFUSED rendering, and a fabricated-`{ok:true}` re-verification-refusal case |
+| SHA-256 (shim vs `node:crypto`) | **BYTE-IDENTICAL** | 22/22 vectors, three-way (node:crypto, core/intent Node, bundle shim); chunked `update` matches single-call; fail-closed refusal surface (non-string update, non-hex digest, sha512) confirmed to genuinely narrow vs. `node:crypto`'s wider real surface |
 | `randomBytes` | **FORMAT-IDENTICAL** (32-hex), values differ by design | Entropy; value equality is neither possible nor desired |
 | Signer interface (`core/signer/interface.js` + `errors.js`) | **BYTE-IDENTICAL** | error-code vocabulary, `SignerError` shape, `normalizeAdapterFailure` classification, `createMessageSigningRequest`/`createTransactionSigningRequest` (requestId/createdAtMs normalized out, format-checked separately), `assertCanonicalSignInputs`, `normalizePublicKeyToXOnly` (8/8 vectors), `validateCapabilityDescriptor` + `negotiateCapabilities` (6/6 requirement sets) |
-| CLI signer adapter's real descriptor | **BYTE-IDENTICAL** | The REAL `createCliSignerAdapter(...).describe()` output (testnet-10 AND a dual-unlocked mainnet construction) normalizes and negotiates identically through Node's and the bundle's copies of `core/signer/interface.js` |
+| CLI signer adapter's real descriptor | **BYTE-IDENTICAL** | The REAL `createCliSignerAdapter(...).describe` output (testnet-10 AND a dual-unlocked mainnet construction) normalizes and negotiates identically through Node's and the bundle's copies of `core/signer/interface.js` |
 | State IDs — `computeStateIdV4` | **BYTE-IDENTICAL** (probe, not the bundle — see §4) | 4/4 vectors incl. MAX_SOMPI + max-policyNonce + full-approver-set boundary; empty-networkId reject-path also identical |
 | State IDs — `computeStateId` (v1) | **BYTE-IDENTICAL** (probe) | 2/2 vectors |
 | Fee/mass (`fee-mass.js`) | **BYTE-IDENTICAL** (probe) | 3/3 tx shapes incl. reject-path (mass-cap exceeded) |
@@ -107,7 +107,7 @@ browser-like sandbox; **not** a claim about the shipped
 ## 4. Bundle-vs-source anti-drift result
 
 **PASS.** `web/core-bundle.js` (committed) is byte-identical to a fresh
-`generateBundle()` regeneration from the current `core/intent`,
+`generateBundle` regeneration from the current `core/intent`,
 `core/explain`, `core/signer` sources — confirmed independently by this
 suite's own harness (`bundle-anti-drift.test.js`), in addition to the
 pre-existing `web/test/core-bundle.test.js` assertion. No drift.
@@ -122,7 +122,7 @@ pre-existing `web/test/core-bundle.test.js` assertion. No drift.
 > 2026-08-26; evidence: `docs/postlaunch/f1-merkle-portability.md`).**
 > `recipient-merkle-v3.js` and `agent-merkle-v4.js` are now byte-native
 > (Uint8Array; no ambient Buffer), the bundle crypto shim supports
-> exactly `update(<Uint8Array>)`/`digest()` alongside its original
+> exactly `update(<Uint8Array>)`/`digest` alongside its original
 > string surface, the two Merkle modules (+ `amounts.js`,
 > `contract-version.js`, `vault-state.js`) are embedded in
 > `web/core-bundle.js`, and `vault-transitions-v4.js` loads transitively.
@@ -144,7 +144,7 @@ does; 11/14 files load and run cleanly with zero changes — §6).
 
 **Reproduction:** `core-model-portability.test.js` TIER2 cases load a
 sandbox with **all 14** core/model files available and call
-`.require()` on each of the three; each throws the exact
+`.require` on each of the three; each throws the exact
 `ReferenceError` above, in both load orders tried (agent-merkle-v4
 first, and vault-transitions-v4 first — see the cache-eviction note in
 §6).
@@ -155,15 +155,15 @@ first, and vault-transitions-v4 first — see the cache-eviction note in
    `Buffer.isBuffer(...)`) — never through `require("buffer")`, so
    `core/model/test/purity.test.js`'s static `require(...)`-call scan
    cannot see this dependency; it is real only at runtime.
-2. **Even with a Buffer polyfill**, their `sha256()` helper calls
-   `crypto.createHash("sha256").update(<Buffer>).digest()` — raw bytes
+2. **Even with a Buffer polyfill**, their `sha256` helper calls
+   `crypto.createHash("sha256").update(<Buffer>).digest` — raw bytes
    in, raw bytes out, no encoding/format arguments. This is OUTSIDE the
    existing browser crypto shim's exact supported surface
    (`update(<string>, "utf8")` / `digest("hex")` only — anything else
    fails closed by design). Reproduced directly against the committed
    `CRYPTO_SHIM` source in `core-model-portability.test.js`'s final
    case: `update(Buffer.from("ab"))` throws "...strings only...", and
-   `update("ab","utf8").digest()` (no format) throws "...unsupported
+   `update("ab","utf8").digest` (no format) throws "...unsupported
    digest format...".
 
 **Impact today: none (latent).** core/model is not in
@@ -183,7 +183,7 @@ mutually exclusive):**
   `sha256Bytes(Uint8Array) -> Uint8Array`, which the shim's existing
   pure-JS block-processing code can serve almost for free (its
   `sha256HexOfUtf8` already reduces to byte-array processing after
-  `utf8Bytes()`; a byte-native entry point only needs to skip that one
+  `utf8Bytes`; a byte-native entry point only needs to skip that one
   step) — plus a minimal `Buffer`-like polyfill (`from`/`concat`/
   `alloc`/`isBuffer`/`subarray`/`toString("hex")`/`writeBigUInt64LE`)
   covering exactly the calls these two files make (enumerated in full
@@ -257,14 +257,14 @@ comparison in this suite that touches a structured value uses them).
   loader: this suite's `loadCoreFilesInSandbox` originally cached a
   module's (empty) `exports` object **before** invoking its factory
   and did not evict that cache entry when the factory threw. A module
-  that transitively `require()`s a failed module would then silently
+  that transitively `require`s a failed module would then silently
   destructure `undefined` members from the stale empty stub instead of
   re-observing the failure — concretely, `vault-transitions-v4.js`
   appeared to "load successfully" (with its `agent-merkle-v4` imports
   silently `undefined`) in one specific test ordering, until this was
   caught and fixed by evicting the cache entry on throw (mirroring
-  Node's own `require()` behavior). The fix and the reasoning are
-  recorded in `sandbox.js`'s `load()` function; the TIER2 tests now
+  Node's own `require` behavior). The fix and the reasoning are
+  recorded in `sandbox.js`'s `load` function; the TIER2 tests now
   pass identically regardless of load order (both orders are exercised
   explicitly).
 - `core/model/test/purity.test.js` (pre-existing, unmodified) proves
@@ -285,7 +285,7 @@ comparison in this suite that touches a structured value uses them).
   requires successfully loading exactly the two files this section's
   finding is about. If/when §5.1 is remediated, re-running
   `computeGolden`/`computeGolden2` with a sandboxed `mods` object
-  (Node-direct vs. sandboxed, compared via `rehome()`) would be a very
+  (Node-direct vs. sandboxed, compared via `rehome`) would be a very
   low-effort way to extend this suite's coverage to the full 14/14
   files with almost no new vector-authoring work.
 

@@ -110,7 +110,10 @@ test("migration 008 applies after 001-007: audit_chain_state has the category sh
   const { store } = await freshPgConfig();
   const pool = store.pool();
   const applied = await pool.query("SELECT version, name FROM schema_migrations ORDER BY version");
-  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  // 010 = MCP usage telemetry (flagship wave 1, Track 7; create-only
+  // category, config-gated OFF) — the migration set is pinned so a new file
+  // is always a deliberate re-classification, never an accident.
+  assert.deepEqual(applied.rows.map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.equal(applied.rows[7].name, "008_audit_chain.sql");
   const cols = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'audit_chain_state' ORDER BY column_name`);
   assert.deepEqual(cols.rows.map((r) => r.column_name).sort(), ["key", "network_id", "updated_at", "value"]);

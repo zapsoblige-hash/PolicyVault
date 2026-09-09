@@ -58,6 +58,8 @@ const FLAT_EXPORTS = [
   "SUPPORTED_COVENANT_VERSIONS", "V4_ABIS", "resolveV4Abi",
   // v0.5 token-controller lineage (IMPLEMENTATION IN PROGRESS; additive)
   "CONTRACT_VERSION_V5", "V5_ABIS", "resolveV5Abi",
+  // v0.7 organizational M-of-N owner root lineage (CANDIDATE; additive)
+  "CONTRACT_VERSION_V7_ROOT", "CONTRACT_VERSION_V7", "resolveV7RootAbi", "resolveV7Abi",
   // client
   "PolicyVaultClient", "PolicyVaultApiError", "PolicyVaultNetworkError", "createClient",
   "randomIdempotencyKey", "API_PREFIX", "V4_WALLET_REQUEST_SCHEMA_VERSION"
@@ -73,7 +75,10 @@ const NAMESPACE_EXPORTS = [
   "intent", "signer", "explain", "governance",
   // v0.5 token-controller lineage + shared asset layer
   "vaultStateV5", "vaultTransitionsV5", "agentMerkleV5", "computeBudgetV5",
-  "assets", "tokenManifestV5", "tokenExplain"
+  "assets", "tokenManifestV5", "tokenExplain",
+  // v0.7 organizational root + rooted vault lineage
+  "ownerSetV7", "vaultStateV7Root", "vaultStateV7", "vaultTransitionsV7Root", "vaultTransitionsV7",
+  "computeBudgetV7", "contractCompilerV7", "vaultBuildersV7", "orgRootManifestV7", "intentRouter"
 ];
 
 test("every documented flat export resolves to a defined value", () => {

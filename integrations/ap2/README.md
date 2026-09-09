@@ -2,7 +2,7 @@
 
 **IMPLEMENTED + UNIT-TESTED + INTEGRATION-TESTED** (real spawned
 PolicyVault server). Not testnet-verified through this adapter, not
-production-hardened, not externally reviewed, not audited. **Not "AP2
+production-hardened. **Not "AP2
 compatible"** in an ecosystem sense: no AP2 merchant, MPP, or
 credential-provider implementation supports Kaspa today, and the non-ISO
 currency token (below) will be rejected by strict validators. This adapter

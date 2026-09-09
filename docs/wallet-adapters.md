@@ -34,9 +34,9 @@ from the known final signature-script lengths, so the wallet signs once.
 
 ## Adapter contract (all methods required)
 
-`detect()`, `connect()`, `disconnect()`, `reconnect()`,
-`getActiveAddress()`, `getNetwork()` (canonical `testnet-10`/`mainnet`),
-`getCapabilities()`, `getPublicKeyXOnly()`, `on("account"|"network", cb)`,
+`detect`, `connect`, `disconnect`, `reconnect`,
+`getActiveAddress`, `getNetwork` (canonical `testnet-10`/`mainnet`),
+`getCapabilities`, `getPublicKeyXOnly`, `on("account"|"network", cb)`,
 `signInputs(unsignedSafeJson, signInputs) -> signedSafeJson`.
 
 Capabilities: `canSignTransaction`, `canSignSpecificInputs`,
@@ -52,9 +52,9 @@ provider-specific error strings.
 
 ## Connected-wallet identity (owner pubkey)
 
-`getPublicKeyXOnly()` returns the connected account's public key as
+`getPublicKeyXOnly` returns the connected account's public key as
 canonical 32-byte lowercase x-only hex. Providers differ in wire format —
-KasWare's `getPublicKey()` returns the 33-byte compressed secp256k1 key
+KasWare's `getPublicKey` returns the 33-byte compressed secp256k1 key
 (66 hex chars, `02`/`03` parity byte + X coordinate; vendor-documented).
 Every adapter routes the raw provider value through the ONE shared
 normalizer, `normalizePublicKeyToXOnly` (exported from `web/wallet.js`):
@@ -72,7 +72,7 @@ parity), and it is the same relationship the SDK already uses in reverse
 (`new PublicKey("02" + xonly)` for address derivation).
 
 The dashboard derives the create-vault OWNER from
-`getPublicKeyXOnly()` at submit time — users never type or edit their
+`getPublicKeyXOnly` at submit time — users never type or edit their
 connected wallet's public key, and the form's owner field is display
 only. Downstream validation (`normalizeTemplateV2`) stays strict
 64-hex x-only: normalization happens at this adapter boundary and

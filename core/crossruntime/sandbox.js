@@ -147,6 +147,14 @@ function loadCoreFilesInSandbox(relPaths) {
     }
     const id = out.join("/").replace(/\.js$/, "");
     if (factories[id]) return id;
+    /* DIRECTORY-INDEX fallback, mirroring web/tools/build-core-bundle.js's
+     * own loader exactly (`if (factories[id + "/index"]) ...`). Without it
+     * this probe could not load ANY module that requires a package
+     * directory — `require("../assets")`, `require("./intent")` and so on —
+     * even though the SHIPPED bundle resolves those fine, which would make
+     * the probe narrower than the runtime it is supposed to model. Still
+     * fail-closed: the target must be in the explicit file list. */
+    if (factories[`${id}/index`]) return `${id}/index`;
     throw new Error(
       `core-crossruntime sandbox: module ${JSON.stringify(request)} (from ${fromId}) resolves to ${JSON.stringify(id)}, which is outside this probe's explicit file list — failing closed`
     );

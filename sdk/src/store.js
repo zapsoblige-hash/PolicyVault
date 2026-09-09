@@ -47,6 +47,10 @@ const Categories = Object.freeze({
   RECEIPT: "receipt", // key: txId
   ORG: "org", // key: orgId
   ORG_ASSIGNMENTS: "org-assignments", // key: "assignments" (single record)
+  // v0.7 ON-CHAIN ORGANIZATIONAL ROOT records (docs/postlaunch/v0.7-app-surface-contract.md §1;
+  // migration 011). Rooted vaults reuse Categories.VAULT (sdk/src/manifest-v7.js).
+  ORG_ROOT: "org-root", // key: rootCovenantId
+  ORG_ROOT_REQUEST: "org-root-request", // key: requestId (uuid)
   // Post-launch correlation + governance + risk families (postlaunch-rc;
   // migrations 002/003/004). Same one-object-per-key shape as the rest.
   INTENT_MANIFEST: "intent-manifest", // key: manifestHash (64-hex); create-only
@@ -63,11 +67,63 @@ class StoreError extends Error {
   }
 }
 
+/*
+ * Codex checkpoint 13 (rc26 round-7 review R7-07/A): a store key is ONE canonical path segment. The JSON driver joins
+ * keys into file paths, so "./<id>" and "<dir>/../<id>" resolved to the SAME record as "<id>" while every caller-side
+ * identity (the per-request reconcile queue, claim keys, logs) saw three different strings — an accepted alias could
+ * bypass exclusion. Every driver now refuses a non-canonical key BEFORE any lookup or mutation (fail closed,
+ * STORE_KEY_INVALID); the PostgreSQL driver applies the same contract for parity even though it never joins paths.
+ * Every persisted key family (uuid request ids, 64-hex vault / txid / manifest keys, "<txid>-<index>" claim keys,
+ * "<digest>-<xonly>" approval keys, "assignments") is a single segment already; nothing legitimate is refused.
+ */
+function isCanonicalStoreKey(key) {
+  return typeof key === "string" && key.length > 0 && key !== "." && key !== ".." && !/[\/\\\0]/.test(key);
+}
+function assertStoreKey(key) {
+  if (!isCanonicalStoreKey(key)) {
+    throw new StoreError("STORE_KEY_INVALID", `store key ${typeof key === "string" ? JSON.stringify(key.slice(0, 80)) : typeof key} is not a canonical single-segment key (non-empty, no path separators, no "." / ".." segments) — refusing before any lookup or mutation`);
+  }
+  return key;
+}
+
+// A case-folding filesystem can resolve two spellings to one file even
+// though the operation queues see two keys. Preserve exact logical IDs:
+// validate the value returned by a keyed read, never lowercase the key.
+// Generic store records without an identity field keep their existing shape.
+function assertRecordIdentity(category, key, record) {
+  if (record == null) return record;
+  const fields = {
+    [Categories.REQUEST]: [record.requestId],
+    [Categories.ORG_ROOT_REQUEST]: [record.id],
+    [Categories.ORG_ROOT]: [record.rootCovenantId],
+    [Categories.VAULT]: [record.vaultId, record.template?.vaultId],
+    [Categories.RECEIPT]: [record.txId],
+    [Categories.SUBMISSION_CLAIM]: [record.txId],
+    [Categories.TRANSITION_CLAIM]: [record.schema === "policyvault-budget-reservation/v1"
+      ? record.vaultId && record.agentPk && record.requestId ? `resv-${record.vaultId}-${record.agentPk}-${record.requestId}` : null
+      : record.schema === "policyvault-reservation-lock/v1" ? record.vaultId ? `resvlock-${record.vaultId}` : null
+        : record.outpoint && `${record.outpoint.transactionId}-${record.outpoint.index}`],
+    [Categories.ORG]: [record.orgId],
+    [Categories.ORG_CONTROLS]: [record.orgId],
+    [Categories.INTENT_MANIFEST]: [record.manifestHash],
+    [Categories.GOVERNANCE_PROPOSAL]: [record.schema === "policyvault-governance-transition-lock/v1" ? record.proposalId ? `xlock-${record.proposalId}` : null : record.proposalId],
+    [Categories.GOVERNANCE_APPROVAL]: [record.proposalDigest && record.approverXOnly ? `${record.proposalDigest}-${record.approverXOnly}` : null],
+    [Categories.RISK_EVALUATION]: [record.evaluationId]
+  };
+  const identities = fields[category] ?? [];
+  const typed = String(record.schema ?? record.schemaVersion ?? "").startsWith("policyvault-");
+  if (identities.some((id) => id != null && id !== key) || typed && identities.length > 0 && !identities.some((id) => typeof id === "string" && id === key)) {
+    throw new StoreError([Categories.REQUEST, Categories.ORG_ROOT_REQUEST].includes(category) ? "REQUEST_ID_MISMATCH" : "STORE_IDENTITY_MISMATCH", `${category} record identity differs from its requested storage key — refusing an alias or misbound record`);
+  }
+  return record;
+}
+
 /* ------------------------------------------------------------------ */
 /* JSON driver — the released self-hosted layout, byte-for-byte.       */
 /* ------------------------------------------------------------------ */
 
 function jsonPathFor(config, category, key) {
+  assertStoreKey(key);
   switch (category) {
     case Categories.VAULT:
       return path.join(config.dataRoot, "vaults", key, "manifest.json");
@@ -83,6 +139,10 @@ function jsonPathFor(config, category, key) {
       return path.join(config.dataRoot, "orgs", `${key}.json`);
     case Categories.ORG_ASSIGNMENTS:
       return path.join(config.dataRoot, "orgs", "assignments.json");
+    case Categories.ORG_ROOT:
+      return path.join(config.dataRoot, "org-roots", `${key}.json`);
+    case Categories.ORG_ROOT_REQUEST:
+      return path.join(config.dataRoot, "org-root-requests", `${key}.json`);
     case Categories.INTENT_MANIFEST:
       return path.join(config.dataRoot, "manifests", `${key}.json`);
     case Categories.GOVERNANCE_PROPOSAL:
@@ -106,7 +166,7 @@ class JsonStore {
 
   async read(category, key) {
     const p = jsonPathFor(this._config, category, key);
-    return fs.existsSync(p) ? readJsonStrict(p, category) : null;
+    return assertRecordIdentity(category, key, fs.existsSync(p) ? readJsonStrict(p, category) : null);
   }
 
   /* Overwrite-or-create durable write (fsync-rename). */
@@ -163,13 +223,14 @@ class JsonStore {
   /* All values in a category (corrupt records skipped exactly as the
    * existing request/org listers do — a corrupt record fails in its own
    * flow, never someone else's listing). */
-  async listValues(category) {
+  async listValues(category, { strict = false } = {}) {
     const out = [];
     for (const key of await this.listKeys(category)) {
       try {
         const v = await this.read(category, key);
         if (v !== null) out.push(v);
-      } catch {
+      } catch (e) {
+        if (strict) throw e;
         /* corrupt record: skipped in listings */
       }
     }
@@ -183,7 +244,7 @@ class JsonStore {
     fs.appendFileSync(path.join(dir, "events.log"), JSON.stringify(record) + "\n", { mode: 0o600 });
   }
 
-  async readAudit({ vaultId, limit = 200 } = {}) {
+  async readAudit({ vaultId, txId, limit = 200 } = {}) {
     const file = path.join(this._config.dataRoot, "audit", "events.log");
     if (!fs.existsSync(file)) return [];
     const events = fs
@@ -199,7 +260,7 @@ class JsonStore {
         }
       })
       .filter(Boolean);
-    const filtered = vaultId ? events.filter((e) => e.vaultId === vaultId) : events;
+    const filtered = events.filter((e) => (!vaultId || e.vaultId === vaultId) && (!txId || e.txId === txId));
     return filtered.slice(-limit).reverse();
   }
 
@@ -220,6 +281,8 @@ const CATEGORY_TABLE = Object.freeze({
   [Categories.RECEIPT]: "receipts",
   [Categories.ORG]: "organizations",
   [Categories.ORG_ASSIGNMENTS]: "org_assignments",
+  [Categories.ORG_ROOT]: "org_roots",
+  [Categories.ORG_ROOT_REQUEST]: "org_root_requests",
   [Categories.INTENT_MANIFEST]: "intent_manifests",
   [Categories.GOVERNANCE_PROPOSAL]: "governance_proposals",
   [Categories.GOVERNANCE_APPROVAL]: "governance_approvals",
@@ -247,11 +310,13 @@ class PgStore {
   }
 
   async read(category, key) {
+    assertStoreKey(key);
     const r = await this._pool.query(`SELECT value FROM ${this._table(category)} WHERE network_id = $1 AND key = $2`, [this._network, key]);
-    return r.rowCount ? r.rows[0].value : null;
+    return assertRecordIdentity(category, key, r.rowCount ? r.rows[0].value : null);
   }
 
   async write(category, key, value) {
+    assertStoreKey(key);
     await this._pool.query(
       `INSERT INTO ${this._table(category)} (network_id, key, value, updated_at) VALUES ($1, $2, $3::jsonb, now())
        ON CONFLICT (network_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
@@ -264,6 +329,7 @@ class PgStore {
    * primary key (network_id, key) is the final race arbiter — never
    * SELECT-then-INSERT. */
   async createExclusive(category, key, value) {
+    assertStoreKey(key);
     const r = await this._pool.query(
       `INSERT INTO ${this._table(category)} (network_id, key, value, updated_at) VALUES ($1, $2, $3::jsonb, now())
        ON CONFLICT (network_id, key) DO NOTHING`,
@@ -273,6 +339,7 @@ class PgStore {
   }
 
   async remove(category, key) {
+    assertStoreKey(key);
     const r = await this._pool.query(`DELETE FROM ${this._table(category)} WHERE network_id = $1 AND key = $2`, [this._network, key]);
     return r.rowCount > 0;
   }
@@ -282,9 +349,14 @@ class PgStore {
     return r.rows.map((row) => row.key);
   }
 
-  async listValues(category) {
-    const r = await this._pool.query(`SELECT value FROM ${this._table(category)} WHERE network_id = $1`, [this._network]);
-    return r.rows.map((row) => row.value);
+  async listValues(category, { strict = false } = {}) {
+    const r = await this._pool.query(`SELECT key, value FROM ${this._table(category)} WHERE network_id = $1`, [this._network]);
+    const values = [];
+    for (const row of r.rows) {
+      try { values.push(assertRecordIdentity(category, assertStoreKey(row.key), row.value)); }
+      catch (e) { if (strict) throw e; }
+    }
+    return values;
   }
 
   async appendAudit(record) {
@@ -315,12 +387,16 @@ class PgStore {
     );
   }
 
-  async readAudit({ vaultId, limit = 200 } = {}) {
+  async readAudit({ vaultId, txId, limit = 200 } = {}) {
     const params = [this._network];
     let where = "network_id = $1";
     if (vaultId) {
       params.push(vaultId);
       where += ` AND vault_id = $2`;
+    }
+    if (txId) {
+      params.push(txId);
+      where += ` AND tx_id = $${params.length}`;
     }
     params.push(limit);
     const r = await this._pool.query(
@@ -446,4 +522,4 @@ async function openPgStore(config, { migrate = false } = {}) {
   }
 }
 
-module.exports = { Categories, getStore, openPgStore, createPgPool, StoreError, JsonStore, PgStore };
+module.exports = { Categories, getStore, openPgStore, createPgPool, StoreError, JsonStore, PgStore, assertStoreKey, isCanonicalStoreKey };

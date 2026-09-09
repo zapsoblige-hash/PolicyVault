@@ -22,7 +22,30 @@ note() { echo "selfhost: $*"; }
 need_env() { [ -f "$ENV_FILE" ] || die "no $ENV_FILE — run: bash deploy/selfhost.sh init"; }
 env_get()  { grep -E "^$1=" "$ENV_FILE" | head -1 | cut -d= -f2-; }
 
-build_id() { git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo "selfhost"; }
+# Deployment identity, used both for the served buildId (stale-deployment
+# protection) and to detect "the source actually changed" for `upgrade`.
+# Prefer the git commit (the normal case: a clone). When there is no git
+# metadata — e.g. the source was obtained as a release tarball/zip, or a
+# `git archive` export — fall back to a content hash of the exact runtime
+# source tree instead of a constant literal. A constant fallback previously
+# made every git-less checkout look identical to `upgrade` forever, so
+# `bash deploy/selfhost.sh upgrade` always refused with "source tree is at
+# the same build — nothing to upgrade to" even after real source edits.
+build_id() {
+  local gid
+  gid="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+  if [ -n "$gid" ]; then echo "$gid"; return; fi
+  (
+    cd "$REPO_DIR" \
+      && find core sdk/src sdk/package.json sdk/package-lock.json \
+              server/src server/migrations server/package.json \
+              web contracts deploy/Dockerfile -type f 2>/dev/null \
+      | LC_ALL=C sort \
+      | xargs -r sha256sum \
+      | sha256sum \
+      | cut -c1-12
+  ) || echo "selfhost"
+}
 
 cmd_init() {
   local network="testnet-10" rpc_url="" origin="" port="3080" mainnet=0
@@ -152,12 +175,15 @@ cmd_up() {
   grep -qE "^POLICYVAULT_PG_(HOST|USER|PASSWORD)=REPLACE" "$ENV_FILE" \
     && die "PostgreSQL placeholders in $ENV_FILE are unfilled — failing closed"
   if [ ! -f "$DEPLOY_DIR/vendor/bin/silverc" ] || [ ! -d "$DEPLOY_DIR/vendor/kaspa" ]; then
-    note "deploy/vendor incomplete — staging the pinned runtime toolchain (tools/stage-vendor.sh)..."
-    bash "$REPO_DIR/tools/stage-vendor.sh" \
-      || die "stage-vendor failed — it needs sibling silverscript + rusty-kaspa checkouts and the pre-fetched Node dist (see the script header and docs/selfhost-quickstart.md)"
+    die "deploy/vendor incomplete — build privacy-safe artifacts and stage them with tools/build-private-safe-vendor.sh and tools/stage-vendor.sh as documented in docs/selfhost-quickstart.md; raw toolchain copies are not accepted"
   fi
   [ -f "$DEPLOY_DIR/vendor/dist/node-v20.20.2-linux-x64.tar.xz" ] \
     || die "deploy/vendor/dist is missing the pinned Node dist — pre-fetch it per the stage-vendor.sh header (SHASUMS256-verified)"
+  (cd "$DEPLOY_DIR/vendor" && sha256sum -c "$DEPLOY_DIR/vendor-pins.sha256") \
+    || die "staged runtime differs from tracked native/WASM pins"
+  python3 "$REPO_DIR/tools/artifact-privacy-scan.py" --tree "$DEPLOY_DIR/vendor/bin" >/dev/null \
+    && python3 "$REPO_DIR/tools/artifact-privacy-scan.py" --tree "$DEPLOY_DIR/vendor/kaspa" >/dev/null \
+    || die "runtime artifact privacy scan failed; inspect the stage before building"
   note "building image policyvault-app:$tag from this source tree..."
   "${COMPOSE[@]}" build app
   if grep -q "^POLICYVAULT_ALLOW_MAINNET=true" "$ENV_FILE"; then
@@ -236,24 +262,41 @@ cmd_acceptance() {
 
 cmd_upgrade() {
   need_env
-  local old new
+  local old new old_build_id new_build_id
   old="$(env_get PV_SELFHOST_APP_TAG)"
-  new="selfhost-$(build_id)"
+  old_build_id="$(env_get POLICYVAULT_BUILD_ID)"
+  new_build_id="$(build_id)"
+  new="selfhost-$new_build_id"
   [ "$old" = "$new" ] && die "source tree is at the same build ($new) — nothing to upgrade to. Pull/checkout the new source first."
-  echo "PREVIOUS_TAG=$old" > "$STATE_FILE"
-  sed -i -e "s/^PV_SELFHOST_APP_TAG=.*/PV_SELFHOST_APP_TAG=$new/" -e "s/^POLICYVAULT_BUILD_ID=.*/POLICYVAULT_BUILD_ID=$(build_id)/" "$ENV_FILE"
-  note "upgrading $old -> $new (previous tag recorded for rollback)"
+  # Record BOTH the previous image tag and the previous served buildId —
+  # rollback must restore both together, or /health would report the NEW
+  # build's identity while actually running the OLD (rolled-back) image
+  # (POLICYVAULT_BUILD_ID is a runtime env_file value that overrides
+  # whatever the image itself was built with; previously only the tag was
+  # restored, so buildId silently lied about which code was running after
+  # a rollback — exactly the stale-deployment confusion buildId exists to
+  # prevent).
+  { echo "PREVIOUS_TAG=$old"; echo "PREVIOUS_BUILD_ID=$old_build_id"; } > "$STATE_FILE"
+  sed -i -e "s/^PV_SELFHOST_APP_TAG=.*/PV_SELFHOST_APP_TAG=$new/" -e "s/^POLICYVAULT_BUILD_ID=.*/POLICYVAULT_BUILD_ID=$new_build_id/" "$ENV_FILE"
+  note "upgrading $old -> $new (previous tag + buildId recorded for rollback)"
   cmd_up
 }
 
 cmd_rollback() {
   need_env
   [ -f "$STATE_FILE" ] || die "no recorded previous tag ($STATE_FILE missing)"
-  local prev; prev="$(grep '^PREVIOUS_TAG=' "$STATE_FILE" | cut -d= -f2)"
+  local prev prev_build_id
+  prev="$(grep '^PREVIOUS_TAG=' "$STATE_FILE" | cut -d= -f2)"
+  prev_build_id="$(grep '^PREVIOUS_BUILD_ID=' "$STATE_FILE" | cut -d= -f2)"
   [ -n "$prev" ] || die "no PREVIOUS_TAG recorded"
   note "rolling back app tag to $prev (NOTE: schema migrations are NOT rolled back automatically —"
   note "a newer schema than the app expects will fail closed; restore a backup if you migrated)"
   sed -i "s/^PV_SELFHOST_APP_TAG=.*/PV_SELFHOST_APP_TAG=$prev/" "$ENV_FILE"
+  if [ -n "$prev_build_id" ]; then
+    sed -i "s/^POLICYVAULT_BUILD_ID=.*/POLICYVAULT_BUILD_ID=$prev_build_id/" "$ENV_FILE"
+  else
+    note "WARNING: no PREVIOUS_BUILD_ID recorded (state file predates this fix) — served buildId may not match the rolled-back image; run 'check' and verify manually"
+  fi
   "${COMPOSE[@]}" up -d app
   note "rolled back. Run: bash deploy/selfhost.sh check"
 }

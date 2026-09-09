@@ -89,20 +89,55 @@ function isForbiddenTargetIp(ip, { allowLoopback = false } = {}) {
     return false;
   }
   if (net.isIPv6(ip)) {
-    const v6 = ip.toLowerCase();
-    if (v6 === "::1") return !allowLoopback;
-    if (v6 === "::") return true;
-    // v4-mapped / v4-compatible / NAT64: judge the embedded v4.
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v6);
-    if (mapped) return isForbiddenTargetIp(mapped[1], { allowLoopback });
-    if (v6.startsWith("64:ff9b:")) return true; // NAT64 translation prefix — conservative deny
-    if (v6.startsWith("fe8") || v6.startsWith("fe9") || v6.startsWith("fea") || v6.startsWith("feb")) return true; // link-local fe80::/10
-    if (v6.startsWith("fc") || v6.startsWith("fd")) return true; // ULA fc00::/7
-    if (v6.startsWith("ff")) return true; // multicast
-    if (v6.startsWith("2001:db8")) return true; // documentation
+    // Every spelling (compressed, expanded, zero-padded, upper-case, dotted
+    // v4 embedding) is reduced to its eight 16-bit groups BEFORE any range
+    // check, so a range can never be dodged by re-spelling (LS-04). Scoped
+    // literals are interface-local and never public webhook targets.
+    const h = ipv6Groups(ip);
+    if (!h) return true;
+    const leading = (n) => h.slice(0, n).every((g) => g === 0);
+    const v4 = (a, b) => `${a >>> 8}.${a & 255}.${b >>> 8}.${b & 255}`;
+    if (leading(7) && h[7] === 1) return !allowLoopback; // ::1
+    if (leading(8)) return true; // :: unspecified
+    if (leading(5) && h[5] === 0xffff) return isForbiddenTargetIp(v4(h[6], h[7]), { allowLoopback }); // ::ffff:a.b.c.d — judge the embedded v4
+    if (leading(6)) return true; // ::a.b.c.d v4-compatible (deprecated) — conservative deny
+    if (leading(4) && h[4] === 0xffff && h[5] === 0) return true; // ::ffff:0:a.b.c.d SIIT (deprecated)
+    if (h[0] === 0x0064 && h[1] === 0xff9b) return true; // 64:ff9b::/96 NAT64 + 64:ff9b:1::/48 local-use NAT64
+    if (h[0] === 0x2002) return true; // 2002::/16 6to4 (embeds a v4 address) — conservative deny (rc29)
+    if (h[0] === 0x2001 && h[1] === 0x0000) return true; // 2001:0::/32 Teredo (embeds v4 addresses) — conservative deny (rc29)
+    if (h[0] === 0x2001 && h[1] === 0x0db8) return true; // 2001:db8::/32 documentation (exact /32: 2001:db81::/32 … are real global space)
+    if (h[0] === 0x2001 && (h[1] >>> 4 === 0x001 || h[1] >>> 4 === 0x002)) return true; // 2001:10::/28 + 2001:20::/28 ORCHID (non-routable)
+    if (h[0] === 0x0100 && h[1] === 0 && h[2] === 0 && h[3] === 0) return true; // 100::/64 discard-only
+    if (h[0] === 0x3fff && h[1] >>> 12 === 0) return true; // 3fff::/20 documentation (RFC 9637)
+    if ((h[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+    if ((h[0] & 0xffc0) === 0xfec0) return true; // fec0::/10 site-local (deprecated)
+    if ((h[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 ULA
+    if ((h[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
     return false;
   }
   return true; // not an IP at all: fail closed
+}
+
+/* The eight 16-bit groups of any valid IPv6 spelling (null for a scoped or
+ * malformed literal). A dotted IPv4 tail becomes its two groups first, then
+ * exactly one `::` expands to the missing zero groups. */
+function ipv6Groups(ip) {
+  if (typeof ip !== "string" || ip.includes("%")) return null;
+  let s = ip.toLowerCase();
+  const dotted = /:(\d+\.\d+\.\d+\.\d+)$/.exec(s);
+  if (dotted) {
+    const o = dotted[1].split(".").map(Number);
+    if (o.length !== 4 || o.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    s = `${s.slice(0, s.length - dotted[1].length)}${((o[0] << 8) | o[1]).toString(16)}:${((o[2] << 8) | o[3]).toString(16)}`;
+  }
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  if (halves.length === 1 && head.length !== 8) return null;
+  if (halves.length === 2 && head.length + tail.length > 7) return null;
+  const groups = [...head, ...new Array(8 - head.length - tail.length).fill("0"), ...tail].map((g) => (/^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16) : NaN));
+  return groups.some(Number.isNaN) ? null : groups;
 }
 
 /* A dns.lookup wrapper that validates the RESOLVED address and pins the
@@ -111,12 +146,29 @@ function isForbiddenTargetIp(ip, { allowLoopback = false } = {}) {
 function guardedLookup(allowLoopback) {
   return (hostname, options, callback) => {
     const cb = typeof options === "function" ? options : callback;
-    dns.lookup(hostname, { verbatim: true }, (err, address, family) => {
+    const opts = options && typeof options === "object" ? options : {};
+    /* Node >= 20 dials with autoSelectFamily by default and therefore calls a
+     * custom lookup with `{ all: true }`, expecting an ARRAY of { address,
+     * family } — a single (address, family) answer to that contract is an
+     * ERR_INVALID_IP_ADDRESS inside net, i.e. every hostname endpoint failed
+     * to connect (rc29 correction; RED-first in
+     * sdk/test/rc29-webhook-dns-transport.test.js). We always resolve the FULL
+     * answer set, validate EVERY address (Happy-Eyeballs must never get to
+     * race a private answer), then answer in whichever shape the caller asked
+     * for. The socket dials exactly the validated addresses — no second
+     * resolution for a rebinding race to win. */
+    const query = { verbatim: true, all: true };
+    if (opts.family !== undefined) query.family = opts.family;
+    if (opts.hints !== undefined) query.hints = opts.hints;
+    dns.lookup(hostname, query, (err, answer, legacyFamily) => {
       if (err) return cb(err);
-      if (isForbiddenTargetIp(address, { allowLoopback })) {
+      const list = Array.isArray(answer) ? answer : typeof answer === "string" ? [{ address: answer, family: legacyFamily }] : [];
+      if (!list.length) return cb(Object.assign(new Error(`webhook target resolved to no address`), { code: "ENOTFOUND" }));
+      if (list.some((a) => !a || isForbiddenTargetIp(a.address, { allowLoopback }))) {
         return cb(Object.assign(new Error(`webhook target resolves to a forbidden address`), { code: "WEBHOOK_TARGET_FORBIDDEN" }));
       }
-      cb(null, address, family);
+      if (opts.all) return cb(null, list.map((a) => ({ address: a.address, family: a.family })));
+      cb(null, list[0].address, list[0].family);
     });
   };
 }

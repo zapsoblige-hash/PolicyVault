@@ -1,0 +1,102 @@
+{
+  "schema": "policyvault-no-float-financial-parsing-allowlist/1",
+  "description": "Justified non-financial (or otherwise reviewed-safe) hits for sdk/test/no-float-financial-parsing.test.js. Every entry names the exact file + pattern (+ optional line) it suppresses and a REASON a human can check. Never add an entry to silence a real funds-path float parse \u2014 fix the code instead.",
+  "entries": [
+    {
+      "file": "core/model/compute-budget-v7.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 118,
+      "reason": "activeSlots(value): Number(value) on a small integer OWNER SLOT COUNT (1..OWNER_SLOTS_V7 == 12), not a KAS/sompi amount; the matched 'value' identifier is generic, the real domain is bounds-checked by Number.isInteger + the 1..12 range immediately after."
+    },
+    {
+      "file": "core/model/fee-mass.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 185,
+      "reason": "validateComputeBudget(value, expected, label): Number(value)/Number(expected) compare the covenant's small integer COMPUTE BUDGET (10 or 100 sig-op units, per the function's own comment), not a KAS/sompi amount. STALE ASSUMPTION corrected 2026-09-06 (rc27, Codex checkpoint 11 phase): the line moved 163 -> 185 because the R7-08 STANDARD_MASS_CAP_PRE_TOCCATA constant + its comment were inserted ABOVE it; the flagged code is byte-identical to cf4e644."
+    },
+    {
+      "file": "core/model/frozen-tx-v3.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 99,
+      "reason": "computeBudget = Number(entry.computeBudget): the per-input compute-budget field is a small integer sig-op unit count (10/100/134/...), not a KAS/sompi amount; immediately validated with Number.isInteger."
+    },
+    {
+      "file": "core/model/swap-policy-v6.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 98,
+      "reason": "smallInt(value, field, max=1_000_000): a bounded small-integer field helper (feeBps, directionMask, destScheme, etc. \u2014 0..max), not a KAS/sompi amount; the matched 'value' identifier is generic. Bounds-checked by Number.isInteger + the max parameter immediately after."
+    },
+    {
+      "file": "core/model/swap-policy-v6.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 99,
+      "reason": "same smallInt() helper as line 98 \u2014 the BigInt-typed branch of the same bounded small-integer conversion."
+    },
+    {
+      "file": "sdk/src/contract-compiler.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 71,
+      "reason": "intArg(value, field): converts a BigInt constructor argument (which CAN be a KAS/sompi amount, e.g. maxPerSpend) to a JS Number for silverc's typed Expr JSON \u2014 but ONLY after explicitly checking `value > BigInt(Number.MAX_SAFE_INTEGER)` fails closed immediately above (see the function's own comment: 'any value above Number.MAX_SAFE_INTEGER would silently lose precision \u2014 fail closed instead'), so the conversion is EXACT/lossless by construction, not the unbounded float-parsing pattern gap G1 was about."
+    },
+    {
+      "file": "sdk/src/contract-compiler-v2.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 62,
+      "reason": "Same bounds-checked intArg() pattern as sdk/src/contract-compiler.js (additive per-version compiler copy)."
+    },
+    {
+      "file": "sdk/src/contract-compiler-v3.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 82,
+      "reason": "Same bounds-checked intArg() pattern as sdk/src/contract-compiler.js (additive per-version compiler copy)."
+    },
+    {
+      "file": "sdk/src/contract-compiler-v4.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 65,
+      "reason": "Same bounds-checked intArg() pattern as sdk/src/contract-compiler.js (additive per-version compiler copy)."
+    },
+    {
+      "file": "sdk/src/contract-compiler-v5.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 62,
+      "reason": "Same bounds-checked intArg() pattern as sdk/src/contract-compiler.js (additive per-version compiler copy)."
+    },
+    {
+      "file": "sdk/src/contract-compiler-v6.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 65,
+      "reason": "Same bounds-checked intArg() pattern as sdk/src/contract-compiler.js (additive per-version compiler copy)."
+    },
+    {
+      "file": "sdk/src/contract-compiler-v7.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 91,
+      "reason": "byteArg(value, field): converts a BigInt/Number to a single-byte (0..255) constructor argument, bounds-checked by Number.isInteger immediately after; never a KAS/sompi amount (v7's intArg for actual amounts uses BigInt() directly, not this helper)."
+    },
+    {
+      "file": "sdk/src/token-program-kcc20.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 72,
+      "reason": "constructorArgsKcc20: Number(s.amount) converts a token amount (BigInt) to a JS Number for the silverc constructor-arg JSON, but ONLY after `if (s.amount > BigInt(Number.MAX_SAFE_INTEGER)) fail(...)` on the line immediately above \u2014 exact/lossless by construction, same reviewed pattern as the contract-compiler*.js intArg() helpers."
+    },
+    {
+      "file": "sdk/src/tx-identity.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 111,
+      "reason": "computeBudget: Number(input.computeBudget ?? 0) \u2014 a small integer sig-op unit count (the function's own comment: 'payer-supplied consistency data only'), not a KAS/sompi amount. [line renumbered 91 -> 108 -> 111 by the Codex checkpoint-7/8 doc headers; statement unchanged]"
+    },
+    {
+      "file": "sdk/src/tx-identity.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 270,
+      "reason": "transactionIdOfRpcBody (Codex checkpoint 7/8, UX-05): computeBudget = Number(strictUint(input.computeBudget, U16_MAX, ...)) converts the node-returned per-input compute-budget field (a small integer sig-op unit count, u16, not a KAS/sompi amount) to a JS Number ONLY after strictUint proved it a safe integer within u16 \u2014 exact by construction; the consensus transaction id does not commit to it at all (rusty-kaspa hashing/tx.rs id_v1 excludes the mass commit); it is passed only so the rebuilt body is a faithful copy."
+    },
+    {
+      "file": "core/model/compute-budget-v7-kas.js",
+      "pattern": "NUMBER_ON_FINANCIAL",
+      "line": 123,
+      "reason": "smallNonNegInt(value, field, max): Number(value) on a small bounded integer (owner-slot count / compute-budget unit), immediately validated by Number.isInteger(n) && 0 <= n <= max \u2014 not a KAS/sompi amount. Byte-identical to the reviewed helper in the non-KAS sibling core/model/compute-budget-v7.js (already allowlisted); the KAS profile was derived from it. The v7-kas file was added by the rooted-KAS track without carrying this allowlist entry over."
+    }
+  ]
+}

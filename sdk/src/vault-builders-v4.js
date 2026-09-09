@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet } = require("../../core/model/own-get");
 
 /*
  * PolicyVault v0.4 OFFLINE transaction builders (Checkpoint E §E4/§E6/§E9).
@@ -81,8 +82,9 @@ const {
  * keep their names in both versions.
  */
 function encoderFunctionShape(abi, action) {
-  if (abi.consolidatedOwner && OWNER_OP_SELECTOR_V4_1[action] !== undefined) {
-    return { function: "ownerControl", extra: { opSelector: OWNER_OP_SELECTOR_V4_1[action] } };
+  const opSelector = ownGet(OWNER_OP_SELECTOR_V4_1, action); // own-property only (F-05)
+  if (abi.consolidatedOwner && opSelector !== undefined) {
+    return { function: "ownerControl", extra: { opSelector } };
   }
   return { function: action, extra: {} };
 }
@@ -109,7 +111,19 @@ const {
   p2pkScriptHex
 } = require("./approval-package-v4");
 
-const ENCODER_PATH = path.join(__dirname, "..", "..", "tests/vm/target/debug/pv_call_encoder");
+/*
+ * The default path is the SHARED cargo target directory (CLAUDE.md: "shared
+ * cargo target — never cargo clean"), which multiple parallel development
+ * lanes build `pv_call_encoder` into concurrently — so the binary AT THIS
+ * PATH can be overwritten mid-session by an unrelated lane's build, even
+ * moments after a caller freshly rebuilt it. POLICYVAULT_PV_CALL_ENCODER_PATH
+ * is an optional escape hatch (never used unless explicitly set) for a
+ * caller that needs a STABLE, private copy immune to that race — e.g. an
+ * integration test that copies its own freshly-built binary aside before
+ * invoking the SDK. Unset, behavior is byte-identical to before this option
+ * existed.
+ */
+const ENCODER_PATH = process.env.POLICYVAULT_PV_CALL_ENCODER_PATH || path.join(__dirname, "..", "..", "tests/vm/target/debug/pv_call_encoder");
 const PLACEHOLDER_SIG_HEX = "00".repeat(65);
 const ORDINARY_SIGSCRIPT_LEN = 66; // 0x41 push + 65-byte Schnorr signature
 /* The production covenant's fee introspection bound (txFee():

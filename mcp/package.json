@@ -1,6 +1,6 @@
 {
   "name": "policyvault-mcp",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "mcpName": "io.github.zapsoblige-hash/policyvault",
   "description": "PolicyVault MCP server \u2014 a thin, machine-identity-authenticated stdio adapter over the PolicyVault REST/Agent API. Zero runtime dependencies. AI MAY REQUEST; POLICYVAULT DETERMINISTICALLY DECIDES; THE COVENANT ENFORCES; SIGNERS RETAIN CUSTODY.",
   "license": "Apache-2.0",
@@ -32,11 +32,13 @@
     "src/",
     "core/",
     "server.json",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "start": "node server.js",
-    "prepack": "node tools/sync-core.js --check",
+    "prepack": "node tools/sync-core.js --check && node tools/check-license.js",
     "test": "node --test --test-concurrency=1 test/",
     "test:package": "node --test test/package-consumer.test.js"
   }

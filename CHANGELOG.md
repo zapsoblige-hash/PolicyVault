@@ -1,5 +1,334 @@
 # Changelog
 
+## v1.9.1 — PRODUCTION RELEASE `fullscale-rc29`: corrections from the independent post-launch live-stack review of the running rc28 deployment (webhook target policy + DNS transport, SDK transport recovery key, legacy same-effect completion ownership, image/package license + privacy-safe runtime artifacts, recovery guidance)
+
+**WEB/AGENT PRODUCTION: LIVE at https://app.policy-vault.org — this release's build is `fullscale-rc29` (buildId `f217011`, image `sha256:ab893b13aeae661921dda11bc0782f2e0e29ead61cc232409f9532ba3cc2f847`); the served `/api/v1/health` `buildId` is authoritative for which build is active (`f217011` = this release, `890b42c` = the preceding rc28 build, live since 2026-09-08 14:05 UTC) · NATIVE MOBILE: DEVELOPMENT.**
+This release supersedes the prepared-but-never-published v1.9.0 (its entry follows below for the record; no v1.9.0 tag or release exists publicly). The rc29 activation on the hosted deployment is recorded in the private release ledger; schema 011 is unchanged, so rc28 remains a schema-compatible rollback image and every write made under either build stays readable by the other. The corrections come from an independent read-only review of the LIVE rc28 stack by a separate AI reviewer (internal review — not an external audit) plus one further defect found while re-verifying those corrections. Security assurance stays INTERNAL and evidence-based; nothing here is externally audited and no external audit is part of the process.
+
+### What changed for live users (mainnet exposure)
+
+- **Webhook target policy (review finding LS-04, medium)**: outbound webhook destinations are judged on the eight 16-bit groups of EVERY IPv6 spelling (compressed / expanded / zero-padded / dotted-embedded), so hex or expanded IPv4-mapped forms of loopback, private, link-local, CGNAT or metadata targets can no longer bypass the private-destination policy. v4-compatible, SIIT, NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), 6to4 (`2002::/16`), Teredo (`2001:0::/32`), ORCHID, site-local, discard-only and documentation ranges are denied conservatively; real global addresses adjacent to the documentation prefix (`2001:db81::/32` …) are no longer refused. `server/src/events-delivery.js`; RED-first `sdk/test/rc28-webhook-target.test.js`, `sdk/test/rc29-webhook-dns-transport.test.js`.
+- **Webhook DNS transport (rc29; pre-existing functional defect found by the second read-only review)**: on Node ≥ 20 every webhook endpoint addressed by a DNS hostname failed to connect — the guarded lookup did not honour net's `{ all: true }` lookup contract — so hostname endpoints dead-lettered after their attempts and the advertised DNS-rebinding pin never ran (fail-safe direction: no forbidden dial). The lookup now resolves the full answer set, refuses when ANY answer is forbidden (Happy-Eyeballs never races a private address) and dials exactly the validated addresses. Production impact: the live deployment reported zero active webhook endpoints at every observation; no customer delivery was affected.
+- **SDK / mobile HTTP client (LS-05, medium)**: a response-body transport failure, or an invalid JSON body after a successful HTTP status, now surfaces as `PolicyVaultNetworkError` carrying the original `Idempotency-Key` (previously a raw exception lost the key, and a retry with a fresh key could repeat a server-side mutation). No route is auto-retried; a same-key retry recovers the recorded outcome only on idempotency-supported routes — the secret-bearing identity / webhook / notification routes require inspecting the existing resource first (`sdk/src/http-client.js`, `sdk/types/http-client.d.ts`). **Installed SDK and mobile clients must upgrade to receive this — the hosted deployment alone does not update them**; `mobile/www/vendor/http-client.js` is regenerated from the same source. `sdk/test/rc28-http-body-failure.test.js`.
+- **Legacy same-effect completion ownership (R8-09 extension, medium; pre-RC27F v0.7 records only — none exist on mainnet)**: direct public submission of an unattempted SIGNED sibling of a request this system already completed (one txid, two legacy finalizations) is refused BEFORE any RPC or completion write — it can no longer be marked `CHAIN_VERIFIED` or take the original's keyed receipt; already-damaged both-`CHAIN_VERIFIED` pairs preserve the existing fully validated receipt representative (the runtime never guesses which signature witness was broadcast); a genuinely settled negative sibling no longer strands a valid retry. `sdk/src/wallet-requests-v7.js`; `sdk/test/rc28-live-stack-recovery.test.js` on real df68a1f-produced fixtures (`sdk/test/fixtures/legacy-df68a1f/`). The earlier "no supported exit" statement for the crash-before-broadcast legacy shape (R8-10) is withdrawn on counter-evidence: retain ONE request and re-invoke its normal public submission (`POST /api/v1/wallet/v7/requests/:id/submit`) after the minimum observation age — complete acceptance coverage, repeated funding/output checks and exact mempool absence settle `NOT_BROADCAST`; waiting alone does not.
+- **Recovery / succession explanations (UX-08 residual, low)**: shared help, owner-change summaries and confirmation warnings now agree with the actual rules — with succession enabled, funds are not "locked forever" when recovery is off; the owner-change summary uses the root's real successor and fixed delays; heartbeat / unfreeze language names the approval quorum (M of N of the installed set), never "all owners"; succession keeps a previous owner only if that key is listed again. `web/org-root-ui.js`, `core/explain/org-root-explain.js` (regenerated `web/core-bundle.js`, `mobile/www/vendor/core-bundle.js`); `web/test/org-root-setup.test.js`.
+
+### Distribution and build integrity
+
+- **Apache-2.0 `LICENSE` and `NOTICE` ship inside the container image (`/app/LICENSE`, `/app/NOTICE`) and inside the `policyvault-mcp` npm package** (LS-02); `mcp/tools/check-license.js` refuses to pack unless both are byte-identical to the canonical files; `deploy/Dockerfile` and the deterministic source bundle (`deploy/pipeline/bundle-source.sh`) include them. Third-party notices are unchanged; nothing is relicensed.
+- **Privacy-safe runtime artifacts (LS-01)**: the pinned native tools (`silverc`, `pv_call_encoder`, `pv_vm_preflight`, `pv_tx_probe`) and the kaspa WASM SDK are rebuilt from the same pinned upstream sources (silverscript `d25bd342…`, rusty-kaspa `cfafeb4c…`, Rust 1.96.1, wasm-pack 0.15.0) with neutral source paths (`--remap-path-prefix`) and only non-allocated debug sections stripped — the previous image carried the build machine's private filesystem paths inside five compiled artifacts (a privacy defect; no secret value and no publicly served binary were involved). Six tracked pins (`deploy/vendor-pins.sha256`) now bind the native AND WASM bytes: `tools/build-private-safe-vendor.sh` (fresh output only), `tools/stage-vendor.sh` (fresh stage only, never overwrites), `tools/verify-image-vendor-pins.sh` (exactly six pins).
+- **Fail-closed artifact privacy scanner** (`tools/artifact-privacy-scan.py` behind `tools/image-privacy-scan.sh` and `tools/audit-public-candidate.sh`): traverses every image layer including deleted / whiteout content, metadata, nested archives and compressed payloads; binds declared compression, tar structure, uncompressed `diff_ids` and the referenced application identity; exact path / SHA / family / count classifications; incomplete coverage FAILS. The previous scanner's clean result on the rc28 image is withdrawn for the compiled-path property. Unit controls: `tools/test_artifact_privacy_scan.py`.
+- **Rollback / recovery guidance (LS-03)**: `deploy/pipeline/deploy-by-digest.sh` now prints that its image switch does not restore or migrate the database; forward repair, a maintenance boundary, a fresh protected backup and an isolated restore target replace the former image-only rollback across a schema boundary (private runbook). Self-hosting: `deploy/selfhost.sh` requires a verified privacy-safe vendor stage and refuses raw toolchain copies (`docs/selfhost-quickstart.md`).
+
+### Tests and evidence (automated / internal — never human acceptance)
+
+- Automated gates (every result with unchanged before/after source fingerprints; automated / internal evidence only). On the Codex-reviewed correction bytes (`543a392` … `04ec054`, whose runtime files are byte-identical to `f217011` except `server/src/events-delivery.js`): full SDK + live PostgreSQL 1,388 pass / 0 fail / 1 prerequisite skip (the HD private-encoder rebuild lacked a copied lockfile; closed by a prerequisite-complete targeted run 16/16, 0 skipped — the skip is not folded into an invented no-skip total), web 798/798, core (whole `core/`) 1343/1343, mobile 98/98, SDK delta 36/36, MCP 58/58 including the exact `policyvault-mcp@1.5.0` tarball clean-consumer proof, neutral-vendor VM 67/67 on the real TxScriptEngine with the pinned privacy-safe encoder, recovery controls 22/22, artifact-privacy-scanner controls 13/13, core-bundle and mobile-portable byte-identical. On `f217011`: webhook / notification suites 44/44 with live PostgreSQL (the new DNS-transport test 3/3 RED on the previous module, GREEN on the correction), `tools/test_artifact_privacy_scan.py` 13/13, `sdk/test/image-scan-classify.test.js` 4/4; image `fullscale-rc29` (buildId `f217011`): two byte-identical builds, six vendored native/WASM pins byte-identical, fail-closed layer/metadata/nested-payload privacy scanner PASS with every match exactly classified, extracted-rootfs audit 0 findings / 0 hashed known-value hits, hosted boot with the migrations inside the container (schema 011, readiness 200, served bytes == source, anonymous build refused 401), the image's `/app` file set differs from the Codex-verified neutral image in exactly `server/src/events-delivery.js` and from the live rc28 image in 10 changed + 2 added files (`LICENSE`, `NOTICE`); the public-tree reproduction results are recorded in the release packet.
+- Browser: headless-Chromium signed harness on the EXACT `fullscale-rc29` image (TEST-ONLY dev signer, testnet-10, tmpfs data): 212/212 checks, 0 uncaught page errors, served bytes == the build tree before and after the run, buildId `f217011` — and identically 212/212 on the Codex-verified neutral image the release was re-verified from; the UX-11 injected-page-error self-test fails as intended on both (64/65, the only failure is the injected uncaught error); the rooted-vault owner-operation lifecycles ran with independent kaspad checks within the recorded finite testnet-10 transaction bound. Signed-out first-run smoke at 1280 px and 375 px on the exact image: 7/7, 0 page / console errors. No real-wallet or human evidence is claimed.
+- Independent read-only reviews (internal AI reviews, not audits): the post-launch live-stack review of the running rc28 deployment (findings LS-01…LS-05, the R8-09 extension and the UX-08 residual; R8-10 withdrawn) and a narrow read-only review of the rc29 corrections (which found the DNS-transport defect). Every finding was corrected RED-first with a permanent regression.
+
+### Not in this release / limitations
+
+- Native mobile stays DEVELOPMENT. No real-wallet (KasWare) evidence is claimed by automation; the owner validates live mainnet independently. Rooted vaults, token surfaces and the HD / KAS candidates are testnet-only; the mainnet-creatable generation stays `policyvault-0.4.1`. `policyvault-mcp@1.5.0` (source in `mcp/`, with the corrected client and the license/notice files) — its npm publication status is stated in the README. x402 facilitator: PRODUCTION-READY pilot packet, NOT deployed. MCP usage telemetry OFF. The KIP-9 storage-mass upstream write-up is prepared but not posted.
+
+## v1.9.0 — PRODUCTION RELEASE `fullscale-rc28`: organizational M-of-N owner root (v0.7, byte-frozen) with browser initiation of rooted-vault owner operations, the RC27 durable-completion model, hosted tenancy for every route family, generation gate, MCP 1.5.0 (org-root tools)
+
+> Prepared 2026-09-08 for the rc28 deployment and staged locally; never published as a tag or release — superseded before publication by v1.9.1 above (the rc28 build it describes was live from 2026-09-08 14:05 UTC until the rc29 activation).
+**WEB/AGENT PRODUCTION: LIVE (`fullscale-rc28`, buildId `890b42c`, image `sha256:fe90f1153d0bef29b81fb4cdf39337df3b3c5e465efa57e6ee07a88f664bdee8`) · NATIVE MOBILE: DEVELOPMENT.**
+This release is the FIRST production deployment since `fullscale-rc8` and publishes, in one step, the source of the three prepared-but-never-published candidates v1.6.0, v1.7.0 and v1.8.0 (their entries follow below, unchanged) plus everything since. The hosted deployment at https://app.policy-vault.org now serves THIS source (schema 011; the pre-migration backup and the compatible rollback path are recorded in the private ledger). Security assurance for this release is INTERNAL only — independent internal AI falsification reviews of the exact candidates (rounds 3–8), hostile/adversarial matrices, RED-first reproductions, production-byte and live testnet-10 evidence, and the owner's own live mainnet validation after deployment; nothing here is externally audited and no external audit is part of the process.
+
+### Mainnet exposure — what changed for live users
+
+- **rc8 security findings closed on production** (`docs/postlaunch/rc11-internal-review-remediation.md`, `mainnet-exposure-audit-rc11.md`): hosted BUILD AUTHORITY (every hosted build/create/simulate requires the signed-in wallet or its machine credential; the genesis signer must be the caller; a bounded compiled-artifact cache replaces unbounded temporary storage), own-property version/action lookups with explicit `UNKNOWN_VERSION` refusals, and the **mainnet-creatable generation allowlist = `policyvault-0.4.1` only** (`GENERATION_NOT_MAINNET_AUTHORIZED` for everything else — v0.4, v0.5, v0.6, v0.7 and the HD/KAS candidates are testnet-only and fail closed on mainnet; existing v0.4 vaults stay readable and reconcilable). Hosted tenancy (non-oracle 404 / 403) now covers `/org-roots`, `/wallet/v7`, `/wallet/v5|v6` — every route family, with foreign-tenant probes per family in the suites (`docs/postlaunch/authorization-boundary-inventory.md`).
+- **Web client**: the flagship UX pass (guided vault/root setups, canonical amount parsing, truthful pending states, network-identity fail-closed banner), UX-01…UX-14 and R6/R7 closures (pre-sign binding of every consensus field the wallet signs, fee-payer finalization authority derived from the fee input, no hidden relative locks, full agent-rule review), and — new in this release — **browser initiation of rooted-vault owner operations** (change agent rules with the full recipient sets, top up the fee reserve, pause, unpause, emergency-pause under the root's freeze quorum, close & recover to the pinned recovery key) plus reservation/withdrawal guidance (an unsigned request reserves the root and guards its vault; only an unsigned, never-attempted request can be withdrawn; a finalized request resumes its original submission; an attempted one goes through outcome recovery). Rooted-vault operations are TESTNET-ONLY today (v0.7 is not mainnet-authorized); on mainnet the web client offers none of them.
+- **Durable completion model (RC27, F-1…F-9)**: a later incomplete delegate completes before earlier root history is judged; a failed inspection never downgrades completed history; a proven negative outcome settles only its own claims (including a narrow removed-initial-anchor rule for a first rejection proven through repeated all-inputs-unspent, exact-mempool-miss and absent-output observations); legacy pointerless records recover without pinning an old root; one process-local queue serializes finalize/slot/signature/submit/reject; typed store keys. Live testnet-10 evidence: six-transaction deposit/delegate recovery demonstration and the recovered original browser request (private evidence, summarized in the packet).
+
+### Covenant
+
+- **`contracts/PolicyVault.v0.7-root.sil` + `PolicyVault.v0.7-payment.sil` — organizational M-of-N owner root and its rooted payment profile, COVENANT-BYTE-FROZEN 2026-09-03** (sha256 `69417514…` / `09cdbb6c…`; generators `tools/gen_v7_root.js` / `tools/gen_v7_payment.js`; freeze record `docs/postlaunch/v0.7-covenant-byte-freeze.md`; adversarial review FREEZE-NOT-FALSIFIED). Rules D1/D2/D6–D9; every counted owner signature SIGHASH_ALL-gated in-covenant; FREEZE (K) is the only lighter quorum and can only freeze; owner recovery and succession land frozen after consensus-enforced relative-age delays; ONE vault operation per root transition. **Status: VM-VERIFIED · SDK/PRODUCTION-BYTE-VERIFIED · TESTNET-VERIFIED (live testnet-10 lifecycle, consensus sequence-lock proof, negatives) · NOT mainnet-authorized.**
+- `PolicyVault.v0.7-kas.sil` (rooted KAS profile) and `PolicyVault.v0.7-payment-hd.sil` (hierarchical delegation) — additive CANDIDATES, TESTNET-VERIFIED, NOT frozen, NOT mainnet (`docs/postlaunch/v0.7-kas-profile-readiness.md`, `v0.7-hd-readiness.md`, `hierarchical-delegation-design*.md`).
+- Shared-core/SDK pre-sign parity with the covenants is maintained as a permanent invariant (`docs/postlaunch/vm-presign-parity-and-enforcement-matrix.md`, `sdk/test/vm-presign-parity.test.js`).
+
+### Application surface
+
+- v0.7 organizational roots: server routes (`/org-roots`, `/wallet/v7`), SDK request lifecycle (genesis, root actions with at most one vault operation, slot signing through the Universal Signer Interface, finalize by the fee payer, submit, reconcile with dependency-first recovery), web (guided root setup with plain-language governance, exact-policy review, own-slot signing, out-of-band approval import, request lifecycle, the rooted-vault owner-operation panels), MCP tools (`policyvault-mcp` 1.5.0: org-root schema fragments and tools; the adapter now identifies itself with an `x-policyvault-mcp-client` header that the server records only when telemetry is explicitly enabled), execution attestations for v0.7.
+- Token surfaces for v0.5/v0.6 (version-aware token vault UI; testnet-only) and the HD candidate surface.
+
+### Tests and evidence (automated / internal — never human acceptance)
+
+- `Automated gates on the build source `890b42c` (SDK-only correction of the round-8-reviewed `e7c0cb6`; every gate with unchanged before/after source fingerprints): full SDK + live PostgreSQL 1379/1379 (0 fail / 0 cancelled / 0 skipped) on `890b42c`; core (whole `core/`) 1343/1343, web 796/796, mcp 56/56 (1.5.0 bytes), core-bundle and mobile-portable byte-identical, mobile 97/97 and VM 589/0 — reused with recorded applicability (no change under `core/`, `web/`, `mcp/`, `server/`, `mobile/`, `tests/vm`, `contracts/`, generators since their runs); image `fullscale-rc28`: two byte-identical builds, vendored pins 4/4, per-layer privacy scan CLEAN, rootfs audit 0 findings, hosted boot + migrations inside the container, mainnet-configured allowlist = `policyvault-0.4.1` only, unauthenticated builds refused; the image's file set differs from the reviewed rc27 image in exactly the two corrected SDK files.`
+- Browser: headless-Chromium signed harness on the exact image (dev signer, testnet-10; `212/212 checks, 0 uncaught page errors, served bytes == the build tree, on the exact rc28 image; UX-11 injected-error self-test fails as intended`), including the rooted-vault owner-operation lifecycles with independent kaspad checks; UX-11 injected-page-error self-test.
+- Round-8 independent internal falsification review of the exact commit + image (`fullscale-rc27`, `e7c0cb6`): BLOCKED on two legacy-data findings (no funds impact; pre-RC27F v0.7 records, none in production) — corrected RED-first on the reviewer's df68a1f-produced snapshots (`sdk/test/legacy-same-txid-r8.test.js`), the reviewer's re-check found the adjacent shape which the lead closed, the second re-check PASSED, and the corrected source was rebuilt as `fullscale-rc28`: `original review BLOCKED (R8-01 LOW, R8-02 MEDIUM, legacy data only, no funds impact) → corrected RED-first → re-check found R8-09 (MEDIUM, legacy) → corrected → second re-check POLICYVAULT-RC27-R8-RECHECK2-PASS; residual R8-10 LOW pre-existing recorded`.
+- Migration/rollback rehearsal (009 → 011 on disposable representative data incl. an incomplete request; rc8 fails closed on 011; restore + rc8 path proven) and a 100-regular-user capacity run on an isolated production-shaped container (`100 authenticated users, 60 min sustained realistic mix + burst on the production compose limits: 36,435 requests, read p95 19.8 ms / p99 1,051 ms, build p95 1,638 ms, 0 × 5xx/timeouts/transport errors, CPU avg 2.7 %, memory max 252 MiB, PG connections max 11 — every declared criterion met`).
+
+### Not in this release / limitations
+
+- Native mobile stays DEVELOPMENT (unit + emulator + portable parity only). No real-wallet (KasWare) account/network-change evidence is claimed by the automated runs; the owner validates live mainnet independently. Rooted vaults, token surfaces and the HD/KAS candidates are testnet-only. x402 facilitator: PRODUCTION-READY pilot packet, NOT deployed. MCP usage telemetry: implemented, OFF, not enabled. The KIP-9 storage-mass upstream write-up is prepared but not posted.
+
+## v1.7.0 — FLAGSHIP WAVE 1: v0.6 atomic-composability covenant (byte-frozen), Universal Signer Interface v2, execution attestations, MCP usage telemetry (OFF), release-signing tooling, deployment pipeline, self-host + UX correctives
+
+**WEB/AGENT PRODUCTION: LIVE (`fullscale-rc8`, buildId `1c02162`) · NATIVE
+MOBILE: DEVELOPMENT · THIS RELEASE IS SOURCE ONLY — NOT DEPLOYED.**
+
+This release changes **no production runtime**. The live hosted deployment
+still serves `fullscale-rc8` (buildId `1c02162`); the `server/`, `web/` and
+`mobile/www/` sources in this tree are a **prepared successor that has not
+been built, deployed, or human-accepted**. Nothing here is externally
+reviewed or audited.
+
+### Covenant
+
+- **`contracts/PolicyVault.v0.6.sil` — NEW covenant generation v0.6
+  "ATOMIC COMPOSABILITY", COVENANT-BYTE-FROZEN 2026-09-03** (owner
+  conditional authorization satisfied by exact mechanical re-verification
+  plus an independent adversarial review that returned
+  FREEZE-NOT-FALSIFIED). sha256
+  `c7c5f22c54a55d933ec8440a28bc2c628b9b99262541d50dbe9ffbdd16ba025c`,
+  deterministic generator `tools/gen_v6.js`. One owner-approved
+  constant-product pool family; `tokenAgentSpend`, `tokenAtomicSell`,
+  `tokenAtomicBuy`, `ownerControl`, `ownerRecover`; swaps pinned to
+  exactly four inputs (no external fuel input is admissible); SIGHASH_ALL
+  gate; 24,920-byte redeem; 5 static sig-ops.
+  **Status: VM-VERIFIED (`tests/vm/tests/v6_production.rs`, real
+  TxScriptEngine) · SDK/PRODUCTION-BYTE-VERIFIED
+  (`tests/vm/tests/v6_sdk_integration.rs`, 36 vectors) · TESTNET-VERIFIED
+  (live testnet-10 SELL + BUY lifecycle).**
+  **Exact limitations, stated up front: FIXTURE VENUE ONLY** — the only
+  swap counterparty proven is the repository's own conformance pool
+  fixture (`contracts/experiments/V6PoolFixture.sil`, which is a test
+  fixture, **not** a PolicyVault product and not an endorsement of any
+  venue); **no real DEX venue is supported, there is no mainnet swap, and
+  there is no server/web/mobile/MCP surface for v0.6**; `deadlineDaa` is a
+  **pre-sign boundary, not a consensus expiry**; swaps are **not
+  economically viable below roughly 10 KAS** (flat cost ≈ 0.0816 KAS —
+  `docs/postlaunch/v0.6-economic-viability.md`); period budgets in
+  v0.3–v0.6 rely on the shared-core `periodLengthDaa > 0` invariant,
+  now pinned by
+  `core/model/test/period-length-positive-invariant.test.js`.
+  Freeze record `docs/postlaunch/v0.6-covenant-byte-freeze.md`; pin
+  `sdk/test/covenant-freeze-v6.test.js`. **PolicyVault is not a DEX and
+  will not become one** — it authorizes, verifies intent deterministically
+  and enforces policy; liquidity and execution stay external
+  (`docs/postlaunch/roadmap-dex-adapter-and-protocol-evolution.md`).
+- Unchanged bytes: v0.5 `c693aeff…`, v0.4.1, v0.4, v0.3, v0.2,
+  v0.1.beta. No frozen covenant was regenerated or edited.
+- New shared-core and SDK layers for v0.6: `core/model/{vault-state,
+  agent-merkle,swap-policy,vault-transitions,compute-budget}-v6.js`,
+  `core/model/storage-mass.js`, `core/intent/{token-manifest,
+  swap-manifest}-v6.js` and the fail-closed `core/intent/router.js`;
+  `sdk/src/{contract-compiler,vault-builders,swap-pool-fixture,
+  vault-state,vault-transitions,agent-merkle,swap-policy,
+  compute-budget}-v6.js`. Leaf fixtures are pinned byte-for-byte to the
+  Rust leaf functions the real engine accepts
+  (`tests/vm/tests/v6_fixture_capture.rs`).
+
+### Universal Signer Interface v2 (additive; nothing migrated to it yet)
+
+- **`core/signer/v2/` — `policyvault-signer/2`: IMPLEMENTED ·
+  UNIT-TESTED · ADVERSARIAL-TESTED (hostile suite 48/48).** Explicit
+  negotiation of sighash type, PSKT support, transaction format,
+  user-presence, transport, timeout and cancellation; response envelopes
+  bound to the request; a replay guard; and a probe-versus-declared
+  capability check that fails closed when a signer's real behaviour
+  contradicts what it advertised. Adapters for KasWare, the reference CLI
+  signer (real cryptography via kaspa-wasm) and air-gapped transport.
+- **Honest limits: no production consumer has been migrated to v2** — v1
+  (`policyvault-signer/1`) remains what ships in the app, so v2 is
+  additive and inert. **No live independent second wallet has been
+  exercised**, and the PSKT / ECDSA wire contracts are deliberately left
+  unfrozen pending source-backed evidence. The v2 air-gap adapter is not
+  yet wired into the mobile platform layer.
+- Fixed: a mobile air-gap envelope serialization defect found by the v2
+  conformance suite (`mobile/www/js/portable/airgap.js`).
+
+### Execution attestations (exportable, machine-verifiable outcome records)
+
+- **`core/attest/` — `policyvault-execution-attestation/1`: IMPLEMENTED ·
+  UNIT-TESTED · ADVERSARIAL-UNIT-TESTED · API-TESTED.** A canonical,
+  hash-addressed record of what was authorized, what was signed and what
+  the chain actually did, with the outcome ladder enforced as a
+  contiguous prefix and refusal attribution kept narrow. 103 tests
+  including 32 tamper classes (naive and re-hashed) and a language rule
+  that forbids the words *compliant*, *certified* and *regulator*.
+- **`tools/attestation-verify.js`** — an INDEPENDENT verifier: structure,
+  expectation binding, and an opt-in **pure** chain re-check that reports
+  `CHAIN_CONFIRMED` · `UNCONFIRMED` · `UNAVAILABLE` · `CONTRADICTED`. The
+  chain re-check path is TESTNET-VERIFIED against the v0.6 live evidence
+  shipped in `docs/testnet-v6-atomic-evidence.json` (that file is also the
+  positive test vector for the attestation suite).
+- **Server:** `GET /api/v1/attestations/requests/:id` and
+  `GET /api/v1/attestations/export` (json / ndjson) behind a NEW
+  deny-by-default scope `read:attestations`; SDK client methods declared
+  in `sdk/types/http-client.d.ts`.
+- **Honest limits:** the signature slot is designed but **has no key** —
+  deliberately, because PolicyVault holds no server-side key anywhere near
+  funds; the accepting-block DAA score is not persisted in `receipt/v1`,
+  so exports state no depth; there is no hosted `VERIFIED_OUTCOME`
+  producer yet; exports are v0.4/v0.4.1 KAS-only (token/swap mapping is
+  additive future work); no MCP tool and not in the browser core bundle.
+
+### MCP usage telemetry — OFF BY DEFAULT, NOT ENABLED ANYWHERE
+
+- `server/src/mcp-telemetry.js` + `server/migrations/010_mcp_telemetry.sql`
+  (`policyvault-mcp-telemetry-event/v1`, create-only category),
+  aggregates behind `read:metrics`, client header in `mcp/src/http.js`.
+  **Recording defaults OFF** (`POLICYVAULT_MCP_TELEMETRY` unset or
+  `"off"`) and is **not enabled in any deployment**; turning it on is an
+  operator decision. Includes a privacy-negative byte scan proving no
+  vault identifiers, amounts, addresses, credentials or free text are
+  recorded, retention pruning and a hard cap. Spec:
+  `docs/postlaunch/mcp-usage-telemetry-todo.md`.
+
+### Release signing and succession governance (tooling only — no key exists)
+
+- `tools/release-manifest.js` / `release-sign.js` / `release-verify.js`
+  build, sign and verify a `policyvault-release-manifest/1` artifact
+  identity (tree hash, covenant hashes, lockfile hashes, optional image
+  and archive digests) using OpenSSH `ssh-keygen -Y` signatures against
+  the threshold policy in `release-signers.json`.
+- **`release-signers.json` ships with ONE signer entry whose public key is
+  the literal placeholder `OWNER-TO-FILL`, threshold 1.**
+  `tools/release-verify.js` **refuses to count any signature** against an
+  unfilled entry. The structure is multi-signer *capable*; it is **not**
+  a multi-signer policy today, and no second maintainer exists — the
+  onboarding checklist in `docs/postlaunch/release-trust-model.md`
+  deliberately names no fabricated person. **No release has been signed.**
+- Webhook at-rest key rotation: a written procedure
+  (`docs/postlaunch/webhook-secret-rotation-procedure.md`, **NOT
+  executed**), a `POLICYVAULT_WEBHOOK_SECRET_KEY_PREVIOUS` overlap
+  fallback, the `tools/reseal-webhook-secrets.js` resealing tool, and a
+  Python HMAC verifier (`python/policyvault_client/webhooks.py`).
+
+### Deployment pipeline (local proof only; production use is owner-gated)
+
+- **`deploy/pipeline/`: DESIGNED · IMPLEMENTED · INTEGRATION-VERIFIED
+  LOCALLY (non-production).** A reproducible OCI build
+  (`SOURCE_DATE_EPOCH` + timestamp rewrite, provenance/SBOM off;
+  bit-reproducible export proven twice; digest-pinned base byte-identical),
+  a content-addressed layer delta (**1,382,400 B for a one-file deploy
+  versus a 207,922,176 B full image — about 150×**), a signed source
+  bundle with a remote-builder fallback, deploy-by-digest with a rollback
+  ledger, and verify-before-activate (privacy scan plus a private
+  health/readiness probe). Cost: zero. `sdk/test/deploy-pipeline.test.js`.
+  **Never run against production**; the first production use is an owner
+  decision. Residual: the apt layer is content-equivalent, not
+  bit-identical. Rationale and threat model:
+  `docs/postlaunch/deployment-pipeline-independence.md`.
+
+### Self-hosting correctives (from an outsider clean-environment re-test)
+
+- **Three genuine first-run defects FIXED:** `tools/stage-vendor.sh` failed
+  under `pipefail` when the vendor dist directory was missing (this broke
+  *every* first run); undocumented prerequisites now produce actionable
+  fail-closed messages with the exact commands; `deploy/selfhost.sh` used a
+  constant build-id fallback that broke `upgrade` on git-less checkouts and
+  left rollback serving the wrong buildId.
+- **New `tools/selfhost-acceptance.sh`** — a 22-step self-host acceptance
+  run: real Schnorr authentication, backup/restore into an isolated
+  database with row-count and hash verification, upgrade/rollback identity,
+  log redaction, host-reboot simulation and a hidden-dependency scan.
+  Record: `docs/postlaunch/selfhost-flagship-retest.md`. Known gap:
+  wallet authentication end-to-end is NOT tested headlessly (it needs a
+  browser and a wallet extension).
+
+### Web and mobile UX pass — UNIT/jsdom-BROWSER tested, NOT human-accepted
+
+- 13 correctives to real adoption failures, not aesthetics: ARIA live
+  regions on all six status surfaces; a **closed** 35-code refusal
+  explanation table (`web/refusal-explain.js`, no overrides); an outcome
+  table driven by the SDK request state where **PENDING is never
+  presented as success**; recipient-allowlist disclosure with a real spend
+  form (replacing a `window.prompt`); a truthful "one on-chain owner"
+  statement; node-problem versus wallet-problem messaging; 375 px
+  responsive rules; a visible focus ring; reduced-motion anti-drift; a
+  recovery warning; clearer agent naming. Mobile: banner announcement,
+  focus handling and 44 px touch targets.
+- **No person has operated these screens in a browser, on a device, or
+  against production. Human acceptance is not claimed.**
+
+### Shared deterministic core (hybrid local-first)
+
+- **PRODUCTION CODE BUG FIXED:** the browser's KAS→sompi conversion on the
+  spend path used floating point — it accepted `0x10` and `1e3`, rounded a
+  ninth decimal, turned `0.000000001` into `0`, and lost precision on large
+  values. It now goes through the canonical `core/model/amounts` parser via
+  the browser core bundle, with 15 recorded defects pinned as refusals and
+  a golden parity fixture (`web/test/client-amounts-parity.test.js`).
+- `core/intent/token-manifest-v6.js` + `core/intent/router.js` — a
+  `policyvault-controller-intent-manifest/1` verifier for v0.6
+  spend/owner/recover/deposit with a **fail-closed** version router
+  (unknown versions are never routed to a default). Two false-refusal bugs
+  in the new verifier were found by real-build tests and fixed.
+- A v0.5/v0.6 cross-runtime equivalence battery (44 cases over the 32-file
+  closure), and the SDK browser harnesses now load the **real** shipped
+  core bundle exactly as `web/index.html` does.
+
+### Not in this release
+
+- The organizational M-of-N owner root (**v0.7**) is DESIGNED and being
+  implemented on a separate lane; **no v0.7 covenant, generator or test is
+  in this tree**, and none is frozen.
+- Hierarchical delegation is DESIGNED only (experimental probe evidence);
+  no production covenant, no SDK, no manifest.
+- The DEX / swap adapter framework has **no implementation**; its design
+  candidate is published as `docs/postlaunch/dex-adapter-design-spec.md`
+  and remains gated on an owner design-freeze decision.
+- Internal program, planning and acceptance records (readiness matrices,
+  wave logs, deployment packets, live acceptance transcripts) are not
+  published — see `PUBLIC_RELEASE_MANIFEST.md` for the exact exclusion
+  set.
+- **No external professional security review or audit has occurred.**
+
+## v1.6.0 — x402 FACILITATOR (Kaspa `exact`/upfront scheme; read-only chain verification / settlement attestation)
+
+**WEB/AGENT PRODUCTION: LIVE (fullscale-rc8, buildId `1c02162`, unchanged by this release) · NATIVE MOBILE: DEVELOPMENT · x402 FACILITATOR: IMPLEMENTED + TESTNET-VERIFIED, not a hosted production service.**
+
+- **New: `integrations/x402-facilitator/`** — a separately deployed,
+  unprivileged, READ-ONLY chain verification / settlement attestation
+  service for the proposed Kaspa x402 scheme `exact` +
+  `extra.paymentFlow: "upfront"` (`pv-x402-kaspa-exact-upfront/1`). The
+  payer settles first with an ordinary Kaspa transaction; the facilitator
+  checks the exact outpoint against a synced UTXO-indexed node and, on
+  `/settle`, records ONE durable single-use claim with the evidence. It
+  holds no keys, signs nothing, broadcasts nothing, escrows nothing,
+  never calls a PolicyVault API, never emits a 402, and never charges.
+  Design frozen by the owner (`docs/postlaunch/x402-facilitator-design-freeze.md`,
+  spec revision 3); network identifiers `kaspa:mainnet` /
+  `kaspa:testnet-10` are PolicyVault's PROVISIONAL CAIP-2-syntax
+  identifiers (no upstream registration is claimed); resource-server
+  authentication = facilitator-issued API key over HTTPS with a dedicated
+  principal model (mTLS optional future hardening); settlement policy
+  `pv-x402-settlement/1` (depth 100 default, hard floor 20, window
+  ≤ 36,000 DAA); token payments use the FROZEN v0.5 semantics through
+  `core/assets` (both bindings + conservation). PostgreSQL claim store
+  (race-proven) and a single-instance JSON store; `/readyz` + `/healthz`;
+  launcher + admin CLI; `deploy/x402f/` image, compose overlay and env
+  template for self-hosting.
+- **New: `sdk/src/tx-identity.js`** — a read-only SDK leaf that
+  recomputes a carried transaction's CONSENSUS id through the engine
+  (the wasm `deserializeFromSafeJSON` echoes the embedded id and the wasm
+  `Transaction` caches its id at construction; the Kaspa txid commits to
+  output covenant bindings) — pinned against the Rust `pv_tx_probe`
+  hasher (`sdk/test/tx-identity.test.js`).
+- `sdk/src/chain.js`: additive `isCoinbase` field on normalized UTXO
+  entries (null when the node omits it; consumers fail closed on null).
+- `integrations/test/dependency-direction.test.js`: rule 5 — the
+  facilitator may import only `core/**`, `integrations/lib/**`,
+  `sdk/src/chain.js`, `sdk/src/tx-identity.js`.
+- `tools/image-privacy-scan.sh`: SIGPIPE-safe sanity check +
+  `PV_SCAN_SANITY_PATH` for non-app images.
+- Docs: facilitator spec (frozen), design-freeze record, program record,
+  conformance spec §12, adapter spec §1.6 cross-reference, README status
+  + layout, SECURITY claim block (CLAIM → ENFORCEMENT → TEST → EVIDENCE).
+- Evidence (this tree, all suites green): freeze pin 6 · unit 14 ·
+  hostile matrix 34 · service/auth 12 (+ readiness 1) · PostgreSQL claims
+  6 · txid production-byte 3 · dependency direction 8; live testnet-10
+  proof (real KAS + real frozen-v0.5 token payments; evidence retained
+  privately). Honest ecosystem statement: no upstream Kaspa x402 scheme
+  exists; the facilitator is not "x402-compatible" beyond the proposed
+  scheme. No external security review has occurred.
+- Unchanged: covenant bytes (v0.5 `c693aeff…`, v0.4.1, v0.4, v0.3),
+  the production web/API surface, MCP 1.4.2, mobile.
+
 ## v1.5.0 — v0.5 token-controller covenant (byte-frozen), least-privilege discovery + console correctives (fullscale-rc8), MCP 1.4.2, illustrated onboarding
 
 The corrective + v0.5 successor to v1.4.0. Production runtime successor

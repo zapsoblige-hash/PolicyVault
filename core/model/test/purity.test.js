@@ -30,6 +30,7 @@ test("purity: core/model contains the extracted module set", () => {
   assert.deepStrictEqual(modelFiles(), [
     "agent-merkle-v4.js",
     "agent-merkle-v5.js",
+    "agent-merkle-v6.js",
     "amounts.js",
     "approval-package-v3.js",
     "approval-package-v4.js",
@@ -37,19 +38,39 @@ test("purity: core/model contains the extracted module set", () => {
     "compute-budget-v3.js",
     "compute-budget-v4.js",
     "compute-budget-v5.js",
+    "compute-budget-v6.js",
+    "compute-budget-v7-hd.js",
+    "compute-budget-v7-kas.js",
+    "compute-budget-v7.js",
     "contract-version.js",
+    /* STALE ASSUMPTION (2026-09-05): +duration-daa.js — the ONE human-duration <-> DAA conversion path (pure BigInt). */
+    "duration-daa.js",
+    "fee-mass-v7.js",
     "fee-mass.js",
     "frozen-tx-v3.js",
+    "hd-leaf-v7.js",
+    "own-get.js",
+    "owner-set-v7.js",
     "recipient-merkle-v3.js",
+    "storage-mass.js",
+    "swap-policy-v6.js",
     "token-amounts.js",
     "vault-state-v2.js",
     "vault-state-v3.js",
     "vault-state-v4.js",
     "vault-state-v5.js",
+    "vault-state-v6.js",
+    "vault-state-v7-kas.js",
+    "vault-state-v7-root.js",
+    "vault-state-v7.js",
     "vault-state.js",
     "vault-transitions-v3.js",
     "vault-transitions-v4.js",
-    "vault-transitions-v5.js"
+    "vault-transitions-v5.js",
+    "vault-transitions-v6.js",
+    "vault-transitions-v7-kas.js",
+    "vault-transitions-v7-root.js",
+    "vault-transitions-v7.js"
   ]);
 });
 

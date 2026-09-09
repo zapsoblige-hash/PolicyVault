@@ -1,4 +1,5 @@
 "use strict";
+const { ownGet } = require("../../core/model/own-get");
 
 /*
  * Signer-agnostic wallet request pipeline for PolicyVault v0.2.
@@ -428,7 +429,7 @@ async function buildWalletRequestV2({ config, vaultId, action, params = {}, sign
    * unauthorized request must fail HERE, before any transaction building,
    * signature request, or durable claim.
    */
-  const requiredRole = ROLE_BY_ACTION[action];
+  const requiredRole = ownGet(ROLE_BY_ACTION, action); // own-property only (F-05)
   if (!requiredRole) {
     throw fail(`unknown action ${action} — failing closed`, "BUILD_FAILED");
   }

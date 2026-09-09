@@ -159,6 +159,19 @@ GET  /supported → { kinds: [{ x402Version, scheme, network, extra? }],
                     extensions: [ids], signers: { <CAIP-2 pattern>: <address> } }
 ```
 
+> **Cross-reference (2026-09-02):** for the Kaspa exact/upfront scheme the
+> facilitator role is NON-CUSTODIAL by construction (the payer settles
+> first; nothing is executed later), and PolicyVault ships one:
+> `integrations/x402-facilitator/` — a separately deployed, unprivileged,
+> READ-ONLY chain verification / settlement attestation service (frozen
+> design `x402-facilitator-spec.md` revision 3; freeze record
+> `x402-facilitator-design-freeze.md`). It never signs, broadcasts,
+> escrows, converts, or calls a PolicyVault API; `signers` is `{}`. The
+> §2 rule that PolicyVault never plays the custodial EVM-style facilitator
+> role stands unchanged. The §6.5 statement remains OPEN: no upstream Kaspa
+> scheme exists, and the facilitator interoperates only with resource
+> servers configured for `pv-x402-kaspa-exact-upfront/1`.
+
 ### 1.7 HTTP flow (v2 transport)
 
 1. Client requests the resource.
@@ -238,7 +251,7 @@ address, not a covenant spend. Nothing in this spec is required for that.
 > decision path.
 
 There is no third category. A field that is neither explicitly a
-proposal nor explicitly audit-only causes the adapter to **refuse** —
+proposal nor explicitly review-only causes the adapter to **refuse** —
 unknown keys are not tolerated (`X402_SCHEMA_UNKNOWN_FIELD`), because a
 hidden field is a hidden effect (intent-manifest-spec §3).
 
@@ -594,7 +607,7 @@ and the requirement digest stays reproducible.
 ### 4.7 Settlement evidence → protocol receipt
 
 PolicyVault's success definition is unchanged and stricter than x402's:
-`submitTransaction()` returning is **not** success. Success requires txid
+`submitTransaction` returning is **not** success. Success requires txid
 verified, old state consumed, expected successor observed, and a durable
 receipt persisted (CLAUDE.md). Only then:
 
@@ -997,7 +1010,7 @@ PostgreSQL, and (for X-13/X-14) a live testnet-10 node.
 | Adversarial suite §8 | NOT WRITTEN |
 
 Nothing here is IMPLEMENTED, UNIT-TESTED, VM-VERIFIED, TESTNET-VERIFIED,
-PRODUCTION-HARDENED, EXTERNALLY REVIEWED, or AUDITED.
+PRODUCTION-HARDENED, or HUMAN-ACCEPTED.
 
 ---
 

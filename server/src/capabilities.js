@@ -1,4 +1,5 @@
 "use strict";
+const { MAINNET_CREATABLE_GENERATIONS } = require("../../sdk/src/config");
 
 /*
  * Capability / version discovery document (completion-standard surface
@@ -29,8 +30,54 @@ const { EVENT_SCHEMA, EVENTS_PAGE_SCHEMA, EVENT_TYPES } = require("./events");
 const { ENDPOINT_SCHEMA, MAX_ENDPOINTS_PER_WALLET } = require("./webhooks");
 const { WEBHOOK_PAYLOAD_SCHEMA, DEFAULT_MAX_ATTEMPTS, DEFAULT_BACKOFF_MS } = require("./events-delivery");
 const { SIGNATURE_SCHEME, SIGNATURE_HEADER, DEFAULT_TOLERANCE_SECONDS } = require("./events-signing");
+const { CONTRACT_VERSION_V7_ROOT } = require("../../core/model/vault-state-v7-root");
+const { CONTRACT_VERSION_V7: CONTRACT_VERSION_V7_PAYMENT, OWNER_OP_SELECTOR_V7 } = require("../../core/model/vault-state-v7");
+const { OWNER_SLOTS_V7, ROOT_ACTIONS_V7, AUTHORITY_CLASSES_V7 } = require("../../core/model/owner-set-v7");
+const { CONTRACT_VERSION_V5 } = require("../../sdk/src/vault-state-v5");
+const { CONTRACT_VERSION_V6 } = require("../../sdk/src/vault-state-v6");
+const { KNOWN_COVENANT_VERSIONS } = require("../../core/intent/router");
+const ROOT_ACTION_NAMES_V7 = Object.keys(ROOT_ACTIONS_V7);
+const CONTRACT_VERSION_V7_PAYMENT_HD = "policyvault-0.7-payment-hd";
 
 const CAPABILITIES_SCHEMA = "policyvault-capabilities/v1";
+
+/*
+ * Every covenant generation this server ACTUALLY routes through a real
+ * HTTP surface (Wave 2, Track E "token-surface" — the wallet/v5, wallet/v6
+ * and wallet/v7-HD-extension routes; the v0.7-root/v0.7-payment routes
+ * already existed). Validated at module load against
+ * core/intent/router.js's KNOWN_COVENANT_VERSIONS (the one source of
+ * truth for which covenant generations exist at all): this list may be a
+ * SUBSET of what the router knows (a version can exist without a routed
+ * HTTP surface yet) but must NEVER contain anything the router does not
+ * recognize — that would advertise support for a version nothing in the
+ * codebase actually implements. `status` distinguishes a covenant-byte-
+ * frozen generation from a still-evolving CANDIDATE (never collapsed —
+ * CLAUDE.md progress-reporting discipline); `authorityModel` matches
+ * docs/postlaunch/v0.7-app-surface-contract.md §0's three-value vocabulary.
+ */
+const ROUTED_COVENANT_VERSIONS = Object.freeze([
+  { contractVersion: "policyvault-0.4", status: "FROZEN", authorityModel: "SINGLE_ON_CHAIN_OWNER" },
+  { contractVersion: "policyvault-0.4.1", status: "FROZEN", authorityModel: "SINGLE_ON_CHAIN_OWNER" },
+  { contractVersion: CONTRACT_VERSION_V5, status: "FROZEN", authorityModel: "SINGLE_ON_CHAIN_OWNER" },
+  { contractVersion: CONTRACT_VERSION_V6, status: "FROZEN", authorityModel: "SINGLE_ON_CHAIN_OWNER", venues: ["FIXTURE"] },
+  { contractVersion: CONTRACT_VERSION_V7_ROOT, status: "FROZEN", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" },
+  { contractVersion: CONTRACT_VERSION_V7_PAYMENT, status: "FROZEN", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" },
+  { contractVersion: CONTRACT_VERSION_V7_PAYMENT_HD, status: "CANDIDATE", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" }
+]);
+(function validateRoutedCovenantVersions() {
+  const known = new Set(KNOWN_COVENANT_VERSIONS);
+  const seen = new Set();
+  for (const entry of ROUTED_COVENANT_VERSIONS) {
+    if (!known.has(entry.contractVersion)) {
+      throw new Error(`server/src/capabilities.js: ROUTED_COVENANT_VERSIONS names ${JSON.stringify(entry.contractVersion)}, which core/intent/router.js's KNOWN_COVENANT_VERSIONS does not recognize — failing closed at module load`);
+    }
+    if (seen.has(entry.contractVersion)) {
+      throw new Error(`server/src/capabilities.js: ROUTED_COVENANT_VERSIONS lists ${JSON.stringify(entry.contractVersion)} more than once`);
+    }
+    seen.add(entry.contractVersion);
+  }
+})();
 
 const SCOPE_DESCRIPTIONS = Object.freeze({
   "read:vaults": "read vault manifests, live state, and status",
@@ -39,6 +86,7 @@ const SCOPE_DESCRIPTIONS = Object.freeze({
   "read:risk": "read risk-evaluation evidence",
   "read:organizations": "read organizations, membership, and controls",
   "read:manifests": "read recorded intent-manifest records",
+  "read:attestations": "export policyvault-execution-attestation/1 evidence records for the caller's own requests, vaults and organizations (read-only; independently verifiable offline)",
   "read:network": "read node/network status and ordinary fuel UTXOs",
   "read:audit": "read the audit/activity feed",
   "request:build": "build (and simulate) an unsigned wallet request — no broadcast",
@@ -57,7 +105,9 @@ const SCOPE_DESCRIPTIONS = Object.freeze({
   "webhooks:manage": "create/list/rotate/revoke webhook endpoints delivering the caller's own tenant-scoped events",
   "read:metrics": "read the aggregate operational-metrics document (non-secret counters/histograms only; no per-tenant data)",
   "read:notifications": "read the caller's own human-notification rules, their delivery state, and the channel-type discovery document",
-  "notifications:manage": "create/disable/enable/delete human-notification rules routing the caller's own tenant-scoped events to a console/webhook(/pluggable smtp) channel — coordination, never authority"
+  "notifications:manage": "create/disable/enable/delete human-notification rules routing the caller's own tenant-scoped events to a console/webhook(/pluggable smtp) channel — coordination, never authority",
+  "read:org-roots": "read on-chain organizational roots (v0.7), their pending/historical requests, and rooted vaults — never implied by read:organizations (a hosted organization grants no on-chain root authority)",
+  "write:org-roots": "create an organizational-root or rooted-vault genesis, create a root-authorized request (owner action, at most one vault operation), attach an owner slot or single (genesis/succession) signature, finalize, submit, reject, reconcile, and build a delegate spend/deposit on a rooted vault — never implied by organizations:manage; the actual owner-slot (or pinned successor) signer check is enforced independently of this scope"
 });
 
 function scopesDocument() {
@@ -90,8 +140,62 @@ function buildCapabilities(config, principal = null) {
     ...(config.buildId ? { buildId: config.buildId } : {}),
     ...(presented ? { principal: presented } : {}),
     contract: {
-      supportedCovenantVersions: SUPPORTED_COVENANT_VERSIONS,
+      /* v0.7 additions are presentation-only here (SUPPORTED_COVENANT_VERSIONS
+       * itself is the v0.4-family intent-manifest router's own list — v0.5/
+       * v0.6/v0.7 each own a separate manifest family, core/intent/router.js);
+       * this document simply ADVERTISES every generation this build ROUTES
+       * (ROUTED_COVENANT_VERSIONS above, validated against the router's
+       * KNOWN_COVENANT_VERSIONS at module load — never a superset of it). */
+      supportedCovenantVersions: ROUTED_COVENANT_VERSIONS.map((e) => e.contractVersion),
+      /* F-02 (rc11 review): discovery is NOT authority. Every routed version is
+       * READABLE / reconcilable on every network; only the generations in the
+       * per-generation mainnet allowlist may be NEWLY CREATED or mutated on
+       * mainnet (sdk/src/config.js MAINNET_CREATABLE_GENERATIONS). On testnet
+       * every routed generation is creatable (human acceptance). */
+      covenantVersions: ROUTED_COVENANT_VERSIONS.map((e) => ({ ...e, mainnetCreatable: MAINNET_CREATABLE_GENERATIONS.has(e.contractVersion) })),
+      creatableCovenantVersions: ROUTED_COVENANT_VERSIONS.map((e) => e.contractVersion).filter((v) => config.networkId !== "mainnet" || MAINNET_CREATABLE_GENERATIONS.has(v)),
       currentV4Versions: [CONTRACT_VERSION_V4, CONTRACT_VERSION_V4_1]
+    },
+    /* v0.5 (token controller, FROZEN) / v0.6 (optional atomic composability,
+     * FROZEN, fixture venue only) request surfaces (Wave 2 Track E;
+     * docs/postlaunch/v0.7-app-surface-contract.md §6.1). Token amounts and
+     * KAS are two separate accounting domains and are NEVER converted into
+     * each other by this server. */
+    tokens: {
+      v5: { contractVersion: CONTRACT_VERSION_V5, status: "FROZEN", authorityModel: "SINGLE_ON_CHAIN_OWNER", actions: [...require("../../sdk/src/vault-builders-v5").OWNER_CONTROL_ACTIONS, ...require("../../sdk/src/vault-builders-v5").SPEND_ACTIONS, "ownerRecover", "tokenDeposit"] },
+      v6: {
+        contractVersion: CONTRACT_VERSION_V6,
+        status: "FROZEN",
+        authorityModel: "SINGLE_ON_CHAIN_OWNER",
+        composability: "OPTIONAL_ATOMIC",
+        venues: ["FIXTURE"],
+        venueStatement: "the ONLY venue profile this server knows is the PolicyVault pool FIXTURE (conformance evidence) — no real DEX venue is supported; a request naming any other venue fails closed VENUE_PROFILE_UNSUPPORTED",
+        deadlineStatement: "deadlineDaa is presented as a pre-sign freshness boundary, never a consensus expiry",
+        actions: [...require("../../sdk/src/vault-builders-v6").OWNER_CONTROL_ACTIONS, ...require("../../sdk/src/vault-builders-v6").SPEND_ACTIONS, ...require("../../sdk/src/vault-builders-v6").SWAP_ACTIONS, "ownerRecover", "tokenDeposit"]
+      }
+    },
+    /* v0.7-payment-hd hierarchical-delegation CANDIDATE (Wave 2 Track E;
+     * NOT covenant-byte-frozen, NOT production, NOT externally reviewed).
+     * expiryStatement is the verbatim sentence every HD response repeats. */
+    hierarchicalDelegation: {
+      contractVersion: CONTRACT_VERSION_V7_PAYMENT_HD,
+      status: "CANDIDATE",
+      authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT",
+      spendActions: ["hdSpend", "childSpendL2", "childSpendL3"],
+      delegationActions: ["delegateSetChildRoot1", "delegateSetChildRoot2"],
+      expiryStatement: "expiry is enforced by PolicyVault's core and by revocation, not by consensus"
+    },
+    /* v0.7 ON-CHAIN ORGANIZATIONAL ROOT (docs/postlaunch/v0.7-app-surface-
+     * contract.md §2 "GET /capabilities"). authorityModel here documents
+     * what an /org-roots resource ITSELF carries; a HOSTED organization
+     * (/organizations) carries authorityModel HOSTED_ORGANIZATION and
+     * grants no on-chain authority; a legacy single-owner vault carries
+     * SINGLE_ON_CHAIN_OWNER. */
+    orgRoots: {
+      authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT",
+      slots: OWNER_SLOTS_V7,
+      actions: [...ROOT_ACTION_NAMES_V7, ...Object.keys(OWNER_OP_SELECTOR_V7)],
+      actionClasses: Object.values(AUTHORITY_CLASSES_V7)
     },
     actions: {
       v4: Object.entries(wr4.ROLE_BY_ACTION).map(([action, role]) => ({ action, role }))
@@ -113,7 +217,9 @@ function buildCapabilities(config, principal = null) {
       auditChainStatus: require("./audit-chain").STATUS_SCHEMA,
       auditChainVerification: require("./audit-chain").VERIFICATION_SCHEMA,
       notificationRule: require("./notifications").RULE_SCHEMA,
-      notificationPayload: require("./notify-delivery").NOTIFY_PAYLOAD_SCHEMA
+      notificationPayload: require("./notify-delivery").NOTIFY_PAYLOAD_SCHEMA,
+      mcpTelemetryEvent: require("./mcp-telemetry").TELEMETRY_EVENT_SCHEMA,
+      mcpTelemetryAggregate: require("./mcp-telemetry").TELEMETRY_AGGREGATE_SCHEMA
     },
     /* Asynchronous events + signed webhooks (surface 18). Events are
      * NOTIFICATIONS of durable state — never authority (spec §2). */
@@ -190,7 +296,13 @@ function buildCapabilities(config, principal = null) {
       /* Human notifications (surface 19): per-tenant rules + console/
        * webhook reference providers over the same durable event outbox.
        * Peripheral coordination — its outage never affects core safety. */
-      humanNotifications: true
+      humanNotifications: true,
+      /* MCP usage telemetry (Track 7): privacy-minimizing, config-gated,
+       * OFF by default — this reflects the LIVE current setting
+       * (POLICYVAULT_MCP_TELEMETRY), not a build-time capability; when
+       * false, GET /api/v1/mcp-telemetry does not exist (404). No new
+       * scope: reuses read:metrics (see server/src/mcp-telemetry.js). */
+      mcpTelemetry: require("./mcp-telemetry").telemetryEnabled()
     }
   };
 }
