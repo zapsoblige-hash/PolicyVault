@@ -33,6 +33,7 @@ const path = require("node:path");
 const WEB_DIR = path.join(__dirname, "..");
 const REPO = path.join(WEB_DIR, "..");
 const RX = require("../refusal-explain.js");
+const { assertGenerationMainnetCreatable } = require("../../sdk/src/config.js");
 const APP_V4 = fs.readFileSync(path.join(WEB_DIR, "app-v4.js"), "utf8");
 const INDEX_HTML = fs.readFileSync(path.join(WEB_DIR, "index.html"), "utf8");
 
@@ -46,6 +47,7 @@ const SOURCE_HAYSTACK = [
   "server/src/agent-suspensions.js", "server/src/organization.js",
   "sdk/src/wallet-requests-v4.js", "sdk/src/wallet-submit-v4.js", "sdk/src/vault-builders-v4.js",
   "sdk/src/approval-package-v4.js", "sdk/src/address-identity.js", "sdk/src/organization.js",
+  "sdk/src/config.js", // exact mainnet generation refusal, including legacy BUILD_FAILED wrappers
   "web/app.js", "web/app-v4.js", "web/wallet.js", "web/signer-kasware-adapter.js",
   /* v0.7 organizational M-of-N owner root (Wave 2, Track B-web): the
    * contract's closed refusal vocabulary
@@ -102,6 +104,54 @@ test("an unexplained refusal renders the server's message VERBATIM and says so",
   assert.match(html, /no closed explanation for this refusal code/);
   // it must not borrow another entry's words
   assert.ok(!/not the vault owner/.test(html));
+});
+
+function mainnetGenerationError(version = "policyvault-0.7-payment") {
+  try {
+    assertGenerationMainnetCreatable({ networkId: "mainnet" }, version);
+  } catch (error) {
+    assert.equal(error.code, "GENERATION_NOT_MAINNET_AUTHORIZED");
+    return error;
+  }
+  assert.fail(`expected ${version} to be refused on mainnet`);
+}
+
+test("the generation refusal explains release availability without blaming address or amounts", () => {
+  const error = mainnetGenerationError();
+  const explanation = RX.explain(error.code);
+  assert.match(explanation.title, /unavailable on mainnet in this release/);
+  assert.match(explanation.meaning, /Changing the address or amounts will not enable it/);
+  assert.match(explanation.next.join(" "), /single-owner vault.*Create Vault.*v0\.4\.1/);
+  assert.doesNotMatch([explanation.meaning, ...explanation.next].join(" "), /nothing was|nothing (?:is |has )?(?:signed|sent|moved)|no transaction was|vault is unchanged|testnet|authorize|override|bypass/i);
+});
+
+test("legacy BUILD_FAILED wrappers get the specific explanation only for the exact known SDK guard", () => {
+  for (const version of ["policyvault-0.4", "policyvault-0.5", "policyvault-0.6", "policyvault-0.7-root", "policyvault-0.7-payment", "policyvault-0.7-kas", "policyvault-0.7-payment-hd"]) {
+    const message = `wallet-requests-v7: ${mainnetGenerationError(version).message}`;
+    assert.equal(RX.explain("BUILD_FAILED", message), RX.explain("GENERATION_NOT_MAINNET_AUTHORIZED"));
+    const html = RX.renderRefusalHtml({ summary: "Create refused", code: "BUILD_FAILED", message });
+    assert.match(html, /data-refusal="BUILD_FAILED"/);
+    assert.match(html, /unavailable on mainnet in this release/);
+    assert.ok(html.includes(message.replace(/"/g, "&quot;")), "the complete raw SDK message remains visible, escaped");
+    assert.doesNotMatch(html, /Adjust the request to fit the policy/);
+  }
+});
+
+test("unrelated or merely similar BUILD_FAILED messages keep their existing explanation", () => {
+  const exact = mainnetGenerationError().message;
+  const generic = RX.explain("BUILD_FAILED");
+  for (const message of [
+    undefined, null, {}, "maximum per payment exceeded", "policyvault-0.7-payment requires a valid address",
+    exact.replace("NOT owner-authorized", "owner-authorized"),
+    exact.replace("mainnet: covenant", "testnet: covenant"),
+    exact.replace(" — refusing (fail closed).", "."),
+    exact.replace("policyvault-0.7-payment", "policyvault-0.4.1"),
+    exact.replace("policyvault-0.7-payment", "policyvault-future")
+  ]) {
+    assert.equal(RX.explain("BUILD_FAILED", message), generic);
+  }
+  assert.equal(RX.explain("UNKNOWN_CODE", exact), null, "message text cannot classify an unknown code");
+  assert.equal(RX.explain("NOT_OWNER", exact), RX.explain("NOT_OWNER"), "message text cannot replace a different known code");
 });
 
 /* ---------------- 2. code + message always survive ------------------------- */
@@ -203,6 +253,17 @@ test("an explained code with hostile text in the server message is equally safe"
   const html = RX.renderRefusalHtml({ summary: "s", code: "NOT_OWNER", message: '</div><img src=x onerror="alert(1)">' });
   assert.deepEqual(unexpectedTags(html), []);
   assert.match(html, /&lt;img/);
+});
+
+test("generation explanations preserve and escape hostile text, including a legacy wrapper", () => {
+  const message = `${mainnetGenerationError().message} </div><img src=x onerror="alert(1)"> & detail`;
+  for (const code of ["GENERATION_NOT_MAINNET_AUTHORIZED", "BUILD_FAILED"]) {
+    const html = RX.renderRefusalHtml({ summary: "<script>summary</script>", code, message });
+    assert.match(html, /unavailable on mainnet in this release/);
+    assert.deepEqual(unexpectedTags(html), []);
+    assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt; &amp; detail/);
+    assert.ok(html.includes(`<span class="mono">${code}</span>`), "the original error code survives");
+  }
 });
 
 test("an explained refusal's own text is escaped into the attribute too", () => {

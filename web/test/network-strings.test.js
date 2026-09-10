@@ -75,7 +75,7 @@ const EXEMPT = {
   "app-v4.js": [
     12, // comment restating the two canonical values (dual-network)
     60, // comment quoting the literal for documentation purposes (shifted by the UX-responsiveness pass: retained-state/epoch helpers)
-    3453 // comment: "Gate R: testnet-10 or mainnet" — already dual-network (shifted by the UX-responsiveness pass, the 2026-09-02 console corrective, the TRACK 11 flagship UX pass (noteRefusal + refusal-explain wiring), the T4 canonical-amounts migration, Wave 2 Track B-web's v0.7 organizational-root modal wiring, the Wave 2 sompiToKasDisplay helper (canonical fuel-threshold rendering), and the 2026-09-05 guided-setup successor (create-vault steps, root setup wiring, owner action forms), and the Codex checkpoint-3 corrections (pinned-successor identity, reconcile-outcome interpretation, unresolved-creation signing gate) and the rc19 round-4 remediation (reconcile outcome wording), and the 2026-09-08 launch-scope R7-05/F-6 wiring (rooted-vault owner-operation flow + withdrawal/recovery handling in the request modal — STALE ASSUMPTION: line shift only); comment byte-identical)
+    3520 // Existing dual-network boot comment; shifted by the RC30 root creation availability / refusal presentation correction and the rc31 root-wizard notice scoping (noteRootWizard + late-success withdrawal). Comment byte-identical.
   ],
   "wallet.js": [
     90, // normalizeNetwork(): canonical output-value production from an arbitrary provider string (shifted by the 2026-09-02 console corrective: opt-in walletDebugEnabled() helper)

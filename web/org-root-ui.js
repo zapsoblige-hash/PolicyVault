@@ -1140,7 +1140,23 @@
     /* ================================================================
      * (a) hosted-vs-root Organizations section split
      * ================================================================ */
-    function renderOnChainRootSummaryHtml(orgRoots) {
+    // Discovery controls what the UI offers; the SDK remains authoritative.
+    // Root genesis currently requires both the root and payment generation.
+    function rootCreationAvailability({ networkId, capabilities } = {}) {
+      const unavailable = (reason) => ({ enabled: false, reason });
+      if (!["mainnet", "testnet-10"].includes(networkId) || !capabilities || capabilities.networkId !== networkId ||
+          !Array.isArray(capabilities.contract && capabilities.contract.creatableCovenantVersions)) {
+        return unavailable("Organizational root creation availability could not be confirmed. Reopen Organizations to check again. Existing roots and hosted organization grouping remain available.");
+      }
+      const versions = capabilities.contract.creatableCovenantVersions;
+      if (!versions.includes("policyvault-0.7-root") || !versions.includes("policyvault-0.7-payment")) {
+        return unavailable(`On-chain organizational roots are not available for creation on ${networkId} in this release. Use Create Vault for a single-owner vault, or create a hosted organization below to group vaults.`);
+      }
+      return { enabled: true, reason: "" };
+    }
+
+    function renderOnChainRootSummaryHtml(orgRoots, availabilityContext) {
+      const creation = rootCreationAvailability(availabilityContext);
       const rows = (orgRoots || []).map((r) => {
         const frozen = !!r.frozen;
         return (
@@ -1155,7 +1171,8 @@
         `<h4 style="margin-top:0">On-chain organizational root (covenant-enforced M-of-N)</h4>` +
         `<div class="hint">Shared ownership that is real: several owners approve changes together (for example 2 of 3), enforced by the covenant on Kaspa — a NEW covenant generation (policyvault-0.7-root), independent of hosted organization metadata. Legacy vaults keep exactly ONE on-chain owner key and are never presented as M-of-N.</div>` +
         (rows ? `<table class="mtable"><thead><tr><th>Root</th><th>Owners</th><th>Changes need</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No organizational roots yet.</div>`) +
-        `<button id="v4-orgroot-create-btn" class="primary" style="margin-top:0.6rem">Create organizational root</button>` +
+        (!creation.enabled ? `<div class="opbanner warn" id="v4-orgroot-availability" role="status">${esc(creation.reason)}</div>` : "") +
+        `<button id="v4-orgroot-create-btn" class="primary" style="margin-top:0.6rem"${creation.enabled ? "" : ' disabled aria-describedby="v4-orgroot-availability"'}>Create organizational root</button>` +
         `</div>`
       );
     }
@@ -2058,6 +2075,7 @@
       renderRequestDetailHtml,
       renderDangerousConfirmHtml,
       renderOnChainRootSummaryHtml,
+      rootCreationAvailability,
       renderRootedVaultOwnerOpsHtml,
       /* rooted-vault owner operations — browser initiation (R7-05) and reservation / withdrawal guidance (F-6) */
       VAULT_OPS, VAULT_OP_ORDER, SUPPORTED_ROOTED_PROFILE, vaultOpLabel, vaultOpInfo, vaultOpAvailability, vaultOpConfirmPhrase, vaultOpConfirmationMatches,

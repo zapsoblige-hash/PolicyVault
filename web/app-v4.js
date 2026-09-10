@@ -153,6 +153,11 @@
     return identity.xOnlyPubkey;
   }
   function note(msg, cls) {
+    // Only a notice that belongs to the root setup wizard (its progress,
+    // validation or BUILD refusal — written through noteRootWizard) is cleared
+    // when the wizard is cancelled or its view is left. A newer notice
+    // (especially a pending/unknown outcome) always replaces this scope.
+    state.rootBuildRefusal = false;
     const el = $("v4-notice");
     if (!el) return;
     el.textContent = msg;
@@ -1786,7 +1791,7 @@
     const orgSel = $("v4-org");
     if (orgSel) orgSel.onchange = () => { state.org = orgSel.value; render(); };
     const ec = $("v4-empty-create");
-    if (ec) ec.onclick = () => { state.view = "create"; render(); };
+    if (ec) ec.onclick = () => navigateTo("create");
     wireVault(root);
     wireOrgAssign(root);
   }
@@ -1829,19 +1834,25 @@
         // hosted-organization-only view (never a broken half-render).
         const rootUI = orgRootUI();
         let orgRoots = [];
+        let rootCapabilities = null;
         if (rootUI) {
-          try { orgRoots = (await rootUI.fetchOrgRoots()).orgRoots || []; }
-          catch { orgRoots = []; }
+          const [roots, capabilities] = await Promise.all([
+            rootUI.fetchOrgRoots().catch(() => ({ orgRoots: [] })),
+            getJSON("/capabilities").catch(() => null)
+          ]);
+          orgRoots = roots.orgRoots || [];
+          rootCapabilities = capabilities;
         }
-        return { data, vaults, controlsByOrg, orgRoots };
+        return { data, vaults, controlsByOrg, orgRoots, rootCapabilities };
       },
       paint: paintOrgsView
     });
   }
 
   function paintOrgsView(root, fetched, refreshing) {
-    const { data, vaults, controlsByOrg, orgRoots } = fetched;
+    const { data, vaults, controlsByOrg, orgRoots, rootCapabilities } = fetched;
     state.orgData = data;
+    state.rootCapabilities = rootCapabilities;
     const labelOf = new Map((vaults || []).filter(Boolean).map((v) => [v.vaultId, v.label || short(v.vaultId)]));
     const assignments = data.assignments || {};
     const byOrg = {};
@@ -1923,7 +1934,7 @@
     // hosted-organization metadata below. Absent when the module or the v0.7
     // core bundle closure is not loaded (never a broken half-render).
     const rootUI = orgRootUI();
-    const onChainRootSectionHtml = rootUI ? rootUI.renderOnChainRootSummaryHtml(orgRoots) : "";
+    const onChainRootSectionHtml = rootUI ? rootUI.renderOnChainRootSummaryHtml(orgRoots, rootCreationContext()) : "";
 
     root.innerHTML =
       (refreshing ? refreshingChip : "") +
@@ -2105,10 +2116,41 @@
    * the modal (inactive ones hidden), so Back / Continue / Edit never lose
    * entered values. Discarded on every identity change (updateWallet). */
   const ROOT_STEP_IDS = ["owners", "approvals", "emergency", "funding", "review"];
+  const rootCreationContext = () => ({ networkId: state.nodeNetwork || state.serverNetwork, capabilities: state.rootCapabilities });
+
+  /* A notice that belongs to the root setup wizard (progress, validation or a
+   * BUILD refusal): cleared when the wizard is cancelled or its view is left,
+   * and superseded by ANY newer notice (note() resets the flag first). */
+  function noteRootWizard(msg, cls) { note(msg, cls); state.rootBuildRefusal = true; }
+
+  function rootCreationAllowed(rootUI, setup) {
+    const availability = rootUI && typeof rootUI.rootCreationAvailability === "function"
+      ? rootUI.rootCreationAvailability(rootCreationContext())
+      : { enabled: false, reason: "Organizational root creation availability could not be confirmed. Reopen Organizations to check again." };
+    if (!availability.enabled) {
+      noteRootWizard(availability.reason, "warn");
+      if (setup) {
+        setup.buildError = { message: availability.reason, availability: true };
+        rerenderRootWizard();
+      }
+    }
+    return availability.enabled;
+  }
+
+  function rootBuildErrorHtml(s) {
+    if (!s.buildError) return "";
+    const mod = refusalExplain();
+    let html = esc(s.buildError.availability ? s.buildError.message : `${s.buildError.code} ${s.buildError.message}`);
+    if (mod && !s.buildError.availability) {
+      try { html = mod.renderRefusalHtml(s.buildError); } catch { /* retain the exact escaped refusal */ }
+    }
+    return `<div id="v4-orgroot-build-error" class="opbanner bad" role="alert" tabindex="-1">${html}</div>`;
+  }
+
   function rootSetup(rootUI) {
     if (!state.rootSetup) {
       const su = setupUi();
-      state.rootSetup = { step: 0, draft: su ? su.rootDraftDefaults(state.address) : null, errors: new Map(), built: null, busy: false };
+      state.rootSetup = { step: 0, draft: su ? su.rootDraftDefaults(state.address) : null, errors: new Map(), built: null, buildError: null, busy: false };
     }
     if (rootUI) state.rootSetup.ui = rootUI;
     return state.rootSetup;
@@ -2163,6 +2205,7 @@
     const m = $("v4-modal");
     if (!m || !s.ui || !s.draft) return;
     m.innerHTML = `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-orgroot-title">` +
+      rootBuildErrorHtml(s) +
       s.ui.renderGenesisSetupHtml({ draft: s.draft, step: s.step, errors: s.errors, connectedAddress: state.address, busy: s.busy, network: networkLabel() }) +
       (s.built ? `<div class="opbanner warn" data-built-pending="1">A governance root transaction was already built from these values and is waiting for your signature. <button type="button" class="primary" id="v4-orgroot-reopen">Open the review again</button> <span class="f-help" style="display:inline">Editing any field discards it.</span></div>` : "") +
       `</div>`;
@@ -2173,7 +2216,7 @@
       f.addEventListener("change", (ev) => syncRootControls(ev));
       f.addEventListener("submit", async (e) => { e.preventDefault(); await buildAndReviewRoot(); });
       syncRootControls();
-      const first = f.querySelector('section[data-setup-step]:not([hidden]) input, section[data-setup-step]:not([hidden]) select');
+      const first = $("v4-orgroot-build-error") || f.querySelector('section[data-setup-step]:not([hidden]) input, section[data-setup-step]:not([hidden]) select');
       if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* focus is a nicety */ } }
     }
   }
@@ -2292,6 +2335,7 @@
       if (s.built) { try { await s.ui.rejectRequest(s.built.request.rootCovenantId, s.built.request.id, "withdrawn before signing"); } catch { /* best-effort */ } }
       state.rootSetup = null;
       m.style.display = "none";
+      if (state.rootBuildRefusal) note(""); // the wizard's own progress / refusal notice leaves with it
       render();
     } else if (t.id === "v4-orgroot-reopen") {
       if (s.built) openRootBuildReview(s.built);
@@ -2308,6 +2352,7 @@
    * normalized rules, plus the technical exact-policy panel) → funder signs
    * → PENDING (never success) → reconcile → live. */
   function openOrgRootWizard(rootUI) {
+    if (!rootCreationAllowed(rootUI)) return;
     state.rootSetup = null;
     const s = rootSetup(rootUI);
     if (!s.draft) { note("The setup components did not load in this build — reload the page.", "bad"); return; }
@@ -2319,10 +2364,12 @@
     const m = $("v4-modal");
     const f = m && m.querySelector ? m.querySelector("[data-orgroot-wizard]") : null;
     if (!s.ui || !f || s.busy) return;
+    if (!rootCreationAllowed(s.ui, s)) return;
     s.busy = true;
+    s.buildError = null;
     try {
       readRootDraft(f);
-      note("Checking the governance rules…", "warn");
+      noteRootWizard("Checking the governance rules…", "warn");
       const v = await s.ui.validateGenesisDraft(s.draft, { connectedAddress: state.address });
       s.errors = v.errors;
       if (!v.ok) {
@@ -2331,17 +2378,31 @@
         if (first !== undefined) s.step = stepOf[first];
         s.busy = false;
         rerenderRootWizard();
-        note("Fix the highlighted fields, then continue.", "bad");
+        noteRootWizard("Fix the highlighted fields, then continue.", "bad");
         return;
       }
       let created;
       try {
-        note("Building the governance root transaction…", "warn");
+        noteRootWizard("Building the governance root transaction…", "warn");
         created = await s.ui.createGenesisRequest(v.form);
       } catch (err) {
         s.busy = false;
+        // A cancelled setup's delayed BUILD refusal belongs to that setup,
+        // not to the view or notice the owner has opened since then.
+        if (state.rootSetup !== s || state.view !== "orgs") return;
         noteRootRefusal("Governance root refused", err, s.ui);
+        state.rootBuildRefusal = true;
+        s.buildError = { code: s.ui.displayCodeFor(err), message: (err && err.message) || String(err), summary: "Governance root refused" };
+        rerenderRootWizard();
         return; // the draft stays exactly as entered
+      }
+      if (state.rootSetup !== s || state.view !== "orgs") {
+        // The setup was cancelled (or its view left) while the build was in
+        // flight: nobody is waiting for this review. Withdraw the late-built
+        // request best-effort, exactly as Cancel does for a built request, and
+        // never open a review over whatever the owner is doing now.
+        try { await s.ui.rejectRequest(created.request.rootCovenantId, created.request.id, "withdrawn before signing"); } catch { /* best-effort */ }
+        return;
       }
       const crossCheck = s.ui.genesisCrossCheck({ summary: created.request.manifest, norm: created.preview });
       s.built = { request: created.request, preview: created.preview, form: v.form, crossCheck };
@@ -3448,8 +3509,14 @@
     }
   }
 
+  function navigateTo(view) {
+    if (state.view !== view && state.rootBuildRefusal) note("");
+    state.view = view;
+    render();
+  }
+
   window.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll(".v4-tab").forEach((b) => (b.onclick = () => { state.view = b.dataset.view; render(); }));
+    document.querySelectorAll(".v4-tab").forEach((b) => (b.onclick = () => navigateTo(b.dataset.view)));
     // Server-authoritative network label (Gate R: testnet-10 or mainnet) —
     // presentation only (address-example placeholders); every real network
     // check is enforced by the session gate and the server. Shares boot()'s
@@ -3466,7 +3533,7 @@
     const modal = $("v4-modal");
     if (modal && typeof modal.addEventListener === "function") modal.addEventListener("click", handleModalSetupClick);
     const supportLink = document.getElementById("footer-support-link");
-    if (supportLink) supportLink.onclick = (e) => { e.preventDefault(); state.view = "support"; render(); window.scrollTo(0, 0); };
+    if (supportLink) supportLink.onclick = (e) => { e.preventDefault(); navigateTo("support"); window.scrollTo(0, 0); };
     // Consume the ONE canonical wallet session. There is no v0.4.1-specific
     // connect control or provider; the global Wallet panel owns the connection.
     // subscribe() fires immediately with the current snapshot, driving render.

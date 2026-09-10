@@ -16,9 +16,11 @@
  *     are actually emitted by this codebase (each entry below was traced
  *     to its throw site). An unknown or absent code returns null and the
  *     renderer shows the server's message VERBATIM with an explicit "no
- *     closed explanation for this code" line. It NEVER guesses at, pattern-
- *     matches, or invents a meaning — a fabricated explanation of a
- *     funds-safety refusal is worse than a bare code.
+ *     closed explanation for this code" line. The sole legacy wrapper
+ *     exception is BUILD_FAILED containing the exact mainnet generation
+ *     guard sentence from sdk/src/config.js for a known generation. It
+ *     never infers a meaning from other message text — a fabricated
+ *     explanation of a funds-safety refusal is worse than a bare code.
  *  2. THE SERVER'S MESSAGE IS ALWAYS SHOWN. The explanation is added
  *     ALONGSIDE the exact code and message, never instead of them: the
  *     specific detail (which limit, which amount, which key) lives in the
@@ -85,6 +87,11 @@
       title: "PolicyVault refused to build this transaction",
       meaning: "The request did not satisfy this vault's rules or its current state, so no transaction was created and nothing was signed or sent. The exact reason is in the message above.",
       next: ["Read the message above — it names the limit, amount, or value that failed.", "Adjust the request to fit the policy and try again."]
+    },
+    GENERATION_NOT_MAINNET_AUTHORIZED: {
+      title: "This feature is unavailable on mainnet in this release",
+      meaning: "This action uses a covenant generation that is not enabled for mainnet in this release. Changing the address or amounts will not enable it.",
+      next: ["For a supported single-owner vault, use Create Vault with Protocol v0.4.1."]
     },
     INSUFFICIENT_APPROVALS: {
       title: "Not enough approvals yet",
@@ -377,9 +384,25 @@
     }
   };
 
+  /* Older SDK request wrappers replace the generation guard's code with
+   * BUILD_FAILED. Recognize only its exact refusal sentence for these
+   * known restricted generations; unrelated build failures keep their
+   * generic explanation. This never changes the raw code or message. */
+  const LEGACY_MAINNET_GENERATION_REFUSALS = [
+    "policyvault-0.4", "policyvault-0.5", "policyvault-0.6",
+    "policyvault-0.7-root", "policyvault-0.7-payment",
+    "policyvault-0.7-kas", "policyvault-0.7-payment-hd"
+  ].map((version) =>
+    `mainnet: covenant generation "${version}" is NOT owner-authorized for mainnet creation/mutation — refusing (fail closed).`
+  );
+
   /* The one honest answer for a code with no closed entry. */
-  function explain(code) {
+  function explain(code, message) {
     if (typeof code !== "string" || !code) return null;
+    if (code === "BUILD_FAILED" && typeof message === "string" &&
+        LEGACY_MAINNET_GENERATION_REFUSALS.some((guard) => message.includes(guard))) {
+      return TABLE.GENERATION_NOT_MAINNET_AUTHORIZED;
+    }
     return Object.prototype.hasOwnProperty.call(TABLE, code) ? TABLE[code] : null;
   }
 
@@ -392,7 +415,7 @@
    * Everything is escaped; nothing here is ever inserted unescaped.
    */
   function renderRefusalHtml({ summary, code, message }) {
-    const e = explain(code);
+    const e = explain(code, message);
     const head = `<div class="refusal-head"><b>${esc(e ? e.title : summary || "Refused")}</b></div>`;
     const detail =
       `<div class="refusal-detail hint">` +

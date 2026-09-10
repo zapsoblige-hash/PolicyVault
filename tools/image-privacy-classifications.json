@@ -215,5 +215,12 @@
     "family": "operator-path",
     "count": 9,
     "reason": "Codex local RC29 correction image 9dbc5f7: all matching upstream Ubuntu build-history commands are byte-identical to classified production RC29 config fedc5513. Exact command hashes independently compared; metadata changed for the correction and compiler notice. No PolicyVault operator identity."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "870e5b9b39a1239eeb293622b6351b8ebc7e2e4d91f3b95458729c40e3e995f7",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc31 image config (build ec80d60, digest sha256:cae6b7e7cb073a17b7f9dc0dd54288556e13c6157f08a1712e91624e0878fc32): the 9 matching history commands are the pinned Ubuntu base image's own upstream rockcraft build-directory paths, byte-identical to the previously classified rc30 config 6d370a98\u2026; this config differs from it only in the created timestamps, the POLICYVAULT_BUILD_ID arg/env value and the rootfs diff_ids (positional history diff = the two BUILD_ID lines; Env diff = POLICYVAULT_BUILD_ID only; other config fields equal). No PolicyVault operator identity (Claude rc31 session, 2026-09-10)."
   }
 ]
