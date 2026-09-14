@@ -26,6 +26,7 @@
 
 const path = require("path");
 const { getStore, Categories } = require("./store");
+const { createVaultRecordOrMatch } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): atomic create-only genesis completion
 const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
 const { CONTRACT_VERSION_V7, resolveV7Abi, normalizeTemplateV7, normalizeStateV7, computeStateIdV7, stateToJsonV7 } = require("../../core/model/vault-state-v7");
 const { buildTokenAgentTreeV5, normalizeTokenAgentPolicyV5, tokenAgentPolicyToJsonV5 } = require("./agent-merkle-v5");
@@ -230,6 +231,18 @@ async function persistManifestV7(config, manifest) {
   return normalized;
 }
 
+/*
+ * RC33-ID-01 (2026-09-11): the CREATE-ONLY sibling of the persist function above, for a PROVEN genesis — the SAME
+ * normalization and encoding, then sdk/src/vault-identity.js's atomic create-or-match write instead of an overwrite.
+ * Returns { manifest, outcome: "CREATED" | "ALREADY_PRESENT" }; throws RECONCILIATION_REQUIRED when the identity holds a
+ * DIFFERENT record of any generation (left untouched). Transitions keep advancing an existing record through persist.
+ */
+async function createManifestV7(config, manifest) {
+  const normalized = normalizeManifestV7({ ...manifest, updatedAt: new Date().toISOString() });
+  const { outcome } = await createVaultRecordOrMatch(config, normalized.vaultId, manifestToJsonV7(normalized));
+  return { manifest: normalized, outcome };
+}
+
 async function listRootedVaultsV7(config, { orgRootCovenantId } = {}) {
   const all = await getStore(config).listValues(Categories.VAULT);
   const out = [];
@@ -252,6 +265,7 @@ module.exports = {
   manifestToJsonV7,
   loadManifestV7,
   persistManifestV7,
+  createManifestV7,
   listRootedVaultsV7,
   normalizeRegistry,
   registryEntryToJson,

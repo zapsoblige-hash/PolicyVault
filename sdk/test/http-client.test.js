@@ -204,7 +204,7 @@ test("capabilities: public, and reports scopes/actions/schemas from the SERVER's
   const caps = await state.anonClient.capabilities();
   assert.equal(caps.schemaVersion, "policyvault-capabilities/v1");
   assert.equal(caps.apiVersion, "v1");
-  assert.deepEqual(caps.contract.supportedCovenantVersions, ["policyvault-0.4", "policyvault-0.4.1", "policyvault-0.5", "policyvault-0.6", "policyvault-0.7-root", "policyvault-0.7-payment", "policyvault-0.7-payment-hd"]);
+  assert.deepEqual(caps.contract.supportedCovenantVersions, ["policyvault-0.4", "policyvault-0.4.1", "policyvault-0.5", "policyvault-0.6", "policyvault-0.7-root", "policyvault-0.7-payment", "policyvault-0.7-payment-hd", "policyvault-0.7-kas" /* v0.7 mainnet enablement (2026-09-10): the KAS treasury profile gained its hosted surface and is advertised (CANDIDATE) */]);
 
   /* The client's PINNED schema version must be one the live server accepts —
    * this is the compatibility check the README tells integrators to make. */

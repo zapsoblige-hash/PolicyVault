@@ -130,7 +130,9 @@ function editFrozen(m, fn) {
   m.transaction.frozenCanonicalJson = JSON.stringify(frozen);
 }
 function verdictOf(manifest) {
-  return verifyOrgRootIntentManifestV7Kas({ manifest });
+  /* R7-04: every org-wrapped build in this file spends the SAME predecessor (default vaultState + vaultTemplate), so the
+   * pause build's carried predecessor redeem is the redeem of every wrapped operation here. */
+  return verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts: { [VAULT_COV_ID]: shapes().pause.vaultRedeemScriptHex } });
 }
 
 let SHAPES = null;
@@ -350,4 +352,78 @@ test("rc26 round-7 R7-01 / R7-02 (kas profile parity, real builds): sequences / 
     assert.notEqual(v.verdict, "VERIFIED", label);
     assert.ok(v.failures.some((f) => f.name === expectedCheck), `${label}: expected ${expectedCheck}, got ${v.failures.map((f) => f.name).join(",")}`);
   }
+});
+
+/* R7-04 CLOSURE (v0.7 enablement directive 2026-09-10) — the rooted-KAS pre-sign verifier binds the DECLARED pins and the
+ * reviewed predecessor / successor states to the scripts the transaction ACTUALLY spends and creates, through the
+ * shared-core skeleton core/intent/vault-script-v7-kas.js (mechanically derived from real silverc output). Real builds;
+ * every tamper re-hashed. RED-FIRST on 7cde043: the KAS build carried no predecessor redeem, the successor output was bound
+ * by count + value only, and the recovery payout was bound to the DECLARED recoveryPk only — so a successor locking script
+ * substituted for garbage (value + covenant metadata kept) and a consistently redirected recoveryPk + payout were both
+ * VERIFIED. Every row below names the check that must refuse it. */
+const kasScript = require("../../core/intent/vault-script-v7-kas");
+test("R7-04 closure (kas profile, real builds): predecessor redeem carried + bound to the spent UTXO and the reviewed state; successor script rebuilt from the redeem AND from the declared pins; recovery payout bound to the pin compiled into the spent script", { skip: SKIP }, () => {
+  const s = shapes();
+  const tag = `vault[${VAULT_COV_ID.slice(0, 8)}].`;
+  const redeemOf = (build) => ({ [VAULT_COV_ID]: build.vaultRedeemScriptHex });
+  /* CARRIAGE: every rooted-KAS build carries its predecessor redeem + state region, and P2SH(redeem) IS the spent locking script */
+  for (const [name, build] of Object.entries(s)) {
+    assert.equal(typeof build.vaultRedeemScriptHex, "string", `${name}: the build carries vaultRedeemScriptHex`);
+    assert.equal(typeof build.vaultStateRegionHex, "string", `${name}: the build carries vaultStateRegionHex`);
+    const frozen = JSON.parse(build.frozenCanonicalJson);
+    const vaultIn = frozen.inputs.find((i) => i.utxo.covenantId === VAULT_COV_ID);
+    assert.equal(kasScript.p2shSpkHexOf(build.vaultRedeemScriptHex), vaultIn.utxo.scriptPublicKey.scriptHex, `${name}: P2SH(carried redeem) == the vault input's locking script`);
+    assert.equal(kasScript.splitVaultRedeemHexV7Kas(build.vaultRedeemScriptHex).regionHex, build.vaultStateRegionHex, `${name}: the carried region is the redeem's region`);
+    assert.deepEqual(kasScript.decodeVaultTemplatePinsV7Kas(build.vaultRedeemScriptHex).pins, { ...vaultTemplate }, `${name}: the pins compiled into the spent script decode back to the vault's template`);
+  }
+  const pause = orgManifest(s.pause, [{ build: s.pause }]);
+  const recover = orgManifest(s.recover, [{ build: s.recover }]);
+  /* CONTROLS: VERIFIED with the redeem, the new checks present and passing */
+  for (const [name, m, build, expectChecks] of [
+    ["pause", pause, s.pause, ["vaultRedeemPresent", "vaultRedeemWellFormed", "vaultRedeemMatchesUtxo", "vaultRedeemStateAgrees", "vaultGenerationAgrees", "templatePinsBound", "successorScriptReconstructed", "successorScriptFromPins"]],
+    ["recover", recover, s.recover, ["vaultRedeemPresent", "vaultRedeemMatchesUtxo", "vaultRedeemStateAgrees", "templatePinsBound", "payoutToPinnedRecoveryPk"]]
+  ]) {
+    const v = verifyOrgRootIntentManifestV7Kas({ manifest: m, redeemScripts: redeemOf(build) });
+    assert.equal(v.verdict, "VERIFIED", `${name} control: ${JSON.stringify(v.failures)}`);
+    for (const c of expectChecks) assert.ok(v.checks.some((k) => k.name === `${tag}${c}` && k.ok), `${name} control: check ${tag}${c} present and passing (got ${v.checks.map((k) => k.name).join(",")})`);
+  }
+  /* the redeem withheld / malformed: REFUSED — a manifest is never "verified without the evidence" */
+  {
+    const v = verifyOrgRootIntentManifestV7Kas({ manifest: pause });
+    assert.equal(v.verdict, "REFUSED", "withheld redeem must REFUSE");
+    assert.ok(v.failures.some((f) => f.name === `${tag}vaultRedeemPresent`), `withheld: expected ${tag}vaultRedeemPresent, got ${v.failures.map((f) => f.name).join(",")}`);
+    const w = verifyOrgRootIntentManifestV7Kas({ manifest: pause, redeemScripts: { [VAULT_COV_ID]: "6b" + "00".repeat(40) } });
+    assert.ok(w.failures.some((f) => f.name === `${tag}vaultRedeemWellFormed`), `malformed: expected ${tag}vaultRedeemWellFormed, got ${w.failures.map((f) => f.name).join(",")}`);
+  }
+  const foreignRedeem = kasScript.reconstructVaultScriptHexV7Kas({ template: { ...vaultTemplate, recoveryPk: OTHER_PK }, state: s.pause.stateJson }); // another vault's (other recovery key) script, pure rebuild
+  const rows = [
+    ["successor locking script substituted (value + covenant metadata kept)", tamper(pause, (m) => editFrozen(m, (f) => { const i = f.outputs.findIndex((o) => o.covenant && o.covenant.covenantId === VAULT_COV_ID); f.outputs[i].scriptPublicKey.scriptHex = `aa20${H(0x0d)}87`; })), redeemOf(s.pause), [`${tag}successorScriptReconstructed`, `${tag}successorScriptFromPins`]],
+    ["recovery destination AND the declared recoveryPk redirected together (self-consistent manifest)", tamper(recover, (m) => { m.vaultOperations[0].manifest.vault.recoveryPk = OTHER_PK; m.vaultOperations[0].manifest.policy.recoveryPk = OTHER_PK; rehashVaultOp(m); editFrozen(m, (f) => { f.outputs[0].scriptPublicKey.scriptHex = `20${OTHER_PK}ac`; }); }), redeemOf(s.recover), [`${tag}templatePinsBound`, `${tag}payoutToPinnedRecoveryPk`]],
+    ["declared root suffix geometry +1000 (well-formed pin that is not the compiled one)", tamper(pause, (m) => { m.vaultOperations[0].manifest.vault.rootGeometry.suffixLen += 1000; rehashVaultOp(m); }), redeemOf(s.pause), [`${tag}templatePinsBound`]],
+    ["declared rootTemplateVmHash substituted (well-formed)", tamper(pause, (m) => { m.vaultOperations[0].manifest.vault.rootTemplateVmHash = H(0x9b); rehashVaultOp(m); }), redeemOf(s.pause), [`${tag}templatePinsBound`]],
+    ["reviewed predecessor state substituted (approvalM) with the true redeem kept", tamper(pause, (m) => { m.vaultOperations[0].manifest.stateBefore.state.approverSlots[0] = H(0x91); m.vaultOperations[0].manifest.stateBefore.state.approvalM = "1"; m.vaultOperations[0].manifest.stateAfter.state.approverSlots[0] = H(0x91); m.vaultOperations[0].manifest.stateAfter.state.approvalM = "1"; rehashVaultOp(m); }), redeemOf(s.pause), [`${tag}vaultRedeemStateAgrees`, `${tag}templatePinsBound`]],
+    ["a DIFFERENT vault's redeem (other recovery key) presented for this input", pause, { [VAULT_COV_ID]: foreignRedeem }, [`${tag}vaultRedeemMatchesUtxo`, `${tag}templatePinsBound`]]
+  ];
+  for (const [label, manifest, redeemScripts, expected] of rows) {
+    const v = verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts });
+    assert.equal(v.verdict, "REFUSED", `${label}: must be REFUSED`);
+    for (const name of expected) assert.ok(v.failures.some((f) => f.name === name), `${label}: expected ${name}, got [${v.failures.map((f) => f.name).join(", ")}]`);
+    assert.equal(v.statement, null, `${label}: a refused manifest never carries the verified statement`);
+  }
+  /* standalone delegate spend (no root): the same binding, at the vault half alone */
+  {
+    const spendManifest = buildRootedKasVaultManifestV7({ build: s.spend });
+    const frozenSpend = JSON.parse(s.spend.frozenCanonicalJson);
+    const run = (manifest, frozen, redeemHex) => { const failures = []; const names = []; verifyRootedKasVaultManifestV7({ manifest, frozen, redeemHex, check: (name, ok, detail) => { names.push(name); if (!ok) failures.push({ name, detail }); } }); return { failures, names }; };
+    const control = run(spendManifest, frozenSpend, s.spend.vaultRedeemScriptHex);
+    assert.deepEqual(control.failures, [], `spend control: ${JSON.stringify(control.failures)}`);
+    for (const c of ["vaultRedeemMatchesUtxo", "vaultRedeemStateAgrees", "templatePinsBound", "successorScriptReconstructed", "successorScriptFromPins"]) assert.ok(control.names.includes(`${tag}${c}`), `spend control: ${tag}${c} exercised`);
+    assert.ok(run(spendManifest, frozenSpend, null).failures.some((f) => f.name === `${tag}vaultRedeemPresent`), "spend: withheld redeem refused");
+    const badSucc = JSON.parse(s.spend.frozenCanonicalJson);
+    const si = badSucc.outputs.findIndex((o) => o.covenant && o.covenant.covenantId === VAULT_COV_ID);
+    badSucc.outputs[si].scriptPublicKey.scriptHex = `aa20${H(0x0d)}87`;
+    const sub = run(spendManifest, badSucc, s.spend.vaultRedeemScriptHex);
+    assert.ok(sub.failures.some((f) => f.name === `${tag}successorScriptReconstructed`), `spend: substituted successor script refused (got ${sub.failures.map((f) => f.name).join(",")})`);
+  }
+  console.log(`R7-04 closure: ${rows.length} pin/state/script-substitution rows + withheld/malformed redeem + standalone spend refused with the failing check named; ${Object.keys(s).length} real builds carry their bound predecessor redeem`);
 });

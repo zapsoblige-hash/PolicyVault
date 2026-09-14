@@ -59,22 +59,53 @@ async function prepared(kind, variant) {
   x.originalStart = request.submitStartHash; x.kind = kind;
   return x;
 }
-for (const kind of ["root", "delegate"]) for (const variant of ["single", "multi-page"]) test(`RC27F F-1 reorg: ${kind} bound first rejection recovers original ${variant} removed-anchor window after reload`, async () => {
-  const x = await prepared(kind, variant), priorRoot = await wr.loadOrgRoot(x.config, x.o.rootCovenantId);
-  await x.recover(); const q = await x.request();
-  assert.equal(q.state, "SUBMISSION_REJECTED", JSON.stringify(q.submissionOutcome ?? q.error));
-  assert.equal(q.submitStartHash, x.originalStart, "never re-anchor the durable request");
-  assert.equal(q.submissionOutcome.proof.initialAnchorReorg, true);
-  assert.equal(q.submissionOutcome.proof.completeAcceptanceWindow, true);
-  assert.equal(await fx.loadSubmissionClaim(x.config, q.txId), null);
-  const predecessor = kind === "root" ? q.manifest.root.outpoint : q.predecessorOutpoint;
+for (const kind of ["root", "delegate"]) for (const variant of ["single", "multi-page"]) test(`RC27F F-1 reorg: ${kind} preserves an original ${variant} removed-anchor attempt after reload and completes only from its positive effect`, async () => {
+  const x = await prepared(kind, variant), priorRoot = await wr.loadOrgRoot(x.config, x.o.rootCovenantId), original = await x.request();
+  // Parsing retains the complete replacement path, but a removed original anchor is not a negative proof.
+  const window = await dep("sdk/src/submission-outcome-v7").acceptanceWindow(x.rpc, x.originalStart, x.q.txId, true);
+  assert.equal(window.complete, true); assert.equal(window.initialAnchorReorg, true);
+  assert.equal(window.blocks, variant === "single" ? 1 : 2); assert.equal(window.accepted, false);
+  const predecessor = kind === "root" ? original.manifest.root.outpoint : original.predecessorOutpoint;
+  for (let retry = 0; retry < 2; retry++) {
+    x.config = fx.reloadJsonConfig(x.config);
+    await x.recover(); const q = await x.request();
+    assert.equal(q.state, "RECONCILIATION_REQUIRED", "removed original anchor cannot release an unresolved attempt");
+    assert.equal(q.submitStartHash, x.originalStart, "never re-anchor the durable request");
+    assert.equal(q.txId, original.txId);
+    assert.deepEqual(q.build, original.build);
+    assert.deepEqual(q.finalTransaction, original.finalTransaction);
+    assert.equal(q.signedSafeJson, original.signedSafeJson);
+    assert.deepEqual(q.submissionAttempt, original.submissionAttempt);
+    assert.ok(await fx.loadSubmissionClaim(x.config, q.txId));
+    assert.ok(await claims.loadTransitionClaim(x.config, predecessor));
+    const root = await wr.loadOrgRoot(x.config, x.o.rootCovenantId);
+    assert.deepEqual(root.live, priorRoot.live); assert.deepEqual(await x.vault(), x.before);
+    assert.equal(await fx.loadReceipt(x.config, q.txId), null);
+    if (kind === "root") {
+      assert.equal(root.pendingRequestId, q.id);
+      await assert.rejects(fx.signedRootOnly(x.config, x.o), { code: "ROOT_PENDING_REQUEST" });
+    } else await assert.rejects(d.signedSpend(x.config, x.o), { code: "VAULT_PENDING_REQUEST" });
+    assert.equal(x.rpc.submits(), 1, "repeated observation cannot rebroadcast");
+  }
+  // Keep recovery live: the SAME attempted transaction later lands, with exact outputs and all frozen inputs spent.
+  for (const output of x.q.build.frozen.outputs) x.rpc.clear(fx.spkAddress(x.config, output.scriptPublicKey));
+  d.settle(x.config, x.rpc, x.q);
+  x.config = fx.reloadJsonConfig(x.config);
+  await x.recover(); const done = await x.request();
+  assert.equal(done.state, "CHAIN_VERIFIED"); assert.equal(done.txId, original.txId);
+  assert.equal(done.submitStartHash, x.originalStart);
+  assert.equal(await fx.loadSubmissionClaim(x.config, done.txId), null);
   assert.equal(await claims.loadTransitionClaim(x.config, predecessor), null);
-  const root = await wr.loadOrgRoot(x.config, x.o.rootCovenantId);
-  assert.equal(root.pendingRequestId, null); assert.deepEqual(root.live, priorRoot.live);
-  assert.deepEqual(await x.vault(), x.before); assert.equal(x.rpc.submits(), 1);
-  await x.recover();
-  if (kind === "root") await assert.rejects(x.submit(), { code: "SUBMISSION_REJECTED" }); else await x.submit();
-  assert.equal(x.rpc.submits(), 1);
+  const receipt = await fx.loadReceipt(x.config, done.txId);
+  for (const [key, value] of Object.entries(wr.completionReceiptPointer(done))) assert.equal(receipt.proof[key], value);
+  assert.equal((await fx.auditLinesFor(x.config, done.txId)).length, 1);
+  if (kind === "root") {
+    const root = await wr.loadOrgRoot(x.config, x.o.rootCovenantId);
+    assert.equal(root.pendingRequestId, null); assert.equal(root.live.outpoint.transactionId, done.txId);
+    assert.equal(root.generation, priorRoot.generation + 1); assert.deepEqual(await x.vault(), x.before);
+    assert.equal((await wr.verifyRootActionCompletion(x.config, done)).complete, true);
+  } else await d.assertComplete(x);
+  await x.recover(); await x.submit(); assert.equal(x.rpc.submits(), 1, "completed request stays idempotent");
   if (kind === "root") await fx.signedRootOnly(x.config, x.o); else await d.signedSpend(x.config, x.o);
 });
 for (const kind of ["root", "delegate"]) test(`RC27F F-1 reorg: ${kind} missing removal evidence cannot settle an ambiguous or rejected attempt`, async () => {

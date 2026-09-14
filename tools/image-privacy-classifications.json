@@ -222,5 +222,61 @@
     "family": "operator-path",
     "count": 9,
     "reason": "fullscale-rc31 image config (build ec80d60, digest sha256:cae6b7e7cb073a17b7f9dc0dd54288556e13c6157f08a1712e91624e0878fc32): the 9 matching history commands are the pinned Ubuntu base image's own upstream rockcraft build-directory paths, byte-identical to the previously classified rc30 config 6d370a98\u2026; this config differs from it only in the created timestamps, the POLICYVAULT_BUILD_ID arg/env value and the rootfs diff_ids (positional history diff = the two BUILD_ID lines; Env diff = POLICYVAULT_BUILD_ID only; other config fields equal). No PolicyVault operator identity (Claude rc31 session, 2026-09-10)."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "b85de0acac6a37149503168507bb7135a5142f4e815df17cd132d01c0c094424",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc32 image config (build 2940e2b, digest sha256:518b205ff3dec9a018e2fadacdf8a37f317ff5fab578c1b65b5ef580c0545ce7): the 9 matching history path occurrences (7 umoci/rockcraft commands) are the pinned Ubuntu base image's own upstream rockcraft build-directory paths, byte-identical to the previously classified rc31 config 870e5b9b\u2026; this config differs from it only in the created timestamps, the POLICYVAULT_BUILD_ID arg/env value and the rootfs diff_ids (positional history diff = the two BUILD_ID lines; Env diff = POLICYVAULT_BUILD_ID only; other config fields equal) \u2014 checked mechanically BEFORE this row was written. No PolicyVault operator identity (Claude v0.7 enablement session, 2026-09-10)."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "eb40d8e5cc70135444a7c08f546c9a0d33b5e6f0a3293f57dc10970fb37fa79f",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc33 image config (build efe9372, digest sha256:85488be76c049df7e20618079962e230d8ddd60d4e0df496ac0d89204962fd55): the 9 matching history path occurrences (7 umoci/rockcraft commands) are the pinned Ubuntu base image's own upstream rockcraft build-directory paths (/home/buildd), byte-identical to the previously classified rc32 config b85de0ac\u2026; this config differs from it only in the created timestamps, the POLICYVAULT_BUILD_ID arg/env value and the rootfs diff_ids (positional history diff = the two BUILD_ID lines 32/33; Env diff = POLICYVAULT_BUILD_ID only; every other config field equal; 0 operator-home occurrences) \u2014 checked mechanically BEFORE this row was written (docs/postlaunch/ux-evidence/claude-rc33/image-config-compare-rc32-vs-rc33.json). No PolicyVault operator identity (Claude rc33 replacement session, 2026-09-10)."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "41d6e7eec8b2e4845976ab1cb56bd2214c15bd6cac6eb0a316fc39e81657eb31",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc34 image config (build 6c52660, digest sha256:d6d66444f103caf90240e1d57f8b106c9c06df07eee152207e169aa6ffdf85a2; a SUPERSEDED attempt, never handed off): classified ONLY after a mechanical field-by-field comparison with the classified rc33 config eb40d8e5\u2026 (record docs/postlaunch/ux-evidence/claude-rc34/image-config-compare-rc33-vs-rc34.json): the two configs differ solely in the two POLICYVAULT_BUILD_ID history entries (efe9372 -> 6c52660), the POLICYVAULT_BUILD_ID Env entry, `created` and the rootfs diff_ids; every other config field (Entrypoint, ExposedPorts, Healthcheck, Labels, User, WorkingDir) and the history length are equal; the 9 matching history path occurrences (7 umoci/rockcraft commands) are the pinned Ubuntu base image's own upstream rockcraft build-directory paths (/home/buildd) plus the image's own /home/pv, byte-identical to the previously classified rc33 config; 0 operator-home occurrences. No PolicyVault operator identity (Claude rc34/rc35 replacement session, 2026-09-11)."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "4b95c7243c47c8bffef052bd6629cdcb8274f3a524e079670c6b4910dc0aa4f4",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc35 image config (build 17bccf6, digest sha256:6cb626bcfa0253ac4e6d319559b269f7c2e122b6213e1cff0d18f76c607188df): classified ONLY after a mechanical field-by-field comparison with the classified rc34 config 41d6e7ee\u2026 (record docs/postlaunch/ux-evidence/claude-rc35/image-config-compare-rc34-vs-rc35.json): the two configs differ solely in the two POLICYVAULT_BUILD_ID history entries (6c52660 -> 17bccf6), the POLICYVAULT_BUILD_ID Env entry, `created` and the rootfs diff_ids; every other config field (Entrypoint, ExposedPorts, Healthcheck, Labels, User, WorkingDir) and the history length are equal; the 9 matching history path occurrences (7 umoci/rockcraft commands) are the pinned Ubuntu base image's own upstream rockcraft build-directory paths (/home/buildd) plus the image's own /home/pv, byte-identical to the previously classified rc33 and rc34 configs; 0 operator-home occurrences \u2014 checked mechanically BEFORE this row was written. No PolicyVault operator identity (Claude rc35 replacement session, 2026-09-11)."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "fa127faa38c158a4b5330c3c0347520e813dab6174226cb34064db3bb8a9eb0a",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc36 image config (build 439a806, digest sha256:05ed13fe317e001591d2540b21a420dc8685b9bb29bc3ebe5f1850b9284f7e06): classified ONLY after a mechanical field-by-field comparison with the classified rc35 config 4b95c724\u2026 (record docs/postlaunch/ux-evidence/claude-rc36/image-config-compare-rc35-vs-rc36.json): the two configs differ solely in the two POLICYVAULT_BUILD_ID history commands (17bccf6 -> 439a806), the POLICYVAULT_BUILD_ID Env entry, `created`, the per-entry history timestamps of the build-time layers (compared separately from the commands, as the RC35 review required) and the rootfs diff_ids; every other config field (Entrypoint, ExposedPorts, Healthcheck, Labels, User, WorkingDir), every other history command and the history length are equal; the 9 matching history path occurrences (7 umoci/rockcraft commands) are the pinned Ubuntu base image's own upstream rockcraft build-directory paths (/home/buildd) plus the image's own /home/pv, the same two path families as the previously classified rc33, rc34 and rc35 configs; 0 operator-home occurrences \u2014 checked mechanically BEFORE this row was written. No PolicyVault operator identity (Claude rc36 replacement session, 2026-09-11)."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "bab01e1757fb6501e35ed6d778a90402af45d11a5cd65beb9d25effa1620677e",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "fullscale-rc37 image config (build b24b68e, manifest sha256:5a25fea4d105bebc79453f55031ad994bd264a0e5a643932c0b9eaa9e5da7b36): independently compared byte-for-byte and field-by-field with the classified RC36 config fa127faa38c158a4b5330c3c0347520e813dab6174226cb34064db3bb8a9eb0a before this row was proposed. All nine exact operator-path matches are /home/buildd/ in seven unchanged pinned Ubuntu upstream umoci/rockcraft history commands. The image runtime /home/pv/ is unchanged and excluded by the scanner pattern; zero other/private operator-home paths. Differences are limited to POLICYVAULT_BUILD_ID Env and history ARG/ENV entries (439a806 -> b24b68e), created/build-history timestamps, and build-layer rootfs diff_ids. Every other config/history field, history length, and first seven rootfs diff_ids is identical. Mechanical evidence: /tmp/codex-rc37-config-review/comparison.json (Codex independent package/config reviewer, 2026-09-12)."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "f81aa7fe5145eb0dc977155cc5fd8028bf73437c2d15c45056c9ac6b5b90c613",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "RC38 config: all nine operator-path matches are /home/buildd/ in seven byte-identical upstream umoci/rockcraft commands. Exact comparison with RC37 permits only build ID b24b68e -> ca93b07, corresponding ARG/ENV entries, timestamps and build-layer diff_ids. All other config/history fields and the first seven rootfs layers match. Evidence: codex-rc38-config-review/comparison.json. No private operator identity is classified."
+  },
+  {
+    "path": "#image-metadata",
+    "sha256": "3b0141d3ba15a42af2edae1af852b05d15363446db99f1b8be5ab4fc278e0653",
+    "family": "operator-path",
+    "count": 9,
+    "reason": "RC39 config: all nine operator-path matches are /home/buildd/ in seven unchanged upstream umoci/rockcraft history commands. Exact RC38-to-RC39 config comparison allows only build ID ca93b07 -> c795216, corresponding ARG/ENV entries, timestamps and build-layer diff_ids. All remaining config/history fields, first seven rootfs diff_ids and first seven OCI layer content digests/sizes/media types match. OCI layer descriptors 2 through 6 differ only in the measured buildkit/rewritten-timestamp annotation. Only /home/buildd and runtime /home/pv occur; no private operator identity is classified. Evidence: codex-rc39-config-review/comparison.json and REVIEW.md."
   }
 ]

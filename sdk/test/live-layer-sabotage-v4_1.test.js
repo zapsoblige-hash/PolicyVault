@@ -76,16 +76,23 @@ test("§35 G13 version dispatch: unknown version fails closed", () => {
 });
 
 // ---- Guard 8: definitive-rejection classification (conservative ambiguity) ----
+// RC35-REC-01 (2026-09-11, STALE ASSUMPTION corrected — property preserved and widened): the classifier moved to the shared
+// sdk/src/submission-classification.js and now BINDS the node's envelope to a 64-hex transaction id (a real node always names
+// the submitted id; an unbound envelope stays AMBIGUOUS) and treats the node's "already accepted / already in the mempool"
+// answers as POSITIVE answers, never as rejections. The REAL-guard assertions use a real-shaped id; the sabotage neutralizes
+// the envelope check in the shared module (the old anchor line no longer exists in wallet-submit-v4.js).
 test("§35 G8 rejection classification: transport errors stay AMBIGUOUS", () => {
   const { isDefinitiveSubmitRejection } = require("../src/wallet-submit-v4");
+  const ID = "600a5ea0b8f3c1d2e4a6b8c0d2e4f60718293a4b5c6d7e8f9012345678b87b43";
   // Real guard: a transport error is AMBIGUOUS (keeps claims); a node rejection
-  // is DEFINITIVE.
+  // is DEFINITIVE; the node's already-accepted answer is NOT a rejection.
   assert.equal(isDefinitiveSubmitRejection("WebSocket is not connected"), false, "REAL guard: transport error ambiguous");
-  assert.equal(isDefinitiveSubmitRejection("Rejected transaction abc: too many sig ops"), true, "REAL guard: node rejection definitive");
+  assert.equal(isDefinitiveSubmitRejection(`Rejected transaction ${ID}: too many sig ops`), true, "REAL guard: node rejection definitive");
+  assert.equal(isDefinitiveSubmitRejection(`Rejected transaction ${ID}: transaction ${ID} was already accepted by the consensus`), false, "REAL guard: an already-accepted answer is never a rejection (RC35-REC-01)");
   // Neutralized: classify EVERYTHING as definitive -> a transport error would be
   // treated as a definitive node rejection (unsafe: could release claims on a
   // still-pending tx). Protecting assertion turns red.
-  withSabotage("wallet-submit-v4.js", 'return /\\bRejected transaction /i.test(String(message ?? ""));', "return true;", () => {
+  withSabotage("submission-classification.js", 'if (!m) return { kind: "AMBIGUOUS", txId: null, reason: null, variant: null, bound: false };', 'if (!m) return { kind: "REJECTED", txId: null, reason: null, variant: null, bound: true };', () => {
     const { isDefinitiveSubmitRejection: sabotaged } = require("../src/wallet-submit-v4");
     assert.equal(sabotaged("WebSocket is not connected"), true, "SABOTAGED classifier calls a transport error DEFINITIVE (guard was load-bearing)");
   });

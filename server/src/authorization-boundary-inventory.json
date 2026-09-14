@@ -712,7 +712,7 @@
     "request:submit"
    ],
    "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
-   "note": "Codex checkpoint 2 UX-05: resolves an UNRESOLVED genesis (SUBMITTING / SUBMITTED / RECONCILIATION_REQUIRED) by chain proof only — CHAIN_VERIFIED / NOT_BROADCAST / PENDING; never by a status read. POST /wallet/v4/create refuses 409 CREATION_UNRESOLVED for the same signer while one exists; GET /wallet/v4/requests?unresolved=1 lists them under the listing's own scoping"
+   "note": "Codex checkpoint 2 UX-05: resolves an UNRESOLVED genesis (SUBMITTING / SUBMITTED / RECONCILIATION_REQUIRED) by chain proof only \u2014 CHAIN_VERIFIED / NOT_BROADCAST / PENDING; never by a status read. POST /wallet/v4/create refuses 409 CREATION_UNRESOLVED for the same signer while one exists; GET /wallet/v4/requests?unresolved=1 lists them under the listing's own scoping"
   },
   {
    "method": "POST",
@@ -926,6 +926,20 @@
   },
   {
    "method": "GET",
+   "path": "/wallet/v7/vaults",
+   "resourceClass": "vault",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "anyVaultAccessAllowed filter",
+   "mutationGate": "n/a",
+   "machineScope": [
+    "read:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "GET",
    "path": "/wallet/v7/requests",
    "resourceClass": "request",
    "principalType": "session-or-machine",
@@ -989,6 +1003,20 @@
    "file": "server/src/org-roots.js",
    "tenancyResolver": "requireWalletRequest",
    "mutationGate": "requireWalletRequest(mutation)",
+   "machineScope": [
+    "write:org-roots"
+   ],
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+  },
+  {
+   "method": "POST",
+   "path": "/wallet/v7/requests/:id/approvals",
+   "resourceClass": "request",
+   "principalType": "session-or-machine",
+   "authGate": "requestAuthPrincipal",
+   "file": "server/src/org-roots.js",
+   "tenancyResolver": "requireWalletRequest",
+   "mutationGate": "requireWalletRequest + approver-only (SIGNER_NOT_PRINCIPAL / NOT_AN_APPROVER via tenancy.rootedVaultRoles; v0.7-kas vault-level approval tier, 2026-09-10)",
    "machineScope": [
     "write:org-roots"
    ],

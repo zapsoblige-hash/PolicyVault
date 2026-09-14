@@ -1,5 +1,7 @@
 # PolicyVault MCP server
 
+> **Package version 1.6.2 — native-KAS treasury mappings (proposed successor of the published 1.5.0; 1.6.0 and 1.6.1 were packed for application candidates that were blocked by independent review and were never published).** This package version carries the v0.7 organizational-root tool set (since 1.5.0) **and** the rooted native-KAS treasury extensions: `policyvault_create_v7_request` accepts `agentSpend` (a delegate payment from a rooted KAS treasury, vault-level approvals above the delegate's threshold collected through the server's approvals route) and `policyvault_create_org_root_request` accepts the vault operations `ownerSetApprovers` and `ownerTopUp` on a rooted KAS treasury. The published `policyvault-mcp@1.5.0` does NOT contain these schemas. The npm registry is the authority for what is delivered: until `npm view policyvault-mcp version` reports `1.6.2` (or later), native-KAS MCP support exists only in a source checkout, and no record may claim it delivered. Publication of 1.6.2 is conditional on the independent review, deployment and served verification of the application release that carries the same tool bytes (the exact matching application and public-source identities recorded in its release manifest); the tarball is packed, audited and consumer-tested before that review and published unchanged afterwards. Whether a KAS treasury may be created or operated on a network is decided by the server's capability discovery and generation gates (the KAS profile is a CANDIDATE covenant until its byte freeze is attested), never by this adapter.
+
 A thin [Model Context Protocol](https://modelcontextprotocol.io) server that
 exposes PolicyVault to AI agents as MCP **tools** — each tool a 1:1
 translation onto the existing PolicyVault REST/Agent API, authenticated with
@@ -97,6 +99,29 @@ catalog. Baseline (full scopes):
   `policyvault_reject_request`;
 - `policyvault_governance_proposals`, `policyvault_governance_proposal`,
   `policyvault_risk_evaluation` — read-only.
+- `policyvault_org_roots`, `policyvault_org_root`,
+  `policyvault_org_root_requests` — read-only v0.7 organizational-root
+  reads (since 1.5.0); `policyvault_create_org_root_request` and
+  `policyvault_create_v7_request` — build-only root-authorized and
+  rooted-vault requests (since 1.5.0), extended in 1.6.x with the native-KAS
+  treasury mappings (`agentSpend`; `ownerSetApprovers` / `ownerTopUp` as
+  root-carried vault operations). Every request is unsigned and signing
+  stays with external signer custody.
+
+**Recovery through MCP, stated precisely.** MCP exposes NO genesis, NO
+signature and NO submit / broadcast tool of any kind (root genesis, rooted-
+vault genesis, wallet genesis, signature attach, submit, reconcile and the
+observation-only genesis recovery routes are REST / browser operations that
+this adapter never reaches). `policyvault_create_org_root_request` accepts
+the ROOT action `ownerRecover` — the organizational root's own owner-recovery
+transition, built UNSIGNED (per-owner-slot signer envelopes; signatures are
+collected out of band; the covenant enforces the consensus-level recovery
+delay). The rooted-VAULT operation `ownerRecover` (the terminal recovery of a
+rooted treasury's funds riding a root transition) is NOT accepted as a vault
+operation by this adapter, so an unsigned root recovery request does NOT
+imply rooted-vault recovery support — rooted-vault recovery stays a human
+owner decision in the browser. Nothing here rebuilds, re-signs or rebroadcasts
+a transaction.
 
 All tool input schemas are CLOSED (`additionalProperties: false`, exact
 types); consensus amounts are integer-sompi decimal **strings** (1 KAS =

@@ -13,6 +13,7 @@ const path = require("path");
 const fs = require("fs");
 
 const { getStore, Categories } = require("./store");
+const { createVaultRecordOrMatch } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): atomic create-only genesis completion
 const { normalizeHex } = require("./vault-state");
 const { normalizeTemplateV2, normalizeStateV2, computeStateIdV2, CONTRACT_VERSION_V2, stateToJson } = require("./vault-state-v2");
 const { VaultStatus, TERMINAL_STATUSES } = require("./manifest");
@@ -137,6 +138,24 @@ async function persistManifestV2(config, manifest) {
 }
 
 /*
+ * RC33-ID-01 (2026-09-11): the CREATE-ONLY sibling of the persist function above, for a PROVEN genesis — the SAME
+ * normalization and encoding, then sdk/src/vault-identity.js's atomic create-or-match write instead of an overwrite.
+ * Returns { manifest, outcome: "CREATED" | "ALREADY_PRESENT" }; throws RECONCILIATION_REQUIRED when the identity holds a
+ * DIFFERENT record of any generation (left untouched). Transitions keep advancing an existing record through persist.
+ */
+async function createManifestV2(config, manifest) {
+  const normalized = normalizeManifestV2({ ...manifest, updatedAt: new Date().toISOString() });
+  const encoded = {
+    ...normalized,
+    live: normalized.live
+      ? { ...normalized.live, state: stateToJson(normalized.live.state), outpointValue: normalized.live.outpointValue.toString() }
+      : null
+  };
+  const { outcome } = await createVaultRecordOrMatch(config, normalized.vaultId, encoded);
+  return { manifest: normalized, outcome };
+}
+
+/*
  * Version-aware loader: dispatches on the stored schema tag. Unknown
  * schemas fail closed; callers get { version: "v1" | "v2", manifest }.
  */
@@ -166,5 +185,6 @@ module.exports = {
   normalizeManifestV2,
   loadManifestV2,
   persistManifestV2,
+  createManifestV2,
   loadAnyManifest
 };

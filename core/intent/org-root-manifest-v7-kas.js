@@ -54,8 +54,10 @@ const {
   computeRootStateDigestV7
 } = require("../model/vault-state-v7-root");
 const { resolveRootActionV7, requiredApprovalsV7, activeOwnerSlotsV7, normalizeOwnerSetV7, OWNER_SLOTS_V7 } = require("../model/owner-set-v7");
-const { normalizeTemplateV7Kas, resolveOwnerOpAuthorityV7Kas, OWNER_OP_SELECTOR_V7_KAS, templateToJsonV7Kas } = require("../model/vault-state-v7-kas");
+const { normalizeTemplateV7Kas, resolveOwnerOpAuthorityV7Kas, OWNER_OP_SELECTOR_V7_KAS, templateToJsonV7Kas, CONTRACT_VERSION_V7_KAS } = require("../model/vault-state-v7-kas");
 const { normalizeStateV4, stateToJsonV4, MAX_APPROVERS } = require("../model/vault-state-v4");
+const vaultScriptV7Kas = require("./vault-script-v7-kas"); // R7-04 closure: shared-core reconstruction of the predecessor + successor scripts (candidate v0.7-kas skeleton)
+const { isPaymentGenerationScriptV7 } = require("./vault-script-v7"); // cross-generation guard: a frozen v0.7-payment script is never accepted as a KAS vault
 const { normalizeAgentPolicyV4, verifyAgentProofV4, foldAgentPolicyV4, buildAgentTreeV4 } = require("../model/agent-merkle-v4");
 const { verifyRecipientProof, buildRecipientTree } = require("../model/recipient-merkle-v3");
 const { ROOT_STATE_LEN_V7 } = require("../model/vault-state-v7-root"); // Codex checkpoint 7
@@ -274,7 +276,7 @@ function approversEqual(before, after) {
  * operation in the manifest, so a vault op can never be verified against a
  * different transaction than the root it claims to ride.
  */
-function verifyRootedKasVaultManifestV7({ manifest, frozen, check }) {
+function verifyRootedKasVaultManifestV7({ manifest, frozen, redeemHex = null, check }) {
   if (manifest.manifestVersion !== ROOTED_KAS_VAULT_MANIFEST_VERSION_1) refuse("UNKNOWN_MANIFEST_VERSION", "unknown rooted-kas-vault manifest version — failing closed");
   const { manifestHash, ...body } = manifest;
   const tag = `vault[${manifest.vault.covenantId.slice(0, 8)}].`;
@@ -314,6 +316,63 @@ function verifyRootedKasVaultManifestV7({ manifest, frozen, check }) {
     vaultIns.length === 1 && vaultIns[0].utxo.amount === (before.protectedValue + before.feeReserve).toString(),
     "the vault input carries exactly protectedValue + feeReserve"
   );
+
+  /* R7-04 CLOSURE (v0.7 enablement directive, 2026-09-10) — THE DECLARED PINS AND THE REVIEWED PREDECESSOR STATE ARE
+   * BOUND TO THE VAULT THE TRANSACTION ACTUALLY SPENDS, for EVERY operation (terminal ones included), with the discipline
+   * the frozen payment profile's verifier established (Codex checkpoints 6 + 7): the vault's predecessor redeem script is
+   * REQUIRED; its P2SH must be the vault input's locking script (covered by every signature hash); its 441-byte state
+   * region must decode to exactly the reviewed predecessor state under the reviewed vaultId; the whole script rebuilt from
+   * the DECLARED template pins (root covenant id + root template hash + root geometry + recovery key) around that state
+   * must be byte for byte this redeem (core/intent/vault-script-v7-kas.js — the candidate generation's skeleton,
+   * mechanically derived from real silverc output and proven against it); and the script must be of THIS candidate
+   * generation, never the frozen v0.7-payment one. A declared geometry, template hash, recovery key or predecessor state
+   * that is not the one compiled into the spent vault fails here, before any budget is derived from it and before any
+   * wallet is invoked. */
+  const redeemPresent = typeof redeemHex === "string" && /^[0-9a-f]+$/i.test(redeemHex) && redeemHex.length % 2 === 0;
+  check(`${tag}vaultRedeemPresent`, redeemPresent, "the vault's predecessor redeem script must be supplied for every operation (terminal included): it is the evidence the declared pins and predecessor state are bound to");
+  let parts = null;
+  let pinsBound = false;
+  let redeemPins = null; // the pins COMPILED INTO the spent script (decoded from the bound redeem) — the only trusted source for the recovery destination
+  if (redeemPresent) {
+    let parseError = null;
+    try { parts = vaultScriptV7Kas.splitVaultRedeemHexV7Kas(redeemHex); } catch (e) { parseError = e && e.message ? e.message : String(e); }
+    check(`${tag}vaultRedeemWellFormed`, parseError === null, parseError ?? "the carried redeem script splits into prefix / 441-byte state region / suffix");
+    if (parts) {
+      const inSpk = vaultIns.length === 1 && vaultIns[0].utxo && vaultIns[0].utxo.scriptPublicKey ? vaultIns[0].utxo.scriptPublicKey : {};
+      const utxoBound = Number(inSpk.version || 0) === 0 && String(inSpk.scriptHex || "").toLowerCase() === vaultScriptV7Kas.p2shSpkHexOf(redeemHex);
+      check(`${tag}vaultRedeemMatchesUtxo`, utxoBound, "P2SH of the carried redeem == the vault input's locking script (covered by every signature hash)");
+      const dec = parts.decoded;
+      check(`${tag}vaultRedeemStateAgrees`, dec.vaultId === String(manifest.vault.vaultId).toLowerCase() && JSON.stringify(dec.state) === JSON.stringify(stateToJsonV4(before)), "the redeem's 441-byte state region decodes to exactly the reviewed predecessor state under the reviewed vaultId");
+      const paymentScript = isPaymentGenerationScriptV7(redeemHex);
+      let decoded = null, decodeError = null;
+      try { decoded = vaultScriptV7Kas.decodeVaultTemplatePinsV7Kas(redeemHex); } catch (e) { decodeError = e && e.message ? e.message : String(e); }
+      const generationAgrees = manifest.vault.contractVersion === CONTRACT_VERSION_V7_KAS && decoded !== null && !paymentScript;
+      check(
+        `${tag}vaultGenerationAgrees`,
+        generationAgrees,
+        paymentScript
+          ? "the vault input's script IS a frozen v0.7-payment vault presented as a v0.7-kas vault"
+          : decoded === null
+            ? `the vault input's script is not the candidate v0.7-kas generation: ${decodeError}`
+            : manifest.vault.contractVersion !== CONTRACT_VERSION_V7_KAS
+              ? `the manifest declares ${manifest.vault.contractVersion} for a v0.7-kas script`
+              : "the spent script is the candidate v0.7-kas generation and the manifest declares it"
+      );
+      let rebuilt = null, rebuildError = null;
+      try { rebuilt = vaultScriptV7Kas.reconstructVaultScriptHexV7Kas({ template: vaultScriptV7Kas.templatePinsFromManifestVaultV7Kas(manifest.vault), state: manifest.stateBefore.state }); } catch (e) { rebuildError = e && e.message ? e.message : String(e); }
+      pinsBound = rebuildError === null && rebuilt === String(redeemHex).toLowerCase();
+      check(
+        `${tag}templatePinsBound`,
+        pinsBound,
+        rebuildError
+          ? `the v0.7-kas script could not be rebuilt from the declared template pins: ${rebuildError}`
+          : pinsBound
+            ? "the v0.7-kas script rebuilt from the DECLARED template pins (root covenant id + template hash + geometry, recovery key) around the reviewed predecessor state is byte for byte the vault input's revealed redeem"
+            : `the declared template pins / predecessor state do not rebuild the vault's revealed redeem script (${decoded ? "a substituted root geometry, root template hash, recovery key or predecessor state" : "the revealed script is not a v0.7-kas vault"})`
+      );
+      if (pinsBound && utxoBound && decoded) redeemPins = decoded.pins;
+    }
+  }
   if (manifest.action.sdkAction !== "agentSpend") { // Codex checkpoint 6 (UX-02 / UX-13): an owner op's vault-input budget is derived from the op + the pinned root geometry (a delegate spend's depends on proof depths the manifest does not carry — left to the builder's own sufficiency assertion)
     let expectedVaultBudget = null, budgetError = null;
     try { expectedVaultBudget = selectComputeBudgetV7Kas({ operation: manifest.action.sdkAction, rootPrefixLen: manifest.vault.rootGeometry.prefixLen, rootSuffixLen: manifest.vault.rootGeometry.suffixLen }); } catch (e) { budgetError = e && e.message ? e.message : String(e); }
@@ -348,6 +407,21 @@ function verifyRootedKasVaultManifestV7({ manifest, frozen, check }) {
       succ.length === 1 && succ[0].value === (after.protectedValue + after.feeReserve).toString(),
       "exactly one successor carrying protectedValue + feeReserve"
     );
+
+    /* R7-04 closure: the SUCCESSOR LOCKING SCRIPT is rebuilt from the bound predecessor redeem (its template around the
+     * reviewed successor state) AND from the declared pins; the successor output must carry exactly its P2SH — a
+     * substituted continuation script with the right value and covenant metadata is refused here, before signing. */
+    const outSpk = succ.length === 1 && succ[0].scriptPublicKey ? succ[0].scriptPublicKey : {};
+    if (parts) {
+      let expectedSuccessorSpk = null, rebuildError = null;
+      try { expectedSuccessorSpk = vaultScriptV7Kas.reconstructVaultSuccessorSpkHexV7Kas({ redeemHex, vaultId: manifest.vault.vaultId, state: manifest.stateAfter.state }); } catch (e) { rebuildError = e && e.message ? e.message : String(e); }
+      check(`${tag}successorScriptReconstructed`, rebuildError === null && Number(outSpk.version || 0) === 0 && String(outSpk.scriptHex || "").toLowerCase() === expectedSuccessorSpk, rebuildError ? `the successor script could not be rebuilt from the reviewed successor state: ${rebuildError}` : "the successor output carries exactly the P2SH of the predecessor's template around the reviewed successor state");
+    }
+    if (pinsBound) {
+      let fromPins = null, pinError = null;
+      try { fromPins = vaultScriptV7Kas.reconstructVaultScriptSpkHexV7Kas({ template: vaultScriptV7Kas.templatePinsFromManifestVaultV7Kas(manifest.vault), state: manifest.stateAfter.state }); } catch (e) { pinError = e && e.message ? e.message : String(e); }
+      check(`${tag}successorScriptFromPins`, pinError === null && Number(outSpk.version || 0) === 0 && String(outSpk.scriptHex || "").toLowerCase() === fromPins, pinError ? `the successor script could not be rebuilt from the declared pins: ${pinError}` : "the successor output is exactly the v0.7-kas script rebuilt from the declared pins around the reviewed successor state");
+    }
     if (manifest.action.sdkAction !== "agentSpend") {
       const sel = manifest.action.opSelector;
       check(`${tag}selectorEffect`, selectorEffectHoldsV7Kas(sel, before, after), `selector ${sel} moves exactly the fields its covenant branch allows`);
@@ -416,8 +490,8 @@ function verifyRootedKasVaultManifestV7({ manifest, frozen, check }) {
   } else if (manifest.action.sdkAction === "ownerRecover") {
     check(
       `${tag}payoutToPinnedRecoveryPk`,
-      outputs[0].scriptPublicKey.scriptHex.toLowerCase() === `20${manifest.vault.recoveryPk}ac` && outputs[0].value === (before.protectedValue + before.feeReserve).toString() && outputs[0].value === manifest.accounting.kas.terminalPayout,
-      "output 0 pays protectedValue + feeReserve to the GENESIS-PINNED recoveryPk"
+      redeemPins !== null && String(manifest.vault.recoveryPk).toLowerCase() === redeemPins.recoveryPk && outputs[0].scriptPublicKey.scriptHex.toLowerCase() === `20${redeemPins.recoveryPk}ac` && outputs[0].value === (before.protectedValue + before.feeReserve).toString() && outputs[0].value === manifest.accounting.kas.terminalPayout,
+      "output 0 pays protectedValue + feeReserve to the recoveryPk COMPILED INTO the spent vault's script (decoded from the bound redeem — R7-04), which must equal the declared genesis pin"
     );
   }
 }
@@ -581,7 +655,7 @@ function buildOrgRootIntentManifestV7Kas({ build, vaultOperations = [], satisfie
   return deepFreeze({ ...body, manifestHash: computeManifestHashV1(body) });
 }
 
-function verifyOrgRootIntentManifestV7Kas({ manifest }) {
+function verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts = {} }) {
   const checks = [];
   const failures = [];
   const check = (name, ok, detail) => {
@@ -733,7 +807,9 @@ function verifyOrgRootIntentManifestV7Kas({ manifest }) {
           "the frozen byte the vault pins in the root's successor is the one this action produces"
         );
       }
-      verifyRootedKasVaultManifestV7({ manifest: op.manifest, frozen, check });
+      /* R7-04 closure: the caller supplies the vault's predecessor redeem (keyed by covenantId, own-property lookup); absent => the op is REFUSED, never assumed */
+      const redeemHex = redeemScripts && typeof redeemScripts === "object" && !Array.isArray(redeemScripts) ? (ownGet(redeemScripts, op.covenantId) ?? null) : null;
+      verifyRootedKasVaultManifestV7({ manifest: op.manifest, frozen, redeemHex, check });
     }
     const unaccounted = inputs.map((i) => i.utxo.covenantId).filter((c) => c !== null && !accounted.has(c));
     check("noHiddenCovenantOperations", unaccounted.length === 0, unaccounted.length ? `undeclared covenant families among the inputs: ${[...new Set(unaccounted)].join(", ")}` : "every covenant input is accounted for by a declared operation");

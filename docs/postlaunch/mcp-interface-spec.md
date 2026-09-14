@@ -217,6 +217,39 @@ Annotations are honest: `readOnlyHint` true except
 create/reject, `destructiveHint` false, `idempotentHint` true for the two
 mutating tools (derived keys), `openWorldHint` false.
 
+### 4.4 v0.7 organizational-root tools (since 1.5.0) and the native-KAS treasury mappings (since 1.6.1, proposed; the 1.6.0 tarball was packed for two BLOCKED release sets and never published)
+
+The catalog above is the v1 (1.4.x) baseline; `mcp/src/tools.js` is the single source of truth for the complete catalog
+(the exact-tarball proofs pin the all-scope `tools/list` to it — every name, no extras, no omissions). The five tools added
+in 1.5.0 and extended in 1.6.x:
+
+| Tool | Route | Scopes | Mutating |
+|---|---|---|---|
+| `policyvault_org_roots` | `GET /org-roots` | `read:org-roots` | no |
+| `policyvault_org_root` | `GET /org-roots/:rootId` | `read:org-roots` | no |
+| `policyvault_org_root_requests` | `GET /org-roots/:rootId/requests[/:requestId]` | `read:org-roots` | no |
+| `policyvault_create_org_root_request` | `POST /org-roots/:rootId/requests` | `write:org-roots` | yes (durable UNSIGNED root-authorized request; per-owner-slot signer envelopes; signatures collected out of band) |
+| `policyvault_create_v7_request` | `POST /wallet/v7/requests` | `write:org-roots` | yes (durable UNSIGNED rooted-vault request for external signer custody) |
+
+Native-KAS treasury mappings (`policyvault-0.7-kas`, a CANDIDATE profile; whether it is creatable/operable on a network is
+decided by the server's discovery and generation gates, never by the adapter): `policyvault_create_v7_request` accepts
+`action: "agentSpend"` with `params.payAmountSompi` (integer-sompi decimal string) and `params.recipient` (x-only hex);
+`policyvault_create_org_root_request` accepts ONE `vaultOperations[]` entry on a rooted KAS treasury with
+`action: "ownerTopUp"` (`params.topUpAmountSompi`, decimal string) or `action: "ownerSetApprovers"` (`params.approvers[]`
+x-only hex, `params.approvalM` **decimal string** — the 1.5.0-era schema typed the count as an integer, which the server
+refuses, so no owner could ever build it through MCP; corrected in 1.6.x and pinned by `mcp/tools/candidate-proof-kas.js`).
+Recovery through MCP, stated precisely (RC35 review correction, 2026-09-11): MCP exposes NO genesis, signature or
+submit / broadcast tool; `policyvault_create_org_root_request` accepts the ROOT action `ownerRecover` (the root's own
+owner-recovery transition, built UNSIGNED, signatures collected out of band, the recovery delay consensus-enforced),
+while the rooted-VAULT operation `ownerRecover` (a treasury's terminal recovery riding a root transition) is NOT accepted
+as a vault operation — an unsigned root recovery request never implies rooted-vault recovery support, which stays a human
+owner decision in the browser; the observation-only genesis recovery routes are REST operations outside this adapter.
+Tenancy is the server's: a delegate
+credential is not a root participant (its root read is a non-oracle 404) yet builds its own payment; an owner credential
+reads its roots and builds root-carried owner operations; a read-only credential sees two tools and its exact-name calls meet
+`403 SCOPE_FORBIDDEN`. The package version that first delivers these mappings on npm is the one the registry reports (the
+published 1.5.0 contains none of them); source checkouts and unpublished tarballs never count as delivery.
+
 ## 5. Request mapping
 
 Path parameters are pattern-validated then URI-encoded (no traversal);

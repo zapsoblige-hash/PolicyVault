@@ -36,6 +36,7 @@ const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
 const { getStore, Categories } = require("./store");
+const { assertVaultIdentityFree, withVaultIdentityLock } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
 const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
 const { CONTRACT_VERSION_V4, resolveV4Abi, normalizeTemplateV4, normalizeStateV4, stateToJsonV4 } = require("./vault-state-v4");
 const { buildAgentTreeV4, generateAgentProofV4, normalizeAgentPolicyV4 } = require("./agent-merkle-v4");
@@ -400,6 +401,7 @@ async function buildWalletRequestV4({ config, vaultId, action, params = {}, sign
   } catch (e) {
     throw fail(e.message, "BUILD_FAILED");
   }
+  await require("./wallet-recovery-v4").assertNoProtectedTransitionV4(config, vaultId);
   const manifest = await loadManifestV4(config, vaultId);
   if (!manifest) throw fail(`no v0.4 manifest for vault ${vaultId}`, "BUILD_FAILED");
   const abi = resolveV4Abi(manifest.contractVersion); // accepts the v0.4 family; fails closed otherwise
@@ -654,6 +656,7 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
     throw fail(`request ${requestId} is ${request.state}, not BUILT`, request.state);
   }
 
+  await require("./wallet-recovery-v4").assertNoProtectedTransitionV4(config, request.vaultId, { excludeRequestId: requestId });
   const manifest = await loadManifestV4(config, request.vaultId);
   if (!manifest || !manifest.live || manifest.live.stateId !== request.predecessorStateId) {
     await failRequestClosed(config, request, RequestState.STALE);
@@ -800,7 +803,15 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
  * covenant input to execute); we validate the SDK build and persist a BUILT
  * genesis request with the vault covenantId and initial registry.
  */
-async function buildCreateWalletRequestV4({ config, templateInput, initialAgents = [], initialState, signerAddress, funding, label = "", contractVersion = CONTRACT_VERSION_V4 }) {
+async function buildCreateWalletRequestV4(args) {
+  /* RC33-ID-01 (2026-09-11): the build (uniqueness check -> request write) is serialized per vault identity (the API holds
+   * the per-signer lock OUTSIDE this); a malformed template falls through and is refused exactly as before */
+  let vaultId = null;
+  try { vaultId = normalizeTemplateV4(args.templateInput).vaultId; } catch { vaultId = null; }
+  if (vaultId === null) return buildCreateWalletRequestV4Unlocked(args);
+  return withVaultIdentityLock(vaultId, () => buildCreateWalletRequestV4Unlocked(args));
+}
+async function buildCreateWalletRequestV4Unlocked({ config, templateInput, initialAgents = [], initialState, signerAddress, funding, label = "", contractVersion = CONTRACT_VERSION_V4 }) {
   try {
     assertOperationalNetwork(config); // Gate R: testnet-10 or unlocked mainnet
   } catch (e) {
@@ -811,6 +822,7 @@ async function buildCreateWalletRequestV4({ config, templateInput, initialAgents
   const template = normalizeTemplateV4(templateInput);
   // Owner funds + owns genesis.
   assertSignerAuthorizedV4(config, { role: "owner", signerAddress, template, manifest: { agentRegistry: [] }, action: "createVault" });
+  await assertVaultIdentityFree(config, template.vaultId); // RC33-ID-01: an identity held by ANY generation's record or ANY request is refused before anything is built or written
 
   const registry = initialAgents.map((a) => normalizeNewAgentEntry(a));
   const policies = registry.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));

@@ -56,6 +56,8 @@ function loadConfig(overrides = {}) {
   const allowMainnet =
     (overrides.allowMainnet ?? false) === true &&
     process.env.POLICYVAULT_ALLOW_MAINNET === "true";
+  /* v0.7 enablement: the operator kill switch for NEW mainnet creation (parsed fail-closed at load; see the gate) */
+  const mainnetCreationDisabled = parseMainnetCreationDisabled(overrides.mainnetCreationDisabled ?? process.env.POLICYVAULT_MAINNET_CREATION_DISABLED);
 
   if (networkId === Network.MAINNET && !allowMainnet) {
     throw new Error(
@@ -491,7 +493,8 @@ function loadConfig(overrides = {}) {
 
     donationAddress: overrides.donationAddress ?? process.env.POLICYVAULT_DONATION_ADDRESS ?? DEFAULT_DONATION_ADDRESS,
 
-    allowMainnet
+    allowMainnet,
+    mainnetCreationDisabled
   });
 }
 
@@ -545,18 +548,97 @@ function validatedEnvDataRoot() {
  * vault record is policyvault-0.4.1 (scope: known production records, not a
  * chain-wide enumeration).
  */
+/*
+ * v0.7 MAINNET ENABLEMENT (owner directive 2026-09-10) — the OWNER-REVIEWED SET replacing the v0.4.1-only restriction:
+ *
+ *   CREATABLE  generations that may be NEWLY created on mainnet (genesis): the frozen v0.4.1 KAS safe-payment vault,
+ *              the frozen v0.7 organizational root, and the v0.7-kas ROOTED KAS SAFE-PAYMENT VAULT (a CANDIDATE until
+ *              the owner's conditional byte freeze is satisfied — Codex confirmation is part of that condition; the
+ *              set below is the PROPOSED mainnet set the candidate release carries for independent review).
+ *   OPERABLE   every generation that has EVER been mainnet-creatable. Mutation / submission / reconciliation of
+ *              EXISTING mainnet state is gated on THIS set, so switching creation off (below) or a later reviewed
+ *              removal never strands an organization or vault that already exists on chain. A generation that was
+ *              never creatable has no mainnet state to operate and stays refused.
+ *   KILL SWITCH  POLICYVAULT_MAINNET_CREATION_DISABLED — comma-separated exact contract-version strings whose NEW
+ *              mainnet creation is switched off at runtime WITHOUT changing the image: the operator's rollback for a
+ *              creation problem (existing state stays operable). It can only REMOVE creatable generations; an unknown
+ *              or non-creatable name refuses to start (fail closed, never ignored).
+ *
+ * Never widened to a family prefix (no "v0.7-*"): every entry is an exact reviewed string. v0.5 / v0.6 (token
+ * controllers), v0.7-payment (the rooted TOKEN profile) and the v0.7-payment-hd candidate are NOT in either set.
+ * The v0.4 generation is non-standard on default relay (F-02) and is never newly created on mainnet.
+ */
 const MAINNET_CREATABLE_GENERATIONS = Object.freeze(new Set([
-  "policyvault-0.4.1"
+  "policyvault-0.4.1",
+  "policyvault-0.7-root",
+  "policyvault-0.7-kas"
 ]));
+const MAINNET_OPERABLE_GENERATIONS = Object.freeze(new Set([
+  ...MAINNET_CREATABLE_GENERATIONS
+]));
+const MAINNET_SET_STATEMENT = "The owner-reviewed mainnet set (2026-09-10) is policyvault-0.4.1, policyvault-0.7-root and policyvault-0.7-kas (candidate); v0.4 is non-standard on default relay and is never newly created on mainnet; v0.5 / v0.6 / v0.7-payment (token profiles) and the v0.7-payment-hd candidate are not mainnet-authorized.";
 
+/* Parse the operator kill switch. Every name must be an exact CREATABLE generation string; anything else refuses (a
+ * typo that silently disabled nothing would be the opposite of a kill switch). */
+function parseMainnetCreationDisabled(raw) {
+  if (raw === undefined || raw === null) return Object.freeze(new Set());
+  /* idempotent: loadConfig(existingConfig) (the established "reopen" pattern) hands the already-parsed Set back in */
+  const items = raw instanceof Set ? [...raw] : Array.isArray(raw) ? raw : String(raw).split(",");
+  const out = new Set();
+  for (const item of items) {
+    const name = String(item).trim();
+    if (!name) continue;
+    if (!MAINNET_CREATABLE_GENERATIONS.has(name)) {
+      throw new Error(`POLICYVAULT_MAINNET_CREATION_DISABLED names ${JSON.stringify(name)}, which is not a mainnet-creatable generation (${[...MAINNET_CREATABLE_GENERATIONS].join(", ")}) — refusing to start (fail closed: the kill switch only removes creatable generations, and an unknown name must never be ignored)`);
+    }
+    out.add(name);
+  }
+  return Object.freeze(out);
+}
+function mainnetCreationDisabledOf(config) {
+  const set = config && config.mainnetCreationDisabled;
+  return set instanceof Set ? set : Object.freeze(new Set());
+}
+/* Discovery/UI helper: is NEW creation of this generation allowed on THIS configuration's mainnet (set membership
+ * minus the kill switch)? Never authority by itself — the asserting gates below are what refuse. */
+function isGenerationMainnetCreatable(config, contractVersion) {
+  return MAINNET_CREATABLE_GENERATIONS.has(contractVersion) && !mainnetCreationDisabledOf(config).has(contractVersion);
+}
+function isGenerationMainnetOperable(contractVersion) {
+  return MAINNET_OPERABLE_GENERATIONS.has(contractVersion);
+}
+
+/* NEW mainnet creation (genesis). */
 function assertGenerationMainnetCreatable(config, contractVersion) {
   const networkId = config ? config.networkId : undefined;
   if (networkId !== Network.MAINNET) return contractVersion; // testnet: all operational generations allowed
   if (!MAINNET_CREATABLE_GENERATIONS.has(contractVersion)) {
     const e = new Error(
       `mainnet: covenant generation ${JSON.stringify(contractVersion)} is NOT owner-authorized for mainnet creation/mutation — refusing (fail closed). ` +
-      `Only the v0.4.1 production generation is mainnet-authorized (v0.4 is non-standard on default relay and is never newly created on mainnet); v0.5 / v0.6 / v0.7-root / v0.7-payment require explicit per-generation owner authorization, ` +
-      `and unfrozen candidates (v0.7-kas, v0.7-payment-hd) are never mainnet-creatable.`
+      MAINNET_SET_STATEMENT
+    );
+    e.code = "GENERATION_NOT_MAINNET_AUTHORIZED";
+    throw e;
+  }
+  if (mainnetCreationDisabledOf(config).has(contractVersion)) {
+    const e = new Error(
+      `mainnet: creation of covenant generation ${JSON.stringify(contractVersion)} is DISABLED by operator configuration (POLICYVAULT_MAINNET_CREATION_DISABLED) — refusing this new genesis (fail closed). ` +
+      `Existing ${contractVersion} state stays operable (mutation, submission, reconciliation).`
+    );
+    e.code = "GENERATION_NOT_MAINNET_AUTHORIZED";
+    throw e;
+  }
+  return contractVersion;
+}
+/* Mutation / submission / reconciliation of EXISTING mainnet state. */
+function assertGenerationMainnetOperable(config, contractVersion) {
+  const networkId = config ? config.networkId : undefined;
+  if (networkId !== Network.MAINNET) return contractVersion;
+  if (!MAINNET_OPERABLE_GENERATIONS.has(contractVersion)) {
+    const e = new Error(
+      `mainnet: covenant generation ${JSON.stringify(contractVersion)} is NOT owner-authorized for mainnet creation/mutation — refusing (fail closed). ` +
+      `It has never been mainnet-creatable, so no mainnet state of this generation can exist to operate. ` +
+      MAINNET_SET_STATEMENT
     );
     e.code = "GENERATION_NOT_MAINNET_AUTHORIZED";
     throw e;
@@ -610,6 +692,12 @@ module.exports = {
   loadConfig,
   assertOperationalNetwork,
   assertGenerationMainnetCreatable,
+  assertGenerationMainnetOperable,
+  isGenerationMainnetCreatable,
+  isGenerationMainnetOperable,
+  parseMainnetCreationDisabled,
   MAINNET_CREATABLE_GENERATIONS,
+  MAINNET_OPERABLE_GENERATIONS,
+  MAINNET_SET_STATEMENT,
   assertDataRootNetwork
 };

@@ -74,7 +74,11 @@ const SOURCE_HAYSTACK = [
    * HD_CHAIN_STALE, HD_AUTHORITY_EXCEEDS_ANCESTOR, DELEGATION_WHILE_PAUSED,
    * DELEGATION_WHILE_ROOT_FROZEN) is thrown by web/token-vault-ui.js's and
    * web/hd-vault-ui.js's own local fail-closed pre-checks. */
-  "web/token-vault-ui.js", "web/hd-vault-ui.js"
+  "web/token-vault-ui.js", "web/hd-vault-ui.js",
+  /* v0.7 ROOTED KAS TREASURY (v0.7 mainnet enablement, 2026-09-10): the delegate-payment / approver-tier codes
+   * (core/model/vault-transitions-v4 rules re-checked pre-sign by the KAS SDK layer) and the browser signing-boundary
+   * codes web/kas-vault-ui.js throws before the wallet is invoked. */
+  "web/kas-vault-ui.js", "sdk/src/wallet-requests-v7-kas.js", "core/model/vault-transitions-v4.js"
 ]
   .filter((f) => fs.existsSync(path.join(REPO, f)))
   .map((f) => fs.readFileSync(path.join(REPO, f), "utf8"))
@@ -126,7 +130,9 @@ test("the generation refusal explains release availability without blaming addre
 });
 
 test("legacy BUILD_FAILED wrappers get the specific explanation only for the exact known SDK guard", () => {
-  for (const version of ["policyvault-0.4", "policyvault-0.5", "policyvault-0.6", "policyvault-0.7-root", "policyvault-0.7-payment", "policyvault-0.7-kas", "policyvault-0.7-payment-hd"]) {
+  /* v0.7 mainnet enablement (2026-09-10): policyvault-0.7-root and policyvault-0.7-kas joined the REVIEWED mainnet set
+   * (sdk/test/mainnet-generation-authorization.test.js pins the exact set); every other generation is still refused. */
+  for (const version of ["policyvault-0.4", "policyvault-0.5", "policyvault-0.6", "policyvault-0.7-payment", "policyvault-0.7-payment-hd"]) {
     const message = `wallet-requests-v7: ${mainnetGenerationError(version).message}`;
     assert.equal(RX.explain("BUILD_FAILED", message), RX.explain("GENERATION_NOT_MAINNET_AUTHORIZED"));
     const html = RX.renderRefusalHtml({ summary: "Create refused", code: "BUILD_FAILED", message });

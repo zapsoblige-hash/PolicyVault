@@ -23,6 +23,10 @@ test("RC27F F-9: HD membership append and ordinary root completion mutually excl
   let afterVault = false, paused = false, entered, release;
   const enteredP = new Promise((r) => { entered = r; }), held = new Promise((r) => { release = r; });
   store.write = async (c, k, v) => { await write(c, k, v); if (c === fx.Categories.VAULT && k === x.q.vaultId) afterVault = true; };
+  /* RC33-ID-01 (2026-09-11): the genesis vault record is now written CREATE-ONLY (sdk/src/vault-identity.js), so the
+   * 'vault record written' probe observes the create-only primitive as well — the property under test is unchanged */
+  const createExclusive = store.createExclusive.bind(store);
+  store.createExclusive = async (c, k, v) => { const created = await createExclusive(c, k, v); if (c === fx.Categories.VAULT && k === x.q.vaultId) afterVault = true; return created; };
   store.read = async (c, k) => { const value = await read(c, k); if (afterVault && !paused && c === fx.Categories.ORG_ROOT && k === x.o.rootCovenantId) { paused = true; entered(); await held; } return value; };
   const a = x.submit(); await enteredP;
   fx.settle(x.config, x.rpc, x.owner);
@@ -62,7 +66,17 @@ async function signedDeposit(x) {
   return hd.finalizeHdWalletRequest({ config: x.config, requestId: q.requestId, signedSafeJson: fx.signAll(x.config, q.transaction.unsignedSafeJson, [[0, key], [1, x.o.fuelKey]]) });
 }
 test("RC27F F-9: an unsigned identical genesis draft never reserves the completed vault", async () => {
-  const x = fixture(), duplicate = await hd.buildHdVaultGenesisRequest({ ...x.genesisArgs, config: x.config });
+  const x = fixture();
+  /* RC33-ID-01 (2026-09-11, sdk/src/vault-identity.js): a second build with the SAME vault identity is now refused before
+   * anything is written (VAULT_ID_IN_USE — identities are never recycled), so an identical duplicate draft can only exist
+   * as a PRE-CORRECTION record. The F-9 property (such a stale unsigned draft never reserves the completed vault) is kept
+   * by writing that legacy duplicate directly, exactly as the pre-correction builder left it (STALE ASSUMPTION in this
+   * test asset; the property under test is unchanged). */
+  await assert.rejects(hd.buildHdVaultGenesisRequest({ ...x.genesisArgs, config: x.config }), (e) => e.code === "VAULT_ID_IN_USE");
+  const stored = await hd.loadHdWalletRequest(x.config, x.q.requestId);
+  const duplicate = { ...stored, requestId: require("crypto").randomUUID(), state: "BUILT", createdAt: new Date().toISOString() };
+  delete duplicate.signedSafeJson;
+  await hd.saveHdWalletRequest(x.config, duplicate);
   assert.notEqual(duplicate.requestId, x.q.requestId); assert.equal(duplicate.txId, x.q.txId);
   await x.submit(); await hd.markHdWalletRejected(x.config, duplicate.requestId);
   await signedDeposit(x);

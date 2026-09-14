@@ -1416,6 +1416,491 @@ async function step(page) {
         await page.click("#v4-orgroot-detail-close").catch(() => {});
       }
     }
+    /* ===== (j) v0.7 MAINNET ENABLEMENT (2026-09-10): the COMPLETE BROWSER PATH of the ROOTED KAS TREASURY (candidate profile
+     * policyvault-0.7-kas) on the served interface — creation in the browser wizard (threshold ownership by the root, delegate
+     * rules, the vault-level approver tier, funding/reserve, the irreversible recovery explained before signing) → the exact
+     * review (server summary cross-checked, output 0 rebuilt locally from the reviewed rules) → the funder signs in the browser
+     * → CHAIN_VERIFIED; the treasury panel; a DELEGATE pays from the participant section (below threshold: delegate key only);
+     * an ABOVE-threshold payment awaits the approver, who co-signs in ITS browser, then the delegate signs and submits; owner
+     * operations on the treasury through the root's M-of-N (add funds, change approvers, pause, unpause, close & recover to
+     * the pinned key) — with INDEPENDENT kaspad checks. Bounded broadcasts: genesis 1 + payment 2 + add funds 1 + approvers 1
+     * + pause 1 + unpause 1 + close 1 = 8. ===== */
+    {
+      const rootK = await rootByLabel(root23Label);
+      const rootIdK = rootK.rootCovenantId;
+      check("KAS: precondition — the 2-of-3 root is live with no pending request", !!rootK && !!rootK.live && !rootK.pendingRequestId, JSON.stringify(rootK && { live: rootK.live, pending: rootK.pendingRequestId }));
+      const closeModal = () => page.evaluate(() => { const m = document.querySelector("#v4-modal"); if (m && m.style.display !== "none") m.style.display = "none"; });
+      const reopenRoot = async () => { await closeModal(); await openRoot(root23Label); };
+      const requestOf = async (id) => (await (await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/requests/${id}`)).json()).request;
+      const kasRequestOf = async (id) => (await (await fetch(`${URL_BASE}/api/v1/wallet/v7/requests/${id}`)).json()).request;
+      const kasRequestsOf = async (vaultId) => ((((await (await fetch(`${URL_BASE}/api/v1/wallet/v7/requests?vaultId=${vaultId}`)).json()).requests) || []).filter((r) => r.contractVersion === "policyvault-0.7-kas"));
+      const kasVaultsOf = async () => (((await (await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/vaults`)).json()).vaults) || []).filter((v) => v.contractVersion === "policyvault-0.7-kas");
+      const txidFromNotice = async () => (((await noticeText()).match(/txid ([0-9a-f]{64})/) || [])[1] || null);
+      const kasLabel = `UX KAS treasury ${Date.now().toString(36)}`;
+      let kasVaultId = null;
+      /* (j.1) the wizard from the root detail */
+      await reopenRoot();
+      await page.waitForSelector("[data-kascreate]", { timeout: 30000 });
+      const createAttrs = await page.evaluate(() => { const b = document.querySelector("[data-kascreate]"); return { disabled: b.disabled, title: b.getAttribute("title") }; });
+      check("KAS: the root detail offers 'Create KAS treasury' to the connected OWNER (discovery: testnet-10 creatable)", createAttrs.disabled === false, JSON.stringify(createAttrs));
+      await page.click("[data-kascreate]");
+      await page.waitForSelector("[data-kas-wizard]", { timeout: 30000 });
+      const stepTreasury = await page.locator('[data-kas-wizard] section[data-setup-step="treasury"]').innerText();
+      check("KAS wizard step 1 states the ownership model (NO owner key; owned by the root's M of N) and separates protected principal from the fee reserve", /NO owner key/.test(stepTreasury) && /Protected principal/.test(stepTreasury) && /Fee reserve/.test(stepTreasury) && /Candidate covenant profile/.test(await page.locator("#v4-modal").innerText()), stepTreasury.replace(/\s+/g, " ").slice(0, 240));
+      await page.fill('[data-kas-wizard] [name="label"]', kasLabel);
+      await page.fill('[data-kas-wizard] [name="depositKas"]', "0");
+      await page.fill('[data-kas-wizard] [name="feeReserveKas"]', "0.5");
+      await page.click('[data-kas-wizard] section[data-setup-step="treasury"] [data-setup-next]');
+      await page.waitForFunction(() => (document.querySelector('.ferr[data-err="depositKas"]')?.textContent || "").length > 0, null, { timeout: 15000 });
+      check("KAS wizard: a zero principal is refused beside the field before anything is built", /greater than 0/.test(await page.locator('.ferr[data-err="depositKas"]').innerText()));
+      await page.fill('[data-kas-wizard] [name="depositKas"]', "3");
+      await page.click('[data-kas-wizard] section[data-setup-step="treasury"] [data-setup-next]');
+      await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "delegates", null, { timeout: 15000 });
+      await page.fill('[name="agent-0-agentKey"]', A.delegate);
+      await page.fill('[name="agent-0-maxPerSpendKas"]', "1");
+      await page.fill('[name="agent-0-periodBudgetKas"]', "5");
+      await page.fill('[name="agent-0-periodLengthDaa"]', "100000000");
+      await page.fill('[name="agent-0-approvalThresholdKas"]', "0.5");
+      /* lane-01 finding (2026-09-10): a 0.02 KAS cap is below the ~0.041 KAS treasury payment fee — the wizard now refuses it up front; 0.1 KAS is used */
+      await page.fill('[name="agent-0-agentMaxFeePerTxKas"]', "0.02");
+      await page.click('[data-kas-wizard] section[data-setup-step="delegates"] [data-setup-next]');
+      await page.waitForFunction(() => /below 0\.05 KAS/.test(document.querySelector('[data-kas-wizard] section[data-setup-step="delegates"]')?.textContent || ""), null, { timeout: 30000 });
+      check("KAS wizard: a delegate fee cap below the treasury's real payment fee (~0.04 KAS) is refused beside the field with the reason, before anything is built", /below 0\.05 KAS would make every payment by this delegate impossible/.test(await page.locator('[data-kas-wizard] section[data-setup-step="delegates"]').innerText()));
+      await page.fill('[name="agent-0-agentMaxFeePerTxKas"]', "0.1");
+      await page.fill('[name="agent-0-recipients"]', A.recipient1);
+      await page.click('[data-kas-wizard] section[data-setup-step="delegates"] [data-setup-next]');
+      await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "approvals", null, { timeout: 30000 });
+      await page.click("#v4-add-approver");
+      await page.waitForSelector('[data-kas-wizard] [data-rows="approver"] .addr-row[data-row="0"]', { timeout: 10000 });
+      await page.fill('[data-kas-wizard] [data-rows="approver"] .addr-row[data-row="0"] [name="approver"]', A.recipient2);
+      const approvalsSummary = await page.locator('[data-kas-wizard] section[data-setup-step="approvals"]').innerText();
+      check("KAS wizard step 3: the approver tier is explained as a SEPARATE tier from the root's owners (approvers cannot spend, hold no owner authority)", /cannot spend/.test(approvalsSummary) && /no owner authority/.test(approvalsSummary), approvalsSummary.replace(/\s+/g, " ").slice(0, 200));
+      await page.click('[data-kas-wizard] section[data-setup-step="approvals"] [data-setup-next]');
+      await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "recovery", null, { timeout: 30000 });
+      const recoveryStep = await page.locator('[data-kas-wizard] section[data-setup-step="recovery"]').innerText();
+      check("KAS wizard step 4 explains the IRREVERSIBLE recovery (entire balance to the pinned wallet; no owner / server / update can change it) BEFORE anything is signed", /Irreversible recovery/.test(recoveryStep) && /ENTIRE balance/.test(recoveryStep) && /no owner, no delegate, no server and no PolicyVault update/.test(recoveryStep), recoveryStep.replace(/\s+/g, " ").slice(0, 200));
+      await page.fill('[data-kas-wizard] [name="recoveryAddress"]', A.recipient3);
+      await page.click('[data-kas-wizard] section[data-setup-step="recovery"] [data-setup-next]');
+      await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "review", null, { timeout: 30000 });
+      const reviewStep = await page.locator("#v4-kas-review").innerText();
+      check("KAS wizard review lists the treasury (3 KAS principal, 0.5 KAS reserve), the delegate rule, 1 of 1 approvals and the recovery wallet, with the rules summary (2 of 3 owners; IRREVERSIBLE)", /3 KAS/.test(reviewStep) && /0\.5 KAS/.test(reviewStep) && /1 of 1/.test(reviewStep) && new RegExp(A.recipient3.slice(-12)).test(reviewStep) && /2 of 3 owners/.test(reviewStep) && /IRREVERSIBLE/.test(reviewStep), reviewStep.replace(/\s+/g, " ").slice(0, 300));
+      await shot(page, "sign-kas-wizard-review");
+      let kasCreates = 0;
+      page.on("request", (rq) => { if (rq.method() === "POST" && rq.url() === `${URL_BASE}/api/v1/org-roots/${rootIdK}/vaults`) kasCreates++; });
+      await page.dblclick('[data-kas-wizard] [data-setup-build]');
+      await page.waitForSelector("#v4-kas-review-title", { timeout: 90000 });
+      await page.waitForTimeout(500);
+      const exactReview = await page.locator("#v4-modal").innerText();
+      check("KAS: a DOUBLE click built exactly ONE genesis; the exact review is VERIFIED (server summary == reviewed rules value for value) and names the recovery key as the irreversible destination, the exact creation fee and the treasury id", kasCreates === 1 && /VERIFIED — the built treasury matches the rules you reviewed/.test(exactReview) && /Recovery key \(irreversible destination\)/.test(exactReview) && /Creation network fee/.test(exactReview) && (await page.locator("#v4-kas-confirm").count()) === 1, `creates=${kasCreates} ${exactReview.replace(/\s+/g, " ").slice(0, 300)}`);
+      await shot(page, "sign-kas-exact-review");
+      const builtGenesis = (await kasRequestsOf("")).find((r) => r.kind === "kasGenesis" && r.label === kasLabel) || null;
+      const pendingGenesis = builtGenesis || ((await (await fetch(`${URL_BASE}/api/v1/wallet/v7/requests`)).json()).requests || []).find((r) => r.kind === "kasGenesis" && r.label === kasLabel) || null;
+      check("KAS: the durable genesis request exists (kasGenesis, BUILT, CANDIDATE, ON_CHAIN_ORGANIZATIONAL_ROOT) and carries the summary + frozen bytes the browser bound to", !!pendingGenesis && pendingGenesis.state === "BUILT" && pendingGenesis.candidateStatus === "CANDIDATE" && pendingGenesis.authorityModel === "ON_CHAIN_ORGANIZATIONAL_ROOT" && !!pendingGenesis.summary && typeof pendingGenesis.transaction.frozenCanonicalJson === "string", JSON.stringify(pendingGenesis && { state: pendingGenesis.state, candidate: pendingGenesis.candidateStatus }));
+      kasVaultId = pendingGenesis ? pendingGenesis.vaultId : null;
+      await page.click("#v4-kas-confirm");
+      await waitOutcome();
+      const genState = await outcomeState();
+      const genTxid = await txidFromNotice();
+      check("KAS: the funder signed IN THE BROWSER (mock signer through the same signing boundary) and submitted — CHAIN_VERIFIED with a txid", genState === "CHAIN_VERIFIED" && !!genTxid, JSON.stringify({ genState, genTxid, notice: (await noticeText()).slice(0, 160) }));
+      await shot(page, "sign-kas-genesis-submitted");
+      let kasVault = null;
+      for (let i = 0; i < 12 && !(kasVault && kasVault.live); i++) {
+        await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/reconcile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+        kasVault = (await kasVaultsOf()).find((v) => v.vaultId === kasVaultId) || null;
+        if (!(kasVault && kasVault.live)) await page.waitForTimeout(5000);
+      }
+      check("KAS: the treasury reconciles to a live outpoint; its presented summary carries protected 3 KAS / reserve 0.5 KAS, the delegate rule, the approver (recipient2, 1 of 1), the pinned recovery key (recipient3), profile kas, CANDIDATE", !!kasVault && !!kasVault.live && kasVault.live.protectedValueKas === "3" && kasVault.live.feeReserveKas === "0.5" && kasVault.live.paused === false && kasVault.agents.length === 1 && kasVault.agents[0].agentPk === AX.delegate && JSON.stringify(kasVault.agents[0].recipients) === JSON.stringify([AX.recipient1]) && JSON.stringify(kasVault.approvers) === JSON.stringify([AX.recipient2]) && String(kasVault.approvalM) === "1" && kasVault.recoveryPk === AX.recipient3 && kasVault.candidateStatus === "CANDIDATE" && kasVault.profile === "kas", JSON.stringify(kasVault && { live: kasVault.live, approvers: kasVault.approvers, m: kasVault.approvalM, recovery: kasVault.recoveryPk }).slice(0, 400));
+      if (genTxid && pendingGenesis) {
+        try {
+          const ind = await independentOutputsObserved({ unsignedSafeJson: pendingGenesis.transaction.unsignedSafeJson, txId: genTxid, indices: [0] });
+          check("KAS genesis INDEPENDENT CHAIN CHECK (kaspad RPC, not the app): output 0 = the treasury covenant output with the exact 3.5 KAS at the covenant address; every funding input spent", ind.allOutputsFound && ind.allInputsSpent && ind.outputs[0].expected === "350000000" && ind.outputs[0].covenantId === kasVault.live.covenantId, JSON.stringify(ind));
+        } catch (e) { check("KAS genesis INDEPENDENT CHAIN CHECK", false, `node query failed: ${e.message}`); }
+      }
+      if (kasVault && kasVault.live) {
+        const vaultSel = `[data-kas-vault="${kasVaultId}"]`;
+        const opBtn = (op) => `${vaultSel} [data-rootvaultop="${op}"]`;
+        /* (j.2) the panel for the OWNER */
+        await reopenRoot();
+        await page.waitForSelector(vaultSel, { timeout: 30000 });
+        const panel = await page.locator(vaultSel).innerText();
+        const ops = await page.evaluate((s) => [...document.querySelectorAll(`${s} [data-rootvaultop]`)].map((b) => ({ op: b.getAttribute("data-rootvaultop"), disabled: b.disabled, title: b.getAttribute("title") })), vaultSel);
+        check("KAS panel (owner): CANDIDATE label, the ownership statement, live balances, the delegate rule, the approver tier, the pinned recovery key; EIGHT owner-operation controls (Unpause disabled — not paused); no Pay control for an owner who is not a delegate", /candidate profile/.test(panel) && /NO owner key/.test(panel) && /3 KAS protected · 0\.5 KAS fee reserve/.test(panel) && /approvals above 0\.5 KAS/.test(panel) && /1 of 1 approver/.test(panel) && new RegExp(AX.recipient3).test(panel) && ops.length === 8 && ops.filter((o) => o.disabled).length === 1 && ops.find((o) => o.op === "ownerUnpause").disabled && (await page.locator(`${vaultSel} [data-kasspend]`).count()) === 0, JSON.stringify(ops).slice(0, 300));
+        await shot(page, "sign-kas-panel-owner");
+        await closeModal();
+        /* (j.3) DELEGATE payment below the threshold, from the participant section (the delegate is NOT a root participant) */
+        await switchWallet(A.delegate);
+        await page.click('.v4-tab[data-view="orgs"]');
+        await page.waitForSelector("[data-kas-participant-vaults]", { timeout: 60000 });
+        const participant = await page.locator("[data-kas-participant-vaults]").innerText();
+        check("KAS delegate: Organizations shows 'KAS treasuries you take part in' with this treasury, (you) beside the delegate rule, and the Pay control — no owner operations", /take part in/.test(participant) && new RegExp(kasLabel).test(participant) && /\(you\)/.test(participant) && (await page.locator(`[data-kas-participant-vaults] [data-kasspend="${kasVaultId}"]`).count()) === 1 && (await page.locator("[data-kas-participant-vaults] [data-rootvaultop]").count()) === 0, participant.replace(/\s+/g, " ").slice(0, 300));
+        await page.click(`[data-kas-participant-vaults] [data-kasspend="${kasVaultId}"]`);
+        await page.waitForSelector(`[data-kasspend-form="${kasVaultId}"]`, { timeout: 30000 });
+        const spendForm = await page.locator("#v4-modal").innerText();
+        check("KAS delegate: the payment form states the delegate's own rule (up to 1 KAS per payment, 5 KAS left, approvals above 0.5 KAS need 1 of 1) and the reserve-funded fee cap", /up to 1 KAS per payment/.test(spendForm) && /5 KAS left/.test(spendForm) && /above 0\.5 KAS need 1 of 1/.test(spendForm) && /cap 0\.1 KAS/.test(spendForm), spendForm.replace(/\s+/g, " ").slice(0, 300));
+        await page.fill('[data-kasspend-form] [name="amountKas"]', "2");
+        await page.click('[data-kasspend-form] button[type="submit"]');
+        await page.waitForFunction(() => (document.querySelector('.ferr[data-err="amountKas"]')?.textContent || "").length > 0, null, { timeout: 15000 });
+        check("KAS delegate: an amount above the delegate's cap is refused beside the field before any request is built", /cap of 1 KAS/.test(await page.locator('.ferr[data-err="amountKas"]').innerText()));
+        await page.fill('[data-kasspend-form] [name="amountKas"]', "0.3");
+        await page.click('[data-kasspend-form] button[type="submit"]');
+        await page.waitForSelector("#v4-kasreq-title", { timeout: 90000 });
+        const spendReview = await page.locator("#v4-modal").innerText();
+        check("KAS delegate (below threshold): the built payment is re-verified locally with the predecessor redeem — VERIFIED — EXACT PAYMENT BEFORE SIGNING; 0.3 KAS to recipient1; the delegate's own signature is sufficient; Sign offered", (await page.getAttribute("[data-kas-spend-review]", "data-kas-spend-review")) === "verified" && /0\.3 KAS/.test(spendReview) && /own signature is sufficient/.test(spendReview) && (await page.locator("#v4-kasreq-sign").count()) === 1 && (await page.locator("#v4-kasreq-approve").count()) === 0, spendReview.replace(/\s+/g, " ").slice(0, 300));
+        await shot(page, "sign-kas-delegate-review");
+        const belowReq = (await kasRequestsOf(kasVaultId)).find((r) => r.kind === "agentSpend" && r.state === "BUILT") || null;
+        await page.click("#v4-kasreq-sign");
+        await page.waitForFunction(() => /not yet broadcast/i.test(document.querySelector("#v4-notice")?.textContent || ""), null, { timeout: 90000 });
+        await page.waitForSelector("#v4-kasreq-submit", { timeout: 30000 });
+        check("KAS delegate: signed in the browser — SIGNED, not yet broadcast; Submit offered", /not yet broadcast/i.test(await noticeText()) && (await page.locator("#v4-kasreq-submit").count()) === 1);
+        await page.click("#v4-kasreq-submit");
+        await waitOutcome();
+        const belowState = await outcomeState();
+        const belowTxid = await txidFromNotice();
+        check("KAS delegate (below threshold): submitted from the delegate's browser — CHAIN_VERIFIED with a txid", belowState === "CHAIN_VERIFIED" && !!belowTxid && (!belowReq || belowReq.txId === belowTxid), JSON.stringify({ belowState, belowTxid }));
+        if (belowReq && belowTxid) {
+          try {
+            const ind = await independentOutputsObserved({ unsignedSafeJson: belowReq.transaction.unsignedSafeJson, txId: belowTxid, indices: [0, 1] });
+            check("KAS delegate INDEPENDENT CHAIN CHECK (kaspad RPC, not the app): the successor treasury output and the 0.3 KAS payout exist with their exact values; the predecessor treasury outpoint is spent", ind.allOutputsFound && ind.allInputsSpent, JSON.stringify(ind));
+          } catch (e) { check("KAS delegate INDEPENDENT CHAIN CHECK", false, `node query failed: ${e.message}`); }
+        }
+        await closeModal();
+        /* (j.4) ABOVE the threshold: the delegate builds, the APPROVER co-signs in its browser, the delegate signs + submits */
+        await page.click('.v4-tab[data-view="orgs"]');
+        await page.waitForSelector(`[data-kas-participant-vaults] [data-kasspend="${kasVaultId}"]`, { timeout: 60000 });
+        await page.click(`[data-kas-participant-vaults] [data-kasspend="${kasVaultId}"]`);
+        await page.waitForSelector(`[data-kasspend-form="${kasVaultId}"]`, { timeout: 30000 });
+        await page.fill('[data-kasspend-form] [name="amountKas"]', "0.8");
+        await page.click('[data-kasspend-form] button[type="submit"]');
+        await page.waitForSelector("#v4-kasreq-title", { timeout: 90000 });
+        const aboveReview = await page.locator("#v4-modal").innerText();
+        check("KAS delegate (above threshold): the payment is VERIFIED, states that 1 of 1 approver must co-sign this exact transaction, and offers NO Sign control yet (approvers first); Withdraw is offered", (await page.getAttribute("[data-kas-spend-review]", "data-kas-spend-review")) === "verified" && /1 of 1 vault approver\(s\) must co-sign/.test(aboveReview) && (await page.locator("#v4-kasreq-sign").count()) === 0 && /Awaiting approvals/.test(aboveReview) && (await page.locator("#v4-kasreq-cancel").count()) === 1, aboveReview.replace(/\s+/g, " ").slice(0, 300));
+        await shot(page, "sign-kas-above-threshold-awaiting");
+        const aboveReq = (await kasRequestsOf(kasVaultId)).find((r) => r.kind === "agentSpend" && r.state === "AWAITING_APPROVALS") || null;
+        check("KAS: the durable above-threshold request is AWAITING_APPROVALS with approvalProgress 0 of 1", !!aboveReq && aboveReq.approvalProgress && aboveReq.approvalProgress.collected === 0 && aboveReq.approvalProgress.required === 1, JSON.stringify(aboveReq && aboveReq.approvalProgress));
+        await closeModal();
+        await switchWallet(A.recipient2);
+        await page.click('.v4-tab[data-view="orgs"]');
+        await page.waitForSelector(`[data-kas-participant-vaults] [data-kasapprove="${aboveReq ? aboveReq.requestId : "none"}"]`, { timeout: 60000 });
+        const approverSection = await page.locator("[data-kas-participant-vaults]").innerText();
+        check("KAS approver: Organizations shows the treasury with 'you are an approver', the awaiting payment card (0.8 KAS, 0 of 1 approved) and 'Review & approve' — no Pay control", /you are an approver/.test(approverSection) && /0\.8 KAS/.test(approverSection) && /0 of 1 approved/.test(approverSection) && (await page.locator("[data-kas-participant-vaults] [data-kasspend]").count()) === 0, approverSection.replace(/\s+/g, " ").slice(0, 300));
+        await page.click(`[data-kas-participant-vaults] [data-kasapprove="${aboveReq.requestId}"]`);
+        await page.waitForSelector("#v4-kasreq-approve", { timeout: 30000 });
+        const approverReview = await page.locator("#v4-modal").innerText();
+        check("KAS approver: the SAME exact payment is re-verified in the approver's browser (VERIFIED) and the control names the approver slot", (await page.getAttribute("[data-kas-spend-review]", "data-kas-spend-review")) === "verified" && /Approve in wallet \(approver 1 of 1\)/.test(approverReview), approverReview.replace(/\s+/g, " ").slice(0, 200));
+        await page.click("#v4-kasreq-approve");
+        await page.waitForFunction(() => /Your approval was recorded/.test(document.querySelector("#v4-notice")?.textContent || ""), null, { timeout: 90000 });
+        const afterApproval = await kasRequestOf(aboveReq.requestId);
+        check("KAS approver: the approval (treasury input only) was recorded — the request is BUILT with 1 of 1 approvals; the approver never gained a Sign / Submit control", afterApproval.state === "BUILT" && afterApproval.approvalProgress.collected === 1 && (await page.locator("#v4-kasreq-sign").count()) === 0 && (await page.locator("#v4-kasreq-submit").count()) === 0, JSON.stringify({ state: afterApproval.state, progress: afterApproval.approvalProgress }));
+        await shot(page, "sign-kas-approver-approved");
+        await closeModal();
+        await switchWallet(A.delegate);
+        await page.click('.v4-tab[data-view="orgs"]');
+        await page.waitForSelector(`[data-kas-participant-vaults] [data-kasagentsign="${aboveReq.requestId}"]`, { timeout: 60000 });
+        await page.click(`[data-kas-participant-vaults] [data-kasagentsign="${aboveReq.requestId}"]`);
+        await page.waitForSelector("#v4-kasreq-sign", { timeout: 30000 });
+        await page.click("#v4-kasreq-sign");
+        await page.waitForSelector("#v4-kasreq-submit", { timeout: 90000 });
+        await page.click("#v4-kasreq-submit");
+        await waitOutcome();
+        const aboveState = await outcomeState();
+        const aboveTxid = await txidFromNotice();
+        check("KAS delegate (above threshold): after the approval the delegate signed and submitted — CHAIN_VERIFIED with the request's txid", aboveState === "CHAIN_VERIFIED" && !!aboveTxid && aboveTxid === aboveReq.txId, JSON.stringify({ aboveState, aboveTxid }));
+        try {
+          const ind = await independentOutputsObserved({ unsignedSafeJson: aboveReq.transaction.unsignedSafeJson, txId: aboveTxid || "00".repeat(32), indices: [0, 1] });
+          check("KAS above-threshold INDEPENDENT CHAIN CHECK (kaspad RPC, not the app): successor treasury + 0.8 KAS payout exist; predecessor spent", ind.allOutputsFound && ind.allInputsSpent, JSON.stringify(ind));
+        } catch (e) { check("KAS above-threshold INDEPENDENT CHAIN CHECK", false, `node query failed: ${e.message}`); }
+        await closeModal();
+        const afterSpends = (await kasVaultsOf()).find((v) => v.vaultId === kasVaultId);
+        check("KAS: after the two payments the presented protected principal is exactly 1.9 KAS (3 − 0.3 − 0.8) and the reserve paid the fees (< 0.5 KAS, > 0.4 KAS)", !!afterSpends && afterSpends.live.protectedValueKas === "1.9" && Number(afterSpends.live.feeReserveKas) < 0.5 && Number(afterSpends.live.feeReserveKas) > 0.4, JSON.stringify(afterSpends && afterSpends.live));
+        /* (j.5) OWNER operations on the treasury through the root's M-of-N (owner 1 in the browser, owner 2 imported out of band) */
+        await switchWallet(A.owner);
+        const approveFinalizeSubmit = async (reqId, label) => {
+          await page.click("#v4-orgroot-signmyslot");
+          await page.waitForFunction(() => /1 of 2 collected/.test(document.querySelector("#v4-modal")?.textContent || ""), null, { timeout: 60000 });
+          const envRes = await (await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/requests/${reqId}/slot-request/2`)).json();
+          const approval = signSlotOutOfBand(envRes.slotRequest || envRes, "recipient1", A.recipient1);
+          await page.evaluate(() => { const d = document.querySelector("#v4-orgroot-import")?.closest("details"); if (d) d.open = true; });
+          await page.fill("#v4-orgroot-import", JSON.stringify(approval));
+          await page.click("#v4-orgroot-import-btn");
+          await page.waitForFunction(() => /2 of 2 collected/.test(document.querySelector("#v4-modal")?.textContent || ""), null, { timeout: 60000 });
+          await page.click("[data-rootfinalize]");
+          await page.waitForFunction(() => { const b = document.querySelector("[data-rootsubmit]"); return !!b && !b.disabled; }, null, { timeout: 120000 });
+          const reqBefore = await requestOf(reqId);
+          await page.click("[data-rootsubmit]");
+          await waitOutcome();
+          const st = await outcomeState();
+          const txid = await txidFromNotice();
+          check(`${label}: owner 1 approved in the browser, owner 2 imported, owner 1 finalized and submitted — CHAIN_VERIFIED with the request's txid`, st === "CHAIN_VERIFIED" && !!txid && txid === reqBefore.txId, JSON.stringify({ st, txid }));
+          await page.click("#v4-orgroot-request-close").catch(() => {});
+          return { txid, unsignedSafeJson: reqBefore.transaction.unsignedSafeJson };
+        };
+        const startOp = async (op, label) => {
+          await reopenRoot();
+          await page.waitForSelector(opBtn(op), { timeout: 30000 });
+          const disabled = await page.evaluate((s) => document.querySelector(s)?.disabled, opBtn(op));
+          check(`${label}: the '${op}' control is offered and enabled on the treasury panel for the connected OWNER`, disabled === false, `disabled=${disabled}`);
+          await page.click(opBtn(op));
+          await page.waitForSelector(`[data-vaultop-form="${op}"][data-vault-profile="policyvault-0.7-kas"]`, { timeout: 30000 });
+        };
+        const vaultNow = async () => (await kasVaultsOf()).find((v) => v.vaultId === kasVaultId) || null;
+        /* add funds (protected principal) */
+        await startOp("ownerTopUp", "KAS add funds");
+        await page.fill('[data-vaultop-form="ownerTopUp"] [name="amount"]', "0.5");
+        await page.click('[data-vaultop-form="ownerTopUp"] button[type="submit"]');
+        await page.waitForSelector("[data-org-root-request]", { timeout: 60000 });
+        const topId = await page.getAttribute("[data-org-root-request]", "data-org-root-request");
+        const topReq = await requestOf(topId);
+        const topDetail = await page.locator("#v4-modal").innerText();
+        check("KAS add funds: ONE root request with ONE vaultOperations entry (ownerTopUp, exact 50000000 sompi) under authorize; the detail describes it from the VERIFIED KAS manifest (principal 1.9 KAS → 2.4 KAS)", !!topReq && topReq.action === "authorize" && topReq.vaultOperations.length === 1 && topReq.vaultOperations[0].action === "ownerTopUp" && topReq.vaultOperations[0].params.topUpAmountSompi === "50000000" && (await page.getAttribute("[data-org-root-review]", "data-org-root-review")) === "verified" && /Protected principal 1\.9 KAS → 2\.4 KAS/.test(topDetail), topDetail.replace(/\s+/g, " ").slice(0, 300));
+        await shot(page, "sign-kas-add-funds-request");
+        const topOut = await approveFinalizeSubmit(topId, "KAS add funds");
+        let v1 = null; for (let i = 0; i < 12 && !(v1 && v1.live && v1.live.protectedValueKas === "2.4"); i++) { await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/reconcile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {}); v1 = await vaultNow(); if (!(v1 && v1.live && v1.live.protectedValueKas === "2.4")) await page.waitForTimeout(5000); }
+        check("KAS add funds: the presented protected principal is now 2.4 KAS", !!v1 && v1.live && v1.live.protectedValueKas === "2.4", JSON.stringify(v1 && v1.live));
+        try {
+          const safe = JSON.parse(topOut.unsignedSafeJson); const covIdx = safe.outputs.map((o, i) => (o.covenant ? i : -1)).filter((i) => i >= 0);
+          const ind = await independentOutputsObserved({ unsignedSafeJson: topOut.unsignedSafeJson, txId: topOut.txid, indices: covIdx });
+          check("KAS add funds INDEPENDENT CHAIN CHECK (kaspad RPC): treasury successor + root continuation exist with exact values; treasury, root and fuel inputs spent", ind.allOutputsFound && ind.allInputsSpent && covIdx.length === 2, JSON.stringify(ind));
+        } catch (e) { check("KAS add funds INDEPENDENT CHAIN CHECK", false, `node query failed: ${e.message}`); }
+        /* change approvers: 2 approvers (recipient2 + recipient1 by address), 2 of 2 */
+        await startOp("ownerSetApprovers", "KAS change approvers");
+        const prefApprovers = await page.evaluate(() => [...document.querySelectorAll('[data-vaultop-form="ownerSetApprovers"] [data-rows="approver"] .addr-row')].map((r) => r.querySelector('[name="approverKey"]')?.value || r.querySelector('[name="approver"]')?.value));
+        check("KAS change approvers: the form is prefilled EXACTLY from the installed tier (recipient2's key, 1 of 1)", JSON.stringify(prefApprovers) === JSON.stringify([AX.recipient2]) && (await page.inputValue('[data-vaultop-form="ownerSetApprovers"] [name="approvalM"]')) === "1", JSON.stringify(prefApprovers));
+        await page.click("#v4-add-approver");
+        await page.waitForSelector('[data-vaultop-form="ownerSetApprovers"] [data-rows="approver"] .addr-row[data-row="1"]', { timeout: 10000 });
+        await page.fill('[data-vaultop-form="ownerSetApprovers"] [data-rows="approver"] .addr-row[data-row="1"] [name="approver"]', A.recipient1);
+        await page.selectOption('[data-vaultop-form="ownerSetApprovers"] [name="approvalM"]', "2");
+        await page.click('[data-vaultop-form="ownerSetApprovers"] button[type="submit"]');
+        await page.waitForSelector("[data-org-root-request]", { timeout: 60000 });
+        const apprId = await page.getAttribute("[data-org-root-request]", "data-org-root-request");
+        const apprReq = await requestOf(apprId);
+        const apprDetail = await page.locator("#v4-modal").innerText();
+        check("KAS change approvers: the request carries the new tier (2 approvers — the address resolved to its key — 2 of 2) and the detail lists 'Approvers after: 2 of 2'", !!apprReq && apprReq.vaultOperations[0].action === "ownerSetApprovers" && JSON.stringify([...apprReq.vaultOperations[0].params.approvers].sort()) === JSON.stringify([AX.recipient1, AX.recipient2].sort()) && apprReq.vaultOperations[0].params.approvalM === "2" && /Approvers after: 2 of 2/.test(apprDetail), JSON.stringify(apprReq && apprReq.vaultOperations[0].params));
+        await approveFinalizeSubmit(apprId, "KAS change approvers");
+        let v2 = null; for (let i = 0; i < 12 && !(v2 && String(v2.approvalM) === "2"); i++) { await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/reconcile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {}); v2 = await vaultNow(); if (!(v2 && String(v2.approvalM) === "2")) await page.waitForTimeout(5000); }
+        /* lane-02 finding: the covenant state carries the approver slots in the SDK's canonical order, not the entry order — the check compares the SET */
+        check("KAS change approvers: the presented tier is now 2 of 2 {recipient1, recipient2} after chain verification (slot order = the covenant state's canonical order)", !!v2 && String(v2.approvalM) === "2" && JSON.stringify([...v2.approvers].sort()) === JSON.stringify([AX.recipient1, AX.recipient2].sort()), JSON.stringify(v2 && { m: v2.approvalM, approvers: v2.approvers }));
+        /* pause → panel → unpause */
+        await startOp("ownerPause", "KAS pause");
+        const pauseForm = await page.locator("#v4-modal").innerText();
+        check("KAS pause: the confirmation states the consequence (delegate payments refused by the covenant until unpaused; nothing moves) and the 2 of 3 quorum", /every delegate payment from this treasury is refused by the covenant/.test(pauseForm) && /Authorized by 2 of 3 owners/.test(pauseForm), pauseForm.replace(/\s+/g, " ").slice(0, 200));
+        await page.click('[data-vaultop-form="ownerPause"] button[type="submit"]');
+        await page.waitForSelector("[data-org-root-request]", { timeout: 60000 });
+        const pauseId = await page.getAttribute("[data-org-root-request]", "data-org-root-request");
+        check("KAS pause: the request detail describes 'Pause treasury' from the verified KAS manifest", /Pause treasury on treasury/.test(await page.locator("#v4-modal").innerText()) && (await page.getAttribute("[data-vault-operation-summary]", "data-vault-operation-summary")) === "verified");
+        await approveFinalizeSubmit(pauseId, "KAS pause");
+        let v3 = null; for (let i = 0; i < 12 && !(v3 && v3.live && v3.live.paused === true); i++) { await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/reconcile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {}); v3 = await vaultNow(); if (!(v3 && v3.live && v3.live.paused === true)) await page.waitForTimeout(5000); }
+        check("KAS pause: the treasury is presented PAUSED after chain verification", !!v3 && v3.live && v3.live.paused === true, JSON.stringify(v3 && v3.live));
+        await reopenRoot();
+        await page.waitForSelector(vaultSel, { timeout: 30000 });
+        const pausedOps = await page.evaluate((s) => Object.fromEntries([...document.querySelectorAll(`${s} [data-rootvaultop]`)].map((b) => [b.getAttribute("data-rootvaultop"), b.disabled])), vaultSel);
+        check("KAS paused panel: Unpause enabled; Pause / Emergency-pause disabled; rules, approvers, funds, reserve and close stay available; the panel says delegate payments are stopped", pausedOps.ownerUnpause === false && pausedOps.ownerPause === true && pausedOps.ownerEmergencyPause === true && pausedOps.ownerSetAgentRoot === false && pausedOps.ownerSetApprovers === false && pausedOps.ownerTopUp === false && pausedOps.ownerTopUpReserve === false && pausedOps.ownerRecover === false && /PAUSED — delegate payments stopped/.test(await page.locator(vaultSel).innerText()), JSON.stringify(pausedOps));
+        await startOp("ownerUnpause", "KAS unpause");
+        await page.click('[data-vaultop-form="ownerUnpause"] button[type="submit"]');
+        await page.waitForSelector("[data-org-root-request]", { timeout: 60000 });
+        await approveFinalizeSubmit(await page.getAttribute("[data-org-root-request]", "data-org-root-request"), "KAS unpause");
+        let v4 = null; for (let i = 0; i < 12 && !(v4 && v4.live && v4.live.paused === false); i++) { await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/reconcile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {}); v4 = await vaultNow(); if (!(v4 && v4.live && v4.live.paused === false)) await page.waitForTimeout(5000); }
+        check("KAS unpause: the treasury is presented unpaused after chain verification", !!v4 && v4.live && v4.live.paused === false, JSON.stringify(v4 && v4.live));
+        /* wrong role: recipient3 (recovery key holder) */
+        await switchWallet(A.recipient3);
+        await openRoot(root23Label);
+        await page.waitForSelector(vaultSel, { timeout: 30000 });
+        const strangerOps = await page.evaluate((s) => [...document.querySelectorAll(`${s} [data-rootvaultop]`)].map((b) => ({ disabled: b.disabled, title: b.getAttribute("title") })), vaultSel);
+        check("KAS wrong role: connected as the recovery-key holder (NOT an owner, NOT a delegate) every owner-operation control is disabled ('Only an owner…') and no Pay control exists", strangerOps.length === 8 && strangerOps.every((o) => o.disabled && /Only an owner of this root/.test(o.title)) && (await page.locator(`${vaultSel} [data-kasspend]`).count()) === 0, JSON.stringify(strangerOps).slice(0, 200));
+        const strangerSpend = await fetch(`${URL_BASE}/api/v1/wallet/v7/requests`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vaultId: kasVaultId, action: "agentSpend", params: { payAmountSompi: "10000000", recipient: AX.recipient1 }, signerAddress: A.recipient3 }) });
+        const strangerJ = await strangerSpend.json();
+        check("KAS wrong role: the server refuses a payment built for a signer that is not a delegate (AGENT_NOT_REGISTERED) — the browser control was never the gate", strangerSpend.status >= 400 && strangerJ.error && /AGENT_NOT_REGISTERED|NOT_AN_AGENT|FORBIDDEN/.test(strangerJ.error.code), `${strangerSpend.status} ${JSON.stringify(strangerJ).slice(0, 160)}`);
+        await switchWallet(A.owner);
+        /* close & recover: typed phrase; TERMINAL detail; entire balance to the pinned key */
+        await startOp("ownerRecover", "KAS close & recover");
+        await page.fill("#v4-vaultop-typed", "CONFIRM CLOSE VAULT");
+        await page.click('[data-vaultop-form="ownerRecover"] button[type="submit"]');
+        await page.waitForFunction(() => (document.querySelector('.ferr[data-err="typed"]')?.textContent || "").length > 0, null, { timeout: 15000 });
+        check("KAS close & recover: the treasury's OWN phrase is required (CONFIRM CLOSE TREASURY) — a wrong phrase is refused beside the field and nothing is built", /CONFIRM CLOSE TREASURY/.test(await page.locator('.ferr[data-err="typed"]').innerText()) && !(await rootByLabel(root23Label)).pendingRequestId);
+        const balanceBefore = await vaultNow();
+        await page.fill("#v4-vaultop-typed", "CONFIRM CLOSE TREASURY");
+        await page.click('[data-vaultop-form="ownerRecover"] button[type="submit"]');
+        await page.waitForSelector("[data-org-root-request]", { timeout: 60000 });
+        const recId = await page.getAttribute("[data-org-root-request]", "data-org-root-request");
+        const recDetail = await page.locator("#v4-modal").innerText();
+        const totalKas = balanceBefore && balanceBefore.live ? balanceBefore.live.totalKas : null;
+        check("KAS close & recover: the request detail states TERMINAL, the ENTIRE balance paid to the pinned recovery key (recipient3) — principal + reserve — and Irreversible", /TERMINAL: this treasury is CLOSED/.test(recDetail) && new RegExp(`${String(totalKas).replace(".", "\\.")} KAS \\(its entire balance\\)`).test(recDetail) && new RegExp(AX.recipient3).test(recDetail) && /Irreversible/.test(recDetail), recDetail.replace(/\s+/g, " ").slice(0, 300));
+        await shot(page, "sign-kas-close-request");
+        const recOut = await approveFinalizeSubmit(recId, "KAS close & recover");
+        let closed = null; for (let i = 0; i < 12 && !(closed && closed.status === "RECOVERED"); i++) { await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/reconcile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {}); closed = await vaultNow(); if (!(closed && closed.status === "RECOVERED")) await page.waitForTimeout(5000); }
+        check("KAS close & recover: the treasury is presented RECOVERED with no live outpoint", !!closed && closed.status === "RECOVERED" && closed.live === null, JSON.stringify(closed && { status: closed.status, live: closed.live }));
+        try {
+          const safe = JSON.parse(recOut.unsignedSafeJson);
+          const payoutIdx = safe.outputs.findIndex((o) => !o.covenant && o.scriptPublicKey === `000020${AX.recipient3}ac`);
+          const ind = await independentOutputsObserved({ unsignedSafeJson: recOut.unsignedSafeJson, txId: recOut.txid, indices: [payoutIdx, ...safe.outputs.map((o, i) => (o.covenant ? i : -1)).filter((i) => i >= 0)] });
+          check("KAS close & recover INDEPENDENT CHAIN CHECK (kaspad RPC, not the app): the payout output pays the ENTIRE balance to recipient3's P2PK (the pinned recovery key) and exists on chain; the root continuation exists; treasury, root and fuel inputs spent", payoutIdx >= 0 && ind.allOutputsFound && ind.allInputsSpent && ind.outputs[payoutIdx].expected === String(BigInt(Math.round(Number(totalKas) * 1e8))), JSON.stringify({ payoutIdx, expected: ind.outputs[payoutIdx] && ind.outputs[payoutIdx].expected, ind }));
+        } catch (e) { check("KAS close & recover INDEPENDENT CHAIN CHECK", false, `node query failed: ${e.message}`); }
+        await reopenRoot();
+        await page.waitForSelector(vaultSel, { timeout: 30000 });
+        const closedPanel = await page.evaluate((s) => ({ text: document.querySelector(s)?.innerText || "", enabled: [...document.querySelectorAll(`${s} [data-rootvaultop]`)].filter((b) => !b.disabled).length }), vaultSel);
+        check("KAS: a RECOVERED treasury's panel states it holds nothing and accepts no further operation; every control disabled", /RECOVERED/.test(closedPanel.text) && /accepts no further operation/.test(closedPanel.text) && closedPanel.enabled === 0, closedPanel.text.slice(0, 200));
+        await shot(page, "sign-kas-recovered-panel");
+        /* ===== (k) RC32-03 REPLACEMENT (fullscale-rc33, 2026-09-10): KAS treasury creation INTERRUPTION and PENDING-CREATION
+         * RECOVERY on the SERVED interface, on the live chain, with the dev signer. (k.1) Back on the exact review withdraws the
+         * unsigned build and Cancel returns to a root with nothing pending; (k.2) leaving Organizations withdraws it; (k.3) a wallet
+         * rejection at signing keeps the durable draft, which the root detail lists as a pending creation the funder withdraws
+         * explicitly (new creation disabled meanwhile); (k.4) a signature that WAS uploaded whose SUBMIT never reaches the server
+         * leaves the SAME request SIGNED: the root detail lists it, new creation is disabled until it is resolved, and the funder
+         * submits the ORIGINAL signed transaction explicitly (no new build, no new signature) — CHAIN_VERIFIED with the frozen
+         * txid, INDEPENDENT kaspad check — then the treasury is closed & recovered through the root's M-of-N. Bounded broadcasts:
+         * genesis 1 + close & recover 1 = 2 (k.1–k.3 broadcast nothing). ===== */
+        {
+          const kLabel = (n) => `UX KAS interruption ${n} ${Date.now().toString(36)}`;
+          const kasGenesisByLabel = async (label) => (((await (await fetch(`${URL_BASE}/api/v1/wallet/v7/requests`)).json()).requests) || []).find((r) => r.kind === "kasGenesis" && r.label === label) || null;
+          let kSignPosts = 0, kSubmitPosts = 0, kCreatePosts = 0;
+          page.on("request", (rq) => { if (rq.method() !== "POST") return; const u = rq.url(); if (/\/wallet\/dev-sign$/.test(u)) kSignPosts++; if (/\/wallet\/v7\/requests\/[^/]+\/submit$/.test(u)) kSubmitPosts++; if (u === `${URL_BASE}/api/v1/org-roots/${rootIdK}/vaults`) kCreatePosts++; });
+          const pendingRows = () => page.evaluate(() => [...document.querySelectorAll("[data-kasgenesis-request]")].map((b) => b.getAttribute("data-kasgenesis-request")));
+          const createState = () => page.evaluate(() => { const b = document.querySelector("[data-kascreate]"); return b ? { present: true, disabled: b.disabled, title: b.getAttribute("title") } : { present: false }; });
+          const stateOf = async (id) => (await kasRequestOf(id)).state;
+          const waitState = async (id, want, tries = 30) => { let s = null; for (let i = 0; i < tries; i++) { s = await stateOf(id); if (want.includes(s)) return s; await page.waitForTimeout(500); } return s; };
+          const reconcileUntil = async (vaultId, done) => { let v = null; for (let i = 0; i < 12 && !(v && done(v)); i++) { await fetch(`${URL_BASE}/api/v1/org-roots/${rootIdK}/reconcile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {}); v = (await kasVaultsOf()).find((x) => x.vaultId === vaultId) || null; if (!(v && done(v))) await page.waitForTimeout(5000); } return v; };
+          /* the same wizard values as (j.1): 3 KAS principal, 0.5 KAS reserve, one delegate rule, one approver (recipient2), recovery to recipient3 */
+          const buildToReview = async (label) => {
+            await reopenRoot();
+            await page.waitForSelector("[data-kascreate]", { timeout: 30000 });
+            await page.click("[data-kascreate]");
+            await page.waitForSelector("[data-kas-wizard]", { timeout: 30000 });
+            await page.fill('[data-kas-wizard] [name="label"]', label);
+            await page.fill('[data-kas-wizard] [name="depositKas"]', "3");
+            await page.fill('[data-kas-wizard] [name="feeReserveKas"]', "0.5");
+            await page.click('[data-kas-wizard] section[data-setup-step="treasury"] [data-setup-next]');
+            await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "delegates", null, { timeout: 15000 });
+            await page.fill('[name="agent-0-agentKey"]', A.delegate);
+            await page.fill('[name="agent-0-maxPerSpendKas"]', "1");
+            await page.fill('[name="agent-0-periodBudgetKas"]', "5");
+            await page.fill('[name="agent-0-periodLengthDaa"]', "100000000");
+            await page.fill('[name="agent-0-approvalThresholdKas"]', "0.5");
+            await page.fill('[name="agent-0-agentMaxFeePerTxKas"]', "0.1");
+            await page.fill('[name="agent-0-recipients"]', A.recipient1);
+            await page.click('[data-kas-wizard] section[data-setup-step="delegates"] [data-setup-next]');
+            await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "approvals", null, { timeout: 30000 });
+            await page.click("#v4-add-approver");
+            await page.waitForSelector('[data-kas-wizard] [data-rows="approver"] .addr-row[data-row="0"]', { timeout: 10000 });
+            await page.fill('[data-kas-wizard] [data-rows="approver"] .addr-row[data-row="0"] [name="approver"]', A.recipient2);
+            await page.click('[data-kas-wizard] section[data-setup-step="approvals"] [data-setup-next]');
+            await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "recovery", null, { timeout: 30000 });
+            await page.fill('[data-kas-wizard] [name="recoveryAddress"]', A.recipient3);
+            await page.click('[data-kas-wizard] section[data-setup-step="recovery"] [data-setup-next]');
+            await page.waitForFunction(() => document.querySelector(".stepper-item[aria-current='step']")?.getAttribute("data-step") === "review", null, { timeout: 30000 });
+            await page.click("[data-kas-wizard] [data-setup-build]");
+            await page.waitForSelector("#v4-kas-review-title", { timeout: 90000 });
+            await page.waitForTimeout(300);
+            return kasGenesisByLabel(label);
+          };
+          const rootK0 = await rootByLabel(root23Label);
+          check("KAS-INT precondition: the 2-of-3 root is live with no pending request", !!rootK0 && !!rootK0.live && !rootK0.pendingRequestId, JSON.stringify(rootK0 && { live: !!rootK0.live, pending: rootK0.pendingRequestId }));
+          /* (k.1) Back on the exact review withdraws the unsigned build; Cancel returns to the root with nothing pending */
+          const l1 = kLabel("back"); const b1 = await buildToReview(l1);
+          check("KAS-INT k.1: the treasury creation is BUILT (unsigned) and the exact review offers Back and 'Approve in wallet'", !!b1 && b1.state === "BUILT" && (await page.locator("#v4-kas-review-back").count()) === 1 && (await page.locator("#v4-kas-confirm").count()) === 1, JSON.stringify(b1 && { state: b1.state }));
+          const sign1 = kSignPosts, sub1 = kSubmitPosts;
+          await page.click("#v4-kas-review-back");
+          await page.waitForSelector('[data-kas-wizard] section[data-setup-step="review"]', { timeout: 30000 });
+          const s1 = b1 ? await waitState(b1.requestId, ["WALLET_REJECTED"]) : null;
+          check("KAS-INT k.1: Back withdrew the unsigned build on the server (WALLET_REJECTED) — the wallet was never invoked, nothing was submitted, the wizard returned to editing", s1 === "WALLET_REJECTED" && kSignPosts === sign1 && kSubmitPosts === sub1 && (await page.locator("#v4-kas-review-title").count()) === 0, `state=${s1} sign=${kSignPosts - sign1} submit=${kSubmitPosts - sub1}`);
+          await page.click('[data-kas-wizard] section:not([hidden]) [data-setup-cancel]');
+          await page.waitForSelector("[data-org-root-detail]", { timeout: 30000 });
+          await page.waitForSelector("[data-kascreate]", { timeout: 30000 });
+          const c1 = await createState();
+          check("KAS-INT k.1: Cancel returns to the root detail — no pending creation is listed and 'Create KAS treasury' is enabled again", (await pendingRows()).length === 0 && c1.present && c1.disabled === false, JSON.stringify({ pending: await pendingRows(), c1 }));
+          /* (k.2) leaving Organizations while the exact review is open withdraws the unsigned build */
+          const l2 = kLabel("navigate"); const b2 = await buildToReview(l2);
+          /* the exact review is a modal overlay: a pointer click on the tab bar is intercepted by it (Playwright refuses the click), so the
+           * navigation is triggered the way keyboard navigation reaches the tab — activating the tab control itself */
+          await page.evaluate(() => document.querySelector('.v4-tab[data-view="vaults"]').click());
+          await page.waitForFunction(() => document.querySelector("#v4-modal")?.style.display === "none", null, { timeout: 30000 });
+          const s2 = b2 ? await waitState(b2.requestId, ["WALLET_REJECTED"]) : null;
+          check("KAS-INT k.2: leaving Organizations while the exact review is open closes it and withdraws the unsigned build (WALLET_REJECTED); no signature, no submission", s2 === "WALLET_REJECTED" && kSignPosts === sign1 && kSubmitPosts === sub1, `state=${s2}`);
+          await reopenRoot();
+          await page.waitForSelector("[data-kascreate]", { timeout: 30000 });
+          check("KAS-INT k.2: the root detail lists no pending creation afterwards and creation stays enabled", (await pendingRows()).length === 0 && (await createState()).disabled === false, JSON.stringify(await createState()));
+          /* (k.3) wallet rejection at signing: the draft is kept, listed as pending (creation disabled), withdrawn explicitly by the funder */
+          const l3 = kLabel("wallet-rejected"); const b3 = await buildToReview(l3);
+          await page.route("**/api/v1/wallet/dev-sign", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "USER_REJECTED", message: "simulated wallet rejection" } }) }));
+          const sub3 = kSubmitPosts;
+          await page.click("#v4-kas-confirm");
+          await page.waitForFunction(() => /needs verification|Signing outcome/.test(document.querySelector("#v4-notice")?.textContent || ""), null, { timeout: 60000 });
+          await page.unroute("**/api/v1/wallet/dev-sign");
+          await page.waitForSelector("[data-org-root-detail]", { timeout: 30000 });
+          await page.waitForSelector("[data-pending-kas-creations]", { timeout: 30000 });
+          const s3 = b3 ? await stateOf(b3.requestId) : null; const c3 = await createState();
+          check("KAS-INT k.3: after the wallet rejected the signature the notice points at the pending creation; the root detail lists the SAME request (BUILT — no signature uploaded, nothing submitted) and disables new creation until it is resolved", s3 === "BUILT" && !!b3 && (await pendingRows()).includes(b3.requestId) && c3.disabled === true && /pending treasury creations/i.test(c3.title || "") && kSubmitPosts === sub3, JSON.stringify({ s3, c3, pending: await pendingRows() }));
+          await shot(page, "sign-kas-int-pending-unsigned");
+          await page.click(`[data-kasgenesis-request="${b3.requestId}"]`);
+          await page.waitForSelector("#v4-kasreq-cancel", { timeout: 30000 });
+          const m3 = await page.locator("#v4-modal").innerText();
+          /* the request card's BUILT line legitimately says "nothing has moved" (nothing was signed or sent); the review banner must say the unsigned draft can be withdrawn and must not offer Submit */
+          check("KAS-INT k.3: opening the pending creation says the unsigned draft can be withdrawn, offers Withdraw and does NOT offer Submit", /unsigned draft can be withdrawn/.test(m3) && (await page.locator("#v4-kasreq-cancel").count()) === 1 && (await page.locator("#v4-kasreq-submit").count()) === 0, m3.replace(/\s+/g, " ").slice(0, 200));
+          page.once("dialog", (d) => d.accept());
+          await page.click("#v4-kasreq-cancel");
+          const s3b = await waitState(b3.requestId, ["WALLET_REJECTED"]);
+          /* closing the request view reopens the root detail asynchronously (its own refreshed listing) — wait for that refreshed detail instead of forcing a reopen underneath it */
+          await page.waitForFunction(() => { const b = document.querySelector("[data-kascreate]"); return !!b && !b.disabled && !document.querySelector("[data-kasgenesis-request]"); }, null, { timeout: 30000 });
+          check("KAS-INT k.3: the funder withdrew the unsigned draft (WALLET_REJECTED); the refreshed root detail lists nothing pending and re-enables creation", s3b === "WALLET_REJECTED" && (await pendingRows()).length === 0 && (await createState()).disabled === false, `state=${s3b}`);
+          /* (k.4) the signature is uploaded but the SUBMIT never reaches the server: the SAME request stays SIGNED and is submitted explicitly later */
+          const l4 = kLabel("lost-submit"); const b4 = await buildToReview(l4);
+          const create4 = kCreatePosts;
+          await page.route("**/api/v1/wallet/v7/requests/*/submit", (route) => route.abort("failed")); // the server never receives this submit: the browser cannot know the outcome
+          const sign4 = kSignPosts, sub4 = kSubmitPosts;
+          await page.click("#v4-kas-confirm");
+          await page.waitForFunction(() => /Submission outcome uncertain/.test(document.querySelector("#v4-notice")?.textContent || ""), null, { timeout: 120000 });
+          await page.unroute("**/api/v1/wallet/v7/requests/*/submit");
+          await page.waitForSelector("[data-org-root-detail]", { timeout: 30000 });
+          await page.waitForSelector("[data-pending-kas-creations]", { timeout: 30000 });
+          const r4 = b4 ? await kasRequestOf(b4.requestId) : null; const c4 = await createState();
+          /* the browser ATTEMPTED exactly one submit (the request event fires even though the route aborted it before the server) */
+          check("KAS-INT k.4: the wallet signed once, the signature was uploaded (SIGNED with the frozen txid), the browser attempted exactly ONE submit that never reached the server, and the SAME durable request remains; the notice says the outcome is uncertain and NOT to sign again; the root lists it and new creation is disabled", !!r4 && r4.state === "SIGNED" && !!r4.txId && kSignPosts - sign4 === 1 && kSubmitPosts - sub4 === 1 && (await pendingRows()).includes(b4.requestId) && c4.disabled === true && /do not sign again/.test(await noticeText()), JSON.stringify({ state: r4 && r4.state, tx: r4 && r4.txId, signs: kSignPosts - sign4, attemptedSubmits: kSubmitPosts - sub4, c4 }));
+          const sub4b = kSubmitPosts;
+          await shot(page, "sign-kas-int-pending-signed");
+          await page.click(`[data-kasgenesis-request="${b4.requestId}"]`);
+          await page.waitForSelector("#v4-kasreq-submit", { timeout: 30000 });
+          const m4 = await page.locator("#v4-modal").innerText();
+          check("KAS-INT k.4: opening the SIGNED creation offers the explicit 'Submit signed transaction' for the same request (no Verify, no Withdraw, no second signature); opening is read-only", /ready to submit/.test(m4) && /Submit signed transaction/.test(await page.locator("#v4-kasreq-submit").innerText()) && (await page.locator("#v4-kasreq-cancel").count()) === 0 && kSubmitPosts === sub4b && kSignPosts - sign4 === 1, m4.replace(/\s+/g, " ").slice(0, 200));
+          await page.click("#v4-kasreq-submit");
+          await page.waitForFunction(() => /CHAIN_VERIFIED/.test(document.querySelector("#v4-modal")?.textContent || "") || !!document.querySelector("#v4-notice [data-outcome]"), null, { timeout: 180000 });
+          await page.waitForTimeout(500);
+          const r4b = await kasRequestOf(b4.requestId);
+          check("KAS-INT k.4: the ORIGINAL signed transaction was submitted exactly once — CHAIN_VERIFIED with the request id and frozen txid unchanged; no new build, no new signature", r4b.state === "CHAIN_VERIFIED" && r4b.txId === r4.txId && r4b.requestId === b4.requestId && kSubmitPosts - sub4b === 1 && kSignPosts - sign4 === 1 && kCreatePosts === create4, JSON.stringify({ state: r4b.state, tx: r4b.txId, submitsAfterRecoveryOpened: kSubmitPosts - sub4b, signs: kSignPosts - sign4, creates: kCreatePosts - create4 }));
+          await shot(page, "sign-kas-int-recovered-submit");
+          const v4k = await reconcileUntil(b4.vaultId, (v) => !!v.live);
+          check("KAS-INT k.4: the recovered creation reconciles to a live treasury (3 KAS protected / 0.5 KAS reserve; CANDIDATE)", !!v4k && !!v4k.live && v4k.live.protectedValueKas === "3" && v4k.live.feeReserveKas === "0.5" && v4k.candidateStatus === "CANDIDATE", JSON.stringify(v4k && v4k.live));
+          try {
+            const ind = await independentOutputsObserved({ unsignedSafeJson: b4.transaction.unsignedSafeJson, txId: r4b.txId, indices: [0] });
+            check("KAS-INT k.4 INDEPENDENT CHAIN CHECK (kaspad RPC, not the app): output 0 = the treasury covenant output with the exact 3.5 KAS at the covenant address; every funding input spent", ind.allOutputsFound && ind.allInputsSpent && ind.outputs[0].expected === "350000000" && !!v4k && ind.outputs[0].covenantId === v4k.live.covenantId, JSON.stringify(ind));
+          } catch (e) { check("KAS-INT k.4 INDEPENDENT CHAIN CHECK", false, `node query failed: ${e.message}`); }
+          const vSel4 = `[data-kas-vault="${b4.vaultId}"]`;
+          await page.click("#v4-kasreq-close").catch(() => {});
+          /* closing the request view reopens the root detail asynchronously with the now-live treasury's panel — wait for it (no forced reopen underneath) */
+          await page.waitForFunction((s) => !!document.querySelector(s) && !document.querySelector("[data-kasgenesis-request]"), `${vSel4} [data-rootvaultop="ownerRecover"]`, { timeout: 60000 });
+          check("KAS-INT k.4: once the creation is CHAIN_VERIFIED the root detail lists nothing pending, creation is enabled again and the new treasury's panel offers close & recover to the owner", (await pendingRows()).length === 0 && (await createState()).disabled === false && !(await page.evaluate((s) => document.querySelector(s)?.disabled, `${vSel4} [data-rootvaultop="ownerRecover"]`)), JSON.stringify(await createState()));
+          await page.click(`${vSel4} [data-rootvaultop="ownerRecover"]`);
+          await page.waitForSelector('[data-vaultop-form="ownerRecover"]', { timeout: 30000 });
+          await page.fill("#v4-vaultop-typed", "CONFIRM CLOSE TREASURY");
+          await page.click('[data-vaultop-form="ownerRecover"] button[type="submit"]');
+          await page.waitForSelector("[data-org-root-request]", { timeout: 60000 });
+          const recId4 = await page.getAttribute("[data-org-root-request]", "data-org-root-request");
+          const totalKas4 = v4k && v4k.live ? v4k.live.totalKas : null;
+          const recOut4 = await approveFinalizeSubmit(recId4, "KAS-INT k.4 close & recover");
+          const closed4 = await reconcileUntil(b4.vaultId, (v) => v.status === "RECOVERED");
+          check("KAS-INT k.4: the recovered treasury is closed & recovered through the root's M-of-N (RECOVERED, no live outpoint) — its entire balance returns to the pinned recovery key", !!closed4 && closed4.status === "RECOVERED" && closed4.live === null, JSON.stringify(closed4 && { status: closed4.status, live: closed4.live }));
+          try {
+            const safe = JSON.parse(recOut4.unsignedSafeJson);
+            const payoutIdx = safe.outputs.findIndex((o) => !o.covenant && o.scriptPublicKey === `000020${AX.recipient3}ac`);
+            const ind = await independentOutputsObserved({ unsignedSafeJson: recOut4.unsignedSafeJson, txId: recOut4.txid, indices: [payoutIdx, ...safe.outputs.map((o, i) => (o.covenant ? i : -1)).filter((i) => i >= 0)] });
+            check("KAS-INT k.4 close & recover INDEPENDENT CHAIN CHECK (kaspad RPC, not the app): the payout pays the ENTIRE balance to recipient3's P2PK and exists on chain; the root continuation exists; treasury, root and fuel inputs spent", payoutIdx >= 0 && ind.allOutputsFound && ind.allInputsSpent && totalKas4 !== null && ind.outputs[payoutIdx].expected === String(BigInt(Math.round(Number(totalKas4) * 1e8))), JSON.stringify({ payoutIdx, expected: ind.outputs[payoutIdx] && ind.outputs[payoutIdx].expected, ind }));
+          } catch (e) { check("KAS-INT k.4 close & recover INDEPENDENT CHAIN CHECK", false, `node query failed: ${e.message}`); }
+          await reopenRoot();
+          await page.waitForSelector("[data-kascreate]", { timeout: 30000 });
+          const kVaults = (await kasVaultsOf()).filter((v) => v.vaultId === (b4 && b4.vaultId) || String(v.label || "").startsWith("UX KAS interruption "));
+          check("KAS-INT: exactly ONE treasury exists from the four interruption cases (the k.4 recovery, now RECOVERED); k.1–k.3 left withdrawn drafts only; nothing is pending and creation is enabled", kVaults.length === 1 && !!b4 && kVaults[0].vaultId === b4.vaultId && kVaults[0].status === "RECOVERED" && (await pendingRows()).length === 0 && (await createState()).disabled === false, JSON.stringify(kVaults.map((v) => ({ label: v.label, status: v.status }))));
+          await shot(page, "sign-kas-int-final");
+        }
+      }
+      await closeModal();
+    }
     /* leave no modal open before the create-flow sections */
     await page.click("#v4-orgroot-request-close").catch(() => {});
     await page.evaluate(() => { const m = document.querySelector("#v4-modal"); if (m && m.style.display !== "none") m.style.display = "none"; });

@@ -156,12 +156,15 @@ test("RESIDUAL, recorded honestly: server capabilities now advertises every core
   const routerKnows = nodeRouter.supportedIntentVersions();
   /* A covenant generation the intent router can ROUTE (has a manifest
    * family for) does not have to be exposed as a hosted HTTP product
-   * surface. v0.7-kas is a TESTNET-VERIFIED candidate rooted-KAS profile:
-   * the shared core routes its manifest, but Track E deliberately did NOT
-   * build server routes for it (it is not part of the hosted token/HD
-   * surface), so capabilities correctly does not advertise it. Recorded
-   * as an explicit, documented exclusion — never a silent gap. */
-  const NO_HOSTED_HTTP_SURFACE = new Set(["policyvault-0.7-kas"]);
+   * surface. Until the v0.7 mainnet-enablement work (2026-09-10) v0.7-kas
+   * was such a case (routed manifest, no server routes — recorded here as
+   * an explicit exclusion). That work gave the KAS treasury its hosted
+   * surface (POST /org-roots/:id/vaults {profile: policyvault-0.7-kas},
+   * /wallet/v7/requests agentSpend + approvals, GET /wallet/v7/vaults), so
+   * the exclusion set is now EMPTY and the KAS profile must be advertised
+   * (as a CANDIDATE, per the capabilities document). */
+  const NO_HOSTED_HTTP_SURFACE = new Set([]);
+  assert.ok(advertised.has("policyvault-0.7-kas"), "the KAS treasury profile is advertised once it has a hosted HTTP surface");
   const notAdvertised = routerKnows.filter((v) => !advertised.has(v) && !NO_HOSTED_HTTP_SURFACE.has(v));
   assert.deepEqual(notAdvertised, [], "every ROUTES-table version with a hosted HTTP surface is advertised by capabilities");
   for (const v of NO_HOSTED_HTTP_SURFACE) {

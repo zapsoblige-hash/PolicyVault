@@ -138,5 +138,19 @@
     "family": "canary",
     "count": 4,
     "reason": "Unit-test fixture canary strings exercising the scanner, not a secret"
+  },
+  {
+    "path": "sdk/test/http-client.test.js",
+    "sha256": "86d97aa7de4925179a511b336a00e2cf777343747b6d91e146c695036179b05a",
+    "family": "machine-token",
+    "count": 2,
+    "reason": "Designated deterministic/mock test token or remote-proof placeholder; no credential. Re-pin of the classified 00c2a703\u2026 copy: the only byte difference is the expected supportedCovenantVersions array (line 207; the KAS profile is now advertised); the two token fixture lines are byte-identical (checked mechanically, v1.10.0 candidate, 2026-09-10)."
+  },
+  {
+    "path": "tools/image-privacy-classifications.json",
+    "sha256": "b401624a0c808d7822fa350b67f960605c99a5a3744124d39cc75d6b1a9a9dfc",
+    "family": "operator-path",
+    "count": 3,
+    "reason": "Exact public image-classification source: the three matches are literal upstream build-directory descriptions in the independently reviewed RC37, RC38 and RC39 config-reason strings. They identify the pinned Ubuntu build directory, not a PolicyVault operator. Exact source bytes and all three locations were inspected before this classification was proposed; no known-value finding is classified."
   }
 ]

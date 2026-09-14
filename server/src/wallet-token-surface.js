@@ -179,6 +179,7 @@ const STATUS_BY_CODE = Object.freeze({
   BUILD_FAILED: 422,
   STALE: 409,
   CLAIM_CONFLICT: 409,
+  VAULT_ID_IN_USE: 409, // RC33-ID-01 (2026-09-11): global vault-record uniqueness (sdk/src/vault-identity.js)
   NETWORK_MISMATCH: 409,
   TXID_MISMATCH: 500,
   SUBMISSION_REJECTED: 409,

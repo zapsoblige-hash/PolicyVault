@@ -8,8 +8,10 @@
  *   • GET /wallet/v4/requests?unresolved=1 lists it (reload-restore);
  *   • reconcileCreateWalletRequestV4 resolves ONLY by chain proof:
  *     covenant output observed -> CHAIN_VERIFIED (manifest persisted exactly
- *     as a successful submit); funding unspent + not in mempool + stale ->
- *     NOT_BROADCAST (claim released, creation allowed again); anything else
+ *     as a successful submit); original prebroadcast anchor + a complete,
+ *     nonreorged acceptance window + exact funding unspent twice + all outputs
+ *     absent + exact all-pools mempool misses + stable sink + stale ->
+ *     NOT_BROADCAST (proof durable before own claim release); anything else
  *     -> PENDING (fail closed, still blocked).
  * Offline: canonical create schema; the node is a fake RPC.
  */
@@ -24,6 +26,8 @@ const wr4 = require("../src/wallet-requests-v4");
 const submit4 = require("../src/wallet-submit-v4");
 const { loadManifestV4 } = require("../src/manifest-v4");
 const { CONTRACT_VERSION_V4_1 } = require("../../core/model/vault-state-v4.js");
+const { getStore, Categories } = require("../src/store");
+const { negativeRpc } = require("./helpers/negative-proof-fixtures");
 
 const config = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-ux05-")) });
 const kaspa = require(config.rustyKaspaModule);
@@ -153,15 +157,63 @@ function fakeRpc({ vaultUtxo = null, vaultCalls = null, funderUtxos = [], mempoo
   return rpc;
 }
 
+/* RC37: exercise the real local signature/submit boundary with deterministic TEST
+ * keys and an in-process node. The node inspects the durable request and claim
+ * before its scripted lost response. No chain connection or broadcast exists. */
+async function uncertainAttempt(cfg, built, { anchor = "31".repeat(32), missingAnchor = false } = {}) {
+  const engine = require(cfg.rustyKaspaModule);
+  const tx = engine.Transaction.deserializeFromSafeJSON(built.transaction.unsignedSafeJson);
+  const inputs = tx.inputs;
+  for (let i = 0; i < inputs.length; i++) inputs[i].signatureScript = engine.createInputSignature(tx, i, KEY(OWNER));
+  tx.inputs = inputs;
+  let submits = 0;
+  const node = negativeRpc(cfg, built, { captureAtSubmission: true, baseRpc: {
+    getUtxosByAddresses: async () => ({ entries: [] }),
+    async submitTransaction({ transaction }) {
+      submits += 1;
+      const saved = await wr4.loadRequest(cfg, built.requestId);
+      assert.equal(saved.state, "SUBMITTING", "request is durable before the mock submission");
+      assert.equal(saved.submitStartHash, missingAnchor ? null : anchor, "only the original prebroadcast answer is retained");
+      assert.equal(transaction.finalize().toString().toLowerCase(), saved.txId);
+      const claim = await getStore(cfg).read(Categories.SUBMISSION_CLAIM, saved.txId);
+      assert.equal(claim.vaultId, saved.vaultId); assert.equal(claim.action, "createVault");
+      throw Error("TEST transport closed before the submission response");
+    }
+  } });
+  node.state.start = anchor;
+  if (missingAnchor) {
+    const read = node.rpc.getBlockDagInfo;
+    node.rpc.getBlockDagInfo = async () => {
+      if (!node.state.submitted) throw Error("TEST original prebroadcast tip unavailable");
+      return read();
+    };
+  }
+  await assert.rejects(submit4.submitCreateWalletRequestV4({ config: cfg, requestId: built.requestId,
+    signedSafeJson: tx.serializeToSafeJSON(), rpc: node.rpc, pollAttempts: 1, pollDelayMs: 0 }), { code: "RECONCILIATION_REQUIRED" });
+  const request = await wr4.loadRequest(cfg, built.requestId);
+  assert.equal(request.state, "RECONCILIATION_REQUIRED");
+  // Advance only the test clock; do not invent or replace the saved anchor.
+  request.submittedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await wr4.saveRequest(cfg, request);
+  return { request, ...node, submits: () => submits };
+}
+
+async function isolatedAttempt(t, options = {}) {
+  const cfg = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-rc37-v4-proof-")) });
+  t.after(() => fs.rmSync(cfg.dataRoot, { recursive: true, force: true }));
+  const body = createBody("eb".repeat(32), OWNER, "ec".repeat(32));
+  const built = await wr4.buildCreateWalletRequestV4({ config: cfg, ...body });
+  return { config: cfg, store: getStore(cfg), body, ...await uncertainAttempt(cfg, built, options) };
+}
+
 test("a BUILT (unsigned) draft never blocks a new creation; an UNRESOLVED submit does (409 CREATION_UNRESOLVED) and is listed by unresolved=1; NOT_BROADCAST reconciliation unblocks", async () => {
   const a = await post("/wallet/v4/create", createBody("a1".repeat(32)));
   assert.equal(a.status, 201, JSON.stringify(a.j).slice(0, 200));
   const b = await post("/wallet/v4/create", createBody("a2".repeat(32), OWNER, "6b".repeat(32)));
   assert.equal(b.status, 201, "a BUILT draft is cleanup, not an unresolved creation");
   // the first creation's submit outcome becomes uncertain (as if the response was lost after broadcast)
-  const rec = await wr4.loadRequest(config, a.j.request.requestId);
-  rec.state = "SUBMITTED"; rec.txId = rec.build.txId || rec.txId || "5d".repeat(32); rec.submittedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await wr4.saveRequest(config, rec);
+  const attempt = await uncertainAttempt(config, await wr4.loadRequest(config, a.j.request.requestId), { anchor: HB("cc".repeat(32)) });
+  const rec = attempt.request;
   const c = await post("/wallet/v4/create", createBody("a3".repeat(32), OWNER, "6c".repeat(32)));
   assert.equal(c.status, 409);
   assert.equal(c.j.error.code, "CREATION_UNRESOLVED");
@@ -189,10 +241,13 @@ test("a BUILT (unsigned) draft never blocks a new creation; an UNRESOLVED submit
   // PENDING: not yet stale -> still blocked
   const young = await submit4.reconcileCreateWalletRequestV4({ config, requestId: rec.requestId, rpc: fakeRpc({ funderUtxos: { address: ADDR(OWNER), list: [{ transactionId: FUNDING_TX, index: 0 }] } }), stalePendingMinimumMs: 60 * 60 * 1000 });
   assert.equal(young.outcome, "PENDING");
-  // NOT_BROADCAST: funding unspent, not in mempool, stale -> closed, claim released, creation allowed again
+  // NOT_BROADCAST: complete original-anchor history + exact repeated funding/output/mempool proof + stale -> closed
   const nb = await submit4.reconcileCreateWalletRequestV4({ config, requestId: rec.requestId, rpc: fakeRpc({ funderUtxos: { address: ADDR(OWNER), list: [{ transactionId: FUNDING_TX, index: 0 }] } }), stalePendingMinimumMs: 1000 });
   assert.equal(nb.outcome, "NOT_BROADCAST");
   assert.equal(nb.request.state, "NOT_BROADCAST");
+  assert.equal(require("../src/submission-classification").recordedNonAcceptanceIsEstablished(nb.request), true);
+  assert.equal(await getStore(config).read(Categories.SUBMISSION_CLAIM, rec.txId), null, "the real own claim was released");
+  assert.equal(attempt.submits(), 1, "reconciliation never submits again");
   assert.equal((await get("/wallet/v4/requests?unresolved=1")).j.requests.length, 0);
   assert.equal((await post("/wallet/v4/create", createBody("a6".repeat(32), OWNER, "6f".repeat(32)))).status, 201, "unblocked after a proven NOT_BROADCAST");
 });
@@ -231,11 +286,8 @@ test("CHAIN_VERIFIED reconciliation: the covenant output observed on the DAG com
 test("Codex checkpoint 3 (UX-05): a FAILED chain query preserves uncertainty (no claim released, PENDING); a funding input spent by another transaction closes as SUPERSEDED only with acceptance proof (rc19 R4-03); a re-spelled signer address is the same wallet for the 409 guard", async () => {
   const r = await post("/wallet/v4/create", createBody("c1".repeat(32), OWNER, "8a".repeat(32)));
   assert.equal(r.status, 201, JSON.stringify(r.j).slice(0, 200));
-  const rec = await wr4.loadRequest(config, r.j.request.requestId);
-  rec.state = "SUBMITTED"; rec.txId = rec.build.txId; rec.submittedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await wr4.saveRequest(config, rec);
-  const { loadTransitionClaim } = require("../src/submission-claim");
-  void loadTransitionClaim;
+  const attempt = await uncertainAttempt(config, await wr4.loadRequest(config, r.j.request.requestId), { anchor: HB("cc".repeat(32)) });
+  const rec = attempt.request;
   // (a) mempool RPC failure (timeout) with unspent inputs and a stale submission -> PENDING, never NOT_BROADCAST
   const mempoolTimeout = fakeRpc({ funderUtxos: { address: ADDR(OWNER), list: [{ transactionId: "8a".repeat(32), index: 0 }] } });
   mempoolTimeout.getMempoolEntry = async () => { throw new Error("request timed out"); };
@@ -284,10 +336,13 @@ test("Codex checkpoint 3 (UX-05): a FAILED chain query preserves uncertainty (no
   const rr = await post("/wallet/v4/create", respelled);
   assert.ok(rr.status === 409 || rr.status === 400, `re-spelled signer must not bypass the guard: ${rr.status} ${JSON.stringify(rr.j).slice(0, 120)}`);
   const nbBare = await submit4.reconcileCreateWalletRequestV4({ config, requestId: rec.requestId, rpc: bare, stalePendingMinimumMs: 1000 });
-  assert.equal(nbBare.outcome, "NOT_BROADCAST", "the bare exact miss is an absence");
-  { const again = await wr4.loadRequest(config, rec.requestId); again.state = "SUBMITTED"; again.error = undefined; await wr4.saveRequest(config, again); }
+  assert.equal(nbBare.outcome, "NOT_BROADCAST", "the bare exact miss participates in the full nonacceptance proof");
+  const terminal = JSON.stringify(await wr4.loadRequest(config, rec.requestId));
   const nb = await submit4.reconcileCreateWalletRequestV4({ config, requestId: rec.requestId, rpc: notFound, stalePendingMinimumMs: 1000 });
   assert.equal(nb.outcome, "NOT_BROADCAST");
+  assert.equal(JSON.stringify(await wr4.loadRequest(config, rec.requestId)), terminal, "a terminal retry preserves the complete durable proof byte-for-byte");
+  assert.equal(await getStore(config).read(Categories.SUBMISSION_CLAIM, rec.txId), null);
+  assert.equal(attempt.submits(), 1);
   // (d) SUPERSEDED: a funding input spent elsewhere, output never observed, stale -> closed, creation allowed again
   const r2 = await post("/wallet/v4/create", createBody("c4".repeat(32), OWNER, "8d".repeat(32)));
   assert.equal(r2.status, 201, JSON.stringify(r2.j).slice(0, 200));
@@ -365,7 +420,7 @@ test("Codex checkpoint 3 (UX-05): a FAILED chain query preserves uncertainty (no
   assert.equal((await post("/wallet/v4/create", createBody("c5".repeat(32), OWNER, "8e".repeat(32)))).status, 201);
 });
 
-test("Codex checkpoint 6 (UX-05 / UX-09): the LANDING RACE — the creation lands between the first output lookup and the funding-input check; a failed second lookup keeps the claim, a successful one completes THIS creation (never 'already transitioned'); reload then completes it; the claim is never released to a replacement", async () => {
+test("Codex checkpoint 6 (UX-05 / UX-09): the LANDING RACE — the creation lands between the first output lookup and the funding-input check; a failed second lookup keeps the claim, a successful one completes THIS creation (never 'already transitioned'); reload then completes it; the claim is never released to a replacement", async (t) => {
   const r = await post("/wallet/v4/create", createBody("f1".repeat(32), OWNER, "9c".repeat(32)));
   assert.equal(r.status, 201, JSON.stringify(r.j).slice(0, 200));
   const rec = await wr4.loadRequest(config, r.j.request.requestId);
@@ -400,17 +455,21 @@ test("Codex checkpoint 6 (UX-05 / UX-09): the LANDING RACE — the creation land
   const o3 = await submit4.reconcileCreateWalletRequestV4({ config, requestId: rec3.requestId, rpc: race2, stalePendingMinimumMs: 1000 });
   assert.equal(o3.outcome, "CHAIN_VERIFIED", "the ORIGINAL output observed on the second lookup completes this creation"); assert.match(o3.detail, /landed while this reconciliation was querying/); assert.doesNotMatch(o3.detail, /already been transitioned/);
   assert.equal((await loadManifestV4(config, rec3.vaultId)).creationTxId, rec3.txId);
-  // a genuinely ADVANCED vault (the covenant id observed at ANOTHER outpoint) keeps the "transitioned by another path" description
-  const r4 = await post("/wallet/v4/create", createBody("f4".repeat(32), OWNER, "9f".repeat(32)));
-  assert.equal(r4.status, 201);
-  const rec4 = await wr4.loadRequest(config, r4.j.request.requestId);
-  rec4.state = "SUBMITTED"; rec4.txId = rec4.build.txId; rec4.submittedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString(); rec4.submitStartHash = HB("cc".repeat(32));
-  await wr4.saveRequest(config, rec4);
-  const t4 = submit4.genesisTargetV4(config, rec4);
+  // An ADVANCED vault remains unresolved in its own store. Do not relabel it
+  // NOT_BROADCAST merely to clear the next test's signer guard.
+  const advancedConfig = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-ux05-advanced-")) });
+  t.after(() => fs.rmSync(advancedConfig.dataRoot, { recursive: true, force: true }));
+  const advancedBody = createBody("f4".repeat(32), OWNER, "9f".repeat(32));
+  const advanceAttempt = await uncertainAttempt(advancedConfig, await wr4.buildCreateWalletRequestV4({ config: advancedConfig, ...advancedBody }), { anchor: HB("cc".repeat(32)) });
+  const rec4 = advanceAttempt.request;
+  const t4 = submit4.genesisTargetV4(advancedConfig, rec4);
   const advanced = fakeRpc({ vaultUtxo: { address: t4.vaultAddress, outpoint: { transactionId: "e4".repeat(32), index: 0 }, amount: "1", covenantId: rec4.covenantId }, vaultCalls: [null, { address: t4.vaultAddress, outpoint: { transactionId: "e4".repeat(32), index: 0 }, amount: "1", covenantId: rec4.covenantId }], funderUtxos: { address: ADDR(OWNER), list: [] } });
-  const o4 = await submit4.reconcileCreateWalletRequestV4({ config, requestId: rec4.requestId, rpc: advanced, stalePendingMinimumMs: 1000 });
+  const o4 = await submit4.reconcileCreateWalletRequestV4({ config: advancedConfig, requestId: rec4.requestId, rpc: advanced, stalePendingMinimumMs: 1000 });
   assert.equal(o4.outcome, "ADVANCED_UNRESOLVED"); assert.match(o4.detail, /already been transitioned by another path/);
-  { const done = await wr4.loadRequest(config, rec4.requestId); done.state = "NOT_BROADCAST"; await wr4.saveRequest(config, done); } // clear the fixture's claim for the next test
+  assert.equal((await wr4.loadRequest(advancedConfig, rec4.requestId)).state, "RECONCILIATION_REQUIRED");
+  assert.equal((await getStore(advancedConfig).read(Categories.SUBMISSION_CLAIM, rec4.txId)).vaultId, rec4.vaultId);
+  await assert.rejects(wr4.buildCreateWalletRequestV4({ config: advancedConfig, ...advancedBody }), { code: "VAULT_ID_IN_USE" });
+  assert.equal(advanceAttempt.submits(), 1);
 });
 
 test("Codex checkpoint 3 (UX-05): the invariant holds at SUBMISSION — a request built earlier cannot be genesis-submitted while another creation of the same wallet is unresolved (409), and concurrent creates are serialized per signer", async () => {
@@ -426,8 +485,13 @@ test("Codex checkpoint 3 (UX-05): the invariant holds at SUBMISSION — a reques
   assert.equal(sub.status, 409, JSON.stringify(sub.j).slice(0, 200));
   assert.equal(sub.j.error.code, "CREATION_UNRESOLVED");
   assert.equal((await wr4.loadRequest(config, early.j.request.requestId)).state, "BUILT", "the prebuilt request is untouched");
-  // resolve, then concurrency: N simultaneous creates for the same signer are serialized (all may build — they are BUILT drafts, never unresolved)
-  laterRec.state = "NOT_BROADCAST"; await wr4.saveRequest(config, laterRec);
+  // Resolve on the original output, then check concurrent creation of unsigned
+  // drafts. A bare NOT_BROADCAST label cannot clear the signer guard.
+  const target = submit4.genesisTargetV4(config, laterRec);
+  const landed = fakeRpc({ vaultUtxo: { address: target.vaultAddress,
+    outpoint: { transactionId: laterRec.txId, index: laterRec.vaultOutputIndex }, amount: target.vaultValue, covenantId: laterRec.covenantId } });
+  assert.equal((await submit4.reconcileCreateWalletRequestV4({ config, requestId: laterRec.requestId, rpc: landed,
+    now: Date.now() + 10 * 60 * 1000 })).outcome, "CHAIN_VERIFIED");
   const results = await Promise.all([1, 2, 3].map((i) => post("/wallet/v4/create", createBody(("e" + i).repeat(32), OWNER, ("9" + i).repeat(32)))));
   assert.deepEqual(results.map((x) => x.status), [201, 201, 201]);
 });
@@ -820,4 +884,93 @@ test("R7-07 (checkpoint 12): two DIFFERENT stores that share a queue entry (same
   assert.equal((await wr4.loadRequest(other, rec.requestId)).state === "CHAIN_VERIFIED", false, "store B's durable record is its own");
   assert.equal(await loadManifestV4(other, rec.vaultId), null, "no manifest was installed in store B");
   assert.ok((await loadManifestV4(config, rec.vaultId)) && (await loadManifestV4(config, rec.vaultId)).creationTxId === rec.txId, "store A's manifest exists");
+});
+
+
+// RC37 additions use independent stores so an intentionally unresolved attempt
+// remains protected without clearing it artificially for a later test.
+test("RC37 v041: a failed original anchor read stays PENDING across reloads even when later history and exact funding are available", async (t) => {
+  const q = await isolatedAttempt(t, { missingAnchor: true });
+  const before = await wr4.loadRequest(q.config, q.request.requestId);
+  const claim = await q.store.read(Categories.SUBMISSION_CLAIM, before.txId);
+  const immutable = JSON.stringify({ build: before.build, transaction: before.transaction, template: before.template, initialState: before.initialState });
+  for (let retry = 0; retry < 2; retry++) {
+    const out = await submit4.reconcileCreateWalletRequestV4({ config: q.config, requestId: before.requestId, rpc: q.rpc, stalePendingMinimumMs: 1000 });
+    assert.equal(out.outcome, "PENDING", `retry ${retry + 1}: no original anchor is never proof of nonacceptance`);
+    const saved = await wr4.loadRequest(q.config, before.requestId);
+    assert.equal(saved.state, "RECONCILIATION_REQUIRED");
+    assert.equal(saved.submitStartHash, null, "a current sink is not a replacement for the missing original anchor");
+    assert.equal(saved.submissionOutcome?.outcome === "NOT_BROADCAST", false);
+    assert.equal(JSON.stringify({ build: saved.build, transaction: saved.transaction, template: saved.template, initialState: saved.initialState }), immutable);
+    assert.deepEqual(await q.store.read(Categories.SUBMISSION_CLAIM, before.txId), claim);
+    await assert.rejects(wr4.buildCreateWalletRequestV4({ config: q.config, ...q.body }), { code: "VAULT_ID_IN_USE" });
+  }
+  assert.equal(await loadManifestV4(q.config, before.vaultId), null);
+  assert.equal(q.submits(), 1, "both retries observe only");
+});
+
+test("RC37 v041: complete original-anchor nonacceptance proof is durable before release, keeps exact inputs and outputs, and permits an idempotent retry and a fresh identity", async (t) => {
+  const q = await isolatedAttempt(t);
+  const before = await wr4.loadRequest(q.config, q.request.requestId);
+  const originalRemove = q.store.remove.bind(q.store);
+  let checkedBeforeRelease = false;
+  q.store.remove = async (category, key) => {
+    if (category === Categories.SUBMISSION_CLAIM && key === before.txId) {
+      const saved = await wr4.loadRequest(q.config, before.requestId);
+      assert.equal(saved.state, "NOT_BROADCAST");
+      assert.equal(require("../src/submission-classification").recordedNonAcceptanceIsEstablished(saved), true);
+      checkedBeforeRelease = true;
+    }
+    return originalRemove(category, key);
+  };
+  t.after(() => { q.store.remove = originalRemove; });
+  const out = await submit4.reconcileCreateWalletRequestV4({ config: q.config, requestId: before.requestId, rpc: q.rpc, stalePendingMinimumMs: 1000 });
+  assert.equal(out.outcome, "NOT_BROADCAST");
+  assert.equal(checkedBeforeRelease, true);
+  const saved = await wr4.loadRequest(q.config, before.requestId), proof = saved.submissionOutcome.proof;
+  assert.equal(proof.schema, "policyvault-nonacceptance-proof/v1");
+  assert.equal(proof.txId, before.txId); assert.equal(proof.startHash, before.submitStartHash);
+  assert.equal(proof.completeAcceptanceWindow, true); assert.equal(proof.initialAnchorReorg, false);
+  assert.equal(proof.allInputsUnspent, true); assert.equal(proof.repeatedFundingQueries, true);
+  assert.equal(proof.exactMempoolMiss, true); assert.equal(proof.outputsAbsent, true);
+  assert.equal(Object.hasOwn(proof, "nodeAnswer"), false, "a positive nonacceptance proof does not invent a node rejection");
+  assert.ok(q.state.fundingReads >= 2); assert.ok(q.state.mempoolReads >= 2);
+  assert.ok(q.state.windows.length > 0); assert.ok(q.state.windows.every((w) => w.startHash === before.submitStartHash));
+  assert.deepEqual(saved.build, before.build); assert.deepEqual(saved.transaction, before.transaction);
+  assert.equal(await q.store.read(Categories.SUBMISSION_CLAIM, before.txId), null);
+  const bytes = JSON.stringify(saved), reads = q.state.dagReads + q.state.fundingReads + q.state.mempoolReads;
+  assert.equal((await submit4.reconcileCreateWalletRequestV4({ config: q.config, requestId: before.requestId, rpc: q.rpc })).outcome, "NOT_BROADCAST");
+  assert.equal(JSON.stringify(await wr4.loadRequest(q.config, before.requestId)), bytes);
+  assert.equal(q.state.dagReads + q.state.fundingReads + q.state.mempoolReads, reads, "durable terminal proof needs no new node queries");
+  const fresh = await wr4.buildCreateWalletRequestV4({ config: q.config, ...createBody("ed".repeat(32), OWNER, "ee".repeat(32)) });
+  assert.equal(fresh.state, "BUILT"); assert.equal(q.submits(), 1);
+});
+
+test("RC37 v041: interruption after durable NOT_BROADCAST proof retains the own claim; restart releases it once without new proof, signing, or submission", async (t) => {
+  const q = await isolatedAttempt(t);
+  const before = await wr4.loadRequest(q.config, q.request.requestId);
+  const claim = await q.store.read(Categories.SUBMISSION_CLAIM, before.txId);
+  const remove = q.store.remove.bind(q.store);
+  let interrupted = false;
+  q.store.remove = async (category, key) => {
+    if (!interrupted && category === Categories.SUBMISSION_CLAIM && key === before.txId) {
+      interrupted = true;
+      assert.equal(require("../src/submission-classification").recordedNonAcceptanceIsEstablished(await wr4.loadRequest(q.config, before.requestId)), true);
+      throw Error("TEST interrupted own-claim release after durable nonacceptance proof");
+    }
+    return remove(category, key);
+  };
+  try {
+    await assert.rejects(submit4.reconcileCreateWalletRequestV4({ config: q.config, requestId: before.requestId, rpc: q.rpc, stalePendingMinimumMs: 1000 }), /TEST interrupted own-claim release/);
+  } finally { q.store.remove = remove; }
+  assert.equal(interrupted, true);
+  const terminal = await wr4.loadRequest(q.config, before.requestId);
+  assert.equal(terminal.state, "NOT_BROADCAST");
+  assert.deepEqual(await q.store.read(Categories.SUBMISSION_CLAIM, before.txId), claim);
+  const noNode = new Proxy({}, { get() { throw Error("TEST durable terminal recovery must not query the node"); } });
+  assert.equal((await submit4.reconcileCreateWalletRequestV4({ config: q.config, requestId: before.requestId, rpc: noNode })).outcome, "NOT_BROADCAST");
+  assert.equal(await q.store.read(Categories.SUBMISSION_CLAIM, before.txId), null);
+  assert.deepEqual(await wr4.loadRequest(q.config, before.requestId), terminal);
+  assert.equal((await submit4.reconcileCreateWalletRequestV4({ config: q.config, requestId: before.requestId, rpc: noNode })).outcome, "NOT_BROADCAST");
+  assert.equal(q.submits(), 1);
 });

@@ -46,7 +46,7 @@
  */
 
 const { connectVerified, getAddressUtxos } = require("./chain");
-const { assertOperationalNetwork } = require("./config");
+const { assertOperationalNetwork, assertGenerationMainnetOperable } = require("./config");
 const { loadTransitionClaim, releaseTransitionClaim, releaseSubmissionClaim, persistReceipt } = require("./submission-claim");
 const { appendAudit } = require("./audit");
 const { normalizeRootStateV7 } = require("../../core/model/vault-state-v7-root");
@@ -286,7 +286,12 @@ async function proveOrgRootSuccessor(config, rpc, root, request) {
  */
 async function reconcileVault(config, rpc, vaultId, options = {}) {
   const peek = await loadManifestV7(config, vaultId);
-  if (!peek) return { status: "NOT_FOUND", vaultId };
+  if (!peek) {
+    /* v0.7 enablement: a rooted-KAS vault reconciles through its own module under the SAME root queue */
+    const kas = await require("./manifest-v7-kas").loadManifestV7Kas(config, vaultId);
+    if (kas) return require("./org-root-lock").withOrgRootLock(kas.orgRootCovenantId, () => require("./wallet-requests-v7-kas").reconcileKasVault(config, rpc, vaultId, options));
+    return { status: "NOT_FOUND", vaultId };
+  }
   return require("./org-root-lock").withOrgRootLock(peek.orgRootCovenantId, () => reconcileVaultUnlocked(config, rpc, vaultId, options));
 }
 async function reconcileVaultUnlocked(config, rpc, vaultId, { stalePendingMinimumMs = DEFAULT_STALE_PENDING_MINIMUM_MS, allowClaimRelease = true } = {}) {
@@ -321,6 +326,40 @@ async function reconcileVaultUnlocked(config, rpc, vaultId, { stalePendingMinimu
 }
 
 /*
+ * RC35-REC-02 (independent RC35 affected review, 2026-09-11): a root with NO record yet is not "not found" when a root
+ * genesis request for that covenant id was broadcast and its node response was lost (or an earlier runtime persisted it
+ * as a false negative). Reconciliation completes such a genesis by OBSERVATION ONLY through its original request — the
+ * expected root output is derived from the request's template / initial state / frozen transaction, never from a record
+ * that does not exist; nothing is constructed, signed or rebroadcast. Held under the SAME root queue as every other
+ * reconciliation (the unlocked recovery is used because the queue is not re-entrant). Runs only for an OPERABLE root
+ * generation (recovery is not a new creation, so creation containment keeps it available).
+ */
+async function reconcileMissingRootGenesis(config, rootCovenantId, { rpc: providedRpc } = {}) {
+  const wr = require("./wallet-requests-v7");
+  const candidates = await wr.listRecoverableRootGenesisRequests(config, rootCovenantId);
+  if (!candidates.length) fail(`no organizational root ${rootCovenantId}`, "ROOT_NOT_FOUND");
+  assertOperationalNetwork(config);
+  assertGenerationMainnetOperable(config, "policyvault-0.7-root");
+  const owned = !providedRpc;
+  const { rpc } = owned ? await connectVerified(config) : { rpc: providedRpc };
+  try {
+    const attempts = [];
+    for (const request of candidates) {
+      try {
+        const done = await wr.recoverRootGenesisUnlocked({ config, rpc, request, pollAttempts: 1, pollDelayMs: 0, via: "reconcile" });
+        attempts.push({ requestId: request.id, txId: request.txId, state: done.state });
+        if (done.state === "CHAIN_VERIFIED") return { root: { status: "ADVANCED", rootCovenantId, txId: request.txId, requestId: request.id, reason: "root genesis completed by observation of its exact covenant output (no record existed before)" }, vaults: [] };
+      } catch (e) {
+        attempts.push({ requestId: request.id, txId: request.txId, code: e.code ?? null, reason: e.message });
+      }
+    }
+    return { root: { status: "GENESIS_PENDING", rootCovenantId, reason: "no root record; the root genesis request's covenant output is not observed — its request, signed transaction and claim are retained; nothing is rebroadcast", attempts }, vaults: [] };
+  } finally {
+    if (owned) await rpc.disconnect();
+  }
+}
+
+/*
  * Reconcile ONE organizational root AND every rooted vault it lists
  * (docs/postlaunch/v0.7-app-surface-contract.md §2, POST
  * /org-roots/:rootId/reconcile: "exact readback of the root outpoint (and
@@ -331,7 +370,7 @@ async function reconcileOrgRootV7(config, rootCovenantId, options = {}) {
 }
 async function reconcileOrgRootV7Unlocked(config, rootCovenantId, { rpc: providedRpc, stalePendingMinimumMs = DEFAULT_STALE_PENDING_MINIMUM_MS, allowClaimRelease = true } = {}) {
   const root = await loadOrgRoot(config, rootCovenantId);
-  if (!root) fail(`no organizational root ${rootCovenantId}`, "ROOT_NOT_FOUND");
+  if (!root) return reconcileMissingRootGenesis(config, rootCovenantId, { rpc: providedRpc });
   assertOperationalNetwork(config);
   if (root.networkId !== config.networkId) fail(`root network ${root.networkId} != configured ${config.networkId} — refusing`);
 
@@ -353,7 +392,10 @@ async function reconcileOrgRootV7Unlocked(config, rootCovenantId, { rpc: provide
     const vaultResults = [];
     const freshRoot = (await loadOrgRoot(config, rootCovenantId)) ?? root;
     for (const vaultId of freshRoot.vaults ?? []) {
-      const result = await reconcileVaultUnlocked(config, rpc, vaultId, { stalePendingMinimumMs, allowClaimRelease });
+      const kasRecord = await require("./manifest-v7-kas").loadManifestV7Kas(config, vaultId);
+      const result = kasRecord
+        ? await require("./wallet-requests-v7-kas").reconcileKasVault(config, rpc, vaultId, { stalePendingMinimumMs, allowClaimRelease })
+        : await reconcileVaultUnlocked(config, rpc, vaultId, { stalePendingMinimumMs, allowClaimRelease });
       vaultResults.push(result.status === "CONSISTENT" && ["ADVANCED", "CLAIM_RELEASED"].includes(pre.get(vaultId)?.status) ? pre.get(vaultId) : result);
     }
     if (rootError) {

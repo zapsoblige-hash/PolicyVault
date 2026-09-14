@@ -206,7 +206,9 @@ const MODULES = [
   "core/model/vault-state-v7-kas.js",
   "core/model/vault-transitions-v7-kas.js",
   "core/model/compute-budget-v7-kas.js",
-  "core/intent/org-root-manifest-v7-kas.js"
+  "core/intent/vault-script-v7-kas.js",
+  "core/intent/org-root-manifest-v7-kas.js",
+  "core/explain/org-root-kas-explain.js"
 ];
 
 /*
@@ -522,7 +524,9 @@ function generateBundle() {
   parts.push('    vaultStateV7Kas: load("core/model/vault-state-v7-kas"),');
   parts.push('    vaultTransitionsV7Kas: load("core/model/vault-transitions-v7-kas"),');
   parts.push('    computeBudgetV7Kas: load("core/model/compute-budget-v7-kas"),');
-  parts.push('    orgRootManifestV7Kas: load("core/intent/org-root-manifest-v7-kas")');
+  parts.push('    orgRootManifestV7Kas: load("core/intent/org-root-manifest-v7-kas"),');
+  parts.push('    vaultScriptV7Kas: load("core/intent/vault-script-v7-kas"),');
+  parts.push('    orgRootKasExplain: load("core/explain/org-root-kas-explain")');
   parts.push("  });");
   parts.push("");
   parts.push('  if (typeof window !== "undefined") window.PolicyVaultCore = api;');

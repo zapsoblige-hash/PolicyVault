@@ -65,6 +65,8 @@ test("BROWSER-GLOBAL: loading the bundle in an isolated vm context with no requi
     "intentExplain",
     "intentRouter",
     "orgRootExplain",
+    /* v0.7 mainnet enablement (2026-09-10): the KAS treasury explain layer */
+    "orgRootKasExplain",
     "orgRootManifestV7",
     "orgRootManifestV7Kas",
     "orgRootSignerV7",
@@ -90,6 +92,8 @@ test("BROWSER-GLOBAL: loading the bundle in an isolated vm context with no requi
     /* STALE ASSUMPTION (2026-09-05, Codex checkpoint 6 / UX-02+UX-13): vaultScriptV7 — the
      * rooted-vault successor-script reconstruction from the vault's own revealed redeem script. */
     "vaultScriptV7",
+    /* v0.7 mainnet enablement (2026-09-10): the KAS treasury template skeleton (R7-04) */
+    "vaultScriptV7Kas",
     "vaultStateV3",
     "vaultStateV4",
     "vaultStateV5",

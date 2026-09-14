@@ -294,6 +294,7 @@
     state.xonly = snap.xonly || null;
     state.nodeNetwork = snap.serverNetwork ?? null;
     if (changed || authChanged) dropRetainedState();
+    if (changed || authChanged || nodeNetChanged) discardKasSetup();
     // If the session hasn't resolved x-only yet but is ready, resolve it once.
     if (snap.ready && snap.address && !state.xonly) {
       try { state.xonly = await resolveXOnly(snap.address); } catch { state.xonly = null; }
@@ -1835,22 +1836,26 @@
         const rootUI = orgRootUI();
         let orgRoots = [];
         let rootCapabilities = null;
+        let participantVaults = [];
         if (rootUI) {
-          const [roots, capabilities] = await Promise.all([
+          const km = kasUIOf(rootUI);
+          const [roots, capabilities, participant] = await Promise.all([
             rootUI.fetchOrgRoots().catch(() => ({ orgRoots: [] })),
-            getJSON("/capabilities").catch(() => null)
+            getJSON("/capabilities").catch(() => null),
+            km ? km.fetchParticipantVaults().catch(() => []) : Promise.resolve([]) // v0.7 enablement: treasuries the signed-in wallet pays from / approves for
           ]);
           orgRoots = roots.orgRoots || [];
           rootCapabilities = capabilities;
+          participantVaults = participant;
         }
-        return { data, vaults, controlsByOrg, orgRoots, rootCapabilities };
+        return { data, vaults, controlsByOrg, orgRoots, rootCapabilities, participantVaults };
       },
       paint: paintOrgsView
     });
   }
 
   function paintOrgsView(root, fetched, refreshing) {
-    const { data, vaults, controlsByOrg, orgRoots, rootCapabilities } = fetched;
+    const { data, vaults, controlsByOrg, orgRoots, rootCapabilities, participantVaults } = fetched;
     state.orgData = data;
     state.rootCapabilities = rootCapabilities;
     const labelOf = new Map((vaults || []).filter(Boolean).map((v) => [v.vaultId, v.label || short(v.vaultId)]));
@@ -1934,7 +1939,7 @@
     // hosted-organization metadata below. Absent when the module or the v0.7
     // core bundle closure is not loaded (never a broken half-render).
     const rootUI = orgRootUI();
-    const onChainRootSectionHtml = rootUI ? rootUI.renderOnChainRootSummaryHtml(orgRoots, rootCreationContext()) : "";
+    const onChainRootSectionHtml = rootUI ? rootUI.renderOnChainRootSummaryHtml(orgRoots, rootCreationContext(), { participantVaults: participantVaults || [], viewerXOnly: state.xonly }) : "";
 
     root.innerHTML =
       (refreshing ? refreshingChip : "") +
@@ -1947,7 +1952,7 @@
       (corrupt.length ? `<div class="panel"><b>Metadata problems:</b> ${corrupt.map((c) => `${esc(c.orgId)} — ${esc(c.error)}`).join("; ")}</div>` : "");
     wireOrgs(root);
     wireOrgAssign(root);
-    if (rootUI) wireOrgRoots(root, rootUI, orgRoots);
+    if (rootUI) wireOrgRoots(root, rootUI, orgRoots, participantVaults || []);
   }
 
   function wireOrgs(root) {
@@ -2156,11 +2161,13 @@
     return state.rootSetup;
   }
 
-  function wireOrgRoots(root, rootUI, orgRoots) {
+  function wireOrgRoots(root, rootUI, orgRoots, participantVaults = []) {
     const btn = $("v4-orgroot-create-btn");
     if (btn) btn.onclick = () => openOrgRootWizard(rootUI);
     root.querySelectorAll("[data-viewroot]").forEach((b) => (b.onclick = () => openOrgRootDetail(rootUI, b.getAttribute("data-viewroot"))));
     void orgRoots;
+    /* v0.7 enablement: the participant section's KAS treasury panels (delegate payments / approvals) */
+    wireKasPanels(root, rootUI, { vaultsById: new Map((participantVaults || []).filter((v) => v && v.vaultId).map((v) => [v.vaultId, v])), onClose: () => { $("v4-modal").style.display = "none"; render(); } });
   }
 
   /* Read every named control of the root setup form into the draft. */
@@ -2486,29 +2493,39 @@
    * recovery/succession wait has progressed — as an ESTIMATE; eligibility
    * is decided by the chain. */
   async function openOrgRootDetail(rootUI, rootId) {
+    state.kasRequestView = null;
     const m = $("v4-modal");
     m.innerHTML = `<div class="modal-card" style="max-width:640px;width:92%"><h3 style="margin-top:0">Loading organizational root…</h3></div>`;
     m.style.display = "flex";
+    const loading = m.firstElementChild, epoch = dataEpoch();
+    const km = kasUIOf(rootUI);
+    let genesisRequests = km ? null : [];
     let orgRoot;
     let currentDaa = null;
     let rootedVaults = null; // R7-05: the presented summaries of the root's vaults (null = could not be loaded → no control offered)
     let pendingRequest = null; // F-6: the pending request record (reservation guidance names it and its authorized next step)
     try {
       ({ orgRoot } = await rootUI.fetchOrgRoot(rootId));
-      const [daaRes, vaultsRes, pendingRes] = await Promise.all([
+      const [daaRes, vaultsRes, pendingRes, genesisRes] = await Promise.all([
         getJSON("/network/status").then((r) => r.virtualDaaScore ?? null).catch(() => null),
         (orgRoot.vaults || []).length ? rootUI.fetchRootedVaults(rootId).then((r) => (Array.isArray(r.vaults) ? r.vaults : null)).catch(() => null) : Promise.resolve([]),
-        orgRoot.pendingRequestId ? rootUI.fetchRequest(rootId, orgRoot.pendingRequestId).then((r) => r.request || null).catch(() => null) : Promise.resolve(null)
+        orgRoot.pendingRequestId ? rootUI.fetchRequest(rootId, orgRoot.pendingRequestId).then((r) => r.request || null).catch(() => null) : Promise.resolve(null),
+        km ? km.fetchKasRequests().then((rows) => rows.filter((r) => r.kind === "kasGenesis" && r.summary && r.summary.orgRootCovenantId === rootId)).catch(() => null) : Promise.resolve([])
       ]);
-      currentDaa = daaRes; rootedVaults = vaultsRes; pendingRequest = pendingRes;
+      currentDaa = daaRes; rootedVaults = vaultsRes; pendingRequest = pendingRes; genesisRequests = genesisRes;
     } catch (err) {
+      if (dataEpoch() !== epoch || m.firstElementChild !== loading) return;
       note(`Could not load organizational root: ${err.code || ""} ${err.message}`, "bad");
       m.style.display = "none";
       return;
     }
+    if (dataEpoch() !== epoch || state.view !== "orgs" || m.firstElementChild !== loading) return;
+    const pendingGenesis = (genesisRequests || []).filter((r) => ["BUILT", "SIGNED", "SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED"].includes(r.state));
     m.innerHTML =
       `<div class="modal-card setup-card" role="dialog" aria-modal="true">` +
-      rootUI.renderRootDetailHtml(orgRoot, { viewerXOnly: state.xonly, viewerAddress: state.address, currentDaa, rootedVaults, pendingRequest }) +
+      rootUI.renderRootDetailHtml(orgRoot, { viewerXOnly: state.xonly, viewerAddress: state.address, currentDaa, rootedVaults, pendingRequest, capabilities: state.rootCapabilities, creationContext: rootCreationContext() }) +
+      (genesisRequests === null ? `<div class="opbanner warn">Pending treasury creations could not be loaded. Reopen this root before creating another treasury.</div>` :
+        pendingGenesis.length ? `<div class="review-sec" data-pending-kas-creations="1"><h4>Pending treasury creations</h4><div class="hint">Open the original request to check or complete it before creating another treasury.</div>${pendingGenesis.map((r) => `<div class="opbanner warn">Request <span class="mono">${esc(r.requestId)}</span> · ${esc(r.state)} <button type="button" data-kasgenesis-request="${esc(r.requestId)}">Open this creation</button></div>`).join("")}</div>` : "") +
       (orgRoot.pendingRequestId ? `<button data-vieworequest="${esc(orgRoot.pendingRequestId)}" class="primary">Open the pending request</button>` : "") +
       `<div class="modal-actions"><button id="v4-orgroot-detail-close">Close</button></div></div>`;
     $("v4-orgroot-detail-close").onclick = () => { m.style.display = "none"; render(); };
@@ -2520,6 +2537,16 @@
       if (!vault) { note("This vault's current state is not loaded — reload before starting an owner operation.", "bad"); return; }
       openRootedVaultOpFlow(rootUI, orgRoot, vault, b.getAttribute("data-rootvaultop"), { currentDaa });
     }));
+    /* v0.7 enablement: KAS treasury creation + the treasury panels' delegate / approver controls and request cards */
+    m.querySelectorAll("[data-kascreate]").forEach((b) => {
+      if (genesisRequests === null || pendingGenesis.length) { b.disabled = true; b.title = "Check pending treasury creations first"; }
+      b.onclick = () => { if (!b.disabled) openKasTreasuryWizard(rootUI, orgRoot, { currentDaa }); };
+    });
+    m.querySelectorAll("[data-kasgenesis-request]").forEach((b) => (b.onclick = () => {
+      const request = pendingGenesis.find((r) => r.requestId === b.getAttribute("data-kasgenesis-request"));
+      openKasRequestModal(rootUI, { vaultId: request.vaultId, label: request.summary.label || "Pending treasury" }, request.requestId, { onClose: () => openOrgRootDetail(rootUI, rootId) });
+    }));
+    wireKasPanels(m, rootUI, { vaultsById: new Map((Array.isArray(rootedVaults) ? rootedVaults : []).filter((v) => v && v.vaultId).map((v) => [v.vaultId, v])), onClose: () => { m.style.display = "none"; openOrgRootDetail(rootUI, rootId); } });
     const rc = m.querySelector("[data-rootreconcile]");
     if (rc) rc.onclick = async () => {
       try {
@@ -2542,11 +2569,13 @@
    * submit → verify). The draft stays exactly as entered after a refusal;
    * a double click cannot create two requests (busy latch + disabled
    * control); the dangerous close & recover needs its typed phrase. */
-  function readVaultOpDraft(f, op, draft, rootUI) {
-    const info = rootUI.vaultOpInfo(op);
+  function readVaultOpDraft(f, op, draft, rootUI, vault) {
+    const info = rootUI.vaultOpInfo(op, vault && vault.contractVersion === rootUI.KAS_PROFILE ? rootUI.KAS_PROFILE : undefined);
     const val = (n, fallback) => { const el = f.querySelector(`[name="${n}"]`); return el ? el.value : fallback; };
     if (!info) return draft;
-    if (info.form === "topUp") draft.amountKas = val("amount", draft.amountKas);
+    if (info.form === "topUp" || info.form === "topUpPrincipal") draft.amountKas = val("amount", draft.amountKas);
+    else if (info.form === "kasAgents") readKasAgentRows(f, draft); // v0.7 enablement: KAS delegate rules
+    else if (info.form === "approvers") readApproverRows(f, draft); // v0.7 enablement: KAS approver tier
     else if (info.form === "agents") {
       draft.agents = [...f.querySelectorAll("[data-agent-row]")].map((row) => {
         const i = row.getAttribute("data-agent-row");
@@ -2559,9 +2588,10 @@
   async function openRootedVaultOpFlow(rootUI, orgRoot, vault, op, { currentDaa = null } = {}) {
     const m = $("v4-modal");
     const su = setupUi();
-    const info = rootUI.vaultOpInfo(op);
+    const isKas = !!(vault && vault.contractVersion === rootUI.KAS_PROFILE);
+    const info = rootUI.vaultOpInfo(op, isKas ? rootUI.KAS_PROFILE : undefined);
     if (!info || !su || !m) { note(!info ? `Unsupported vault operation ${op} — failing closed.` : "The setup components did not load in this build — reload the page.", "bad"); return; }
-    const avail = rootUI.vaultOpAvailability({ op, vault, orgRoot, viewerXOnly: state.xonly, networkId: orgRoot.networkId || null });
+    const avail = rootUI.vaultOpAvailability({ op, vault, orgRoot, viewerXOnly: state.xonly, networkId: orgRoot.networkId || null, capabilities: state.rootCapabilities });
     if (!avail.enabled) { note(`${info.label} is not available: ${avail.reason}`, "bad"); return; }
     let draft;
     try { draft = rootUI.vaultOpDraftFrom({ op, vault, currentDaa }); } catch (err) { noteRootRefusal(`${info.label} refused`, err, rootUI); return; }
@@ -2576,8 +2606,13 @@
       if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* nicety */ } }
       f.querySelectorAll("[data-vaultop-cancel]").forEach((b) => (b.onclick = () => { m.style.display = "none"; openOrgRootDetail(rootUI, orgRoot.rootCovenantId); }));
       const addBtn = f.querySelector("#v4-add-agent");
-      if (addBtn) addBtn.onclick = () => { readVaultOpDraft(f, op, draft, rootUI); draft.agents.push(rootUI.vaultOpDraftFrom({ op, vault: { agents: [] }, currentDaa }).agents[0]); errors.delete("agentRows"); paint(); };
-      f.querySelectorAll("[data-remove-agent]").forEach((b) => (b.onclick = () => { readVaultOpDraft(f, op, draft, rootUI); draft.agents.splice(Number(b.getAttribute("data-remove-agent")), 1); errors.delete("agentRows"); paint(); }));
+      if (addBtn) addBtn.onclick = () => { readVaultOpDraft(f, op, draft, rootUI, vault); draft.agents.push(rootUI.vaultOpDraftFrom({ op, vault: { agents: [], contractVersion: vault.contractVersion }, currentDaa }).agents[0]); errors.delete("agentRows"); paint(); };
+      f.querySelectorAll("[data-remove-agent]").forEach((b) => (b.onclick = () => { readVaultOpDraft(f, op, draft, rootUI, vault); draft.agents.splice(Number(b.getAttribute("data-remove-agent")), 1); errors.delete("agentRows"); paint(); }));
+      /* v0.7 enablement: KAS approver rows (setup-ui address rows) inside the Change approvers form */
+      const addApprover = f.querySelector("#v4-add-approver");
+      if (addApprover) addApprover.onclick = (e) => { e.preventDefault(); readVaultOpDraft(f, op, draft, rootUI, vault); if (draft.approvers.length < 10) draft.approvers.push({ address: "", label: "", publicKey: "" }); if (draft.approvalM === "0") draft.approvalM = "1"; errors.delete("approvers"); errors.delete("approverRows"); paint(); };
+      f.querySelectorAll(".rm-approver").forEach((b) => (b.onclick = (e) => { e.preventDefault(); readVaultOpDraft(f, op, draft, rootUI, vault); const i = Number(b.closest(".addr-row")?.getAttribute("data-row")); draft.approvers.splice(i, 1); if (!draft.approvers.length) draft.approvalM = "0"; else if (Number(draft.approvalM) > draft.approvers.length) draft.approvalM = String(draft.approvers.length); errors.delete("approvers"); errors.delete("approverRows"); paint(); }));
+      f.querySelectorAll("[data-keytoggle]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); readVaultOpDraft(f, op, draft, rootUI, vault); const i = Number(b.getAttribute("data-keytoggle")); const row = draft.approvers && draft.approvers[i]; if (row) draft.approvers[i] = row.keyMode ? { ...row, keyMode: false, publicKey: "" } : { ...row, keyMode: true, address: "" }; paint(); }));
       f.addEventListener("submit", async (e) => {
         e.preventDefault();
         if (busy) return;
@@ -2585,7 +2620,7 @@
         const submitBtn = f.querySelector('button[type="submit"]');
         if (submitBtn) submitBtn.disabled = true;
         try {
-          readVaultOpDraft(f, op, draft, rootUI);
+          readVaultOpDraft(f, op, draft, rootUI, vault);
           const v = await rootUI.validateVaultOpDraft({ op, draft, vault, currentDaa });
           errors = v.errors;
           if (!v.ok) { busy = false; paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
@@ -2609,6 +2644,392 @@
       });
     };
     paint();
+  }
+
+
+  /* ======================================================================
+   * v0.7 ENABLEMENT (2026-09-10) — ROOTED KAS TREASURY browser path.
+   * The KAS profile module (web/kas-vault-ui.js, resolved through the
+   * organization UI so both share ONE signing-payload parser + frozen
+   * cross-check) renders every KAS surface; this file only wires the DOM:
+   *   - treasury creation wizard from the root detail ([data-kascreate]);
+   *   - the treasury panel's request cards (hydrated per vault);
+   *   - delegate payment ([data-kasspend]) → build → local re-verification
+   *     with the predecessor redeem → delegate signs → submit;
+   *   - vault-level approvals ([data-kasapprove]) — an approver co-signs the
+   *     treasury input only, after the same local re-verification;
+   *   - the participant section of Organizations (delegates / approvers who
+   *     are not root participants find their treasuries there).
+   * Every wallet invocation goes through the module's binding (payload ==
+   * reviewed frozen bytes; genesis destination == script rebuilt locally from
+   * the reviewed rules); a refusal never reaches the wallet.
+   * ==================================================================== */
+  const kasUIOf = (rootUI) => (rootUI && typeof rootUI.kasModule === "function" ? rootUI.kasModule() : null);
+  const KAS_OPEN_STATES = ["BUILT", "AWAITING_APPROVALS", "SIGNED", "SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED"];
+
+  /* Hydrate the request cards of every KAS treasury panel inside `container` and wire the panel's controls. */
+  async function wireKasPanels(container, rootUI, { vaultsById = new Map(), onClose = null, refresh = null } = {}) {
+    const km = kasUIOf(rootUI);
+    if (!km || !container || !container.querySelectorAll) return;
+    const panels = [...container.querySelectorAll("[data-kas-vault]")];
+    if (!panels.length) return;
+    const back = onClose || (() => { $("v4-modal").style.display = "none"; render(); });
+    const reload = refresh || back;
+    const openRequest = (vault, requestId) => openKasRequestModal(rootUI, vault, requestId, { onClose: reload });
+    container.querySelectorAll("[data-kasspend]").forEach((b) => (b.onclick = () => {
+      const vault = vaultsById.get(b.getAttribute("data-kasspend"));
+      if (!vault) { note("This treasury's current state is not loaded — reload before paying.", "bad"); return; }
+      openKasSpendFlow(rootUI, vault, { onClose: reload });
+    }));
+    await Promise.all(panels.map(async (panel) => {
+      const vaultId = panel.getAttribute("data-kas-vault");
+      const vault = vaultsById.get(vaultId);
+      const slot = panel.querySelector(`[data-kas-requests="${vaultId}"]`);
+      if (!slot || !vault) return;
+      let requests = [];
+      try { requests = await km.fetchKasRequests(vaultId); } catch { slot.innerHTML = `<div class="hint">Requests could not be loaded for this treasury.</div>`; return; }
+      const open = requests.filter((r) => KAS_OPEN_STATES.includes(r.state));
+      const closed = requests.filter((r) => !KAS_OPEN_STATES.includes(r.state)).sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""))).slice(0, 5);
+      slot.innerHTML =
+        open.map((r) => km.renderKasRequestCardHtml(vault, r, { viewerXOnly: state.xonly })).join("") +
+        (closed.length ? `<details class="adv"><summary>Recent completed or closed requests (${closed.length})</summary>${closed.map((r) => km.renderKasRequestCardHtml(vault, r, { viewerXOnly: state.xonly })).join("")}</details>` : "") +
+        (!open.length && !closed.length ? `<div class="hint">No payment requests yet for this treasury.</div>` : "");
+      for (const attr of ["kasview", "kasapprove", "kasagentsign", "kassubmit", "kascancel"]) {
+        slot.querySelectorAll(`[data-${attr}]`).forEach((b) => (b.onclick = () => openRequest(vault, b.getAttribute(`data-${attr}`))));
+      }
+    }));
+  }
+
+  /* ---- DELEGATE PAYMENT: form → build → review (local re-verification) → sign → submit ---- */
+  function openKasSpendFlow(rootUI, vault, { onClose } = {}) {
+    const km = kasUIOf(rootUI);
+    const m = $("v4-modal");
+    if (!km || !m) { note("The KAS treasury module did not load in this build — reload the page.", "bad"); return; }
+    if (!km.agentEntryFor(vault, state.xonly)) { note("The connected wallet is not a delegate of this treasury.", "bad"); return; }
+    const draft = km.spendDraftFrom({ vault, viewerXOnly: state.xonly });
+    let errors = new Map();
+    let busy = false;
+    const paint = () => {
+      m.innerHTML = `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-kasspend-title">` + km.renderSpendFormHtml({ vault, draft, errors, connectedAddress: state.address, viewerXOnly: state.xonly }) + `</div>`;
+      m.style.display = "flex";
+      const f = m.querySelector("[data-kasspend-form]");
+      if (!f) return;
+      const first = f.querySelector('input:not([type="hidden"]), select');
+      if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* nicety */ } }
+      f.querySelectorAll("[data-kasspend-cancel]").forEach((b) => (b.onclick = () => { m.style.display = "none"; if (onClose) onClose(); else render(); }));
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        busy = true;
+        const submitBtn = f.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          draft.amountKas = f.querySelector('[name="amountKas"]')?.value ?? draft.amountKas;
+          draft.recipient = f.querySelector('[name="recipient"]')?.value ?? draft.recipient;
+          const v = await km.validateSpendDraft({ draft, vault, viewerXOnly: state.xonly });
+          errors = v.errors;
+          if (!v.ok) { busy = false; paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
+          note("Building the exact payment — nothing is signed or sent yet…", "warn");
+          let request;
+          try { request = await km.buildKasSpend({ vaultId: vault.vaultId, params: v.params, signerAddress: state.address }); }
+          catch (err) { busy = false; noteRootRefusal("Payment refused — nothing was created", err, rootUI); paint(); return; }
+          note(v.preview.aboveThreshold ? `Payment built — it is above your approval threshold: ${v.preview.approvalsRequired} of ${v.preview.approverCount} approver(s) must co-sign before you sign.` : "Payment built — review the exact transaction before signing.", "warn");
+          openKasRequestModal(rootUI, vault, request.requestId, { preloaded: request, onClose });
+        } catch (err) { busy = false; noteRootRefusal("Payment failed", err, rootUI); paint(); }
+      });
+    };
+    paint();
+  }
+
+  /* ---- ONE request modal for details / approve / delegate sign / submit / withdraw ---- */
+  async function openKasRequestModal(rootUI, vault, requestId, { preloaded = null, onClose = null } = {}) {
+    const km = kasUIOf(rootUI);
+    const m = $("v4-modal");
+    if (!km || !m) { note("The KAS treasury module did not load in this build — reload the page.", "bad"); return; }
+    const view = {}, epoch = dataEpoch();
+    state.kasRequestView = view;
+    const current = () => state.kasRequestView === view && dataEpoch() === epoch && state.view === "orgs";
+    const close = () => { if (!current()) return; state.kasRequestView = null; m.style.display = "none"; if (onClose) onClose(); else render(); };
+    async function repaint() {
+      if (!current()) return;
+      let request = preloaded;
+      preloaded = null;
+      if (!request) {
+        try { request = await km.fetchKasRequest(requestId); }
+        catch (err) { if (!current()) return; note(`Could not load request: ${err.code || ""} ${err.message}`, "bad"); close(); return; }
+      }
+      if (!current()) return;
+      if (!request || request.requestId !== requestId) { note("The treasury response does not match the requested identity. Reload the original request.", "bad"); close(); return; }
+      const s = session();
+      const isAgent = !!(state.xonly && request.signerXOnly && String(request.signerXOnly).toLowerCase() === String(state.xonly).toLowerCase());
+      const p = request.approvalProgress || { collected: 0, required: 0, approverSlots: null, approvedSlots: [] };
+      const slots = (p.approverSlots && p.approverSlots.length ? p.approverSlots : (vault.approvers || [])).filter((k) => k !== "00".repeat(32));
+      const myIdx = state.xonly ? slots.findIndex((k) => String(k).toLowerCase() === String(state.xonly).toLowerCase()) : -1;
+      const iApproved = myIdx >= 0 && Array.isArray(p.approvedSlots) ? !!p.approvedSlots[myIdx] : false;
+      const isGenesis = request.kind === "kasGenesis";
+      const reviewHtml = isGenesis
+        ? `<div class="opbanner warn" role="status">Treasury creation request ${esc(short(request.requestId))} — state ${esc(request.state)}. ${request.state === "CHAIN_VERIFIED" ? "The treasury exists on-chain (proven)." : request.state === "BUILT" ? "This unsigned draft can be withdrawn. Create a fresh treasury only after withdrawing it and reviewing its rules again." : request.state === "SIGNED" ? "The saved signed transaction is ready to submit. This action uses the same request and does not ask for another signature." : "The outcome is not confirmed. Verify this creation using its original request; do not build or sign a replacement."}</div>`
+        : km.renderSpendReviewHtml(request);
+      const canApprove = !isGenesis && request.state === "AWAITING_APPROVALS" && myIdx >= 0 && !iApproved;
+      const canAgentSign = !isGenesis && request.state === "BUILT" && isAgent;
+      const canVerifyGenesis = isGenesis && ["SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED"].includes(request.state);
+      const canSubmit = request.state === "SIGNED" || canVerifyGenesis;
+      const canCancel = isAgent && (request.state === "BUILT" || (!isGenesis && request.state === "AWAITING_APPROVALS"));
+      m.innerHTML =
+        `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-kasreq-title">` +
+        `<h3 id="v4-kasreq-title" style="margin-top:0">${isGenesis ? "Treasury creation" : "Delegate payment"} — ${esc(vault.label || short(vault.vaultId))}</h3>` +
+        km.renderKasRequestCardHtml(vault, request, { viewerXOnly: state.xonly }).replace(/<button[^>]*data-(kasview|kasapprove|kasagentsign|kassubmit|kascancel)[^>]*>[^<]*<\/button>/g, "") +
+        reviewHtml +
+        `<div class="modal-actions">` +
+        (canCancel ? `<button type="button" class="warn" id="v4-kasreq-cancel">Withdraw</button>` : "") +
+        `<span class="setup-nav-spacer"></span><button type="button" id="v4-kasreq-close">Close</button>` +
+        (canApprove ? `<button type="button" class="primary" id="v4-kasreq-approve">Approve in wallet (approver ${myIdx + 1} of ${slots.length})</button>` : "") +
+        (canAgentSign ? `<button type="button" class="primary" id="v4-kasreq-sign">Sign payment in wallet</button>` : "") +
+        (canSubmit ? `<button type="button" class="primary" id="v4-kasreq-submit">${canVerifyGenesis ? "Verify this creation" : `Submit signed transaction to ${esc(networkLabel())}`}</button>` : "") +
+        `</div></div>`;
+      m.style.display = "flex";
+      $("v4-kasreq-close").onclick = close;
+      const busyOnce = (btn, fn) => { btn.onclick = async () => { if (!current()) return; btn.disabled = true; try { await fn(); } finally { /* repaint decides */ } }; };
+      const approveBtn = $("v4-kasreq-approve");
+      if (approveBtn) busyOnce(approveBtn, async () => {
+        try {
+          if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+          note("Waiting for your wallet — review and approve your co-signature of the treasury input…", "warn");
+          await km.approveKasSpend({ request, adapter: s.adapter, network: s.network, expectedSignerAddress: state.address, connectedXOnly: state.xonly });
+          note("Your approval was recorded. This is not yet a transaction — the delegate signs after the threshold is met, then submits.", "good");
+        } catch (err) { noteRootRefusal("Approval did not complete — nothing was sent", err, rootUI); }
+        repaint();
+      });
+      const signBtn = $("v4-kasreq-sign");
+      if (signBtn) busyOnce(signBtn, async () => {
+        try {
+          if (!s.ready || !s.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+          note("Waiting for your wallet — review and sign the exact payment…", "warn");
+          const res = await km.signKasSpend({ request, adapter: s.adapter, network: s.network, expectedSignerAddress: state.address, connectedXOnly: state.xonly });
+          note(`Payment ${res.request.state} — not yet broadcast: use Submit to send it to ${networkLabel()}.`, "good");
+        } catch (err) { noteRootRefusal("Signing did not complete — nothing was sent", err, rootUI); }
+        repaint();
+      });
+      const submitBtn = $("v4-kasreq-submit");
+      if (submitBtn) busyOnce(submitBtn, async () => {
+        try {
+          const res = await km.submitKasRequest(requestId);
+          if (!current()) return;
+          noteOutcome(isGenesis ? "KAS treasury creation" : "Delegate payment", res.request.state, res.txId || res.request.txId, res.request.error);
+        } catch (err) { if (!current()) return; noteRootRefusal("Request outcome remains uncertain; reopen this same request to check its state", err, rootUI); }
+        repaint();
+      });
+      const cancelBtn = $("v4-kasreq-cancel");
+      if (cancelBtn) busyOnce(cancelBtn, async () => {
+        if (!window.confirm(`Withdraw this ${isGenesis ? "unsigned treasury creation" : "payment request"}?\n\nIt is unsigned and was never sent: nothing is broadcast and the treasury is unchanged.`)) { cancelBtn.disabled = false; return; }
+        try {
+          const res = await km.rejectKasRequest(requestId);
+          const st = res && res.request ? res.request.state : null;
+          if (st === "WALLET_REJECTED") { note("Payment request withdrawn — the treasury is unchanged.", "good"); close(); return; }
+          note(`Withdraw returned an unexpected result (${st || "no request state"}) — treated as NOT withdrawn; reload to see the durable state.`, "bad");
+        } catch (err) { noteRootRefusal("Withdraw did not complete — the request is kept", err, rootUI); }
+        repaint();
+      });
+    }
+    await repaint();
+  }
+
+  // A treasury setup belongs to one view and wallet/authentication epoch.
+  // Unsigned abandoned builds may be withdrawn. Once a wallet was invoked,
+  // preserve the durable identity: a signature/upload outcome may be unknown.
+  function discardKasSetup() {
+    const w = state.kasSetup, requestView = state.kasRequestView;
+    state.kasSetup = null;
+    state.kasRequestView = null;
+    const m = $("v4-modal");
+    if ((w || requestView) && m) m.style.display = "none";
+    if (!w) return;
+    if (w.signatureStarted && w.built) {
+      note(`Treasury request ${w.built.request.requestId} was interrupted. Open its root, then open this pending creation before retrying; a signed or submitted outcome may still be pending.`, "warn");
+    } else {
+      void w.withdrawUnsigned();
+    }
+  }
+
+  /* ---- TREASURY CREATION wizard (from the root detail) → exact review → funder signs → submit ---- */
+  function openKasTreasuryWizard(rootUI, orgRoot, { currentDaa = null } = {}) {
+    const km = kasUIOf(rootUI);
+    const m = $("v4-modal");
+    const su = setupUi();
+    if (!km || !m || !su) { note("The KAS treasury components did not load in this build — reload the page.", "bad"); return; }
+    const avail = rootUI.kasCreationAvailability(rootCreationContext());
+    if (!avail.enabled) { note(avail.reason, "warn"); return; }
+    let reviewedRootPins;
+    try { reviewedRootPins = km.kasRootPinsForReview(orgRoot); }
+    catch (err) { note(err.message, "bad"); return; }
+    discardKasSetup();
+    const w = { step: 0, draft: km.kasDraftDefaults(state.address, currentDaa), errors: new Map(), built: null, busy: false, epoch: dataEpoch(), signatureStarted: false };
+    state.kasSetup = w;
+    const current = () => state.kasSetup === w && dataEpoch() === w.epoch && state.view === "orgs";
+    const backToDetail = () => { if (!current()) return; state.kasSetup = null; m.style.display = "none"; openOrgRootDetail(rootUI, orgRoot.rootCovenantId); };
+    const withdrawBuilt = async () => {
+      if (w.signatureStarted) return;
+      const built = w.built; w.built = null;
+      if (built) { try { await km.rejectKasRequest(built.request.requestId); } catch { /* preserve durable unsigned request on uncertain withdrawal */ } }
+    };
+    w.withdrawUnsigned = withdrawBuilt;
+    function read(f) {
+      const d = w.draft;
+      const val = (n, fb) => { const el = f.querySelector(`[name="${n}"]`); return el ? el.value : fb; };
+      d.label = val("label", d.label); d.depositKas = val("depositKas", d.depositKas); d.feeReserveKas = val("feeReserveKas", d.feeReserveKas);
+      d.recoveryAddress = val("recoveryAddress", d.recoveryAddress); d.approvalM = val("approvalM", d.approvalM);
+      d.signerAddress = state.address || d.signerAddress;
+      readKasAgentRows(f, d);
+      readApproverRows(f, d);
+      return d;
+    }
+    const paint = () => {
+      if (!current()) return;
+      m.innerHTML = `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-kas-title">` +
+        km.renderKasSetupHtml({ draft: w.draft, step: w.step, errors: w.errors, connectedAddress: state.address, busy: w.busy, orgRoot, network: networkLabel() }) +
+        (w.built ? `<div class="opbanner warn" data-built-pending="1">A treasury creation transaction was already built from these values and is waiting for your signature. <button type="button" class="primary" id="v4-kas-reopen">Open the review again</button> <span class="f-help" style="display:inline">Editing any field discards it.</span></div>` : "") +
+        `</div>`;
+      m.style.display = "flex";
+      const f = m.querySelector("[data-kas-wizard]");
+      if (!f) return;
+      const first = f.querySelector('section[data-setup-step]:not([hidden]) input:not([type="hidden"]), section[data-setup-step]:not([hidden]) select, section[data-setup-step]:not([hidden]) textarea');
+      if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* nicety */ } }
+      const reopen = $("v4-kas-reopen");
+      if (reopen) reopen.onclick = () => openKasBuildReview();
+      f.addEventListener("input", () => { if (w.built) { withdrawBuilt(); const b = m.querySelector("[data-built-pending]"); if (b) b.remove(); } });
+      f.addEventListener("click", async (e) => {
+        const t = e.target && e.target.closest ? e.target.closest("button") : null;
+        if (!t || !current()) return;
+        if (t.hasAttribute("data-setup-cancel")) {
+          e.preventDefault(); discardKasSetup();
+          openOrgRootDetail(rootUI, orgRoot.rootCovenantId); return;
+        }
+        if (w.busy) return;
+        if (t.id === "v4-add-agent") { e.preventDefault(); read(f); if (w.draft.agents.length < km.MAX_AGENTS) w.draft.agents.push(km.agentRowFrom(null, w.draft.currentDaa)); w.errors.delete("agents"); w.errors.delete("agentRows"); paint(); }
+        else if (t.hasAttribute("data-remove-agent")) { e.preventDefault(); read(f); w.draft.agents.splice(Number(t.getAttribute("data-remove-agent")), 1); if (!w.draft.agents.length) w.draft.agents = [km.agentRowFrom(null, w.draft.currentDaa)]; w.errors.delete("agents"); w.errors.delete("agentRows"); paint(); }
+        else if (t.id === "v4-add-approver") { e.preventDefault(); read(f); if (w.draft.approvers.length < km.MAX_APPROVERS) w.draft.approvers.push({ address: "", label: "", publicKey: "" }); if (w.draft.approvalM === "0") w.draft.approvalM = "1"; w.errors.delete("approvers"); w.errors.delete("approverRows"); paint(); }
+        else if (t.classList.contains("rm-approver")) { e.preventDefault(); read(f); const i = Number(t.closest(".addr-row")?.getAttribute("data-row")); w.draft.approvers.splice(i, 1); if (!w.draft.approvers.length) w.draft.approvalM = "0"; else if (Number(w.draft.approvalM) > w.draft.approvers.length) w.draft.approvalM = String(w.draft.approvers.length); w.errors.delete("approvers"); w.errors.delete("approverRows"); paint(); }
+        else if (t.hasAttribute("data-keytoggle")) { e.preventDefault(); read(f); const i = Number(t.getAttribute("data-keytoggle")); const row = w.draft.approvers[i]; if (row) w.draft.approvers[i] = row.keyMode ? { ...row, keyMode: false, publicKey: "" } : { ...row, keyMode: true, address: "" }; paint(); }
+        else if (t.hasAttribute("data-setup-back")) { e.preventDefault(); read(f); w.step = Math.max(0, w.step - 1); paint(); }
+        else if (t.hasAttribute("data-setup-next")) {
+          e.preventDefault(); read(f); w.busy = true;
+          try { w.errors = (await km.validateKasDraft(w.draft, { step: km.KAS_STEPS[w.step].id, connectedAddress: state.address })).errors; } finally { w.busy = false; }
+          if (!current()) return;
+          if (!w.errors.size) w.step = Math.min(km.KAS_STEPS.length - 1, w.step + 1);
+          paint();
+        }
+        else if (t.hasAttribute("data-edit-step")) { e.preventDefault(); read(f); await withdrawBuilt(); w.step = Number(t.getAttribute("data-edit-step")) || 0; paint(); }
+        else if (t.hasAttribute("data-setup-cancel")) { e.preventDefault(); await withdrawBuilt(); backToDetail(); }
+      });
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (w.busy || !current()) return;
+        w.busy = true;
+        try {
+          read(f);
+          note("Checking the treasury rules…", "warn");
+          const v = await km.validateKasDraft(w.draft, { connectedAddress: state.address });
+          if (!current()) return;
+          w.errors = v.errors;
+          if (!v.ok) {
+            const stepOf = { label: 0, depositKas: 0, feeReserveKas: 0, agents: 1, agentRows: 1, approvers: 2, approverRows: 2, approvalM: 2, recoveryAddress: 3, signerAddress: 4 };
+            const firstKey = Object.keys(stepOf).find((k) => v.errors.has(k));
+            if (firstKey !== undefined) w.step = stepOf[firstKey];
+            w.busy = false; paint(); note("Fix the highlighted fields, then continue.", "bad"); return;
+          }
+          let request;
+          try { note("Building the treasury creation transaction…", "warn"); request = await km.createKasVaultRequest(orgRoot.rootCovenantId, v.form); }
+          catch (err) { if (!current()) return; w.busy = false; noteRootRefusal("KAS treasury refused", err, rootUI); paint(); return; }
+          if (!current()) {
+            try { await km.rejectKasRequest(request.requestId); } catch { /* late unsigned build remains durable for its original identity */ }
+            return;
+          }
+          const norm = { ...v.norm, rootPins: reviewedRootPins };
+          const crossCheck = km.genesisCrossCheck({ summary: request.summary, norm });
+          w.built = { request, norm, form: v.form, crossCheck };
+          w.busy = false;
+          note("");
+          openKasBuildReview();
+        } finally { w.busy = false; }
+      });
+    };
+    function openKasBuildReview() {
+      const built = w.built;
+      if (!built || !current()) return;
+      const { request, norm, crossCheck } = built;
+      const canSign = crossCheck.ok;
+      m.innerHTML =
+        `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-kas-review-title">` +
+        `<h3 id="v4-kas-review-title" style="margin-top:0">${canSign ? "Review the treasury — exactly what your wallet will sign" : "DO NOT SIGN — the built treasury does not match the reviewed rules"}</h3>` +
+        km.renderKasGenesisReviewHtml({ norm, summary: request.summary, crossCheck, connectedAddress: state.address }) +
+        `<div class="modal-actions"><button type="button" id="v4-kas-review-back">Back to edit</button><span class="setup-nav-spacer"></span>` +
+        (canSign ? `<button type="button" class="primary" id="v4-kas-confirm">Approve in wallet</button>` : `<button type="button" class="primary" id="v4-kas-review-back2">Close — do not sign</button>`) +
+        `</div></div>`;
+      m.style.display = "flex";
+      const back = async () => {
+        if (w.busy || !current()) return;
+        w.busy = true;
+        const approve = $("v4-kas-confirm"); if (approve) approve.disabled = true;
+        await withdrawBuilt();
+        w.busy = false; w.step = 4; paint();
+      };
+      $("v4-kas-review-back").onclick = back;
+      const back2 = $("v4-kas-review-back2");
+      if (back2) back2.onclick = back;
+      const confirm = $("v4-kas-confirm");
+      if (confirm) confirm.onclick = async () => {
+        if (w.busy || !current() || w.built !== built) return;
+        w.busy = true; confirm.disabled = true;
+        $("v4-kas-review-back").disabled = true;
+        try {
+          const sess = session();
+          if (!sess.ready || !sess.adapter) throw Object.assign(new Error(`wallet is not connected on ${networkLabel()}`), { code: "WALLET_NOT_READY" });
+          if (sess.address !== built.form.signerAddress) throw Object.assign(new Error(`connected wallet ${sess.address} is not the funding wallet ${built.form.signerAddress}`), { code: "SIGNER_MISMATCH" });
+          note("Waiting for your wallet — review and approve the treasury creation…", "warn");
+          let signed;
+          w.signatureStarted = true;
+          try { signed = await km.signKasGenesisRequest({ request, adapter: sess.adapter, network: sess.network, expectedSignerAddress: built.form.signerAddress, connectedXOnly: state.xonly, crossCheck, norm, isCurrent: () => current() && w.built === built }); }
+          catch (err) {
+            if (!current()) return;
+            w.busy = false;
+            noteRootRefusal(`Signing outcome for request ${request.requestId} needs verification — open its root and open this pending creation before retrying`, err, rootUI);
+            backToDetail(); return;
+          }
+          if (!current()) return;
+          note(`KAS treasury: ${signed.request.state} — submitting for broadcast…`, "warn");
+          try {
+            const sub = await km.submitKasRequest(request.requestId);
+            if (!current()) return;
+            noteOutcome("KAS treasury creation", sub.request.state, sub.txId || sub.request.txId, sub.request.error);
+            w.built = null;
+            backToDetail();
+          } catch (err) { if (!current()) return; w.busy = false; noteRootRefusal("Submission outcome uncertain — do not sign again; open this pending creation from its root", err, rootUI); backToDetail(); }
+        } catch (err) { if (!current()) return; w.busy = false; noteRootRefusal("KAS treasury creation failed", err, rootUI); confirm.disabled = false; $("v4-kas-review-back").disabled = false; }
+      };
+    }
+    paint();
+  }
+  /* KAS delegate-rule rows (names agent-<i>-<field>) and approver rows (setup-ui address rows) read back into a draft. */
+  function readKasAgentRows(f, d) {
+    const rows = [...f.querySelectorAll("[data-agent-row]")];
+    if (!rows.length) return d;
+    d.agents = rows.map((row) => {
+      const i = row.getAttribute("data-agent-row");
+      const g = (k, fb) => { const el = row.querySelector(`[name="agent-${i}-${k}"]`); return el ? el.value : fb; };
+      return { existing: g("existing", "0") === "1", agentKey: g("agentKey", ""), maxPerSpendKas: g("maxPerSpendKas", ""), periodBudgetKas: g("periodBudgetKas", ""), periodLengthDaa: g("periodLengthDaa", ""), periodStartDaa: g("periodStartDaa", "0"), periodSpent: g("periodSpent", "0"), approvalThresholdKas: g("approvalThresholdKas", ""), agentMaxFeePerTxKas: g("agentMaxFeePerTxKas", ""), recipients: g("recipients", "") };
+    });
+    return d;
+  }
+  function readApproverRows(f, d) {
+    const rowsEl = f.querySelector('[data-rows="approver"]');
+    if (!rowsEl) return d;
+    d.approvers = [...rowsEl.querySelectorAll(".addr-row")].map((row) => {
+      const keyEl = row.querySelector('[name="approverKey"]');
+      const keyMode = !!(keyEl && !keyEl.hidden);
+      return { address: keyMode ? "" : (row.querySelector('[name="approver"]')?.value ?? ""), label: "", publicKey: keyMode ? (keyEl.value ?? "") : "", keyMode };
+    });
+    const mEl = f.querySelector('[name="approvalM"]'); if (mEl) d.approvalM = mEl.value;
+    return d;
   }
 
   /* UX-10 (Codex checkpoint 2): sign + submit a succession request as the
@@ -3510,6 +3931,7 @@
   }
 
   function navigateTo(view) {
+    if (state.view !== view) discardKasSetup();
     if (state.view !== view && state.rootBuildRefusal) note("");
     state.view = view;
     render();

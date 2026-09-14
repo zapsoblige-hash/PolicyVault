@@ -377,8 +377,10 @@ async function assertNoUnresolvedCreation(config, signerAddress, exceptRequestId
   const identityOf = (a) => { try { return resolveAddressIdentity(config, String(a ?? "").trim()).xOnlyPubkey.toLowerCase(); } catch { return null; } };
   const me = identityOf(signerAddress);
   if (!me) throw apiError(400, "BAD_SIGNER", "signerAddress is not a valid address for this network");
-  const unresolved = (await wr4.listWalletRequestsV4(config, { states: submit4.UNRESOLVED_GENESIS_STATES }))
-    .filter((r) => r.kind === "genesis" && r.requestId !== exceptRequestId && identityOf(r.signerAddress) === me);
+  /* RC35-REC-01 (2026-09-11): a genesis persisted SUBMISSION_REJECTED without an ESTABLISHED negative (an "already accepted"
+   * node answer written by an earlier runtime) is still UNRESOLVED — it may carry a funded vault; only a proven negative settles */
+  const unresolved = (await wr4.listWalletRequestsV4(config, { states: submit4.RECOVERABLE_GENESIS_STATES }))
+    .filter((r) => submit4.isUnresolvedGenesisRequest(r) && r.requestId !== exceptRequestId && identityOf(r.signerAddress) === me);
   if (unresolved.length) {
     const u = unresolved[0];
     throw apiError(409, "CREATION_UNRESOLVED", `a previous vault creation (request ${u.requestId}, ${u.state}) has not been resolved yet — reconcile it before building or submitting another vault`, { requestId: u.requestId, state: u.state, vaultId: u.vaultId, txId: u.txId ?? null });
@@ -995,7 +997,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       return { status: 201, body: { request: presentRequest(request) } };
     } catch (error) {
       const authz = ["NOT_OWNER", "NOT_DELEGATE", "AUTHORIZATION_FAILED"].includes(error.code);
-      throw apiError(authz ? 403 : 422, error.code || "BUILD_FAILED", error.message);
+      throw apiError(error.code === "VAULT_ID_IN_USE" ? 409 : authz ? 403 : 422, error.code || "BUILD_FAILED", error.message); // VAULT_ID_IN_USE: RC33-ID-01 (2026-09-11)
     }
   }
 
@@ -1172,7 +1174,8 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     };
     const v4Error = (error) => {
       const authz = ["NOT_OWNER", "NOT_AGENT", "AUTHORIZATION_FAILED"].includes(error.code);
-      const stateCodes = ["STALE", "CLAIM_CONFLICT", "PREFLIGHT_FAILED", "SIGNATURE_INVALID", "INSUFFICIENT_APPROVALS", "WALLET_REJECTED"];
+      // VAULT_ID_IN_USE: RC33-ID-01 (2026-09-11) global vault-record uniqueness — the identity is held by a record or request of ANY generation (409)
+      const stateCodes = ["STALE", "CLAIM_CONFLICT", "PREFLIGHT_FAILED", "SIGNATURE_INVALID", "INSUFFICIENT_APPROVALS", "WALLET_REJECTED", "VAULT_ID_IN_USE"];
       const status = authz ? 403 : stateCodes.includes(error.code) ? 409 : 422;
       return apiError(status, error.code || "BUILD_FAILED", error.message);
     };
@@ -1663,8 +1666,10 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     // open=1 -> the pre-finalize actionable states (AWAITING_APPROVALS, BUILT).
     if (method === "GET" && segments.length === 3 && segments[2] === "requests") {
       // unresolved=1 -> genesis requests whose submit outcome is still uncertain (UX-05)
-      const states = query?.unresolved ? require("../../sdk/src/wallet-submit-v4").UNRESOLVED_GENESIS_STATES : query?.open ? [wr4.RequestState.AWAITING_APPROVALS, wr4.RequestState.BUILT] : undefined;
-      const listed = await wr4.listWalletRequestsV4(config, { ...(query?.vaultId ? { vaultId: query.vaultId } : {}), ...(states ? { states } : {}) });
+      const submit4 = require("../../sdk/src/wallet-submit-v4");
+      const states = query?.unresolved ? submit4.RECOVERABLE_GENESIS_STATES : query?.open ? [wr4.RequestState.AWAITING_APPROVALS, wr4.RequestState.BUILT] : undefined;
+      const listedAll = await wr4.listWalletRequestsV4(config, { ...(query?.vaultId ? { vaultId: query.vaultId } : {}), ...(states ? { states } : {}) });
+      const listed = query?.unresolved ? listedAll.filter((r) => submit4.isUnresolvedGenesisRequest(r)) : listedAll; // RC35-REC-01: an established negative is settled; a false negative is unresolved
       // Hosted: scope to the principal's own requests (participant-or-signer);
       // the client-supplied vaultId can only narrow, never widen.
       const scoped = await scopeRequestsForPrincipal(config, ctx, listed);

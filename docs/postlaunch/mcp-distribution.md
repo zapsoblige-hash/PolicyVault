@@ -95,6 +95,21 @@ Mutations (durable, but never funds-moving):
   the request only ever becomes a transaction if a human/wallet signer
   independently verifies and signs it.
 - `policyvault_reject_request` — withdraws a pending request.
+- v0.7 organizational roots (since 1.5.0): `policyvault_org_roots`,
+  `policyvault_org_root`, `policyvault_org_root_requests` (read-only);
+  `policyvault_create_org_root_request` (build-only root-authorized
+  request — per-owner-slot signer envelopes, signatures collected out of
+  band) and `policyvault_create_v7_request` (build-only rooted-vault
+  delegate request). Since **1.6.x (1.6.1 proposed; 1.6.0 packed for two BLOCKED release sets, never published)** these carry the native-KAS
+  treasury mappings: `agentSpend` on a rooted KAS treasury, and the
+  `ownerSetApprovers` / `ownerTopUp` vault operations riding a root
+  request. Recovery through MCP, precisely: the ROOT action `ownerRecover`
+  (the root's own owner-recovery transition, built UNSIGNED, signatures
+  collected out of band) IS accepted by `policyvault_create_org_root_request`;
+  the rooted-VAULT operation `ownerRecover` (a treasury's terminal recovery)
+  is NOT accepted as a vault operation, and MCP exposes no genesis, signature
+  or submit tool — an unsigned root recovery request never implies
+  rooted-vault recovery support. Builds only — nothing is signed or broadcast.
 
 The active tool list is derived per session from the live
 `GET /api/v1/capabilities` document. Since 1.4.2 (owner-live finding of
@@ -138,7 +153,7 @@ frozen, independently verified bytes.
 
 | Component | Version |
 |---|---|
-| npm package / registry entry | **1.5.0 CANDIDATE** (adds the v0.7 organizational-root tool schema fragments and the `x-policyvault-mcp-client` identification header; exact-tarball clean-consumer proof recorded in the v1.9.0 packet; npm publication is a credential-gated step — see the packet for its status). Published: 1.4.2 (least-privilege discovery corrective, 2026-09-02) and 1.4.1; 1.4.0 is BROKEN for standalone npm/npx use (missing sibling `core/`) — never install it.
+| npm package / registry entry | **1.6.1 PROPOSED — NOT PUBLISHED** (the corrected successor of the never-published 1.6.0 tarball `f8e7c6ee…`, which was packed for the BLOCKED rc33 / rc35 sets and is retained unchanged as history; 1.6.1 differs from it ONLY in the packaged README recovery statement and the version fields — no tool schema or runtime byte changed; adds the native-KAS treasury mappings: `agentSpend` on `policyvault_create_v7_request`; `ownerSetApprovers` / `ownerTopUp` vault operations on `policyvault_create_org_root_request`; the exact tarball is packed, audited and clean-consumer-proven — including a KAS consumer proof — before the independent review of the `fullscale-rc33` replacement release and is published unchanged only after that review's PASS, the deployment and the served verification; the registry is the authority for what is delivered). **Published: 1.5.0** (2026-09-09; v0.7 organizational-root tool schemas + the `x-policyvault-mcp-client` identification header; registry tarball sha256 `73567fe0858b8a1c2382adb28dbc8b5381f56015b2a43532b7acf637e4dfc5b9`; contains NO native-KAS schemas), 1.4.2 (least-privilege discovery corrective, 2026-09-02) and 1.4.1; 1.4.0 is BROKEN for standalone npm/npx use (missing sibling `core/`) — never install it. |
 | MCP protocol revisions | 2025-11-25, 2025-06-18 |
 | PolicyVault API | `/api/v1` (capability document is the authority; unknown versions fail closed) |
 | Node | ≥ 20 |
@@ -192,3 +207,7 @@ Corrective topology (smallest safe change, ONE canonical implementation):
   (no sibling checkout exists in the consumer tree), or when the packaged
   shared implementation is missing (`npm pack` itself refuses).
   "Process stayed alive" is never success.
+
+**2026-09-11 (`fullscale-rc35` replacement, RC33-ID-01 record-uniqueness repair):** the `mcp/` tree (and the vendored `core/`) is byte-identical between the blocked rc33 build source `efe9372` and the rc35 build source `17bccf6` (mechanical `git diff` empty). `policyvault-mcp-1.6.0.tgz` re-packed from the detached checkout of `17bccf6` is BYTE-IDENTICAL to the rc33 tarball — sha256 `f8e7c6eed7bdf40ee2b15e5e2b1d2694bff3e77509478451142be92b07045e46`, npm shasum `db45328a1998bb2b94e324aa45345cb1636c2fde`, 15 files identical to the commit tree — so the exact unpublished tarball is REUSED as the proposed 1.6.0; the clean-consumer proofs were re-run from the exact tarball against the CORRECTED server (`mcp/tools/candidate-proof.js` PASS — 7 steps; `mcp/tools/candidate-proof-kas.js` PASS — 10 steps incl. v0.4 compatibility) and the tarball privacy scan is clean (evidence `docs/postlaunch/ux-evidence/claude-rc35/mcp/`). The uniqueness correction changes no MCP API behaviour: none of the 19 tools creates a vault (the reviewer's checkpoint-02 extension confirms no direct genesis tool and a schema-refused genesis action), so `VAULT_ID_IN_USE` is not reachable through MCP. Still NOT published; the registry remains the authority; publication only after the matching independent PASS, deployment and served verification of `fullscale-rc35`.
+
+**2026-09-11 (`fullscale-rc36` replacement, RC35 recovery / reservation repair):** the independent RC35 affected review found the packaged README's blanket statement that `ownerRecover` is "NOT exposed to machine callers" imprecise — `policyvault_create_org_root_request` DOES accept the ROOT action `ownerRecover` (an unsigned root-level owner-recovery request; per-owner-slot signatures collected out of band), while the rooted-VAULT operation `ownerRecover` is not accepted and MCP has no genesis / signature / submit tool — and the README still named the blocked `fullscale-rc33` / `v1.10.1` release. Both are corrected in the packaged README (and in this record and the interface spec); because packaged bytes changed, the package is re-identified as **1.6.1** (package.json / server.json), packed from the rc36 build source, and consumer-proven again from the exact new tarball; the never-published 1.6.0 tarball is retained unchanged. No tool schema, catalog entry or runtime byte of the adapter changed (`mcp/src`, `mcp/server.js`, vendored `core/` byte-identical to `17bccf6`); the RC35 runtime corrections (submission-outcome classification, genesis recovery, headless reservation) are server / SDK behaviour reached only through REST routes the adapter does not call. Still NOT published; the registry remains the authority.

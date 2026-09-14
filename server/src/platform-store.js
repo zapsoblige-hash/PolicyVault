@@ -101,6 +101,22 @@ function toJsonb(value) {
   return JSON.stringify(value, (_, item) => (typeof item === "bigint" ? item.toString() : item));
 }
 
+/* Usage metadata never writes a caller's earlier whole credential snapshot.
+ * JSON below is synchronous under the single service-writer contract; PG
+ * applies a row-locked conditional field update. Neither path inserts. */
+function validCredentialTouch(key, expected) {
+  return typeof key === "string" && /^[0-9a-f]{64}$/.test(key) &&
+    expected && typeof expected.identityId === "string" && typeof expected.credentialId === "string" &&
+    typeof expected.lastUsedAt === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(expected.lastUsedAt) &&
+    Number.isFinite(Date.parse(expected.lastUsedAt)) && new Date(expected.lastUsedAt).toISOString() === expected.lastUsedAt;
+}
+function credentialCanBeTouched(value, network, key, expected) {
+  return value && value.schema === "policyvault-machine-credential/v1" &&
+    value.networkId === network && value.tokenHashKey === key && value.status === "ACTIVE" &&
+    value.identityId === expected.identityId && value.credentialId === expected.credentialId &&
+    (value.lastUsedAt == null || (typeof value.lastUsedAt === "string" && value.lastUsedAt < expected.lastUsedAt));
+}
+
 class JsonPlatformStore {
   constructor(config) {
     this.kind = "json";
@@ -123,6 +139,19 @@ class JsonPlatformStore {
 
   async write(category, key, value) {
     persistJsonDurably({ filePath: jsonPathFor(this._config, category, key), value: { __key: key, value } });
+  }
+
+  async touchMachineCredential(key, expected) {
+    if (!validCredentialTouch(key, expected)) return false;
+    const filePath = jsonPathFor(this._config, Categories.MACHINE_CREDENTIAL, key);
+    if (!fs.existsSync(filePath)) return false;
+    const envelope = readJsonStrict(filePath, Categories.MACHINE_CREDENTIAL);
+    if (!envelope || envelope.__key !== key || !credentialCanBeTouched(envelope.value, this._config.networkId, key, expected)) return false;
+    // No await between this current-state check and the durable write. Do
+    // not route through async read/write hooks that can retain a snapshot.
+    const value = { ...envelope.value, lastUsedAt: expected.lastUsedAt };
+    persistJsonDurably({ filePath, value: { __key: key, value } });
+    return true;
   }
 
   async createExclusive(category, key, value) {
@@ -180,6 +209,22 @@ class PgPlatformStore {
        ON CONFLICT (network_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
       [this._network, key, toJsonb(value)]
     );
+  }
+
+  async touchMachineCredential(key, expected) {
+    if (!validCredentialTouch(key, expected)) return false;
+    const result = await this._pool.query(
+      `UPDATE machine_credentials
+       SET value = jsonb_set(value, '{lastUsedAt}', to_jsonb($5::text), true), updated_at = now()
+       WHERE network_id = $1 AND key = $2
+         AND value->>'schema' = 'policyvault-machine-credential/v1'
+         AND value->>'networkId' = $1 AND value->>'tokenHashKey' = $2
+         AND value->>'status' = 'ACTIVE'
+         AND value->>'identityId' = $3 AND value->>'credentialId' = $4
+         AND (value->>'lastUsedAt' IS NULL OR (jsonb_typeof(value->'lastUsedAt') = 'string' AND value->>'lastUsedAt' < $5))`,
+      [this._network, key, expected.identityId, expected.credentialId, expected.lastUsedAt]
+    );
+    return result.rowCount === 1;
   }
 
   async createExclusive(category, key, value) {

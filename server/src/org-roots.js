@@ -27,6 +27,8 @@
 
 const wr7 = require("../../sdk/src/wallet-requests-v7");
 const wr7hd = require("../../sdk/src/wallet-requests-v7-hd");
+const wr7kas = require("../../sdk/src/wallet-requests-v7-kas"); // v0.7 enablement (2026-09-10): rooted KAS safe-payment vault (CANDIDATE)
+const { registryEntryToJson: kasRegistryEntryToJson, CONTRACT_VERSION_V7_KAS } = require("../../sdk/src/manifest-v7-kas");
 const { reconcileOrgRootV7 } = require("../../sdk/src/reconcile-v7");
 const { listRootedVaultsV7, registryEntryToJson } = require("../../sdk/src/manifest-v7");
 const { loadManifestV7Hd } = require("../../sdk/src/manifest-v7-hd");
@@ -89,11 +91,11 @@ function requireSlotOwner(config, request, slot, principal) {
   if (!entry) throw orgRootsError(422, "SLOT_INACTIVE", `slot ${slot} is not one of this request's expected signer slots`);
   if (entry.publicKey !== principal.xOnlyPubkey) throw forbidden("NOT_AN_ACTIVE_SLOT", "only the wallet holding this owner slot may request or attach its slot signature");
 }
-/* Rooted-vault (v7 / v7hd) build authority — the v4 rule, owners = the root's active slots. */
+/* Rooted-vault (v7 / v7hd / v7kas) build authority — the v4 rule, owners = the root's active slots. */
 async function requireRootedBuildAuthority(config, principal, vaultId, signerAddress) {
   if (!config.tenancyEnforced) return null;
   const loaded = await loadAnyManifestAll(config, vaultId);
-  if (!loaded || (loaded.version !== "v7" && loaded.version !== "v7hd")) throw orgRootsError(404, "VAULT_NOT_FOUND", `no rooted vault ${vaultId}`);
+  if (!loaded || !tenancy.isRootedVaultVersion(loaded.version)) throw orgRootsError(404, "VAULT_NOT_FOUND", `no rooted vault ${vaultId}`);
   await tenancy.requireAnyVaultAccess(config, loaded, principal, "build"); // 404 foreign, 403 read-only participant
   const roles = await tenancy.rootedVaultRoles(config, loaded);
   const signerXOnly = tenancy.xOnlyOfAddress(config, signerAddress);
@@ -153,6 +155,26 @@ function orgRootsError(status, code, message, extra) {
  * as-is).
  */
 const STATUS_BY_CODE = Object.freeze({
+  AGENT_NOT_REGISTERED: 403, // v0.7-kas request layer (2026-09-10)
+  NOT_AN_APPROVER: 403, // v0.7-kas request layer (2026-09-10)
+  UNKNOWN_APPROVER: 403, // v0.7-kas request layer (2026-09-10)
+  VAULT_PAUSED: 409, // v0.7-kas request layer (2026-09-10)
+  VAULT_PENDING_REQUEST: 409, // v0.7-kas request layer (2026-09-10)
+  VAULT_ID_IN_USE: 409, // RC33-ID-01 (2026-09-11): global vault-record uniqueness (sdk/src/vault-identity.js) — the identity is held by a record or request of ANY generation
+  INSUFFICIENT_APPROVALS: 409, // v0.7-kas request layer (2026-09-10)
+  DUPLICATE_APPROVAL: 409, // v0.7-kas request layer (2026-09-10)
+  WRONG_SLOT: 409, // v0.7-kas request layer (2026-09-10)
+  REQUEST_ID_MISMATCH: 409, // v0.7-kas request layer (2026-09-10)
+  AGENT_SET_REQUIRED: 422, // v0.7-kas request layer (2026-09-10)
+  AGENT_SET_INVALID: 422, // v0.7-kas request layer (2026-09-10)
+  AGENT_ROOT_MISMATCH: 422, // v0.7-kas request layer (2026-09-10)
+  RECIPIENT_ROOT_MISMATCH: 422, // v0.7-kas request layer (2026-09-10)
+  OVER_CAP: 422, // v0.7-kas request layer (2026-09-10)
+  OVER_BUDGET: 422, // v0.7-kas request layer (2026-09-10)
+  OVER_AGENT_FEE_CAP: 422, // v0.7-kas request layer (2026-09-10)
+  INSUFFICIENT_RESERVE: 422, // v0.7-kas request layer (2026-09-10)
+  BAD_APPROVER: 400, // v0.7-kas request layer (2026-09-10)
+  GENERATION_NOT_MAINNET_AUTHORIZED: 403, // v0.7-kas request layer (2026-09-10)
   REQUEST_NOT_FOUND: 404,
   ROOT_NOT_FOUND: 404,
   VAULT_NOT_FOUND: 404,
@@ -383,6 +405,46 @@ function presentOrgRootRequestHd(request) {
   return { ...rest, authorityModel: AUTHORITY_MODEL.ON_CHAIN_ORGANIZATIONAL_ROOT, status: "CANDIDATE" };
 }
 
+/* v0.7-kas ROOTED KAS SAFE-PAYMENT VAULT (CANDIDATE) presentation — v0.7 enablement (2026-09-10). Everything an owner,
+ * delegate or approver needs to review truthfully: the protected principal and fee reserve, the installed delegate
+ * registry (exact policies + recipients), the vault-level approver slots and threshold M, the pinned recovery key. */
+function presentRootedKasVaultSummary(manifest) {
+  const state = manifest.live ? manifest.live.state : null;
+  return {
+    vaultId: manifest.vaultId,
+    label: manifest.label,
+    status: manifest.status,
+    orgRootCovenantId: manifest.orgRootCovenantId,
+    authorityModel: AUTHORITY_MODEL.ON_CHAIN_ORGANIZATIONAL_ROOT,
+    contractVersion: manifest.contractVersion,
+    candidateStatus: "CANDIDATE",
+    profile: "kas",
+    generation: Number.isInteger(manifest.generation) ? manifest.generation : null,
+    latestTransitionTxId: manifest.latestTransitionTxId ?? null,
+    recoveryPk: manifest.template && typeof manifest.template.recoveryPk === "string" ? manifest.template.recoveryPk : null,
+    agents: Array.isArray(manifest.agentRegistry) ? manifest.agentRegistry.map((entry) => kasRegistryEntryToJson(entry)) : [],
+    approvers: state ? state.approvers.filter((k) => k !== "00".repeat(32)) : [],
+    approvalM: state ? state.approvalM.toString() : null,
+    live: manifest.live
+      ? {
+          covenantId: manifest.live.covenantId,
+          outpoint: manifest.live.outpoint,
+          protectedValueKas: sompiToKas(state.protectedValue),
+          feeReserveKas: sompiToKas(state.feeReserve),
+          totalKas: sompiToKas(manifest.live.outpointValue),
+          paused: state.paused === 1n,
+          policyNonce: state.policyNonce.toString()
+        }
+      : null
+  };
+}
+function presentKasWalletRequest(request) {
+  if (!request) return null;
+  const { build, encoderBuildDir, finalTransaction, signedSafeJson, approvalPackage, predecessorVault, ...rest } = request;
+  void build; void encoderBuildDir; void finalTransaction; void signedSafeJson; void approvalPackage; void predecessorVault;
+  return { ...rest, ...wr7kas.kasPresentation(request) };
+}
+
 function presentV7WalletRequest(request) {
   if (!request) return null;
   const { build, encoderBuildDir, finalTransaction, ...rest } = request;
@@ -477,7 +539,8 @@ async function dispatchOrgRoots(config, method, segments, query, body, principal
     if (config.tenancyEnforced) await loadRootScoped(config, rootId, principal, "read"); // F-04
     const vaults = await listRootedVaultsV7(config, { orgRootCovenantId: rootId });
     const hdVaults = await wr7hd.listRootedHdVaultsV7(config, { orgRootCovenantId: rootId });
-    return { status: 200, body: { vaults: [...vaults.map(presentRootedVaultSummary), ...hdVaults.map(presentRootedHdVaultSummary)] } };
+    const kasVaults = await wr7kas.listRootedKasVaultsV7(config, { orgRootCovenantId: rootId });
+    return { status: 200, body: { vaults: [...vaults.map(presentRootedVaultSummary), ...hdVaults.map(presentRootedHdVaultSummary), ...kasVaults.map(presentRootedKasVaultSummary)] } };
   }
 
   // POST /org-roots/:rootId/vaults  { profile, label, descriptor,
@@ -489,8 +552,28 @@ async function dispatchOrgRoots(config, method, segments, query, body, principal
       await loadRootScoped(config, rootId, principal, "owner"); // F-04: only an active root owner creates rooted vaults
       await bindSignerToPrincipal(config, principal, b.signerAddress);
     }
-    if (b.profile !== undefined && b.profile !== "policyvault-0.7-payment" && b.profile !== "policyvault-0.7-payment-hd") {
+    if (b.profile !== undefined && b.profile !== "policyvault-0.7-payment" && b.profile !== "policyvault-0.7-payment-hd" && b.profile !== CONTRACT_VERSION_V7_KAS) {
       throw orgRootsError(422, "UNKNOWN_VERSION", `unsupported rooted-vault profile ${JSON.stringify(b.profile)} — failing closed`);
+    }
+    if (b.profile === CONTRACT_VERSION_V7_KAS) {
+      /* v0.7 enablement (2026-09-10) — ROOTED KAS SAFE-PAYMENT VAULT (CANDIDATE). `agents` is the v0.4.1 delegate policy
+       * set with each agent's recipients; `approvers` + `approvalM` the vault-level tier; depositKas the protected
+       * principal; the funder signs its own funding inputs through /wallet/v7/requests/:id/signature. */
+      const request = await wr7kas.buildKasVaultGenesisRequest({
+        config,
+        rootCovenantId: rootId,
+        label: b.label ?? "",
+        agents: b.agents ?? [],
+        approvers: b.approvers ?? [],
+        approvalM: b.approvalM ?? 0,
+        recoveryAddress: b.recoveryAddress,
+        depositKas: b.depositKas,
+        feeReserveKas: b.feeReserveKas,
+        signerAddress: b.signerAddress,
+        funding: b.funding,
+        vaultId: b.vaultId
+      });
+      return { status: 201, body: { request: presentKasWalletRequest(request) } };
     }
     if (b.profile === "policyvault-0.7-payment-hd") {
       /* Wave 2 Track E — HIERARCHICAL DELEGATION CANDIDATE (NOT covenant-
@@ -649,6 +732,11 @@ async function dispatchWalletV7(config, method, segments, query, body, principal
   if (method === "POST" && segments.length === 3 && segments[2] === "requests") {
     const b = body ?? {};
     await requireRootedBuildAuthority(config, principal, b.vaultId, b.signerAddress); // F-04
+    if (wr7kas.KAS_ACTIONS.has(b.action)) {
+      /* v0.7 enablement: a delegate spend on a rooted KAS vault (only the KAS family carries `agentSpend`) */
+      const request = await wr7kas.buildKasWalletRequest({ config, vaultId: b.vaultId, action: b.action, params: b.params ?? {}, signerAddress: b.signerAddress });
+      return { status: 201, body: { request: presentKasWalletRequest(request) } };
+    }
     if (wr7hd.HD_ACTIONS.has(b.action) || b.action === "tokenDeposit") {
       /* tokenDeposit is shared between the payment and HD families —
        * disambiguate by which manifest the vaultId actually resolves to. */
@@ -661,17 +749,35 @@ async function dispatchWalletV7(config, method, segments, query, body, principal
     const request = await wr7.buildV7WalletRequest({ config, vaultId: b.vaultId, action: b.action, params: b.params ?? {}, signerAddress: b.signerAddress });
     return { status: 201, body: { request: presentV7WalletRequest(request) } };
   }
+  // GET /wallet/v7/vaults — every rooted vault this principal TAKES PART IN (v0.7 enablement, 2026-09-10): a delegate or a
+  // vault-level approver is not a participant of the organizational ROOT (it cannot read /org-roots/:id), yet it must find
+  // the vault it pays from / approves for. Presented summaries only; tenant-scoped through the same any-generation
+  // access rule the request routes use (owner / agent / approver); self-hosted mode lists every rooted vault.
+  if (method === "GET" && segments.length === 3 && segments[2] === "vaults") {
+    const kas = await wr7kas.listRootedKasVaultsV7(config, {});
+    const payment = await listRootedVaultsV7(config, {});
+    const out = [];
+    for (const [version, list, present] of [["v7kas", kas, presentRootedKasVaultSummary], ["v7", payment, presentRootedVaultSummary]]) {
+      for (const manifest of list) {
+        if (config.tenancyEnforced && !(await tenancy.anyVaultAccessAllowed(config, { version, manifest }, principal, "read"))) continue;
+        out.push(present(manifest));
+      }
+    }
+    return { status: 200, body: { vaults: out } };
+  }
   // GET /wallet/v7/requests?vaultId=
   if (method === "GET" && segments.length === 3 && segments[2] === "requests") {
     let requests = await wr7.listV7WalletRequests(config, { vaultId: query?.vaultId });
     let hdRequests = await wr7hd.listHdWalletRequests(config, { vaultId: query?.vaultId });
+    let kasRequests = await wr7kas.listKasWalletRequests(config, { vaultId: query?.vaultId });
     if (config.tenancyEnforced) { // F-04: tenant-scoped listing
       const cache = new Map();
       const keep = async (list) => { const out = []; for (const r of list) if (await walletRequestVisible(config, principal, r, cache)) out.push(r); return out; };
       requests = await keep(requests);
       hdRequests = await keep(hdRequests);
+      kasRequests = await keep(kasRequests);
     }
-    return { status: 200, body: { requests: [...requests.map(presentV7WalletRequest), ...hdRequests.map((r) => ({ ...r, ...wr7hd.hdPresentation(r.build ?? {}) }))] } };
+    return { status: 200, body: { requests: [...requests.map(presentV7WalletRequest), ...hdRequests.map((r) => ({ ...r, ...wr7hd.hdPresentation(r.build ?? {}) })), ...kasRequests.map(presentKasWalletRequest)] } };
   }
   // GET /wallet/v7/requests/:id
   if (method === "GET" && segments.length === 4 && segments[2] === "requests") {
@@ -679,6 +785,8 @@ async function dispatchWalletV7(config, method, segments, query, body, principal
     if (request) { await requireWalletRequest(config, principal, request); return { status: 200, body: { request: presentV7WalletRequest(request) } }; } // F-04
     const hdRequest = await wr7hd.loadHdWalletRequest(config, segments[3]);
     if (hdRequest) { await requireWalletRequest(config, principal, hdRequest); return { status: 200, body: { request: { ...hdRequest, ...wr7hd.hdPresentation(hdRequest.build ?? {}) } } }; }
+    const kasRequest = await wr7kas.loadKasWalletRequest(config, segments[3]);
+    if (kasRequest) { await requireWalletRequest(config, principal, kasRequest); return { status: 200, body: { request: presentKasWalletRequest(kasRequest) } }; }
     throw orgRootsError(404, "REQUEST_NOT_FOUND", `no request ${segments[3]}`);
   }
   // POST /wallet/v7/requests/:id/signature  { signedSafeJson }
@@ -686,7 +794,8 @@ async function dispatchWalletV7(config, method, segments, query, body, principal
     const b = body ?? {};
     if (typeof b.signedSafeJson !== "string" || !b.signedSafeJson.trim()) throw orgRootsError(400, "BAD_SIGNATURE", "signedSafeJson is required");
     const existingHd = await wr7hd.loadHdWalletRequest(config, segments[3]);
-    const signingRequest = await requireWalletRequest(config, principal, existingHd ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
+    const existingKas = existingHd ? null : await wr7kas.loadKasWalletRequest(config, segments[3]);
+    const signingRequest = await requireWalletRequest(config, principal, existingHd ?? existingKas ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
     if (config.tenancyEnforced) { // rc13 review N-02: only the signer's wallet reaches the finalizer
       const signer = tenancy.xOnlyOfAddress(config, signingRequest.signerAddress);
       if (!signer || signer !== principal.xOnlyPubkey) throw forbidden("NOT_THE_SIGNER", "only the wallet that signs this request may attach its signature");
@@ -696,26 +805,61 @@ async function dispatchWalletV7(config, method, segments, query, body, principal
       const request = await wr7hd.finalizeHdWalletRequest({ config, requestId: segments[3], signedSafeJson: b.signedSafeJson });
       return { status: 200, body: { request } };
     }
+    if (existingKas) {
+      const request = await wr7kas.finalizeKasWalletRequest({ config, requestId: segments[3], signedSafeJson: b.signedSafeJson });
+      return { status: 200, body: { request: presentKasWalletRequest(request) } };
+    }
     const request = await wr7.finalizeV7WalletRequest({ config, requestId: segments[3], signedSafeJson: b.signedSafeJson });
     return { status: 200, body: { request: presentV7WalletRequest(request) } };
   }
   // POST /wallet/v7/requests/:id/submit
   if (method === "POST" && segments.length === 5 && segments[2] === "requests" && segments[4] === "submit") {
     const existingHd = await wr7hd.loadHdWalletRequest(config, segments[3]);
-    await requireWalletRequest(config, principal, existingHd ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
+    const existingKas = existingHd ? null : await wr7kas.loadKasWalletRequest(config, segments[3]);
+    await requireWalletRequest(config, principal, existingHd ?? existingKas ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
     if (existingHd) {
       const request = await wr7hd.submitHdWalletRequest({ config, requestId: segments[3] });
       return { status: 200, body: { request, txId: request.txId } };
     }
+    if (existingKas) {
+      const request = await wr7kas.submitKasWalletRequest({ config, requestId: segments[3] });
+      return { status: 200, body: { request: presentKasWalletRequest(request), txId: request.txId } };
+    }
     const request = await wr7.submitV7WalletRequest({ config, requestId: segments[3] });
     return { status: 200, body: { request: presentV7WalletRequest(request), txId: request.txId } };
+  }
+  // POST /wallet/v7/requests/:id/approvals  { approverAddress, signedSafeJson|signatureHex } — v0.7-kas ONLY
+  // (v0.7 enablement, 2026-09-10): ONE vault-level approver's 65-byte SIG_HASH_ALL signature over the frozen covenant
+  // input of an ABOVE-THRESHOLD delegate spend. The approver's authority is its approval signature alone: it must be
+  // the signed-in wallet AND one of the vault's approver slots (403 NOT_AN_APPROVER); it never reaches the request
+  // lifecycle (signature/submit/reject) — the external-approver rule of the v4 family, applied to this profile.
+  if (method === "POST" && segments.length === 5 && segments[2] === "requests" && segments[4] === "approvals") {
+    const b = body ?? {};
+    const kasRequest = await wr7kas.loadKasWalletRequest(config, segments[3]);
+    await requireWalletRequest(config, principal, kasRequest); // F-04: visibility (404 non-oracle for strangers)
+    if (config.tenancyEnforced) {
+      const approver = tenancy.xOnlyOfAddress(config, b.approverAddress);
+      if (!approver) throw orgRootsError(400, "BAD_APPROVER", "approverAddress must be a valid address for this network");
+      if (approver !== principal.xOnlyPubkey) throw forbidden("SIGNER_NOT_PRINCIPAL", "an approval is attached only by the approver's own signed-in wallet");
+      const loaded = await loadAnyManifestAll(config, kasRequest.vaultId);
+      const roles = loaded ? await tenancy.rootedVaultRoles(config, loaded) : null;
+      if (!roles || !roles.approvers.has(approver)) throw forbidden("NOT_AN_APPROVER", "only one of this vault's approver slots may attach an approval");
+    }
+    if (typeof b.signedSafeJson === "string") requireSignedSafeJsonShape(b.signedSafeJson); // rc12 review R-08
+    const result = await wr7kas.collectApprovalKas({ config, requestId: segments[3], approverAddress: b.approverAddress, signedSafeJson: b.signedSafeJson, signatureHex: b.signatureHex });
+    return { status: 200, body: { request: presentKasWalletRequest(result.request), approvals: result.approvals } };
   }
   // POST /wallet/v7/requests/:id/reject
   if (method === "POST" && segments.length === 5 && segments[2] === "requests" && segments[4] === "reject") {
     const existingHd = await wr7hd.loadHdWalletRequest(config, segments[3]);
-    await requireWalletRequest(config, principal, existingHd ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
+    const existingKas = existingHd ? null : await wr7kas.loadKasWalletRequest(config, segments[3]);
+    await requireWalletRequest(config, principal, existingHd ?? existingKas ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
     if (existingHd) {
       const request = await wr7hd.markHdWalletRejected(config, segments[3]);
+      return { status: 200, body: { request } };
+    }
+    if (existingKas) {
+      const request = await wr7kas.markKasWalletRejected(config, segments[3]);
       return { status: 200, body: { request } };
     }
     const request = await wr7.markV7WalletRejected(config, segments[3]);
@@ -732,6 +876,8 @@ module.exports = {
   presentOrgRootFull,
   presentOrgRootRequest,
   presentRootedVaultSummary,
+  presentRootedKasVaultSummary,
+  presentKasWalletRequest,
   presentV7WalletRequest,
   mapError
 };

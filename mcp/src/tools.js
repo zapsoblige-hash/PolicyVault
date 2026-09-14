@@ -104,7 +104,32 @@ const FUEL = {
 
 /* ---- v0.7 ON-CHAIN ORGANIZATIONAL ROOT schema fragments ---- */
 const ROOT_ACTION_ENUM = ["authorize", "rotate", "freeze", "unfreeze", "ownerRecover", "succession"];
-const VAULT_OP_ACTION_ENUM = ["ownerSetAgentRoot", "ownerTopUpReserve", "ownerPause", "ownerUnpause", "ownerEmergencyPause"];
+/* v0.7 enablement (2026-09-10): the rooted KAS safe-payment vault adds ownerSetApprovers + ownerTopUp; ownerRecover (terminal,
+ * irreversible) stays a human owner decision in the browser and is deliberately NOT exposed to machine callers. */
+const VAULT_OP_ACTION_ENUM = ["ownerSetAgentRoot", "ownerSetApprovers", "ownerTopUp", "ownerTopUpReserve", "ownerPause", "ownerUnpause", "ownerEmergencyPause"];
+/* ONE closed entry shape for a delegate policy of EITHER rooted profile (the server validates the exact profile fields;
+ * v0.4.1 KAS policies use maxPerSpend/periodBudget/periodSpent/approvalThreshold, token policies the token* fields). */
+const V7_AGENT_POLICY_ENTRY = {
+  type: "object",
+  additionalProperties: false,
+  required: ["agentPk", "recipients"],
+  properties: {
+    agentPk: HEX64,
+    recipients: { type: "array", items: HEX64, minItems: 1, maxItems: 128 },
+    agentRecipientRoot: HEX64,
+    maxPerSpend: SOMPI,
+    periodBudget: SOMPI,
+    periodLengthDaa: DECIMAL,
+    periodStartDaa: DECIMAL,
+    periodSpent: SOMPI,
+    approvalThreshold: SOMPI,
+    agentMaxFeePerTx: SOMPI,
+    tokenMaxPerSpend: DECIMAL,
+    tokenPeriodBudget: DECIMAL,
+    tokenPeriodSpent: DECIMAL,
+    agentMaxCarryKas: SOMPI
+  }
+};
 const OWNER_SET_INPUT = {
   type: "object",
   additionalProperties: false,
@@ -129,6 +154,10 @@ const V7_VAULT_OP_PARAMS = {
   additionalProperties: false,
   properties: {
     newAgentRoot: HEX64,
+    agents: { type: "array", items: V7_AGENT_POLICY_ENTRY, minItems: 0, maxItems: 64 }, // ownerSetAgentRoot installs the FULL policy set (never a bare root)
+    approvers: { type: "array", items: HEX64, minItems: 0, maxItems: 10 }, // ownerSetApprovers (v0.7-kas vault-level tier)
+    approvalM: DECIMAL, // ownerSetApprovers: the server takes the count as a decimal string (RC33 MCP finding: the 1.5.0-era integer type could never build)
+    topUpAmountSompi: SOMPI, // ownerTopUp (v0.7-kas protected principal)
     topUpReserveAmountSompi: SOMPI
   }
 };
@@ -147,6 +176,9 @@ const V7_WALLET_PARAMS = {
   additionalProperties: false,
   properties: {
     spendAmount: SOMPI,
+    payAmountSompi: SOMPI, // v0.7-kas agentSpend (native KAS)
+    amountKas: DECIMAL,
+    recipientAddress: ADDRESS,
     recipient: HEX64,
     recipients: { type: "array", items: HEX64, minItems: 0, maxItems: 128 },
     periodsElapsed: DECIMAL,
@@ -438,13 +470,13 @@ function blueprints({ actionEnum, walletV4SchemaVersion }) {
     },
     {
       name: "policyvault_create_v7_request",
-      title: "Create a rooted-vault delegate spend or token deposit (build only)",
+      title: "Create a rooted-vault delegate spend (token or native KAS) or token deposit (build only)",
       description:
-        "BUILD a durable v0.7 rooted-vault request: a delegate spend (tokenAgentSpend, an authorized agent's own key) or a token deposit — NEITHER touches the organizational root at all (no root input; the covenant enforces this by construction). This NEVER signs and NEVER broadcasts: it produces an unsigned transaction for external signer custody. Amounts are integer sompi as decimal strings — never floats. Requires scope write:org-roots." +
+        "BUILD a durable v0.7 rooted-vault request: a delegate spend (tokenAgentSpend on a rooted token vault, or agentSpend on a rooted KAS safe-payment vault — an authorized agent's own key; above the agent's approvalThreshold the vault-level approvers co-sign through the server's approvals route) or a token deposit — NEITHER touches the organizational root at all (no root input; the covenant enforces this by construction). This NEVER signs and NEVER broadcasts: it produces an unsigned transaction for external signer custody. Amounts are integer sompi as decimal strings — never floats. Requires scope write:org-roots." +
         SHARED_DESCRIPTION_TAIL,
       requiredScopes: ["write:org-roots"],
       inputSchema: closedObject(
-        { vaultId: HEX64, action: { type: "string", enum: ["tokenAgentSpend", "tokenDeposit"], maxLength: 32 }, params: V7_WALLET_PARAMS, signerAddress: ADDRESS },
+        { vaultId: HEX64, action: { type: "string", enum: ["tokenAgentSpend", "tokenDeposit", "agentSpend"], maxLength: 32 }, params: V7_WALLET_PARAMS, signerAddress: ADDRESS },
         ["vaultId", "action", "signerAddress"]
       ),
       mutating: true,

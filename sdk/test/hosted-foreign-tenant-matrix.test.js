@@ -47,6 +47,7 @@ const { openPgStore } = require("../src/store");
 const { ENCODER_PATH } = require("../src/vault-builders-v4");
 const wr7 = require("../src/wallet-requests-v7");
 const wr5 = require("../src/wallet-requests-v5");
+const wr7kas = require("../src/wallet-requests-v7-kas"); // v0.7 enablement (2026-09-10): the rooted-KAS family
 const assets = require("../../core/assets");
 const { compileKcc20Program } = require("../src/token-program-kcc20");
 const { buildRecipientTree } = require("../src/recipient-merkle-v3");
@@ -112,11 +113,16 @@ const utxo = (address, txId, index, amount, covenantId) => ({ address, outpoint:
 /* tenants: A / A2 / A3 = active owner slots of root R (M=2); S = pinned successor;
  * AG7 = agent of the rooted payment vault; AG5 = agent of A's v5 controller;
  * B = a foreign wallet; REC = recipient key */
-let A, A2, A3, S, AG7, AG5, B, REC, FUEL;
+let A, A2, A3, S, AG7, AG5, B, REC, FUEL, AP1;
+let kasVaultId;
 let adminPool, server, port, config, store, dbName, rpc;
 let descriptor, ref;
 let rootId, v7VaultId, v5VaultId;
 
+/* a v0.4.1 delegate policy for the rooted KAS vault: 5 KAS per spend, approval above 2 KAS */
+function kasPolicyFor(agent) {
+  return { agentPk: agent.xonly, maxPerSpend: (5n * KAS).toString(), periodBudget: (20n * KAS).toString(), periodLengthDaa: "1000", periodStartDaa: "5000", periodSpent: "0", approvalThreshold: (2n * KAS).toString(), agentMaxFeePerTx: (KAS / 10n).toString(), recipients: [REC.xonly] };
+}
 function policyFor(agent) {
   const rTree = buildRecipientTree([REC.xonly]);
   return { agentPk: agent.xonly, tokenMaxPerSpend: "500", tokenPeriodBudget: "1000", periodLengthDaa: "1000", periodStartDaa: "0", tokenPeriodSpent: "0", agentMaxFeePerTx: (1n * KAS).toString(), agentMaxCarryKas: KAS.toString(), agentRecipientRoot: rTree.root, recipients: [REC.xonly] };
@@ -148,7 +154,7 @@ async function createOwnerRoot(label) {
 
 before(async () => {
   if (skip) return;
-  A = wallet("a1"); A2 = wallet("a2"); A3 = wallet("a3"); S = wallet("a5"); AG7 = wallet("c7"); AG5 = wallet("c5"); B = wallet("b2"); REC = wallet("e1"); FUEL = wallet("f1");
+  A = wallet("a1"); A2 = wallet("a2"); A3 = wallet("a3"); S = wallet("a5"); AG7 = wallet("c7"); AG5 = wallet("c5"); B = wallet("b2"); REC = wallet("e1"); FUEL = wallet("f1"); AP1 = wallet("d1");
   const { Pool } = require("pg");
   adminPool = new Pool({ host: PG.host, port: PG.port, user: PG.user, database: PG.database });
   dbName = `pv_ftm_${process.pid}`;
@@ -156,7 +162,10 @@ before(async () => {
   await adminPool.query(`CREATE DATABASE ${dbName}`);
   config = loadConfig({
     persistenceBackend: "postgres", pgHost: PG.host, pgPort: PG.port, pgUser: PG.user, pgDatabase: dbName, pgNoTls: true,
-    authMode: "enabled", authCookieInsecure: true, dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-ftm-"))
+    authMode: "enabled", authCookieInsecure: true, dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-ftm-")),
+    /* this matrix measures TENANCY, not throughput: the process-local limiter stays ON (hosted mode requires it) with
+     * windows wide enough for the whole matrix (the v0.7-kas rows added ~40 requests, 2026-09-10) */
+    rateLimits: { auth: { limit: 100000 }, build: { limit: 100000 }, mutate: { limit: 100000 }, submit: { limit: 100000 } }
   });
   assert.equal(config.tenancyEnforced, true, "harness must be a HOSTED (tenancy-enforced) server");
   store = await openPgStore(config, { migrate: true });
@@ -191,6 +200,20 @@ before(async () => {
   const v5Addr = covenantAddress(config, Buffer.from(v5Final.build.controllerScriptHex, "hex"));
   rpc.seed(v5Addr, utxo(v5Addr, v5Final.txId, v5Final.build.controllerOutputIndex, v5Final.build.initialState.feeReserve, v5Final.build.covenantId));
   v5VaultId = (await wr5.submitWalletRequestV5({ config, requestId: v5Req.requestId, rpc })).vaultId;
+
+  /* LIVE rooted KAS SAFE-PAYMENT vault under R (v0.7 enablement, 2026-09-10): agent AG7, vault-level approver AP1 (M=1),
+   * 10 KAS protected + 1 KAS reserve, funded by A; driven to CHAIN_VERIFIED through the KAS request module */
+  const kasReq = await wr7kas.buildKasVaultGenesisRequest({
+    config, rootCovenantId: rootId, label: "kas treasury", agents: [kasPolicyFor(AG7)], approvers: [AP1.xonly], approvalM: 1,
+    recoveryAddress: A.address, depositKas: "10", feeReserveKas: "1", signerAddress: A.address, funding: [fuelUtxoFor(A, 200n * KAS)]
+  });
+  const kasSigned = signAll(kasReq.transaction.unsignedSafeJson, kasReq.transaction.signInputs.map((s) => [s.index, A]));
+  await wr7kas.finalizeKasWalletRequest({ config, requestId: kasReq.requestId, signedSafeJson: kasSigned });
+  const kasAddr = covenantAddress(config, Buffer.from(kasReq.build.vaultScriptHex, "hex"));
+  rpc.seed(kasAddr, utxo(kasAddr, kasReq.txId, 0, kasReq.build.frozen.outputs[0].value, kasReq.build.covenantId));
+  const kasSubmitted = await wr7kas.submitKasWalletRequest({ config, requestId: kasReq.requestId, rpc });
+  assert.equal(kasSubmitted.state, "CHAIN_VERIFIED");
+  kasVaultId = kasReq.vaultId;
 });
 
 after(async () => {
@@ -264,7 +287,7 @@ test("org-roots READ: unauthenticated 401; foreign B sees no root (list/GET/vaul
   r = await req("GET", `/org-roots/${rootId}`, { cookie: await asW(A2) });
   assert.equal(r.status, 200);
   r = await req("GET", `/org-roots/${rootId}/vaults`, { cookie: await asW(A2) });
-  assert.equal(r.status, 200); assert.equal(r.json.vaults.length, 1);
+  assert.equal(r.status, 200); assert.equal(r.json.vaults.length, 2, "the rooted payment vault + the rooted KAS vault (v0.7 enablement fixture)");
   r = await req("GET", `/org-roots/${rootId}`, { cookie: await asW(S) });
   assert.equal(r.status, 200, "the pinned successor may READ the root");
   r = await req("POST", `/org-roots/${rootId}/reconcile`, { cookie: await asW(S) });
@@ -453,6 +476,133 @@ test("MACHINE credential (F-06 + F-04): an owner-minted write:org-roots credenti
 /* ------------------------------------------------------------------ */
 /* /wallet/v5 and /wallet/v6 (token controllers)                       */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* /org-roots/:rootId/vaults (KAS profile) + /wallet/v7 agentSpend + approvals — v0.7 enablement (2026-09-10) */
+/* ------------------------------------------------------------------ */
+
+const kasVaultBody = (signer) => ({ profile: "policyvault-0.7-kas", label: "second kas treasury", agents: [kasPolicyFor(AG7)], approvers: [AP1.xonly], approvalM: 1, recoveryAddress: A.address, depositKas: "10", feeReserveKas: "1", signerAddress: signer.address, funding: [fuelUtxoFor(signer, 200n * KAS)] });
+const kasSpendBody = (signer, amountSompi) => ({ vaultId: kasVaultId, action: "agentSpend", signerAddress: signer.address, params: { payAmountSompi: amountSompi.toString(), recipient: REC.xonly } });
+
+test("ROOTED-KAS GENESIS (v0.7-kas): unauthenticated 401; foreign B 404; successor S 403 NOT_AN_ACTIVE_SLOT; owner A in A2's name 403; active owner A2 in its own name 201 (BUILT, CANDIDATE)", { skip }, async () => {
+  let r = await req("POST", `/org-roots/${rootId}/vaults`, { body: kasVaultBody(A) });
+  assert.equal(r.status, 401);
+  r = await req("POST", `/org-roots/${rootId}/vaults`, { body: kasVaultBody(B), cookie: await asW(B) });
+  assert.equal(r.status, 404, "a foreign wallet learns nothing about the root (non-oracle)");
+  r = await req("POST", `/org-roots/${rootId}/vaults`, { body: kasVaultBody(S), cookie: await asW(S) });
+  assert.equal(r.status, 403); assert.equal(code(r), "NOT_AN_ACTIVE_SLOT");
+  r = await req("POST", `/org-roots/${rootId}/vaults`, { body: kasVaultBody(A2), cookie: await asW(A) });
+  assert.equal(r.status, 403); assert.equal(code(r), "SIGNER_NOT_PRINCIPAL");
+  r = await req("POST", `/org-roots/${rootId}/vaults`, { body: kasVaultBody(A2), cookie: await asW(A2) });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.equal(r.json.request.kind, "kasGenesis");
+  assert.equal(r.json.request.state, "BUILT");
+  assert.equal(r.json.request.candidateStatus, "CANDIDATE");
+  assert.equal(r.json.request.build, undefined, "the presentation never leaks the build");
+  /* the genesis follow-up is the funder's own: B cannot sign/submit/reject it; A2 may withdraw it */
+  const id = r.json.request.requestId;
+  r = await req("POST", `/wallet/v7/requests/${id}/reject`, { cookie: await asW(B) });
+  assert.equal(r.status, 404);
+  r = await req("POST", `/wallet/v7/requests/${id}/reject`, { cookie: await asW(A2) });
+  assert.equal(r.status, 200);
+  r = await req("GET", `/org-roots/${rootId}/vaults`, { cookie: await asW(A) });
+  assert.equal(r.status, 200);
+  const kas = r.json.vaults.find((v) => v.vaultId === kasVaultId);
+  assert.ok(kas && kas.profile === "kas" && kas.candidateStatus === "CANDIDATE" && kas.live && kas.approvers.length === 1, "the KAS vault is listed to a root owner with its approver tier");
+  r = await req("GET", `/org-roots/${rootId}/vaults`, { cookie: await asW(B) });
+  assert.equal(r.status, 404);
+});
+
+test("/wallet/v7/vaults (participant discovery): unauthenticated 401; foreign B sees an EMPTY list (never the vault); the delegate, the approver and a root owner each see the KAS vault; the payment vault is listed to its agent and owner only", { skip }, async () => {
+  let r = await req("GET", "/wallet/v7/vaults");
+  assert.equal(r.status, 401);
+  r = await req("GET", "/wallet/v7/vaults", { cookie: await asW(B) });
+  assert.equal(r.status, 200); assert.deepEqual(r.json.vaults, [], "a stranger learns nothing");
+  for (const [w, label] of [[AG7, "delegate"], [AP1, "approver"], [A, "owner"]]) {
+    r = await req("GET", "/wallet/v7/vaults", { cookie: await asW(w) });
+    assert.equal(r.status, 200);
+    const kas = r.json.vaults.find((v) => v.vaultId === kasVaultId);
+    assert.ok(kas && kas.profile === "kas" && kas.build === undefined, `${label} sees the KAS vault summary`);
+  }
+  r = await req("GET", "/wallet/v7/vaults", { cookie: await asW(AP1) });
+  assert.equal(r.json.vaults.some((v) => v.vaultId === v7VaultId), false, "the KAS approver is not a participant of the payment vault");
+  r = await req("GET", "/wallet/v7/vaults", { cookie: await asW(AG7) });
+  assert.equal(r.json.vaults.some((v) => v.vaultId === v7VaultId), true, "AG7 is also the payment vault's agent");
+});
+
+test("/wallet/v7 agentSpend (v0.7-kas): unauthenticated 401; foreign B 404; agent in the owner's name 403; agent for itself 201; owner for its agent 201; a non-agent owner building for itself is refused; listing/GET/mutation stay tenant-scoped", { skip }, async () => {
+  let r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(AG7, 1n * KAS) });
+  assert.equal(r.status, 401);
+  r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(AG7, 1n * KAS), cookie: await asW(B) });
+  assert.equal(r.status, 404);
+  r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(B, 1n * KAS), cookie: await asW(B) });
+  assert.equal(r.status, 404);
+  r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(A, 1n * KAS), cookie: await asW(AG7) });
+  assert.equal(r.status, 403); assert.equal(code(r), "SIGNER_NOT_PRINCIPAL");
+  r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(A, 1n * KAS), cookie: await asW(A) });
+  assert.equal(r.status, 403, "an owner is not a registered delegate: the build is refused before any durable record"); assert.equal(code(r), "AGENT_NOT_REGISTERED");
+  r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(AG7, 1n * KAS), cookie: await asW(AG7) });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.equal(r.json.request.kind, "agentSpend");
+  assert.equal(r.json.request.state, "BUILT");
+  assert.equal(r.json.request.approvalProgress.required, 0);
+  assert.equal(r.json.request.approvalPackage, undefined);
+  const id = r.json.request.requestId;
+  const unsigned = r.json.request.transaction.unsignedSafeJson;
+  r = await req("GET", "/wallet/v7/requests", { cookie: await asW(B) });
+  assert.equal(r.status, 200); assert.equal(r.json.requests.some((q) => q.requestId === id), false, "a foreign wallet never sees the KAS request");
+  r = await req("GET", `/wallet/v7/requests?vaultId=${kasVaultId}`, { cookie: await asW(AP1) });
+  assert.equal(r.status, 200); assert.equal(r.json.requests.some((q) => q.requestId === id), true, "an approver is a participant and sees the vault's requests");
+  r = await req("GET", `/wallet/v7/requests/${id}`, { cookie: await asW(B) });
+  assert.equal(r.status, 404);
+  r = await req("POST", `/wallet/v7/requests/${id}/signature`, { body: { signedSafeJson: bogusSigned(unsigned) }, cookie: await asW(B) });
+  assert.equal(r.status, 404);
+  r = await req("POST", `/wallet/v7/requests/${id}/signature`, { body: { signedSafeJson: bogusSigned(unsigned) }, cookie: await asW(AP1) });
+  assert.equal(r.status, 403, "an approver may read but never signs the delegate's request"); assert.equal(code(r), "REQUEST_FORBIDDEN", "an approver holds no build authority: refused at the lifecycle gate before the signer check");
+  r = await req("POST", `/wallet/v7/requests/${id}/submit`, { cookie: await asW(B) });
+  assert.equal(r.status, 404);
+  r = await req("POST", `/wallet/v7/requests/${id}/reject`, { cookie: await asW(B) });
+  assert.equal(r.status, 404);
+  /* the owner may build for its registered agent (the agent still signs) */
+  r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(AG7, 1n * KAS), cookie: await asW(A) });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  await req("POST", `/wallet/v7/requests/${r.json.request.requestId}/reject`, { cookie: await asW(A) });
+  r = await req("POST", `/wallet/v7/requests/${id}/reject`, { cookie: await asW(AG7) });
+  assert.equal(r.status, 200);
+});
+
+test("/wallet/v7/requests/:id/approvals (v0.7-kas vault-level tier): unauthenticated 401; foreign B 404; the delegate 403 NOT_AN_APPROVER; the approver in the owner's name 403; a root owner who holds no approver slot 403; the approver itself 200 (complete); the request lifecycle stays the delegate's", { skip }, async () => {
+  let r = await req("POST", "/wallet/v7/requests", { body: kasSpendBody(AG7, 3n * KAS), cookie: await asW(AG7) });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.equal(r.json.request.state, "AWAITING_APPROVALS");
+  assert.equal(r.json.request.approvalProgress.required, 1);
+  const id = r.json.request.requestId;
+  const unsigned = r.json.request.transaction.unsignedSafeJson;
+  const approval = (w) => ({ approverAddress: w.address, signatureHex: sign65(unsigned, 0, w) });
+  r = await req("POST", `/wallet/v7/requests/${id}/approvals`, { body: approval(AP1) });
+  assert.equal(r.status, 401);
+  r = await req("POST", `/wallet/v7/requests/${id}/approvals`, { body: approval(B), cookie: await asW(B) });
+  assert.equal(r.status, 404, "non-oracle for strangers");
+  r = await req("POST", `/wallet/v7/requests/${id}/approvals`, { body: approval(AG7), cookie: await asW(AG7) });
+  assert.equal(r.status, 403); assert.equal(code(r), "NOT_AN_APPROVER");
+  r = await req("POST", `/wallet/v7/requests/${id}/approvals`, { body: approval(AP1), cookie: await asW(A) });
+  assert.equal(r.status, 403); assert.equal(code(r), "SIGNER_NOT_PRINCIPAL");
+  r = await req("POST", `/wallet/v7/requests/${id}/approvals`, { body: approval(A), cookie: await asW(A) });
+  assert.equal(r.status, 403, "root authority is not approver authority"); assert.equal(code(r), "NOT_AN_APPROVER");
+  r = await req("POST", `/wallet/v7/requests/${id}/signature`, { body: { signedSafeJson: bogusSigned(unsigned) }, cookie: await asW(AG7) });
+  assert.equal(r.status, 409, "the delegate cannot sign before the approvals are complete"); assert.equal(code(r), "INSUFFICIENT_APPROVALS");
+  r = await req("POST", `/wallet/v7/requests/${id}/approvals`, { body: approval(AP1), cookie: await asW(AP1) });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.approvals.complete, true);
+  assert.equal(r.json.request.state, "BUILT");
+  assert.equal(r.json.request.approvalPackage, undefined, "raw approval signatures are never presented");
+  r = await req("POST", `/wallet/v7/requests/${id}/approvals`, { body: approval(AP1), cookie: await asW(AP1) });
+  assert.equal(r.status, 409, "no further approvals once complete");
+  r = await req("POST", `/wallet/v7/requests/${id}/reject`, { cookie: await asW(AP1) });
+  assert.equal(r.status, 403, "an approver never reaches the request lifecycle"); assert.equal(code(r), "REQUEST_FORBIDDEN");
+  r = await req("POST", `/wallet/v7/requests/${id}/reject`, { cookie: await asW(AG7) });
+  assert.equal(r.status, 200);
+});
 
 test("/wallet/v5: unauthenticated create/list/GET/mutate 401; foreign create-in-A's-name 403; A's genesis request invisible and immutable to B and to A's own agent (not yet a vault); bogus foreign signature changes nothing", { skip }, async () => {
   const cA = await asW(A), cB = await asW(B), cAG = await asW(AG5);

@@ -216,11 +216,13 @@ None.
 | method | path | resource class | principal | auth gate (file) | tenancy resolver | mutation gate | machine scope | hostile evidence | note |
 |---|---|---|---|---|---|---|---|---|---|
 | POST | `/wallet/v7/requests` | request | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | requireRootedBuildAuthority | requireRootedBuildAuthority | `write:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
+| GET | `/wallet/v7/vaults` | vault | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | anyVaultAccessAllowed filter | n/a | `read:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
 | GET | `/wallet/v7/requests` | request | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | walletRequestVisible filter | n/a | `read:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
 | GET | `/wallet/v7/requests/:id` | request | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | requireWalletRequest | n/a | `read:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
 | POST | `/wallet/v7/requests/:id/signature` | request | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | requireWalletRequest | requireWalletRequest(mutation) + signer-only (NOT_THE_SIGNER; rc13 review N-02) | `write:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
 | POST | `/wallet/v7/requests/:id/submit` | request | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | requireWalletRequest | requireWalletRequest(mutation) | `write:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
 | POST | `/wallet/v7/requests/:id/reject` | request | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | requireWalletRequest | requireWalletRequest(mutation) | `write:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
+| POST | `/wallet/v7/requests/:id/approvals` | request | session-or-machine | `requestAuthPrincipal` (server/src/org-roots.js) | requireWalletRequest | requireWalletRequest + approver-only (SIGNER_NOT_PRINCIPAL / NOT_AN_APPROVER via tenancy.rootedVaultRoles; v0.7-kas vault-level approval tier, 2026-09-10) | `write:org-roots` | `sdk/test/hosted-foreign-tenant-matrix.test.js` |  |
 
 ### /org-roots
 
@@ -310,4 +312,4 @@ None.
 | POST | `/notifications/rules/:id/enable` | creator-owned | session-or-machine | `requestAuthPrincipal` (server/src/api.js) | creatorXOnly scoping | creatorXOnly scoping | `notifications:manage` | `sdk/test/postlaunch-notifications.test.js` |  |
 | POST | `/notifications/rules/:id/delete` | creator-owned | session-or-machine | `requestAuthPrincipal` (server/src/api.js) | creatorXOnly scoping | creatorXOnly scoping | `notifications:manage` | `sdk/test/postlaunch-notifications.test.js` |  |
 
-Routes: 123. Families: 29.
+Routes: 125. Families: 29.

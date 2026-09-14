@@ -15,11 +15,13 @@
 const { compileExactState } = require("./contract-compiler");
 const { normalizePolicy, normalizeState, computeStateId } = require("./vault-state");
 const { covenantAddress, connectVerified, getAddressUtxos } = require("./chain");
-const { claimSubmission, persistReceipt } = require("./submission-claim");
-const { persistManifest, VaultStatus, MANIFEST_SCHEMA } = require("./manifest");
+const { claimSubmission } = require("./submission-claim");
+const { assertVaultIdentityFree, withVaultIdentityLock, normalizeVaultId } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
 const { CONTRACT_VERSION } = require("./config");
-const { appendAudit } = require("./audit");
 const { finalizeWithExactFee } = require("./fee-mass");
+/* RC35-RES-01 (2026-09-11): the durable headless creation record (identity reservation bound to the creator and the exact
+ * expected outcome BEFORE any chain effect), the shared submit-outcome settlement and ONE replayable create-only completion */
+const { openHeadlessCreation, saveHeadlessCreation, settleHeadlessBroadcast, completeHeadlessCreation } = require("./headless-creation");
 
 /*
  * The exact fee is set by finalizeWithExactFee (docs/fee-mass-spec.md).
@@ -44,7 +46,7 @@ async function pollForProof(fn, { attempts = 30, delayMs = 2_000 } = {}) {
     if (result) {
       return result;
     }
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (i + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return null;
 }
@@ -54,8 +56,22 @@ async function pollForProof(fn, { attempts = 30, delayMs = 2_000 } = {}) {
  * `delegateFuelSompi` are testnet conveniences; in production the owner
  * wallet signs the funding transaction.
  */
-async function createVault({ config, policyInput, fundingKey, delegateAddress, delegateFuelSompi = 0n }) {
+/* RC33-ID-01 review finding F3 (2026-09-11): the whole flow (check -> build -> record -> claim -> broadcast -> create-only
+ * completion) runs under the per-identity lock against in-process builders; a malformed policy falls through and is refused
+ * exactly as before. RC35-RES-01: the durable headless creation record (sdk/src/headless-creation.js) is written the moment
+ * the signed transaction exists — BEFORE the submission claim and BEFORE the broadcast — so the identity stays reserved
+ * across any restart and the exact outcome is recoverable by observation only (recoverHeadlessCreation). `connection`
+ * ({ rpc, kaspa, serverInfo }) lets an isolated test drive the real flow against a mock node; production uses the verified
+ * node connection. */
+async function createVault(args) {
+  let vaultId = null;
+  try { vaultId = normalizeVaultId(normalizePolicy(args.policyInput).vaultId); } catch { vaultId = null; }
+  if (vaultId === null) return createVaultUnlocked(args);
+  return withVaultIdentityLock(vaultId, () => createVaultUnlocked(args));
+}
+async function createVaultUnlocked({ config, policyInput, fundingKey, delegateAddress, delegateFuelSompi = 0n, connection = null, pollAttempts = 30, pollDelayMs = 2000 }) {
   const policy = normalizePolicy(policyInput);
+  await assertVaultIdentityFree(config, policy.vaultId); // RC33-ID-01: an identity held by ANY generation's record, ANY request or ANY retained submission claim is refused before anything is built, claimed or sent
   const createdState = normalizeState({
     protectedValue: policy.initValue,
     periodStartDaa: policy.initPeriodStartDaa,
@@ -66,7 +82,8 @@ async function createVault({ config, policyInput, fundingKey, delegateAddress, d
   const compiled = compileExactState({ config, policy, state: createdState });
   const vaultAddress = covenantAddress(config, compiled.scriptBytes);
 
-  const { rpc, kaspa, serverInfo } = await connectVerified(config);
+  const owned = !connection;
+  const { rpc, kaspa, serverInfo } = owned ? await connectVerified(config) : connection;
   try {
     const {
       ScriptBuilder,
@@ -198,14 +215,39 @@ async function createVault({ config, policyInput, fundingKey, delegateAddress, d
       fail("preflight: network drifted");
     }
 
+    /* RC35-RES-01: the DURABLE headless creation record — the identity is bound to the creator and the exact expected
+     * outcome BEFORE the submission claim and BEFORE the broadcast (from here on it survives any restart). */
+    const creation = await openHeadlessCreation(config, {
+      generation: "v1", action: "createVault", contractVersion: CONTRACT_VERSION, vaultId: policy.vaultId, creator: fundingAddress, label: policyInput.label ?? "",
+      definition: { policyInput },
+      expected: { address: vaultAddress, index: vaultOutputIndex, value: policy.initValue.toString(), covenantId: genesisCovenantIdHex.toLowerCase(), scriptSha256: compiled.scriptSha256, stateId },
+      txId, signedSafeJson: transaction.serializeToSafeJSON()
+    });
     /* Durable claim before broadcast. */
     await claimSubmission(config, { txId, vaultId: policy.vaultId, action: "createVault" });
+    creation.submitStartHash = await require("./submission-outcome-v7").readSubmissionStartHash(rpc);
+    creation.state = "SUBMITTING";
+    await saveHeadlessCreation(config, creation);
 
-    const submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
+    let submitted;
+    try {
+      submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
+    } catch (e) {
+      /* RC35-REC-01: REJECTED (bound rejection + output verified absent) settles the negative and releases the claim; an
+       * already-known answer is observed like an accepted response; anything else keeps the claim (RECONCILIATION_REQUIRED) */
+      const settled = await settleHeadlessBroadcast(config, rpc, creation, e);
+      if (settled.decision !== "OBSERVE") throw settled.error;
+      submitted = { transactionId: txId };
+    }
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
     if (returnedTxId !== txId) {
-      fail(`node returned txid ${returnedTxId}, expected ${txId} — refusing to proceed`);
+      creation.state = "RECONCILIATION_REQUIRED";
+      creation.error = `node returned txid ${returnedTxId}, expected ${txId}`;
+      await saveHeadlessCreation(config, creation);
+      fail(`node returned txid ${returnedTxId}, expected ${txId} — refusing to proceed (claim and record preserved; recover with recoverHeadlessCreation)`);
     }
+    creation.state = "SUBMITTED";
+    await saveHeadlessCreation(config, creation);
 
     /* Chain proof: the exact covenant outpoint must appear with the exact
      * value and covenant id. */
@@ -220,65 +262,23 @@ async function createVault({ config, policyInput, fundingKey, delegateAddress, d
             u.covenantId === genesisCovenantIdHex.toLowerCase()
         ) ?? null
       );
-    });
+    }, { attempts: pollAttempts, delayMs: pollDelayMs });
     if (!proof) {
+      creation.state = "RECONCILIATION_REQUIRED";
+      creation.error = `submitted ${txId} but the covenant outpoint was not observed — claim and record preserved; recover by observation (recoverHeadlessCreation), never by a retry`;
+      await saveHeadlessCreation(config, creation);
       fail(
         `submitted ${txId} but the covenant outpoint was not observed — ` +
-          "claim preserved; run reconciliation before any retry"
+          "claim preserved; run reconciliation (recoverHeadlessCreation) before any retry"
       );
     }
 
-    const manifest = await persistManifest(config, {
-      schema: MANIFEST_SCHEMA,
-      contractVersion: CONTRACT_VERSION,
-      networkId: config.networkId,
-      vaultId: policy.vaultId,
-      label: policyInput.label ?? "",
-      status: VaultStatus.ACTIVE,
-      policy: policyInput,
-      live: {
-        state: {
-          protectedValue: createdState.protectedValue.toString(),
-          periodStartDaa: createdState.periodStartDaa.toString(),
-          periodSpent: "0",
-          paused: "0"
-        },
-        stateId,
-        outpoint: { transactionId: txId, index: vaultOutputIndex },
-        outpointValue: createdState.protectedValue.toString(),
-        scriptSha256: compiled.scriptSha256,
-        covenantId: genesisCovenantIdHex.toLowerCase()
-      },
-      creationTxId: txId,
-      latestTransitionTxId: null
-    });
+    /* RC33-ID-01 + RC35-RES-01: ONE replayable create-only completion (manifest, receipt, audit, own-claim release, record) */
+    const { manifest } = await completeHeadlessCreation(config, creation, proof, { fee: feeResult, via: "create" });
 
-    await persistReceipt(config, {
-      txId,
-      vaultId: policy.vaultId,
-      action: "createVault",
-      proof: {
-        outpoint: proof.outpoint,
-        amount: proof.amount.toString(),
-        covenantId: proof.covenantId,
-        requiredFeeSompi: feeResult.requiredFee.toString(),
-        actualFeeSompi: feeResult.actualFee.toString()
-      }
-    });
-
-    await appendAudit(config, {
-      vaultId: policy.vaultId,
-      action: "vault_created",
-      actor: "owner",
-      txId,
-      result: "CHAIN_VERIFIED",
-      feeSompi: feeResult.actualFee.toString(),
-      newStateId: stateId
-    });
-
-    return { txId, vaultAddress, vaultOutputIndex, covenantId: genesisCovenantIdHex.toLowerCase(), stateId, manifest, fee: feeResult };
+    return { txId, vaultAddress, vaultOutputIndex, covenantId: genesisCovenantIdHex.toLowerCase(), stateId, manifest, fee: feeResult, requestId: creation.requestId };
   } finally {
-    await rpc.disconnect();
+    if (owned) await rpc.disconnect();
   }
 }
 

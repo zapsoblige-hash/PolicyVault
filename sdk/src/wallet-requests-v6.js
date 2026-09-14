@@ -49,22 +49,25 @@ const fs = require("fs");
 const path = require("path");
 
 const { getStore, Categories } = require("./store");
-const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
+const { assertVaultIdentityFree, withVaultIdentityLock, normalizeVaultId } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
+const { assertOperationalNetwork, assertGenerationMainnetCreatable, assertGenerationMainnetOperable } = require("./config");
 const { normalizeHex } = require("./vault-state");
 const { kasToSompi } = require("./amounts");
+/* RC35-REC-01 / legacy F4 (2026-09-11): shared submit-outcome settlement + observation-only genesis recovery primitives */
+const { settleGenesisSubmitError, settleTransitionSubmitError, anyFrozenOutputObserved, frozenInputLive, ensureOwnSubmissionClaim, unobservedRecoveryDisposition, refreshUnobservedGenesis } = require("./genesis-recovery");
 const { resolveAddressIdentity } = require("./address-identity");
 const { connectVerified, getAddressUtxos, getVirtualDaaScore } = require("./chain");
 const { frozenToWasmTransaction } = require("./frozen-tx-v3");
 const { claimTransition, claimSubmission, releaseTransitionClaim, releaseSubmissionClaim, persistReceipt } = require("./submission-claim");
 const { finalTxToWasm, isDefinitiveSubmitRejection } = require("./wallet-submit-v4");
-const { appendAudit } = require("./audit");
+const { appendAudit, readAudit } = require("./audit");
 const assets = require("../../core/assets");
 
 const { CONTRACT_VERSION_V6, resolveV6Abi, normalizeStateV6, stateToJsonV6, computeStateIdV6, controllerValueV6 } = require("./vault-state-v6");
 const { buildV6Transaction, buildCreateV6, finalizeV6Transaction, buildTokenDepositV6, finalizeTokenDepositV6, OWNER_CONTROL_ACTIONS, SPEND_ACTIONS, SWAP_ACTIONS } = require("./vault-builders-v6");
 const { normalizeSwapVenueProfile } = require("./swap-policy-v6");
 const { POOL_FIXTURE_REL } = require("./swap-pool-fixture-v6");
-const { normalizeRegistry, normalizeSwapRegistry, registryEntryToJson, loadManifestV6, persistManifestV6, manifestToJsonV6, MANIFEST_SCHEMA_V6 } = require("./manifest-v6");
+const { normalizeRegistry, normalizeSwapRegistry, registryEntryToJson, loadManifestV6, persistManifestV6, createManifestV6, manifestToJsonV6, MANIFEST_SCHEMA_V6 } = require("./manifest-v6");
 const { VaultStatus } = require("./manifest");
 
 const V6_WALLET_REQUEST_SCHEMA = "policyvault-wallet-request/v6";
@@ -223,7 +226,15 @@ function advanceRegistryV6(registry, build) {
 /* 1. GENESIS — POST /wallet/v6/create                                  */
 /* ------------------------------------------------------------------ */
 
-async function buildCreateWalletRequestV6({ config, label = "", descriptor, templateIndex = 0, initialAgents = [], initialSwapPolicies = [], feeReserveKas, swapPrincipalKas = "0", signerAddress, funding, vaultId }) {
+async function buildCreateWalletRequestV6(args) {
+  /* RC33-ID-01 (2026-09-11): the build (uniqueness check -> request write) is serialized per vault identity; a malformed
+   * identity falls through and is refused exactly as before */
+  let vaultId = null;
+  try { vaultId = args.vaultId ? normalizeHex(args.vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex"); } catch { vaultId = null; }
+  if (vaultId === null) return buildCreateWalletRequestV6Unlocked(args);
+  return withVaultIdentityLock(vaultId, () => buildCreateWalletRequestV6Unlocked({ ...args, vaultId }));
+}
+async function buildCreateWalletRequestV6Unlocked({ config, label = "", descriptor, templateIndex = 0, initialAgents = [], initialSwapPolicies = [], feeReserveKas, swapPrincipalKas = "0", signerAddress, funding, vaultId }) {
   try {
     assertOperationalNetwork(config);
     assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V6);
@@ -238,6 +249,7 @@ async function buildCreateWalletRequestV6({ config, label = "", descriptor, temp
   const initialSwapRegistry = swapEntries.map((p) => require("./swap-policy-v6").swapPolicyToJsonV6(p));
 
   const vId = vaultId ? normalizeHex(vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex");
+  await assertVaultIdentityFree(config, vId); // RC33-ID-01: an identity held by ANY generation's record or ANY request is refused before anything is built or written
   const template = { owner: ownerXOnly, vaultId: vId, descriptorHash, tokenCovenantId, templateVmHash, templatePrefixLen, templateStateLen, templateSuffixLen };
   const feeReserveSompi = kasToSompi(feeReserveKas, "feeReserveKas");
   const swapPrincipalSompi = kasToSompi(swapPrincipalKas, "swapPrincipalKas");
@@ -446,7 +458,17 @@ function assertImmutable(unsigned, signed) {
   if (JSON.stringify(strip(unsigned)) !== JSON.stringify(strip(signed))) throwFail("signed package mutated a consensus-visible field", "SIGNATURE_INVALID");
 }
 
-async function submitSignatureV6({ config, requestId, signedSafeJson }) {
+/* RC33-ID-01 review finding F1 (2026-09-11): the signature and the submission of a genesis are serialized PER VAULT IDENTITY inside the existing root / signer / request lock (lock order unchanged: root / signer / request first, identity inside), so the commit-phase identity check and the signature store / claim / broadcast that follow it form ONE critical section — a pre-correction pair of drafts naming one identity can never double-sign or double-broadcast under concurrency. A request whose identity cannot be normalized falls through to the unlocked body, which refuses it exactly as before. Only GENESIS requests carry a vault identity to serialize on. */
+async function withGenesisIdentityLockV6(config, requestId, work) {
+  const peek = await loadWalletRequestV6(config, requestId);
+  let vaultId = null;
+  try { vaultId = peek && peek.kind === "genesis" ? normalizeVaultId(peek.vaultId) : null; } catch { vaultId = null; }
+  return vaultId === null ? work() : withVaultIdentityLock(vaultId, work);
+}
+async function submitSignatureV6(args) {
+  return withGenesisIdentityLockV6(args.config, args.requestId, () => submitSignatureV6Unlocked(args));
+}
+async function submitSignatureV6Unlocked({ config, requestId, signedSafeJson }) {
   const request = await loadWalletRequestV6(config, requestId);
   if (!request) throwFail(`no request ${requestId}`, "REQUEST_NOT_FOUND");
   if (request.state !== RequestState.BUILT) throwFail(`request is ${request.state}, not BUILT`, request.state);
@@ -464,6 +486,7 @@ async function submitSignatureV6({ config, requestId, signedSafeJson }) {
   assertImmutable(unsigned, signed);
 
   if (request.kind === "genesis") {
+    await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: request.requestId, exceptTxId: request.txId, phase: "commit" }); // RC33-ID-01: refused before the signature is accepted; the request stays BUILT
     for (let i = 0; i < unsigned.inputs.length; i++) {
       if (!signed.inputs[i]?.signatureScript) {
         request.state = RequestState.WALLET_REJECTED;
@@ -537,15 +560,103 @@ async function submitSignatureV6({ config, requestId, signedSafeJson }) {
 /* 4. SUBMIT — POST /wallet/v6/requests/:id/submit                      */
 /* ------------------------------------------------------------------ */
 
-async function submitWalletRequestV6({ config, requestId, rpc: providedRpc }) {
+async function submitWalletRequestV6(args) {
+  return withGenesisIdentityLockV6(args.config, args.requestId, () => submitWalletRequestV6Unlocked(args));
+}
+/* The EXACT controller output a v0.6 genesis declares (derived from the frozen transaction the funder signed). */
+function genesisExpectedOutputV6(config, request) {
+  const index = request.build.controllerOutputIndex;
+  const out = request.build.frozen.outputs[index];
+  return { address: spkToAddress(config, out.scriptPublicKey), txId: request.txId, index, value: String(out.value), covenantId: request.build.covenantId };
+}
+async function observeGenesisOutputV6(config, rpc, request, { pollAttempts = 30, pollDelayMs = 2000 } = {}) {
+  const expected = genesisExpectedOutputV6(config, request);
+  let proof = null;
+  for (let i = 0; i < pollAttempts && !proof; i++) {
+    const ref = await findOutpoint(rpc, expected.address, expected.txId, expected.index);
+    if (ref && String(ref.covenantId ?? "").toLowerCase() === expected.covenantId && String(ref.amount) === expected.value) proof = ref;
+    if (!proof && i + 1 < pollAttempts) await new Promise((r) => setTimeout(r, pollDelayMs));
+  }
+  return proof;
+}
+/* ONE replayable completion of a PROVEN v0.6 genesis (submit path and observation-only recovery alike). */
+async function completeGenesisV6(config, request) {
+  const state = normalizeStateV6(request.build.initialState);
+  const stateId = computeStateIdV6({ networkId: config.networkId, template: request.build.template, state, contractVersion: CONTRACT_VERSION_V6 });
+  /* RC33-ID-01: ATOMIC create-only completion (sdk/src/vault-identity.js) — never read-then-overwrite */
+  let manifest;
+  try {
+    ({ manifest } = await createManifestV6(config, {
+      schema: MANIFEST_SCHEMA_V6,
+      contractVersion: CONTRACT_VERSION_V6,
+      networkId: config.networkId,
+      vaultId: request.build.template.vaultId,
+      label: request.label ?? "",
+      status: VaultStatus.ACTIVE,
+      template: request.build.template,
+      asset: { descriptor: request.descriptor, templateIndex: request.templateIndex ?? 0 },
+      agentRegistry: request.initialRegistry ?? [],
+      swapRegistry: request.initialSwapRegistry ?? [],
+      live: { state: stateToJsonV6(state), stateId, outpoint: { transactionId: request.txId, index: request.build.controllerOutputIndex }, outpointValue: controllerValueV6(state).toString(), scriptSha256: request.build.scriptSha256, covenantId: request.build.covenantId, tokenPosition: null },
+      creationTxId: request.txId,
+      latestTransitionTxId: null
+    }));
+  } catch (e) {
+    if (e.code !== "RECONCILIATION_REQUIRED") throw e;
+    /* RC33-ID-01: the identity holds a DIFFERENT record (any generation) — that record is never replaced; the proven chain
+     * effect stays on THIS request (signed bytes, txid, submission claim intact) as RECONCILIATION_REQUIRED */
+    request.state = RequestState.RECONCILIATION_REQUIRED;
+    request.error = `chain effect proven but the vault record could not be created: ${String(e.message).split("\n")[0]}`;
+    await saveWalletRequestV6(config, request);
+    throw fail(request.error, "RECONCILIATION_REQUIRED");
+  }
+  const receipt = await getStore(config).read(Categories.RECEIPT, request.txId);
+  if (receipt && (receipt.vaultId !== manifest.vaultId || receipt.action !== "createTokenController")) throwFail("a receipt for this transaction names another operation", "RECONCILIATION_REQUIRED");
+  if (!receipt) await persistReceipt(config, { txId: request.txId, vaultId: manifest.vaultId, action: "createTokenController", proof: { outpoint: `${request.txId}:${request.build.controllerOutputIndex}`, covenantId: request.build.covenantId } });
+  if (!(await readAudit(config, { vaultId: manifest.vaultId, txId: request.txId, limit: 500 })).some((e) => e.action === "createTokenController" && e.result === "CHAIN_VERIFIED")) {
+    await appendAudit(config, { vaultId: manifest.vaultId, action: "createTokenController", actor: "owner", contractVersion: CONTRACT_VERSION_V6, txId: request.txId, result: "CHAIN_VERIFIED", via: "wallet/v6" });
+  }
+  /* the submission claim of a PROVEN genesis is released only when it is ours (never another operation's) */
+  const submission = await getStore(config).read(Categories.SUBMISSION_CLAIM, request.txId);
+  if (submission && (submission.vaultId !== request.vaultId || submission.action !== request.action)) throwFail("submission claim belongs to another operation", "CLAIM_CONFLICT");
+  if (submission) await releaseSubmissionClaim(config, request.txId);
+  request.state = RequestState.CHAIN_VERIFIED;
+  request.error = undefined;
+  request.chain = { successorOutpoint: `${request.txId}:${request.build.controllerOutputIndex}`, observedAt: request.chain?.observedAt ?? new Date().toISOString() };
+  await saveWalletRequestV6(config, request);
+  return request;
+}
+/* RC35 legacy F4 (2026-09-11): a genesis whose broadcast outcome is unresolved (SUBMITTING / SUBMITTED /
+ * RECONCILIATION_REQUIRED) or that an earlier runtime persisted as SUBMISSION_REJECTED is recovered by OBSERVATION ONLY
+ * through this SAME request: never rebuilt, never re-signed, never rebroadcast; the recovery belongs to the OPERABLE
+ * set (it keeps working when new creation of this generation is disabled). */
+const GENESIS_RECOVERY_STATES = new Set([RequestState.SUBMITTING, RequestState.SUBMITTED, RequestState.RECONCILIATION_REQUIRED, RequestState.SUBMISSION_REJECTED]);
+async function recoverGenesisV6({ config, rpc, request, pollAttempts, pollDelayMs }) {
+  const fromNegative = request.state === RequestState.SUBMISSION_REJECTED;
+  const proof = await observeGenesisOutputV6(config, rpc, request, { pollAttempts, pollDelayMs });
+  if (!proof) {
+    const disposition = await refreshUnobservedGenesis({ config, rpc, request, claim: { txId: request.txId, vaultId: request.vaultId, action: request.action }, save: (q) => saveWalletRequestV6(config, q) });
+    if (disposition.action === "KEEP_NEGATIVE") return request; // an ESTABLISHED negative: unchanged, nothing rebroadcast
+    if (disposition.action === "PROTECT") await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
+    request.state = RequestState.RECONCILIATION_REQUIRED;
+    request.error = disposition.reason ?? `${request.txId} was broadcast but the controller output is not observed — reconcile (nothing is rebroadcast)`;
+    await saveWalletRequestV6(config, request);
+    throw fail(request.error, "RECONCILIATION_REQUIRED");
+  }
+  if (fromNegative) await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: request.action }); // the false negative released it; a conflicted completion must leave it in place
+  return completeGenesisV6(config, request);
+}
+async function submitWalletRequestV6Unlocked({ config, requestId, rpc: providedRpc, pollAttempts = 30, pollDelayMs = 2000 }) {
   const request = await loadWalletRequestV6(config, requestId);
   if (!request) throwFail(`no request ${requestId}`, "REQUEST_NOT_FOUND");
   if (request.state === RequestState.CHAIN_VERIFIED) return request; // idempotent
-  if (request.state !== RequestState.SIGNED) throwFail(`request is ${request.state}, not SIGNED`, request.state);
+  const recoveringGenesis = request.kind === "genesis" && GENESIS_RECOVERY_STATES.has(request.state);
+  if (request.state !== RequestState.SIGNED && !recoveringGenesis) throwFail(`request is ${request.state}, not SIGNED`, request.state);
 
   try {
     assertOperationalNetwork(config);
-    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V6);
+    if (recoveringGenesis) assertGenerationMainnetOperable(config, CONTRACT_VERSION_V6); // observation of an existing attempt is not a new creation
+    else assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V6);
   } catch (e) {
     throw fail(e.message, "NETWORK_MISMATCH");
   }
@@ -554,6 +665,7 @@ async function submitWalletRequestV6({ config, requestId, rpc: providedRpc }) {
   const { rpc, serverInfo } = owned ? await connectVerified(config) : { rpc: providedRpc, serverInfo: { networkId: config.networkId } };
   try {
     if (serverInfo.networkId !== config.networkId) throw fail(`node network ${serverInfo.networkId} != configured ${config.networkId}`, "NETWORK_MISMATCH");
+    if (recoveringGenesis) return await recoverGenesisV6({ config, rpc, request, pollAttempts, pollDelayMs });
 
     if (request.kind === "swap" && !request.finalTransaction) {
       /* LAZY finalize — the freshness gate runs against the node's own
@@ -596,7 +708,9 @@ async function submitWalletRequestV6({ config, requestId, rpc: providedRpc }) {
         throw fail(e.message, "CLAIM_CONFLICT");
       }
     }
+    if (request.kind === "genesis") await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: request.requestId, exceptTxId: request.txId, phase: "commit" }); // RC33-ID-01: before claims or broadcast
     await claimSubmission(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
+    request.submitStartHash = await require("./submission-outcome-v7").readSubmissionStartHash(rpc);
     request.state = RequestState.SUBMITTING;
     await saveWalletRequestV6(config, request);
 
@@ -606,16 +720,28 @@ async function submitWalletRequestV6({ config, requestId, rpc: providedRpc }) {
     } catch (e) {
       const message = String(e.message ?? e).split("\n")[0];
       request.error = message;
-      if (isDefinitiveSubmitRejection(message)) {
+      /* RC35-REC-01: REJECTED / ALREADY_KNOWN / AMBIGUOUS through the shared classifier. A genesis settles its negative ONLY
+       * with the controller output verified absent; a transition / swap / deposit only with its input still unspent AND
+       * every frozen output absent; an already-known answer is observed like an accepted response; anything else keeps the claims. */
+      const settled = request.kind === "genesis"
+        ? await settleGenesisSubmitError({ config, request, rpc, message, txId: request.txId, expected: genesisExpectedOutputV6(config, request) })
+        : await settleTransitionSubmitError({ config, rpc, request, message, txId: request.txId, predecessorLive: () => frozenInputLive(config, rpc, request.build.frozen, 0), effectAbsent: async () => !(await anyFrozenOutputObserved(config, rpc, request.build.frozen, request.txId)) });
+      if (settled.decision === "REJECTED") {
+        request.state = RequestState.SUBMISSION_REJECTED;
+        request.submissionOutcome = { outcome: RequestState.SUBMISSION_REJECTED, reason: message, txId: request.txId, proof: settled.proof };
+        await saveWalletRequestV6(config, request);
         if (request.kind === "transition" || request.kind === "swap") await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
         await releaseSubmissionClaim(config, request.txId);
-        request.state = RequestState.SUBMISSION_REJECTED;
-        await saveWalletRequestV6(config, request);
         throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
       }
-      request.state = RequestState.RECONCILIATION_REQUIRED;
-      await saveWalletRequestV6(config, request);
-      throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      if (settled.decision === "UNCERTAIN") {
+        request.state = RequestState.RECONCILIATION_REQUIRED;
+        request.error = `${message} — ${settled.reason}`;
+        await saveWalletRequestV6(config, request);
+        throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      }
+      request.submissionResponse = { kind: "ALREADY_KNOWN", variant: settled.classification.variant, reason: message, at: new Date().toISOString() };
+      submitted = { transactionId: request.txId };
     }
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
     if (returnedTxId !== request.txId) {
@@ -627,40 +753,13 @@ async function submitWalletRequestV6({ config, requestId, rpc: providedRpc }) {
     await saveWalletRequestV6(config, request);
 
     if (request.kind === "genesis") {
-      const address = spkToAddress(config, request.build.frozen.outputs[request.build.controllerOutputIndex].scriptPublicKey);
-      let proof = null;
-      for (let i = 0; i < 30 && !proof; i++) {
-        const ref = await findOutpoint(rpc, address, request.txId, request.build.controllerOutputIndex);
-        if (ref && String(ref.covenantId ?? "").toLowerCase() === request.build.covenantId) proof = ref;
-        if (!proof) await new Promise((r) => setTimeout(r, 2000));
-      }
+      const proof = await observeGenesisOutputV6(config, rpc, request, { pollAttempts, pollDelayMs });
       if (!proof) {
         request.state = RequestState.RECONCILIATION_REQUIRED;
         await saveWalletRequestV6(config, request);
         throw fail(`${request.txId} submitted but the controller output was not observed — reconcile`, "RECONCILIATION_REQUIRED");
       }
-      const state = normalizeStateV6(request.build.initialState);
-      const stateId = computeStateIdV6({ networkId: config.networkId, template: request.build.template, state, contractVersion: CONTRACT_VERSION_V6 });
-      const manifest = await persistManifestV6(config, {
-        schema: MANIFEST_SCHEMA_V6,
-        contractVersion: CONTRACT_VERSION_V6,
-        networkId: config.networkId,
-        vaultId: request.build.template.vaultId,
-        label: request.label ?? "",
-        status: VaultStatus.ACTIVE,
-        template: request.build.template,
-        asset: { descriptor: request.descriptor, templateIndex: request.templateIndex ?? 0 },
-        agentRegistry: request.initialRegistry ?? [],
-        swapRegistry: request.initialSwapRegistry ?? [],
-        live: { state: stateToJsonV6(state), stateId, outpoint: { transactionId: request.txId, index: request.build.controllerOutputIndex }, outpointValue: controllerValueV6(state).toString(), scriptSha256: request.build.scriptSha256, covenantId: request.build.covenantId, tokenPosition: null },
-        creationTxId: request.txId,
-        latestTransitionTxId: null
-      });
-      await persistReceipt(config, { txId: request.txId, vaultId: manifest.vaultId, action: "createTokenController", proof: { outpoint: `${request.txId}:${request.build.controllerOutputIndex}`, covenantId: request.build.covenantId } });
-      await appendAudit(config, { vaultId: manifest.vaultId, action: "createTokenController", actor: "owner", contractVersion: CONTRACT_VERSION_V6, txId: request.txId, result: "CHAIN_VERIFIED", via: "wallet/v6" });
-      request.state = RequestState.CHAIN_VERIFIED;
-      await saveWalletRequestV6(config, request);
-      return request;
+      return await completeGenesisV6(config, request);
     }
 
     if (request.kind === "tokenDeposit") {

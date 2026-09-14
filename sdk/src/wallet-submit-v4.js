@@ -41,7 +41,7 @@ const { createHash } = require("node:crypto");
 const { CONTRACT_VERSION_V4, stateToJsonV4, normalizeStateV4, computeStateIdV4 } = require("./vault-state-v4");
 const { compileExactStateV4 } = require("./contract-compiler-v4");
 const { covenantAddress, connectVerified, getAddressUtxos } = require("./chain");
-const { loadManifestV4, persistManifestV4 } = require("./manifest-v4");
+const { loadManifestV4, persistManifestV4, createManifestV4 } = require("./manifest-v4");
 const { buildAgentTreeV4, normalizeAgentPolicyV4 } = require("./agent-merkle-v4");
 const { buildRecipientTree } = require("./recipient-merkle-v3");
 const {
@@ -51,11 +51,12 @@ const {
   loadTransitionClaim,
   persistReceipt
 } = require("./submission-claim");
+const { assertVaultIdentityFree, withVaultIdentityLock, normalizeVaultId } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
 const { appendAudit } = require("./audit");
 const { VaultStatus } = require("./manifest");
 const { RequestState, loadRequest, saveRequest } = require("./wallet-requests-v4");
 const { releaseReservationForRequest } = require("./budget-reservation");
-const { assertOperationalNetwork } = require("./config");
+const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
 
 function fail(message, code) {
   const error = new Error(`wallet-submit-v4: ${message}`);
@@ -79,22 +80,27 @@ function requireOperationalNetwork(config, request, manifest) {
   if (manifest && manifest.networkId !== config.networkId) throw fail(`manifest network ${manifest.networkId} != configured ${config.networkId}`, "NETWORK_MISMATCH");
 }
 
-// DEFINITIVE = the node evaluated the transaction and rejected it. rusty-kaspa
+// DEFINITIVE = the node evaluated THIS attempt and rejected it. rusty-kaspa
 // formats every such rejection as "Rejected transaction {id}: {reason}"
 // (rpc/core/src/error.rs:54, RpcError::RejectedTransaction) — this is also how a
 // non-standard/sig-op rejection surfaces. The wRPC client may deliver it bare,
 // behind the SDK's own "submit failed: " prefix, or WRAPPED by the transport as
 // "RPC Server (remote error) -> Rejected transaction …" (rpc/core/src/error.rs:117)
-// or the JS form "… message:`Rejected transaction …`". A word-boundary match on
-// the exact "Rejected transaction " marker recognizes all of these while
-// transport failures (timeout, dropped connection, "not connected", crash) —
-// which never carry that marker — stay AMBIGUOUS. This is only a fast-path hint:
-// the transition path still re-verifies predecessor-live + effect-absent by
-// chain proof before releasing any claim (so a false positive cannot release a
-// claim unsafely); genesis carries no covenant successor to endanger.
-function isDefinitiveSubmitRejection(message) {
-  return /\bRejected transaction /i.test(String(message ?? ""));
-}
+// or the JS form "… message:`Rejected transaction …`".
+// RC35-REC-01 (independent RC35 affected review, 2026-09-11): the envelope is
+// ALSO how the node answers a transaction it ALREADY holds or accepted
+// (RejectAlreadyAccepted "… was already accepted by the consensus",
+// RejectDuplicate "… is already in the mempool", RejectDuplicateOrphan) — those
+// answers are POSITIVE and are never a rejection. The shared classifier
+// (sdk/src/submission-classification.js) separates REJECTED / ALREADY_KNOWN /
+// AMBIGUOUS and binds the envelope to this attempt's txid; every submitter uses
+// it, and a REJECTED verdict still releases a claim only after the expected
+// effect is verified absent (sdk/src/genesis-recovery.js) — a genesis checks its
+// output, a transition checks predecessor-live + effect-absent. Transport
+// failures (timeout, dropped connection, "not connected", crash) never carry the
+// marker and stay AMBIGUOUS.
+const { isDefinitiveSubmitRejection, recordedNegativeIsEstablished, recordedNonAcceptanceIsEstablished, classifySubmitOutcome } = require("./submission-classification");
+const { settleGenesisSubmitError, settleTransitionSubmitError, ensureOwnSubmissionClaim, unobservedRecoveryDisposition, refreshUnobservedGenesis, proveUnacceptedFunding } = require("./genesis-recovery");
 
 /* TEST-ONLY submission-error injection (refuses mainnet). */
 function maybeInjectSubmitError(config, txId) {
@@ -181,6 +187,7 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
   if (request.schema !== "policyvault-wallet-request/v4") throw fail("not a v0.4 request", "BUILD_FAILED");
   if (request.state !== RequestState.PREFLIGHT_VERIFIED) throw fail(`request ${requestId} is ${request.state}, not PREFLIGHT_VERIFIED`, request.state);
   if (request.kind === "genesis") throw fail("use submitCreateWalletRequestV4 for genesis", "BUILD_FAILED");
+  await require("./wallet-recovery-v4").assertNoProtectedTransitionV4(config, request.vaultId, { excludeRequestId: request.requestId });
 
   const manifest = await loadManifestV4(config, request.vaultId); // loader enforces registry root-equality
   if (!manifest || !manifest.live || manifest.live.stateId !== request.predecessorStateId) {
@@ -224,7 +231,8 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
     // Submission claim keyed by the exact txid (idempotent).
     await claimSubmission(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
 
-    // Persist SUBMITTING BEFORE the node call.
+    // Persist SUBMITTING and the original consensus anchor BEFORE the node call.
+    request.submitStartHash = await require("./submission-outcome-v7").readSubmissionStartHash(rpc);
     request.state = RequestState.SUBMITTING;
     await saveRequest(config, request);
     maybeCrash(config, "AFTER_SUBMITTING"); // crash-before-broadcast
@@ -251,23 +259,32 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
     } catch (e) {
       const message = String(e.message ?? e).split("\n")[0];
       request.error = message;
-      if (isDefinitiveSubmitRejection(message)) {
-        // DEFINITIVE: confirm predecessor still live AND effect absent, then release.
-        const stillLive = await findOutpoint(rpc, predecessor.address, manifest.live.outpoint.transactionId, manifest.live.outpoint.index).catch(() => null);
-        const effect = await proveExpectedEffectV4(rpc, expected).catch(() => null);
-        if (stillLive && !effect) {
-          await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
-          await releaseSubmissionClaim(config, request.txId);
-          await appendAudit(config, { vaultId: request.vaultId, action: "submission_rejected_claims_released", actor: "system", txId: request.txId, result: "REJECTED_BY_NODE", oldStateId: request.predecessorStateId, detail: message });
-          request.state = "SUBMISSION_REJECTED";
-          await saveRequest(config, request);
-          await releaseReservationForRequest(config, request); // surface 15: mirrors the claim release (definitive rejection only)
-          throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
-        }
+      /* RC35-REC-01: REJECTED / ALREADY_KNOWN / AMBIGUOUS through the shared classifier; a REJECTED verdict releases the
+       * claims only after predecessor-live AND effect-absent are BOTH confirmed by chain proof (a failed query is uncertainty). */
+      const settled = await settleTransitionSubmitError({
+        config, rpc, request, message, txId: request.txId,
+        predecessorLive: async () => Boolean(await findOutpoint(rpc, predecessor.address, manifest.live.outpoint.transactionId, manifest.live.outpoint.index)),
+        effectAbsent: async () => !(await proveExpectedEffectV4(rpc, expected))
+      });
+      if (settled.decision === "REJECTED") {
+        request.state = "SUBMISSION_REJECTED";
+        request.submissionOutcome = { outcome: "SUBMISSION_REJECTED", reason: message, txId: request.txId, proof: settled.proof };
+        await saveRequest(config, request);
+        await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
+        await releaseSubmissionClaim(config, request.txId);
+        await appendAudit(config, { vaultId: request.vaultId, action: "submission_rejected_claims_released", actor: "system", txId: request.txId, result: "REJECTED_BY_NODE", oldStateId: request.predecessorStateId, detail: message });
+        await releaseReservationForRequest(config, request); // surface 15: mirrors the claim release (definitive rejection only)
+        throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
       }
-      request.state = "RECONCILIATION_REQUIRED";
-      await saveRequest(config, request);
-      throw fail(`submit failed: ${message} — claims kept, reconcile required`, "RECONCILIATION_REQUIRED");
+      if (settled.decision === "UNCERTAIN") {
+        request.state = "RECONCILIATION_REQUIRED";
+        request.error = `${message} — ${settled.reason}`;
+        await saveRequest(config, request);
+        throw fail(`submit failed: ${message} — claims kept, reconcile required`, "RECONCILIATION_REQUIRED");
+      }
+      /* OBSERVE: the node already holds / accepted this exact transaction — proceed exactly as after an accepted response */
+      request.submissionResponse = { kind: "ALREADY_KNOWN", variant: settled.classification.variant, reason: message, at: new Date().toISOString() };
+      submitted = { transactionId: request.txId };
     }
 
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
@@ -353,23 +370,22 @@ async function proveExpectedEffectV4(rpc, expected) {
  * root-equality against the successor agentRoot (fail closed), and we reload
  * and reconstruct once more. For recovery: terminal, no successor.
  */
-async function advanceManifestAndRegistryV4(config, manifest, request, expected) {
+function expectedManifestAndRegistryV4(manifest, request, expected) {
   if (expected.kind === "recover") {
-    await persistManifestV4(config, {
+    return {
       ...manifestToJson(manifest),
       status: VaultStatus.RECOVERED,
       live: null,
       latestTransitionTxId: expected.txId,
       lastTransition: { action: "ownerRecover", txId: expected.txId, oldStateId: request.predecessorStateId, newStateId: null, oldOutpoint: request.predecessorOutpoint, newOutpoint: null }
-    });
-    return;
+    };
   }
   // The successor registry: for ownerSetAgentRoot ops the request carries the
   // NEW registry; agentSpend advances the SPENDING agent's leaf accounting in
   // place; value/approver/pause ops leave the registry unchanged.
   const successorRegistry = deriveSuccessorRegistry(manifest, request);
   const successorState = request.build.successorState;
-  const advanced = await persistManifestV4(config, {
+  return {
     ...manifestToJson(manifest),
     status: Number(successorState.paused) === 1 ? VaultStatus.PAUSED : VaultStatus.ACTIVE,
     agentRegistry: successorRegistry,
@@ -383,7 +399,12 @@ async function advanceManifestAndRegistryV4(config, manifest, request, expected)
     },
     latestTransitionTxId: expected.txId,
     lastTransition: { action: request.action, txId: expected.txId, oldStateId: request.predecessorStateId, newStateId: expected.stateId, oldOutpoint: request.predecessorOutpoint, newOutpoint: { transactionId: expected.txId, index: Number(expected.index) } }
-  });
+  };
+}
+
+async function advanceManifestAndRegistryV4(config, manifest, request, expected) {
+  const advanced = await persistManifestV4(config, expectedManifestAndRegistryV4(manifest, request, expected));
+  if (expected.kind === "recover") return;
   // Independent re-verification: reload from disk and reconstruct the root.
   const reloaded = await loadManifestV4(config, manifest.vaultId);
   if (!reloaded.live || reloaded.agentRegistryRoot !== reloaded.live.state.agentRoot) {
@@ -463,12 +484,26 @@ function manifestToJson(manifest) {
  * manifest + initial registry. The manifest is created ONLY after the genesis
  * covenant outpoint is chain-proven. testnet-10 only.
  */
-async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, rpc: providedRpc, pollAttempts = 30, pollDelayMs = 2000 }) {
+/* RC33-ID-01 review finding F1 (2026-09-11): the signature and the submission of a genesis are serialized PER VAULT IDENTITY inside the existing root / signer / request lock (lock order unchanged: root / signer / request first, identity inside), so the commit-phase identity check and the signature store / claim / broadcast that follow it form ONE critical section — a pre-correction pair of drafts naming one identity can never double-sign or double-broadcast under concurrency. A request whose identity cannot be normalized falls through to the unlocked body, which refuses it exactly as before. The API's per-signer lock is OUTSIDE this wrapper. */
+async function submitCreateWalletRequestV4(args) {
+  const peek = await loadRequest(args.config, args.requestId);
+  let vaultId = null;
+  try { vaultId = peek && peek.kind === "genesis" ? normalizeVaultId(peek.vaultId) : null; } catch { vaultId = null; }
+  if (vaultId === null) return submitCreateWalletRequestV4Unlocked(args);
+  return withVaultIdentityLock(vaultId, () => submitCreateWalletRequestV4Unlocked(args));
+}
+async function submitCreateWalletRequestV4Unlocked({ config, requestId, signedSafeJson, rpc: providedRpc, pollAttempts = 30, pollDelayMs = 2000 }) {
   const request = await loadRequest(config, requestId);
   if (!request) throw fail(`no request ${requestId}`, "BUILD_FAILED");
   if (request.kind !== "genesis" || request.schema !== "policyvault-wallet-request/v4") throw fail("not a v0.4 genesis request", "BUILD_FAILED");
+  // Creation policy is rechecked at submission: an old unsigned genesis is not
+  // an existing vault operation. Refuse before signatures, claims or state writes.
+  assertGenerationMainnetCreatable(config, request.contractVersion ?? request.build?.contractVersion ?? CONTRACT_VERSION_V4);
   if (request.state !== RequestState.BUILT) throw fail(`genesis request is ${request.state}, not BUILT`, request.state);
   requireOperationalNetwork(config, request, null);
+  /* RC33-ID-01 (2026-09-11): an identity held by ANY generation's record or ANY other request is refused BEFORE the
+   * signature is accepted, before the claim and before the broadcast — the request stays BUILT, nothing is stored. */
+  await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: requestId, exceptTxId: request.txId, phase: "commit" });
 
   const { loadKaspa } = require("./chain");
   const kaspa = loadKaspa(config);
@@ -530,15 +565,24 @@ async function submitCreateWalletRequestV4({ config, requestId, signedSafeJson, 
     } catch (e) {
       const message = String(e.message ?? e).split("\n")[0];
       request.error = message;
-      if (isDefinitiveSubmitRejection(message)) {
-        await releaseSubmissionClaim(config, txId); // genesis has no transition claim
+      /* RC35-REC-01: a bound rejection settles the negative ONLY with the vault output verified absent; an already-known
+       * answer is observed like an accepted response; anything else keeps the claim (RECONCILIATION_REQUIRED). */
+      const settled = await settleGenesisSubmitError({ config, request, rpc, message, txId, expected: { address: vaultAddress, txId, index: request.vaultOutputIndex, value: vaultValue, covenantId: request.covenantId } });
+      if (settled.decision === "REJECTED") {
         request.state = "SUBMISSION_REJECTED";
+        request.submissionOutcome = { outcome: "SUBMISSION_REJECTED", reason: message, txId, proof: settled.proof };
         await saveRequest(config, request);
+        await releaseSubmissionClaim(config, txId); // genesis has no transition claim
         throw fail(`node rejected genesis: ${message}`, "SUBMISSION_REJECTED");
       }
-      request.state = "RECONCILIATION_REQUIRED";
-      await saveRequest(config, request);
-      throw fail(`genesis submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      if (settled.decision === "UNCERTAIN") {
+        request.state = "RECONCILIATION_REQUIRED";
+        request.error = `${message} — ${settled.reason}`;
+        await saveRequest(config, request);
+        throw fail(`genesis submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      }
+      request.submissionResponse = { kind: "ALREADY_KNOWN", variant: settled.classification.variant, reason: message, at: new Date().toISOString() };
+      submitted = { transactionId: txId };
     }
     if (String(submitted.transactionId ?? submitted).toLowerCase() !== txId) {
       request.state = "RECONCILIATION_REQUIRED";
@@ -585,7 +629,10 @@ async function completeGenesisV4(config, request, { txId, requestId }) {
   // NOW create the authoritative manifest + initial registry (proven).
   const state = normalizeStateV4(request.initialState);
   const stateId = computeStateIdV4({ networkId: config.networkId, template: { owner: request.template.owner, vaultId: request.vaultId }, state, contractVersion: request.contractVersion });
-  await persistManifestV4(config, {
+  /* RC33-ID-01: ATOMIC create-only completion (sdk/src/vault-identity.js) — the store's create-only primitive arbitrates the
+   * identity across EVERY generation; the same proven genesis completes idempotently, a different record is never replaced */
+  try {
+  await createManifestV4(config, {
     schema: "policyvault-vault-manifest/v4",
     contractVersion: request.contractVersion,
     networkId: config.networkId,
@@ -599,6 +646,15 @@ async function completeGenesisV4(config, request, { txId, requestId }) {
     latestTransitionTxId: null,
     lastTransition: null
   });
+  } catch (e) {
+    if (e.code !== "RECONCILIATION_REQUIRED") throw e;
+    /* RC33-ID-01: the identity holds a DIFFERENT record (any generation) — that record is never replaced; the proven chain
+     * effect stays on THIS request (signed bytes, txid, submission claim intact) as RECONCILIATION_REQUIRED */
+    request.state = "RECONCILIATION_REQUIRED";
+    request.error = `chain effect proven but the vault record could not be created: ${String(e.message).split("\n")[0]}`;
+    await saveRequest(config, request);
+    throw fail(request.error, "RECONCILIATION_REQUIRED");
+  }
   // Independent post-create root reconstruction.
   const reloaded = await loadManifestV4(config, request.vaultId);
   if (!reloaded.live || reloaded.agentRegistryRoot !== reloaded.live.state.agentRoot) {
@@ -618,16 +674,26 @@ async function completeGenesisV4(config, request, { txId, requestId }) {
  * the covenant output was not observed within the poll window). Outcomes:
  *   CHAIN_VERIFIED  — the exact covenant output IS on the DAG: completed
  *                     exactly as a successful submit (manifest, receipt, audit)
- *   NOT_BROADCAST   — proven not to have happened: every funding input is
- *                     still unspent, the transaction is not in the mempool,
- *                     and the submission is older than stalePendingMinimumMs;
- *                     the submission claim is released and the request closed
+ *   NOT_BROADCAST   — complete original-anchor nonacceptance, exact immutable
+ *                     funding still unspent twice, all outputs absent, exact
+ *                     mempool misses and stable sink, after the stale window;
+ *                     proof/state are saved before releasing the own claim
  *   PENDING         — anything else (fail closed: still unresolved; the
  *                     caller must NOT build a replacement)
  * A successful HTTP response, a status GET or the absence of a confirmation
  * never resolves a genesis — only this proof does.
  */
 const UNRESOLVED_GENESIS_STATES = Object.freeze([RequestState.SUBMITTING, RequestState.SUBMITTED, "RECONCILIATION_REQUIRED"]);
+/* RC35-REC-01 (2026-09-11): a genesis persisted SUBMISSION_REJECTED is RECOVERABLE by observation — an earlier runtime
+ * wrote that state for an "already accepted" node answer (a false negative). Only the complete, request-bound
+ * original-anchor proof is established. Bare legacy answers and old NOT_BROADCAST labels stay unresolved. */
+const RECOVERABLE_GENESIS_STATES = Object.freeze([...UNRESOLVED_GENESIS_STATES, RequestState.SUBMISSION_REJECTED, "NOT_BROADCAST"]);
+function isUnresolvedGenesisRequest(request) {
+  if (!request || request.kind !== "genesis") return false;
+  if (UNRESOLVED_GENESIS_STATES.includes(request.state)) return true;
+  if (request.state === "NOT_BROADCAST") return !recordedNonAcceptanceIsEstablished(request);
+  return request.state === RequestState.SUBMISSION_REJECTED && !recordedNegativeIsEstablished(request);
+}
 const { transactionIdOfRpcBody, blockHashOfRpcHeader } = require("./tx-identity"); // Codex checkpoint 7 (UX-05): engine-recomputed identities for reconciliation evidence
 
 /* Codex checkpoint 6 (UX-05) — response-shape and error-envelope discipline for the genesis reconciliation. */
@@ -887,13 +953,31 @@ async function reconcileCreateWalletRequestV4(args) {
   }
 }
 
+async function ownGenesisClaimV4(config, request) {
+  const { getStore, Categories } = require("./store");
+  const held = await getStore(config).read(Categories.SUBMISSION_CLAIM, request.txId);
+  if (held && (held.vaultId !== request.vaultId || held.action !== "createVault")) throw fail("genesis claim belongs to another operation", "CLAIM_CONFLICT");
+  return held;
+}
+
 async function reconcileCreateWalletRequestV4Unlocked({ config, requestId, rpc: providedRpc, stalePendingMinimumMs = 120_000, now = Date.now() }) {
   const request = await loadRequest(config, requestId);
   if (!request) throw fail(`no request ${requestId}`, "BUILD_FAILED");
   if (request.kind !== "genesis" || request.schema !== "policyvault-wallet-request/v4") throw fail("not a v0.4 genesis request", "NOT_A_GENESIS");
   if (request.state === RequestState.CHAIN_VERIFIED) return { request, outcome: "CHAIN_VERIFIED", detail: "already chain-verified" };
-  if (!UNRESOLVED_GENESIS_STATES.includes(request.state)) return { request, outcome: request.state, detail: `request is ${request.state}; nothing to reconcile` };
+  if (recordedNonAcceptanceIsEstablished(request)) {
+    requireOperationalNetwork(config, request, null);
+    if (await ownGenesisClaimV4(config, request)) await releaseSubmissionClaim(config, request.txId);
+    return { request, outcome: "NOT_BROADCAST", detail: "the original request retains its authoritative nonacceptance proof; no transaction is rebuilt or rebroadcast" };
+  }
+  if (!RECOVERABLE_GENESIS_STATES.includes(request.state)) return { request, outcome: request.state, detail: `request is ${request.state}; nothing to reconcile` };
   if (!request.txId) throw fail("unresolved genesis request carries no txId", "RECONCILIATION_REQUIRED");
+  /* RC35-REC-01: a genesis persisted SUBMISSION_REJECTED is recovered by OBSERVATION ONLY through this same request —
+   * an observed covenant output completes it (the negative was false); an unobserved output keeps an ESTABLISHED
+   * negative as it is and PROTECTS any other (claim re-established, RECONCILIATION_REQUIRED). Nothing is rebroadcast. */
+  const fromNegative = request.state === RequestState.SUBMISSION_REJECTED || request.state === "NOT_BROADCAST" ||
+    request.genesisRecovery?.txId === request.txId || classifySubmitOutcome(request.error, request.txId).kind === "REJECTED";
+  const knownNodeAnswer = request.submissionResponse?.kind === "ALREADY_KNOWN" || classifySubmitOutcome(request.error, request.txId).kind === "ALREADY_KNOWN";
   // A submitter that lost only its HTTP response may still be completing this
   // request (it polls up to 60 s): do not touch a young SUBMITTING/SUBMITTED
   // record — report PENDING; the durable state is re-read on the next call.
@@ -906,6 +990,16 @@ async function reconcileCreateWalletRequestV4Unlocked({ config, requestId, rpc: 
   const { rpc, serverInfo } = owned ? await connectVerified(config) : { rpc: providedRpc, serverInfo: { networkId: config.networkId } };
   try {
     if (serverInfo.networkId !== config.networkId) throw fail(`node network ${serverInfo.networkId} != configured ${config.networkId}`, "NETWORK_MISMATCH");
+    // Save denial provenance before any lookup can fail and rewrite lifecycle
+    // state. It cannot supply missing historical evidence or enable a negative.
+    if (((fromNegative && !recordedNegativeIsEstablished(request)) || knownNodeAnswer) && !request.genesisRecovery) {
+      request.genesisRecovery = { schema: "policyvault-genesis-recovery/v1", txId: request.txId,
+        reason: fromNegative ? "HISTORICAL_NEGATIVE" : "KNOWN_NODE_ANSWER" };
+      await saveRequest(config, request);
+    }
+    if ((fromNegative && !recordedNegativeIsEstablished(request)) || knownNodeAnswer) {
+      await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: "createVault" });
+    }
     const { vaultAddress, vaultValue } = genesisTargetV4(config, request);
     let ref = null;
     try { ref = await findOutpoint(rpc, vaultAddress, request.txId, request.vaultOutputIndex); } catch (e) {
@@ -913,15 +1007,25 @@ async function reconcileCreateWalletRequestV4Unlocked({ config, requestId, rpc: 
       return { request, outcome: "PENDING", detail: `the covenant-output query failed (${String(e && e.message || e).slice(0, 80)}) — uncertainty preserved (no claim released)` };
     }
     if (ref && BigInt(ref.amount) === BigInt(vaultValue) && String(ref.covenantId).toLowerCase() === String(request.covenantId).toLowerCase()) {
+      if (fromNegative) await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: "createVault" }); // the false negative released it; a conflicted completion must leave it in place
       await completeGenesisV4(config, request, { txId: request.txId, requestId });
-      return { request, outcome: "CHAIN_VERIFIED", detail: `covenant output ${request.txId}:${request.vaultOutputIndex} observed on the DAG` };
+      return { request, outcome: "CHAIN_VERIFIED", detail: `covenant output ${request.txId}:${request.vaultOutputIndex} observed on the DAG${fromNegative ? " — the recorded rejection was a false negative" : ""}` };
+    }
+    if (fromNegative || knownNodeAnswer || request.genesisRecovery || request.submissionRejection?.txId === request.txId) {
+      const disposition = await refreshUnobservedGenesis({ config, rpc, request, claim: { txId: request.txId, vaultId: request.vaultId, action: "createVault" }, save: (q) => saveRequest(config, q) });
+      if (disposition.action === "KEEP_NEGATIVE") return { request, outcome: "SUBMISSION_REJECTED", detail: `the recorded rejection of ${request.txId} is established (a bound node rejection of this attempt) and its covenant output is not observed — nothing to recover, nothing rebroadcast` };
+      await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: "createVault" });
+      request.state = "RECONCILIATION_REQUIRED";
+      request.error = disposition.reason ?? "the original genesis outcome remains unresolved; historical evidence is insufficient and its claim remains protected";
+      await saveRequest(config, request);
+      return { request, outcome: "PENDING", detail: request.error };
     }
     // Not observed at the reviewed outpoint. A closed outcome needs COMPLETE
     // evidence (Codex checkpoint 3, UX-05; rc19 review R4-03/R4-04): a query
     // that FAILS preserves uncertainty — it is never read as "absent".
-    //   NOT_BROADCAST: every funding input provably unspent, the transaction
-    //     provably absent from the mempool (the node's exact "Transaction <id>
-    //     not found" answer), submission older than the stale window.
+    //   NOT_BROADCAST: the shared prover requires a complete original-anchor
+    //     nonacceptance window, exact immutable funding observed twice, all
+    //     outputs absent, exact mempool misses and a stable sink, plus staleness.
     //   SUPERSEDED: the transaction is provably NOT among the transactions the
     //     selected chain accepted since the block recorded at submission, it
     //     is absent from the mempool, no UTXO carrying this creation's covenant
@@ -1028,12 +1132,18 @@ async function reconcileCreateWalletRequestV4Unlocked({ config, requestId, rpc: 
       await saveRequest(config, request);
       return { request, outcome: "ADVANCED_UNRESOLVED", detail: `the creation transaction ${request.txId} WAS accepted by the chain${covenantObserved ? ` (a covenant output with this creation's covenant id is unspent at ${covenantObserved.outpoint.transactionId}:${covenantObserved.outpoint.index})` : ""} but its output ${request.vaultOutputIndex} is no longer unspent at the reviewed outpoint — the vault exists under the reviewed rules and has already been transitioned by another path; PolicyVault records no guessed live state and keeps this creation unresolved (no claim released)` };
     }
-    if (mempoolKnown && !inMempool && utxosKnown && allUnspent && covenantKnown && stale) { // Codex checkpoint 6: EVERY query must have answered (a failed vault lookup is uncertainty even with unspent inputs)
-      await releaseSubmissionClaim(config, request.txId);
-      request.state = "NOT_BROADCAST";
-      request.error = `genesis ${request.txId} was never observed: funding inputs unspent, not in the mempool, ${Math.round(ageMs / 1000)} s after submission`;
-      await saveRequest(config, request);
-      return { request, outcome: "NOT_BROADCAST", detail: request.error };
+    if (mempoolKnown && !inMempool && utxosKnown && allUnspent && covenantKnown && stale) {
+      let proof = null;
+      try { proof = await proveUnacceptedFunding(config, rpc, request, request.txId); } catch { /* missing or contradictory evidence is uncertainty */ }
+      if (proof) {
+        const held = await ownGenesisClaimV4(config, request);
+        request.state = "NOT_BROADCAST";
+        request.submissionOutcome = { outcome: "NOT_BROADCAST", txId: request.txId, proof };
+        request.error = `genesis ${request.txId} is not accepted in the complete original-anchor window and is absent from the mempool, with exact funding still unspent`;
+        await saveRequest(config, request); // proof/state first; a crash retains the claim for this same request's retry
+        if (held) await releaseSubmissionClaim(config, request.txId);
+        return { request, outcome: "NOT_BROADCAST", detail: request.error };
+      }
     }
     // (5) AFFIRMATIVE CONFLICTING SPEND. Codex checkpoint 6 (UX-05): missing outputs + a spent input + a NEGATIVE
     //     acceptance history never establish a competing transaction on their own (the selected-chain history lags the
@@ -1107,6 +1217,8 @@ module.exports = {
   reconcileCreateWalletRequestV4,
   genesisTargetV4,
   UNRESOLVED_GENESIS_STATES,
+  RECOVERABLE_GENESIS_STATES,
+  isUnresolvedGenesisRequest,
   locateSpendingTransaction,
   confirmSpendingTransactionInBlock,
   validateRpcBlock,
@@ -1115,6 +1227,7 @@ module.exports = {
   SPEND_SCAN_MAX_BATCHES,
   proveExpectedEffectV4,
   advanceManifestAndRegistryV4,
+  expectedManifestAndRegistryV4,
   finalTxToWasm,
   successorAddressAndScript,
   isDefinitiveSubmitRejection,

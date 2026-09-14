@@ -254,7 +254,14 @@ async function resolveBearerToken(config, authorizationHeader) {
     throw fail(401, "MACHINE_TOKEN_INVALID", "invalid machine credential");
   }
   credential.lastUsedAt = new Date().toISOString();
-  store.write(Categories.MACHINE_CREDENTIAL, tokenHash, credential).catch(() => {}); // best-effort, never blocks/fails the request
+  // A delayed best-effort touch may only patch usage on the same still-active
+  // durable credential. Never re-persist this earlier ACTIVE snapshot: that
+  // could overwrite a completed revocation and resurrect bearer authority.
+  store.touchMachineCredential(tokenHash, {
+    identityId: credential.identityId,
+    credentialId: credential.credentialId,
+    lastUsedAt: credential.lastUsedAt
+  }).catch(() => {}); // best-effort, never blocks/fails the request
   return { identity, credential };
 }
 

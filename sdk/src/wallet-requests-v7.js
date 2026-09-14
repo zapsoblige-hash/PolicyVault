@@ -7,6 +7,7 @@ const { compileExactStateV7Root, compileExactStateV7 } = require("./contract-com
  * from the build's own template/state/version; the recompiled directory must
  * be exactly the one the build names (stateId identity) or finalize fails closed. */
 function ensureBuildDirV7(config, build) {
+  if (kasProfile.isKasBuild(build)) return kasProfile.ensureBuildDirKas(config, build); // v0.7 enablement: a rooted-KAS vault operation riding this pipeline
   const isRoot = build && build.kind === "orgRootTransition";
   return ensureBuildDir({
     config, // rc12 review R-03: finalize recompile may force-evict a saturated in-grace cache
@@ -59,7 +60,8 @@ const crypto = require("crypto");
 
 const { getStore, Categories } = require("./store");
 const { withOrgRootLock } = require("./org-root-lock");
-const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
+const { assertVaultIdentityFree, withVaultIdentityLock, normalizeVaultId } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
+const { assertOperationalNetwork, assertGenerationMainnetCreatable, assertGenerationMainnetOperable } = require("./config");
 const { parseSompi, parsePositiveSompi, kasToSompi, sompiToKas } = require("./amounts");
 const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
 const { resolveAddressIdentity, addressForXOnlyPubkey } = require("./address-identity");
@@ -68,6 +70,9 @@ const { frozenToWasmTransaction } = require("./frozen-tx-v3");
 const { p2pkScriptHex } = require("./approval-package-v4");
 const { claimTransition, claimSubmission, loadTransitionClaim, releaseTransitionClaim, releaseSubmissionClaim, persistReceipt } = require("./submission-claim");
 const { finalTxToWasm, isDefinitiveSubmitRejection } = require("./wallet-submit-v4");
+/* RC35-REC-01 / REC-02 / legacy F4 (2026-09-11): shared submit-outcome settlement + observation-only genesis recovery primitives */
+const { settleGenesisSubmitError, ensureOwnSubmissionClaim, unobservedRecoveryDisposition, refreshUnobservedGenesis } = require("./genesis-recovery");
+const { firstLine } = require("./submission-classification");
 const { appendAudit, readAudit } = require("./audit");
 const assets = require("../../core/assets");
 
@@ -103,9 +108,14 @@ const { canonicalFrozenTxJson, normalizeFrozenTxV3 } = require("../../core/model
 const { reconstructVaultScriptHexV7 } = require("../../core/intent/vault-script-v7");
 const { V7_BUDGET } = require("../../core/model/compute-budget-v7");
 const { computeManifestHashV1, canonicalJsonStringify } = require("../../core/intent/canonical");
-const { normalizeRegistry, registryEntryToJson, rootPinsFromTemplate, loadManifestV7, persistManifestV7, MANIFEST_SCHEMA_V7 } = require("./manifest-v7");
+const { normalizeRegistry, registryEntryToJson, rootPinsFromTemplate, loadManifestV7, persistManifestV7, createManifestV7, MANIFEST_SCHEMA_V7 } = require("./manifest-v7");
 const { tokenAgentPolicyToJsonV5 } = require("./agent-merkle-v5"); // rc26 round-7 review R7-02
 const { VaultStatus } = require("./manifest");
+/* v0.7 mainnet-enablement (2026-09-10): owner operations on a ROOTED KAS SAFE-PAYMENT VAULT ride THIS pipeline (same root
+ * M-of-N signing, claims, replayable completion, reconciliation); the vault side is dispatched to the profile adapter by
+ * the vault record's schema, and the payment profile's own path stays byte-identical. The adapter never requires this
+ * module at load time. */
+const kasProfile = require("./rooted-kas-profile-v7");
 
 const ORG_ROOT_SCHEMA = "policyvault-org-root-record/1";
 const ORG_ROOT_REQUEST_SCHEMA = "policyvault-org-root-request/1";
@@ -215,6 +225,17 @@ async function listOrgRootRequests(config, { rootCovenantId } = {}) {
 
 /* delegate spend / deposit requests (Categories.REQUEST, contractVersion
  * policyvault-0.7-payment) */
+/* A rooted vault of ANY profile this pipeline can carry (payment FROZEN, KAS CANDIDATE) — never a default. */
+async function loadRootedVaultAny(config, vaultId) {
+  return (await loadManifestV7(config, vaultId)) ?? (await kasProfile.loadManifestV7Kas(config, vaultId));
+}
+async function classifyVaultRecordAny(config, vaultManifest, request, idx) {
+  return kasProfile.isKasVaultRecord(vaultManifest) ? kasProfile.classifyVaultRecord(config, vaultManifest, request, idx, { completedRequestAt }) : classifyVaultRecord(config, vaultManifest, request, idx);
+}
+async function persistVaultSuccessorAny(config, vaultManifest, request, idx, generation) {
+  if (kasProfile.isKasVaultRecord(vaultManifest)) return kasProfile.persistManifestV7Kas(config, kasProfile.expectedVaultSuccessorDoc(config, vaultManifest, request, idx, generation));
+  return persistManifestV7(config, expectedVaultSuccessorDoc(config, vaultManifest, request, idx, generation));
+}
 async function loadV7WalletRequest(config, requestId) {
   const r = await getStore(config).read(Categories.REQUEST, requestId);
   if (r && r.schema === V7_WALLET_REQUEST_SCHEMA && r.requestId !== requestId) throwFail("wallet request identity differs from its storage key", "REQUEST_ID_MISMATCH");
@@ -339,7 +360,7 @@ async function buildRootGenesisRequest({
 }) {
   try {
     assertOperationalNetwork(config);
-    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7);
+    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7_ROOT); // v0.7 enablement: a NEW organizational root is a v0.7-root genesis
   } catch (e) {
     throwFail(e.message, "BUILD_FAILED");
   }
@@ -477,7 +498,15 @@ function templateFieldsFromDescriptor(descriptor, templateIndex) {
   };
 }
 
-async function buildRootedVaultGenesisRequest({ config, rootCovenantId, label = "", descriptor, templateIndex = 0, agents = [], recoveryAddress, depositKas, feeReserveKas, signerAddress, funding, vaultId }) {
+async function buildRootedVaultGenesisRequest(args) {
+  /* RC33-ID-01 (2026-09-11): the build (uniqueness check -> request write) is serialized per vault identity; a malformed
+   * identity falls through and is refused exactly as before */
+  let vaultId = null;
+  try { vaultId = args.vaultId ? normalizeHex(args.vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex"); } catch { vaultId = null; }
+  if (vaultId === null) return buildRootedVaultGenesisRequestUnlocked(args);
+  return withVaultIdentityLock(vaultId, () => buildRootedVaultGenesisRequestUnlocked({ ...args, vaultId }));
+}
+async function buildRootedVaultGenesisRequestUnlocked({ config, rootCovenantId, label = "", descriptor, templateIndex = 0, agents = [], recoveryAddress, depositKas, feeReserveKas, signerAddress, funding, vaultId }) {
   try {
     assertOperationalNetwork(config);
     assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7);
@@ -496,6 +525,7 @@ async function buildRootedVaultGenesisRequest({ config, rootCovenantId, label = 
   const initialRegistry = entries.map((e) => registryEntryToJson(e));
 
   const vId = vaultId ? normalizeHex(vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex");
+  await assertVaultIdentityFree(config, vId); // RC33-ID-01: an identity held by ANY generation's record or ANY request is refused before anything is built or written
   const template = {
     vaultId: vId,
     descriptorHash,
@@ -586,13 +616,48 @@ async function buildRootedVaultGenesisRequest({ config, rootCovenantId, label = 
 /*    §14.5 "THE SERIALIZATION POINT")                                  */
 /* ------------------------------------------------------------------ */
 
+/* v0.7 enablement: ONE owner operation on a ROOTED KAS SAFE-PAYMENT VAULT riding this root transition. The same
+ * admission rules as the payment branch (root pin, completion availability, the vault op's required root path must be
+ * THIS action), then the KAS builder + the KAS org-manifest family through the profile adapter. */
+async function buildKasVaultOperation({ config, root, action, op, params, signerAddress, changeForFuel, rootChain, vaultRecord }) {
+  try {
+    assertGenerationMainnetOperable(config, kasProfile.CONTRACT_VERSION_V7_KAS); // an owner operation MUTATES an existing KAS vault (operable set)
+  } catch (e) {
+    throw fail(e.message, e.code || "BUILD_FAILED");
+  }
+  if (!ownGet(kasProfile.OWNER_OP_ACTIONS_KAS, op.action)) throwFail(`unknown rooted-KAS-vault owner action ${JSON.stringify(op.action)} — failing closed`, "UNKNOWN_ACTION");
+  await assertVaultCompletionAvailable(config, vaultRecord);
+  if (vaultRecord.orgRootCovenantId !== root.rootCovenantId) throwFail("this vault is not pinned to this root", "HOSTED_ORG_IS_NOT_A_ROOT");
+  if (!vaultRecord.live) throwFail("this rooted vault has no confirmed on-chain outpoint yet", "ROOT_STALE_OUTPOINT");
+  const authority = kasProfile.resolveOwnerOpAuthority(op.action);
+  if (authority.rootActionName !== action) throwFail(`${op.action} requires the root to run ${authority.rootActionName}, not ${action}`, "OWNER_PATH_TAKES_NO_SIGNATURE");
+  const fuel = await resolveFuel(config, params, signerAddress, 500_000n);
+  let prepared;
+  try { prepared = kasProfile.prepareOwnerOpParams(op.action, op.params ?? {}); } catch (e) { throw fail(e.message, e.code || "BUILD_FAILED"); }
+  let build;
+  try {
+    build = kasProfile.buildOwnerOp({
+      config,
+      vaultRecord,
+      action: op.action,
+      params: prepared.opParams,
+      fuel,
+      root: { template: root.template, state: root.state, outpoint: rootChain.predecessorOutpoint, covenantId: root.rootCovenantId, value: root.live.value },
+      changeXOnly: changeForFuel(fuel)
+    });
+  } catch (e) {
+    throw fail(`rooted-KAS-vault owner-op build failed: ${e.message}`, e.code || "BUILD_FAILED");
+  }
+  return { build, vaultRecord, vaultOpEntry: { build }, newRegistry: prepared.newRegistry };
+}
+
 async function buildRootActionRequest(args) {
   return withOrgRootLock(args.rootCovenantId, () => buildRootActionRequestUnlocked(args));
 }
 async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, params = {}, vaultOperations = [], signerAddress }) {
   try {
     assertOperationalNetwork(config);
-    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7);
+    assertGenerationMainnetOperable(config, CONTRACT_VERSION_V7_ROOT); // v0.7 enablement: a root action MUTATES an existing root (operable set)
   } catch (e) {
     throwFail(e.message, "BUILD_FAILED");
   }
@@ -633,7 +698,12 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
   let newRegistry = null; // rc26 round-7 review R7-02: the validated registry entries an ownerSetAgentRoot installs (null for every other request)
   if (vaultOperations.length === 1) {
     const op = vaultOperations[0];
+    const anyRecord = await loadRootedVaultAny(config, op.vaultId);
+    if (kasProfile.isKasVaultRecord(anyRecord)) {
+      ({ build, vaultRecord, vaultOpEntry, newRegistry } = await buildKasVaultOperation({ config, root, action, op, params, signerAddress, changeForFuel, rootChain, vaultRecord: anyRecord }));
+    } else {
     if (!ownGet(OWNER_OP_ACTIONS, op.action)) throwFail(`unknown rooted-vault owner action ${JSON.stringify(op.action)} — failing closed`, "UNKNOWN_ACTION");
+    try { assertGenerationMainnetOperable(config, CONTRACT_VERSION_V7); } catch (e) { throwFail(e.message, e.code || "BUILD_FAILED"); } // the rooted TOKEN profile is not in the mainnet set
     vaultRecord = await loadManifestV7(config, op.vaultId);
     if (!vaultRecord) throwFail(`no rooted vault ${op.vaultId}`, "VAULT_NOT_FOUND");
     await assertVaultCompletionAvailable(config, vaultRecord);
@@ -681,6 +751,7 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
       throw fail(`rooted-vault owner-op build failed: ${e.message}`, e.code || "BUILD_FAILED");
     }
     vaultOpEntry = { build, descriptor: vaultRecord.asset.descriptor };
+    }
   } else {
     const fuel = await resolveFuel(config, params, signerAddress, 500_000n);
     try {
@@ -700,17 +771,18 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
   }
 
   const manifestSourceBuild = vaultOpEntry ? vaultOpEntry.build : build;
-  const descriptors = vaultRecord ? { [vaultRecord.live.covenantId]: vaultRecord.asset.descriptor } : {};
+  const isKasOp = kasProfile.isKasVaultRecord(vaultRecord);
+  const descriptors = vaultRecord && !isKasOp ? { [vaultRecord.live.covenantId]: vaultRecord.asset.descriptor } : {};
   // Codex checkpoint 6 (UX-02 / UX-13): the vault's predecessor redeem script travels with the request so every verifier
   // (this one, the browser boundary, attestations) rebuilds and binds the vault SUCCESSOR script — never skipped.
   const redeemScripts = vaultOpEntry && vaultOpEntry.build && typeof vaultOpEntry.build.vaultRedeemScriptHex === "string" ? { [vaultRecord.live.covenantId]: vaultOpEntry.build.vaultRedeemScriptHex } : {};
   let manifest;
   try {
-    manifest = buildOrgRootIntentManifest({ build: manifestSourceBuild, vaultOperations: vaultOpEntry ? [vaultOpEntry] : [] });
+    manifest = isKasOp ? kasProfile.buildOrgManifest({ build: manifestSourceBuild, vaultOperations: [vaultOpEntry] }) : buildOrgRootIntentManifest({ build: manifestSourceBuild, vaultOperations: vaultOpEntry ? [vaultOpEntry] : [] });
   } catch (e) {
     throw fail(`manifest build failed: ${e.message}`, e.code || "MANIFEST_BUILD_FAILED");
   }
-  const verification = verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
+  const verification = isKasOp ? kasProfile.verifyOrgManifest({ manifest, redeemScripts }) : verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
   if (verification.verdict !== "VERIFIED") {
     throw fail(`the built transaction failed org-root manifest verification: ${verification.failures.map((f) => f.name).join(", ")}`, "INTENT_VERIFICATION_FAILED");
   }
@@ -739,7 +811,7 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
     /* Codex checkpoint 12 (R7-02): the vault PREDECESSOR identities (outpoint, generation, last transition) are captured
      * from the manifest the build consumed and travel with the request, so a replay after the vault already advanced
      * releases the OLD claim key and can tell a genuinely newer vault transition from a stale record. */
-    vaultOperations: vaultOpEntry ? [{ vaultId: vaultRecord.vaultId, action: vaultOperations[0].action, params: vaultOperations[0].params ?? {}, predecessor: { outpoint: normalizeOutpoint(vaultRecord.live.outpoint, "vault.live.outpoint"), generation: Number(vaultRecord.generation ?? 0), latestTransitionTxId: vaultRecord.latestTransitionTxId ?? null } }] : [],
+    vaultOperations: vaultOpEntry ? [{ vaultId: vaultRecord.vaultId, profile: vaultRecord.contractVersion, action: vaultOperations[0].action, params: vaultOperations[0].params ?? {}, predecessor: { outpoint: normalizeOutpoint(vaultRecord.live.outpoint, "vault.live.outpoint"), generation: Number(vaultRecord.generation ?? 0), latestTransitionTxId: vaultRecord.latestTransitionTxId ?? null } }] : [],
     newRegistry, // rc26 round-7 review R7-02: the validated registry entries an ownerSetAgentRoot installs (null otherwise); applied to the durable registry only on CHAIN_VERIFIED
     manifest,
     redeemScripts, // Codex checkpoint 6: the predecessor redeem script this verification rebuilt the successor from travels with the request (bound by the vault input's P2SH + stateBefore)
@@ -901,8 +973,15 @@ async function submitSlotSignatureUnlocked({ config, requestId, slot, response }
  * Any other request kind/action is refused with a closed code telling the
  * caller to use /finalize (M-of-N) instead.
  */
+/* RC33-ID-01 review finding F1 (2026-09-11): the signature and the submission of a genesis are serialized PER VAULT IDENTITY inside the existing root / signer / request lock (lock order unchanged: root / signer / request first, identity inside), so the commit-phase identity check and the signature store / claim / broadcast that follow it form ONE critical section — a pre-correction pair of drafts naming one identity can never double-sign or double-broadcast under concurrency. A request whose identity cannot be normalized falls through to the unlocked body, which refuses it exactly as before. Taken INSIDE the root request lock; only a rooted-vault GENESIS carries a vault identity. */
+async function withRootedGenesisIdentityLock(config, requestId, work) {
+  const peek = await loadOrgRootRequest(config, requestId);
+  let vaultId = null;
+  try { vaultId = peek && peek.kind === "rootedVaultGenesis" ? normalizeVaultId(peek.build && peek.build.template && peek.build.template.vaultId) : null; } catch { vaultId = null; }
+  return vaultId === null ? work() : withVaultIdentityLock(vaultId, work);
+}
 async function submitOrgRootRequestSignature(args) {
-  return withRootRequestLock(args.config, args.requestId, () => submitOrgRootRequestSignatureUnlocked(args));
+  return withRootRequestLock(args.config, args.requestId, () => withRootedGenesisIdentityLock(args.config, args.requestId, () => submitOrgRootRequestSignatureUnlocked(args)));
 }
 async function submitOrgRootRequestSignatureUnlocked({ config, requestId, signedSafeJson, signatureHex, fuelSignatureScriptHex, signerAddress }) {
   const request = await loadOrgRootRequest(config, requestId);
@@ -912,6 +991,8 @@ async function submitOrgRootRequestSignatureUnlocked({ config, requestId, signed
 
   if (request.kind === "rootGenesis" || request.kind === "rootedVaultGenesis") {
     if (typeof signedSafeJson !== "string" || !signedSafeJson.trim()) throwFail("signedSafeJson is required to sign a genesis request", "BAD_SIGNATURE");
+    /* RC33-ID-01: a rooted-vault genesis whose identity became occupied is refused before its signature is accepted (stays AUTHORIZED) */
+    if (request.kind === "rootedVaultGenesis") await assertVaultIdentityFree(config, request.build.template.vaultId, { exceptRequestId: request.id, exceptTxId: request.txId, phase: "commit" });
     const unsigned = JSON.parse(request.transaction.unsignedSafeJson);
     let signed;
     try {
@@ -1023,7 +1104,9 @@ async function finalizeOrgRootRequestUnlocked({ config, requestId, fuelSignature
     ensureBuildDirV7(config, request.build); // F-03
     fin = isRootOnly
       ? finalizeV7RootTransaction({ build: request.build, approvals, fuelSignatureScriptHex })
-      : finalizeV7Transaction({ build: request.build, approvals, fuelSignatureScriptHex });
+      : kasProfile.isKasBuild(request.build)
+        ? kasProfile.finalizeOwnerOp({ build: request.build, approvals, fuelSignatureScriptHex })
+        : finalizeV7Transaction({ build: request.build, approvals, fuelSignatureScriptHex });
     verifyFinalTransactionInputs(fin.finalTransaction); // F-04: the assembled M-of-N transaction executes on the real VM before SIGNED
   } catch (e) {
     throw fail(`finalize failed: ${e.message}`, e.code || "SIGNATURE_INVALID");
@@ -1075,7 +1158,7 @@ async function hasBoundRootCompletionReceipt(config, request) {
   return auditLinePresent(config, request);
 }
 async function submitOrgRootRequest(args) {
-  return withRootRequestLock(args.config, args.requestId, () => submitOrgRootRequestUnlocked(args));
+  return withRootRequestLock(args.config, args.requestId, () => withRootedGenesisIdentityLock(args.config, args.requestId, () => submitOrgRootRequestUnlocked(args)));
 }
 async function submitOrgRootRequestUnlocked({ config, requestId, pollAttempts = 30, pollDelayMs = 2000, rpc: providedRpc }) {
   const request = await loadOrgRootRequest(config, requestId);
@@ -1092,19 +1175,33 @@ async function submitOrgRootRequestUnlocked({ config, requestId, pollAttempts = 
     }
   }
   const recovering = request.kind === "rootAction" && (priorAttempt || RECOVERABLE_ROOT_ACTION_STATES.has(request.state) || ["SIGNED", "SUBMISSION_REJECTED"].includes(request.state) && await hasBoundRootCompletionReceipt(config, request));
+  /* RC35-REC-02 / legacy F4 (2026-09-11): a root genesis or rooted-vault genesis whose node response was lost, whose completion
+   * crashed between its records, or that an earlier runtime persisted as a (possibly false) negative is RECOVERED by observation
+   * through the SAME public submit entry — never rebuilt, re-signed or rebroadcast; no root record is required beforehand. */
+  const recoveringGenesis = (request.kind === "rootGenesis" || request.kind === "rootedVaultGenesis") && GENESIS_RECOVERY_STATES.has(request.state);
   if (recovering && request.state === RequestState.CHAIN_VERIFIED) {
     /* a terminal label is not evidence of complete local state: every durable record is verified before the idempotent return */
     const verified = await verifyRootActionCompletion(config, request);
     if (verified.complete) return request;
+  } else if (recoveringGenesis && request.state === RequestState.CHAIN_VERIFIED) {
+    const verified = await verifyGenesisCompletion(config, request);
+    if (verified.complete) return request; // genesis kinds: idempotent once every durable record is present
   } else if (request.state === RequestState.CHAIN_VERIFIED) {
-    return request; // genesis kinds: idempotent
-  } else if (!recovering && request.state !== RequestState.SIGNED) {
+    return request;
+  } else if (!recovering && !recoveringGenesis && request.state !== RequestState.SIGNED) {
     throwFail(`request is ${request.state}, not SIGNED`, request.state);
   }
 
   try {
     assertOperationalNetwork(config);
-    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7);
+    if (recoveringGenesis) assertGenerationMainnetOperable(config, request.kind === "rootGenesis" ? CONTRACT_VERSION_V7_ROOT : CONTRACT_VERSION_V7); // observation of an existing attempt is never a new creation (creation containment keeps recovery operable)
+    else if (request.kind === "rootGenesis") assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7_ROOT);
+    else if (request.kind === "rootedVaultGenesis") assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7);
+    else {
+      /* v0.7 enablement: submission of a root action mutates EXISTING state — the operable set, per generation of the root AND of every vault operation riding it */
+      assertGenerationMainnetOperable(config, CONTRACT_VERSION_V7_ROOT);
+      for (const op of request.vaultOperations ?? []) assertGenerationMainnetOperable(config, op.profile ?? CONTRACT_VERSION_V7);
+    }
   } catch (e) {
     throw fail(e.message, "NETWORK_MISMATCH");
   }
@@ -1115,8 +1212,9 @@ async function submitOrgRootRequestUnlocked({ config, requestId, pollAttempts = 
     if (serverInfo.networkId !== config.networkId) throw fail(`node network ${serverInfo.networkId} != configured ${config.networkId}`, "NETWORK_MISMATCH");
 
     if (recovering) return await recoverRootActionRequest({ config, rpc, request });
-    if (request.kind === "rootGenesis") return await submitRootGenesis({ config, rpc, request });
-    if (request.kind === "rootedVaultGenesis") return await submitVaultGenesis({ config, rpc, request });
+    if (recoveringGenesis) return request.kind === "rootGenesis" ? await recoverRootGenesisUnlocked({ config, rpc, request, pollAttempts, pollDelayMs }) : await recoverVaultGenesisUnlocked({ config, rpc, request, pollAttempts, pollDelayMs });
+    if (request.kind === "rootGenesis") return await submitRootGenesis({ config, rpc, request, pollAttempts, pollDelayMs });
+    if (request.kind === "rootedVaultGenesis") return await submitVaultGenesis({ config, rpc, request, pollAttempts, pollDelayMs });
     if (request.kind === "rootAction") return await submitRootAction({ config, rpc, request });
     throw fail(`unknown request kind ${request.kind}`, "UNKNOWN_REQUEST_KIND");
   } finally {
@@ -1124,61 +1222,175 @@ async function submitOrgRootRequestUnlocked({ config, requestId, pollAttempts = 
   }
 }
 
-async function broadcastSignedGenesis(config, rpc, request) {
+/* ------------------------------------------------------------------ */
+/* RC35-REC-02 / legacy F4 (2026-09-11): genesis outcome derivation,   */
+/* observation-only recovery and ONE replayable completion             */
+/* ------------------------------------------------------------------ */
+
+/* A genesis request in one of these states may already carry a chain effect whose durable records are incomplete: a lost
+ * node response (BROADCAST / RECONCILIATION_REQUIRED), a crash between the record write and the request write, or a
+ * negative an earlier runtime wrote for an "already accepted" node answer (SUBMISSION_REJECTED — the reviewer's false
+ * negative). CHAIN_VERIFIED is included so a terminal label beside missing records is verified, never trusted. */
+const GENESIS_RECOVERY_STATES = new Set([RequestState.BROADCAST, RequestState.CHAIN_SEEN, RequestState.RECONCILIATION_REQUIRED, RequestState.SUBMISSION_REJECTED, RequestState.CHAIN_VERIFIED]);
+
+/* The EXACT outcome a ROOT genesis declares, derived from the ORIGINAL verified request and the immutable definitions: the
+ * root script is re-derived from the request's template + initial state and must equal the build's script; the frozen
+ * output at the root index must pay that script and carry the request's root covenant id. Nothing is trusted from a label. */
+function rootGenesisExpected(config, request) {
+  const build = request.build;
+  if (!build || !build.frozen || !Array.isArray(build.frozen.outputs)) throwFail("the request carries no frozen genesis transaction", "RECONCILIATION_REQUIRED");
+  const index = Number(build.rootOutputIndex);
+  const out = build.frozen.outputs[index];
+  const covenantId = String(request.rootCovenantId ?? "").toLowerCase();
+  if (!out || !out.covenant || String(out.covenant.covenantId).toLowerCase() !== covenantId) throwFail("the frozen genesis output does not carry this request's root covenant id", "RECONCILIATION_REQUIRED");
+  let compiled;
+  try {
+    compiled = compileExactStateV7Root({ config, template: build.template, state: build.initialState, contractVersion: request.contractVersion ?? CONTRACT_VERSION_V7_ROOT });
+  } catch (e) {
+    throwFail(`the root script cannot be re-derived from the request's template and initial state: ${firstLine(e)}`, "RECONCILIATION_REQUIRED");
+  }
+  if (compiled.scriptHex !== build.rootScriptHex) throwFail("the request's root script differs from the script re-derived from its template and initial state — refusing to complete", "RECONCILIATION_REQUIRED");
+  const { covenantAddress } = require("./chain");
+  const address = covenantAddress(config, Buffer.from(build.rootScriptHex, "hex"));
+  if (spkToAddress(config, out.scriptPublicKey) !== address) throwFail("the frozen root output does not pay the re-derived root script", "RECONCILIATION_REQUIRED");
+  return { address, txId: String(request.txId).toLowerCase(), index, value: String(build.accounting.kas.rootValue), covenantId };
+}
+
+/* The EXACT outcome a ROOTED-VAULT genesis (v0.7-payment profile) declares, derived the same way. */
+function vaultGenesisExpected(config, request) {
+  const build = request.build;
+  if (!build || !build.frozen || !Array.isArray(build.frozen.outputs)) throwFail("the request carries no frozen genesis transaction", "RECONCILIATION_REQUIRED");
+  const index = Number(build.vaultOutputIndex);
+  const out = build.frozen.outputs[index];
+  const covenantId = String(build.covenantId ?? "").toLowerCase();
+  if (!out || !out.covenant || String(out.covenant.covenantId).toLowerCase() !== covenantId) throwFail("the frozen genesis output does not carry this request's vault covenant id", "RECONCILIATION_REQUIRED");
+  let compiled;
+  try {
+    compiled = compileExactStateV7({ config, template: build.template, state: build.initialState, contractVersion: CONTRACT_VERSION_V7 });
+  } catch (e) {
+    throwFail(`the vault script cannot be re-derived from the request's template and initial state: ${firstLine(e)}`, "RECONCILIATION_REQUIRED");
+  }
+  if (compiled.scriptSha256 !== build.scriptSha256) throwFail("the request's vault script differs from the script re-derived from its template and initial state — refusing to complete", "RECONCILIATION_REQUIRED");
+  const { covenantAddress } = require("./chain");
+  const address = covenantAddress(config, Buffer.from(build.vaultScriptHex, "hex"));
+  if (spkToAddress(config, out.scriptPublicKey) !== address) throwFail("the frozen vault output does not pay the re-derived vault script", "RECONCILIATION_REQUIRED");
+  return { address, txId: String(request.txId).toLowerCase(), index, value: String(out.value), covenantId };
+}
+
+/* The signed genesis bytes must reconstruct the request's frozen txid (binds the durable request to what was, or was not,
+ * broadcast). Returns the WASM transaction (only the submit path broadcasts it; recovery never does). */
+function assertSignedGenesisBinding(config, request) {
+  if (typeof request.signedSafeJson !== "string" || !request.signedSafeJson) throwFail("the request carries no signed genesis transaction — nothing was broadcast for it and nothing is constructed here", "RECONCILIATION_REQUIRED");
   const { Transaction } = require("./chain").loadKaspa(config);
-  const transaction = Transaction.deserializeFromSafeJSON(request.transaction.unsignedSafeJson);
+  const unsigned = JSON.parse(request.transaction.unsignedSafeJson);
   const signed = JSON.parse(request.signedSafeJson);
-  const ins = transaction.inputs;
-  for (let i = 0; i < ins.length; i++) ins[i].signatureScript = signed.inputs[i].signatureScript;
-  transaction.inputs = ins;
+  assertImmutable(unsigned, signed);
+  verifySignedSafeJsonInputs({ frozenCanonicalJson: request.build.frozenCanonicalJson, signedSafeJson: request.signedSafeJson });
+  const transaction = Transaction.deserializeFromSafeJSON(request.signedSafeJson);
   const txId = transaction.finalize().toString().toLowerCase();
   if (txId !== request.txId) throw fail(`reconstructed txid ${txId} != frozen ${request.txId}`, "TXID_MISMATCH");
+  return transaction;
+}
+
+async function observeGenesisOutcome(rpc, expected, { pollAttempts = 30, pollDelayMs = 2000 } = {}) {
+  let proof = null;
+  for (let i = 0; i < pollAttempts && !proof; i++) {
+    const ref = await findOutpoint(rpc, expected.address, expected.txId, expected.index);
+    if (ref && String(ref.covenantId ?? "").toLowerCase() === expected.covenantId && String(ref.amount) === expected.value) proof = ref;
+    if (!proof && i + 1 < pollAttempts) await new Promise((r) => setTimeout(r, pollDelayMs));
+  }
+  return proof;
+}
+
+/* The ONLY place a v0.7 genesis is broadcast. Durable claim BEFORE the node call; the node's answer is classified by the shared
+ * classifier: an already-known answer is observed like an accepted response; a bound rejection settles the negative ONLY with
+ * the expected output verified absent; anything else keeps the claim (RECONCILIATION_REQUIRED). */
+async function broadcastSignedGenesis(config, rpc, request, expected) {
+  const transaction = assertSignedGenesisBinding(config, request);
+  const txId = request.txId;
   await claimSubmission(config, { txId, vaultId: request.rootCovenantId, action: request.kind });
+  request.submitStartHash = await require("./submission-outcome-v7").readSubmissionStartHash(rpc);
   request.state = RequestState.BROADCAST;
   await saveOrgRootRequest(config, request);
+  let submitted;
   try {
-    const submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
-    const returned = String(submitted.transactionId ?? submitted).toLowerCase();
-    if (returned !== txId) {
-      request.state = RequestState.RECONCILIATION_REQUIRED;
-      await saveOrgRootRequest(config, request);
-      throw fail(`node returned ${returned}, expected ${txId} — reconcile`, "RECONCILIATION_REQUIRED");
-    }
+    submitted = await rpc.submitTransaction({ transaction, allowOrphan: false });
   } catch (e) {
-    if (e.code === "RECONCILIATION_REQUIRED") throw e;
-    const message = String(e.message ?? e).split("\n")[0];
+    const message = firstLine(e);
     request.error = message;
-    if (isDefinitiveSubmitRejection(message)) {
-      await releaseSubmissionClaim(config, txId);
+    const settled = await settleGenesisSubmitError({ config, request, rpc, message, txId, expected });
+    if (settled.decision === "REJECTED") {
       request.state = RequestState.SUBMISSION_REJECTED;
+      request.submissionOutcome = { outcome: RequestState.SUBMISSION_REJECTED, reason: message, txId, proof: settled.proof };
       await saveOrgRootRequest(config, request);
+      await releaseSubmissionClaim(config, txId);
       throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
     }
+    if (settled.decision === "UNCERTAIN") {
+      request.state = RequestState.RECONCILIATION_REQUIRED;
+      request.error = `${message} — ${settled.reason}`;
+      await saveOrgRootRequest(config, request);
+      throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+    }
+    request.submissionResponse = { kind: "ALREADY_KNOWN", variant: settled.classification.variant, reason: message, at: new Date().toISOString() };
+    await saveOrgRootRequest(config, request);
+    return txId;
+  }
+  const returned = String(submitted.transactionId ?? submitted).toLowerCase();
+  if (returned !== txId) {
     request.state = RequestState.RECONCILIATION_REQUIRED;
     await saveOrgRootRequest(config, request);
-    throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+    throw fail(`node returned ${returned}, expected ${txId} — reconcile`, "RECONCILIATION_REQUIRED");
   }
   return txId;
 }
 
-async function submitRootGenesis({ config, rpc, request }) {
-  const txId = await broadcastSignedGenesis(config, rpc, request);
-  /* rootScriptHex is the RAW covenant redeem script (pre-P2SH) — wrap it
-   * exactly as the builder did (p2shOf) before deriving an address. */
-  const { covenantAddress } = require("./chain");
-  const address = covenantAddress(config, Buffer.from(request.build.rootScriptHex, "hex"));
-  let proof = null;
-  for (let i = 0; i < 30 && !proof; i++) {
-    const ref = await findOutpoint(rpc, address, txId, request.build.rootOutputIndex);
-    if (ref && String(ref.covenantId ?? "").toLowerCase() === request.rootCovenantId) proof = ref;
-    if (!proof) await new Promise((r) => setTimeout(r, 2000));
+/* A genesis receipt binds the original request, its transaction and exact output.
+ * Legacy receipts without a fingerprint still require every original pointer;
+ * a partial or contradictory modern pointer never falls back. */
+function genesisReceiptBinding(request) {
+  return crypto.createHash("sha256").update(canonicalJsonStringify(JSON.parse(JSON.stringify({
+    id: request.id, kind: request.kind, txId: request.txId, rootCovenantId: request.rootCovenantId,
+    networkId: request.networkId, build: request.build, manifest: request.manifest,
+    signedSafeJson: request.signedSafeJson
+  })))).digest("hex");
+}
+function genesisReceiptMatches(receipt, request, expected) {
+  const entity = request.kind === "rootGenesis" ? request.rootCovenantId : request.build.template.vaultId;
+  return !!receipt && receipt.txId === request.txId && receipt.action === request.kind && receipt.vaultId === entity &&
+    receipt.proof?.outpoint === `${request.txId}:${expected.index}` && receipt.proof?.covenantId === expected.covenantId &&
+    receipt.proof?.requestId === request.id &&
+    (!Object.hasOwn(receipt.proof, "genesisFingerprint") || receipt.proof.genesisFingerprint === genesisReceiptBinding(request));
+}
+async function sameRootGenesisRecord(config, existing, request, expected) {
+  if (!existing || existing.schemaVersion !== ORG_ROOT_SCHEMA || !existing.live) return false;
+  if (existing.rootCovenantId !== expected.covenantId || existing.networkId !== config.networkId || existing.contractVersion !== CONTRACT_VERSION_V7_ROOT) return false;
+  if (existing.orgId !== request.orgId) return false;
+  const same = (a, b) => canonicalJsonStringify(JSON.parse(JSON.stringify(a ?? null))) === canonicalJsonStringify(JSON.parse(JSON.stringify(b ?? null)));
+  if (!same(existing.template, request.build.template) || !same(existing.rootPins ?? null, request.build.rootPins ?? null)) return false;
+  if (sameOutpoint(existing.live.outpoint, { transactionId: expected.txId, index: expected.index })) {
+    const slots = activeOwnerSlotsV7(normalizeRootStateV7(request.build.initialState)).map((v) => `${v.slot}:${v.publicKey}`).join(",");
+    return existing.generation === 0 && sameRootState(existing.state, request.build.initialState) &&
+      String(existing.live.value) === expected.value && existing.live.address === expected.address &&
+      (existing.slots ?? []).map((v) => `${v.slot}:${v.publicKey}`).join(",") === slots;
   }
-  if (!proof) {
-    request.state = RequestState.RECONCILIATION_REQUIRED;
-    await saveOrgRootRequest(config, request);
-    throw fail(`root genesis ${txId} submitted but the covenant output was not observed — reconcile`, "RECONCILIATION_REQUIRED");
-  }
-  const rootState = normalizeRootStateV7(request.build.initialState);
+  // A genesis receipt alone says nothing about an arbitrary later outpoint.
+  const receipt = await getStore(config).read(Categories.RECEIPT, request.txId);
+  if (!genesisReceiptMatches(receipt, request, expected) || !Number.isInteger(existing.generation) || existing.generation < 1) return false;
+  const links = await traceRootCompletion(config, existing, request, { rootOutIndex: expected.index });
+  return !!links && links.length === existing.generation;
+}
+
+/* ONE replayable completion of a PROVEN root genesis: the root record is created ATOMICALLY (create-only) or accepted only
+ * as this genesis's own root (never overwritten — a later generation of it stays as it is); receipt and audit are idempotent;
+ * the submission claim is released only when it is ours; the request is CHAIN_VERIFIED last. Every step is safe to replay
+ * after a crash between any two of them. */
+async function finishRootGenesis(config, request, expected, proof, via) {
+  const txId = request.txId;
+  const held = await getStore(config).read(Categories.SUBMISSION_CLAIM, txId);
+  if (held && (held.vaultId !== request.rootCovenantId || held.action !== request.kind)) throwFail("submission claim belongs to another operation", "CLAIM_CONFLICT");
+  const priorReceipt = await getStore(config).read(Categories.RECEIPT, txId);
+  if (priorReceipt && !genesisReceiptMatches(priorReceipt, request, expected)) throwFail("genesis receipt does not bind this request and output", "RECONCILIATION_REQUIRED");
   const root = {
     schemaVersion: ORG_ROOT_SCHEMA,
     rootCovenantId: request.rootCovenantId,
@@ -1191,71 +1403,196 @@ async function submitRootGenesis({ config, rpc, request }) {
     state: request.build.initialState,
     slots: request.manifest.slots ?? request.build.ownerSlots.map((s) => ({ slot: s.slot, publicKey: s.publicKey, address: addressForXOnlyPubkey(config, s.publicKey), label: "" })),
     rootPins: request.build.rootPins,
-    live: { outpoint: { transactionId: txId, index: request.build.rootOutputIndex }, value: request.build.accounting.kas.rootValue, address, blockDaaScore: proof.blockDaaScore ? proof.blockDaaScore.toString() : null },
+    live: { outpoint: { transactionId: txId, index: expected.index }, value: request.build.accounting.kas.rootValue, address: expected.address, blockDaaScore: proof.blockDaaScore ? proof.blockDaaScore.toString() : null },
     generation: 0,
     pendingRequestId: null,
     vaults: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
-  await saveOrgRoot(config, root);
-  await persistReceipt(config, { txId, vaultId: request.rootCovenantId, action: "rootGenesis", proof: { outpoint: `${txId}:${request.build.rootOutputIndex}`, covenantId: request.rootCovenantId } });
-  await appendAudit(config, { vaultId: request.rootCovenantId, action: "rootGenesis", actor: "owner", contractVersion: CONTRACT_VERSION_V7_ROOT, txId, result: "CHAIN_VERIFIED", via: "org-roots" });
+  const store = getStore(config);
+  const created = await store.createExclusive(Categories.ORG_ROOT, request.rootCovenantId, root);
+  let completion = "CREATED";
+  if (!created) {
+    const existing = await loadOrgRoot(config, request.rootCovenantId); // ROOT_ID_MISMATCH on a mis-keyed record — fail closed
+    if (!await sameRootGenesisRecord(config, existing, request, expected)) throwFail(`organizational root ${request.rootCovenantId} holds a different durable record — that record is preserved untouched; this genesis stays on its request (signed transaction, txid, claim) for reconciliation`, "RECONCILIATION_REQUIRED");
+    completion = "ALREADY_PRESENT";
+  }
+  const receipt = await store.read(Categories.RECEIPT, txId);
+  if (receipt && !genesisReceiptMatches(receipt, request, expected)) throwFail("a receipt for this transaction names another operation", "RECONCILIATION_REQUIRED");
+  if (!receipt) await persistReceipt(config, { txId, vaultId: request.rootCovenantId, action: "rootGenesis", proof: { outpoint: `${txId}:${expected.index}`, covenantId: request.rootCovenantId, requestId: request.id, genesisFingerprint: genesisReceiptBinding(request) } });
+  if (!(await readAudit(config, { vaultId: request.rootCovenantId, txId, limit: 500 })).some((e) => e.action === "rootGenesis" && e.result === "CHAIN_VERIFIED")) {
+    await appendAudit(config, { vaultId: request.rootCovenantId, action: "rootGenesis", actor: "owner", contractVersion: CONTRACT_VERSION_V7_ROOT, txId, result: "CHAIN_VERIFIED", via: via === "submit" ? "org-roots" : `org-roots/${via}` });
+  }
+  const submission = await store.read(Categories.SUBMISSION_CLAIM, txId);
+  if (submission && (submission.vaultId !== request.rootCovenantId || submission.action !== request.kind)) throwFail("submission claim belongs to another operation", "CLAIM_CONFLICT");
+  if (submission) await releaseSubmissionClaim(config, txId);
   request.state = RequestState.CHAIN_VERIFIED;
-  request.chain = { successorOutpoint: `${txId}:${request.build.rootOutputIndex}`, observedAt: new Date().toISOString() };
+  request.error = undefined;
+  request.chain = { successorOutpoint: `${txId}:${expected.index}`, observedAt: request.chain?.observedAt ?? new Date().toISOString(), completion: { root: completion, via, completedAt: new Date().toISOString() } };
   await saveOrgRootRequest(config, request);
   return request;
 }
 
-async function submitVaultGenesis({ config, rpc, request }) {
-  const txId = await broadcastSignedGenesis(config, rpc, request);
-  const { covenantAddress } = require("./chain");
-  const address = covenantAddress(config, Buffer.from(request.build.vaultScriptHex, "hex"));
-  let proof = null;
-  for (let i = 0; i < 30 && !proof; i++) {
-    const ref = await findOutpoint(rpc, address, txId, request.build.vaultOutputIndex);
-    if (ref && String(ref.covenantId ?? "").toLowerCase() === request.build.covenantId) proof = ref;
-    if (!proof) await new Promise((r) => setTimeout(r, 2000));
+/* ONE replayable completion of a PROVEN rooted-vault genesis (v0.7-payment profile): create-only vault record (RC33-ID-01),
+ * root membership, idempotent receipt / audit, own-claim release, request CHAIN_VERIFIED last. */
+async function finishVaultGenesis(config, request, expected, proof, via) {
+  const txId = request.txId;
+  const state = normalizeStateV7(request.build.initialState);
+  const stateId = computeStateIdV7({ networkId: config.networkId, template: request.build.template, state, contractVersion: CONTRACT_VERSION_V7 });
+  /* RC33-ID-01: ATOMIC create-only completion (sdk/src/vault-identity.js) — never read-then-overwrite; a different record of
+   * any generation under this identity is preserved and the proven outcome stays on the request for reconciliation */
+  let manifest;
+  try {
+    ({ manifest } = await createManifestV7(config, {
+      manifestVersion: MANIFEST_SCHEMA_V7,
+      contractVersion: CONTRACT_VERSION_V7,
+      networkId: config.networkId,
+      vaultId: request.build.template.vaultId,
+      label: request.label ?? "",
+      status: VaultStatus.ACTIVE,
+      orgRootCovenantId: request.build.orgRootCovenantId,
+      template: request.build.template,
+      asset: { descriptor: request.descriptor, templateIndex: request.templateIndex ?? 0 },
+      agentRegistry: request.initialRegistry ?? [],
+      live: { state: stateToJsonV7(state), stateId, outpoint: { transactionId: txId, index: expected.index }, outpointValue: state.feeReserve.toString(), scriptSha256: request.build.scriptSha256, covenantId: request.build.covenantId, tokenPosition: null },
+      creationTxId: txId,
+      latestTransitionTxId: null,
+      generation: 0
+    }));
+  } catch (e) {
+    if (e.code !== "RECONCILIATION_REQUIRED") throw e;
+    /* RC33-ID-01: the identity holds a DIFFERENT record (any generation) — that record is never replaced; the proven chain
+     * effect stays on THIS request (signed bytes, txid, submission claim intact) as RECONCILIATION_REQUIRED */
+    request.state = RequestState.RECONCILIATION_REQUIRED;
+    request.error = `chain effect proven but the vault record could not be created: ${firstLine(e)}`;
+    await saveOrgRootRequest(config, request);
+    throw fail(request.error, "RECONCILIATION_REQUIRED");
   }
+  const root = await loadOrgRoot(config, request.rootCovenantId);
+  if (!root) throwFail("rooted-vault genesis root record is missing", "RECONCILIATION_REQUIRED");
+  if (!root.vaults.includes(manifest.vaultId)) {
+    root.vaults.push(manifest.vaultId);
+    await saveOrgRoot(config, root);
+  }
+  const store = getStore(config);
+  const receipt = await store.read(Categories.RECEIPT, txId);
+  if (receipt && !genesisReceiptMatches(receipt, request, expected)) throwFail("a receipt for this transaction names another operation", "RECONCILIATION_REQUIRED");
+  if (!receipt) await persistReceipt(config, { txId, vaultId: manifest.vaultId, action: "rootedVaultGenesis", proof: { outpoint: `${txId}:${expected.index}`, covenantId: request.build.covenantId, requestId: request.id, genesisFingerprint: genesisReceiptBinding(request) } });
+  if (!(await readAudit(config, { vaultId: manifest.vaultId, txId, limit: 500 })).some((e) => e.action === "rootedVaultGenesis" && e.result === "CHAIN_VERIFIED")) {
+    await appendAudit(config, { vaultId: manifest.vaultId, action: "rootedVaultGenesis", actor: "owner", contractVersion: CONTRACT_VERSION_V7, txId, result: "CHAIN_VERIFIED", via: via === "submit" ? "org-roots" : `org-roots/${via}` });
+  }
+  const submission = await store.read(Categories.SUBMISSION_CLAIM, txId);
+  if (submission && (submission.vaultId !== request.rootCovenantId || submission.action !== request.kind)) throwFail("submission claim belongs to another operation", "CLAIM_CONFLICT");
+  if (submission) await releaseSubmissionClaim(config, txId);
+  request.state = RequestState.CHAIN_VERIFIED;
+  request.error = undefined;
+  request.chain = { successorOutpoint: `${txId}:${expected.index}`, observedAt: request.chain?.observedAt ?? new Date().toISOString(), completion: { via, completedAt: new Date().toISOString() } };
+  await saveOrgRootRequest(config, request);
+  return request;
+}
+
+/* Are every durable record of a genesis labelled CHAIN_VERIFIED actually present? (local records only; no node) */
+async function verifyGenesisCompletion(config, request) {
+  const missing = [];
+  assertSignedGenesisBinding(config, request);
+  const expected = request.kind === "rootGenesis" ? rootGenesisExpected(config, request) : vaultGenesisExpected(config, request);
+  const store = getStore(config);
+  const receipt = await store.read(Categories.RECEIPT, request.txId);
+  if (await store.read(Categories.SUBMISSION_CLAIM, request.txId)) missing.push("submission claim not finalized");
+  if (request.kind === "rootGenesis") {
+    const root = await loadOrgRoot(config, request.rootCovenantId).catch(() => null);
+    if (!await sameRootGenesisRecord(config, root, request, expected)) missing.push("ORG_ROOT record or completed lineage");
+    if (!genesisReceiptMatches(receipt, request, expected)) missing.push("receipt");
+    if (!(await readAudit(config, { vaultId: request.rootCovenantId, txId: request.txId, limit: 500 })).some((e) => e.action === "rootGenesis" && e.result === "CHAIN_VERIFIED")) missing.push("audit");
+  } else {
+    const vaultId = request.build && request.build.template ? request.build.template.vaultId : null;
+    const vault = vaultId ? await loadManifestV7(config, vaultId).catch(() => null) : null;
+    if (!vault || vault.creationTxId !== request.txId) missing.push("VAULT record");
+    const root = await loadOrgRoot(config, request.rootCovenantId).catch(() => null);
+    if (!root || !vaultId || !root.vaults.includes(vaultId)) missing.push("root membership");
+    if (!genesisReceiptMatches(receipt, request, expected)) missing.push("receipt");
+    if (!vaultId || !(await readAudit(config, { vaultId, txId: request.txId, limit: 500 })).some((e) => e.action === "rootedVaultGenesis" && e.result === "CHAIN_VERIFIED")) missing.push("audit");
+  }
+  return { complete: missing.length === 0, missing };
+}
+
+async function submitRootGenesis({ config, rpc, request, pollAttempts = 30, pollDelayMs = 2000 }) {
+  const expected = rootGenesisExpected(config, request);
+  const txId = await broadcastSignedGenesis(config, rpc, request, expected);
+  const proof = await observeGenesisOutcome(rpc, expected, { pollAttempts, pollDelayMs });
+  if (!proof) {
+    request.state = RequestState.RECONCILIATION_REQUIRED;
+    await saveOrgRootRequest(config, request);
+    throw fail(`root genesis ${txId} submitted but the covenant output was not observed — reconcile`, "RECONCILIATION_REQUIRED");
+  }
+  return finishRootGenesis(config, request, expected, proof, "submit");
+}
+
+async function submitVaultGenesis({ config, rpc, request, pollAttempts = 30, pollDelayMs = 2000 }) {
+  /* RC33-ID-01: an occupied identity is refused BEFORE the submission claim and the broadcast — the SIGNED request is left as it is */
+  await assertVaultIdentityFree(config, request.build.template.vaultId, { exceptRequestId: request.id, exceptTxId: request.txId, phase: "commit" });
+  const expected = vaultGenesisExpected(config, request);
+  const txId = await broadcastSignedGenesis(config, rpc, request, expected);
+  const proof = await observeGenesisOutcome(rpc, expected, { pollAttempts, pollDelayMs });
   if (!proof) {
     request.state = RequestState.RECONCILIATION_REQUIRED;
     await saveOrgRootRequest(config, request);
     throw fail(`vault genesis ${txId} submitted but the covenant output was not observed — reconcile`, "RECONCILIATION_REQUIRED");
   }
-  const state = normalizeStateV7(request.build.initialState);
-  const stateId = computeStateIdV7({ networkId: config.networkId, template: request.build.template, state, contractVersion: CONTRACT_VERSION_V7 });
-  const manifest = await persistManifestV7(config, {
-    manifestVersion: MANIFEST_SCHEMA_V7,
-    contractVersion: CONTRACT_VERSION_V7,
-    networkId: config.networkId,
-    vaultId: request.build.template.vaultId,
-    label: request.label ?? "",
-    status: VaultStatus.ACTIVE,
-    orgRootCovenantId: request.build.orgRootCovenantId,
-    template: request.build.template,
-    asset: { descriptor: request.descriptor, templateIndex: request.templateIndex ?? 0 },
-    agentRegistry: request.initialRegistry ?? [],
-    live: { state: stateToJsonV7(state), stateId, outpoint: { transactionId: txId, index: request.build.vaultOutputIndex }, outpointValue: state.feeReserve.toString(), scriptSha256: request.build.scriptSha256, covenantId: request.build.covenantId, tokenPosition: null },
-    creationTxId: txId,
-    latestTransitionTxId: null,
-    generation: 0
-  });
-  const root = await loadOrgRoot(config, request.rootCovenantId);
-  if (root && !root.vaults.includes(manifest.vaultId)) {
-    root.vaults.push(manifest.vaultId);
-    await saveOrgRoot(config, root);
+  return finishVaultGenesis(config, request, expected, proof, "submit");
+}
+
+/* The shared observation-only recovery of a genesis request: derive the expected outcome from the original request, bind
+ * the signed bytes to the frozen txid, observe; complete on proof, otherwise keep an ESTABLISHED negative as it is, PROTECT a
+ * false / unknown negative (claim re-established, RECONCILIATION_REQUIRED) and leave every other unresolved request unresolved
+ * with its claim. A CHAIN_VERIFIED request keeps its label when its output is not observed (the records are replayed only on
+ * proof). Nothing is constructed, signed or rebroadcast. */
+async function recoverGenesisByObservation({ config, rpc, request, expected, finish, pollAttempts, pollDelayMs, via }) {
+  assertSignedGenesisBinding(config, request);
+  const fromNegative = request.state === RequestState.SUBMISSION_REJECTED;
+  const claim = { txId: request.txId, vaultId: request.rootCovenantId, action: request.kind };
+  const proof = await observeGenesisOutcome(rpc, expected, { pollAttempts, pollDelayMs });
+  if (!proof) {
+    const disposition = await refreshUnobservedGenesis({ config, rpc, request, claim: { txId: request.txId, vaultId: request.rootCovenantId, action: request.kind }, save: (q) => saveOrgRootRequest(config, q) });
+    if (disposition.action === "KEEP_NEGATIVE") return request; // an ESTABLISHED negative: unchanged, nothing rebroadcast
+    if (request.state === RequestState.CHAIN_VERIFIED) throw fail(`${request.txId} is labelled CHAIN_VERIFIED but its durable records are incomplete and its genesis output ${request.txId}:${expected.index} is not observed unspent at ${expected.address} — prior records are preserved; reconcile`, "RECONCILIATION_REQUIRED");
+    await ensureOwnSubmissionClaim(config, claim); // never another operation's claim; idempotent for our own
+    request.state = RequestState.RECONCILIATION_REQUIRED;
+    request.error = disposition.reason ?? `${request.txId} was broadcast but its genesis output ${request.txId}:${expected.index} is not observed unspent at ${expected.address} — reconcile (nothing is rebroadcast)`;
+    await saveOrgRootRequest(config, request);
+    throw fail(request.error, "RECONCILIATION_REQUIRED");
   }
-  await persistReceipt(config, { txId, vaultId: manifest.vaultId, action: "rootedVaultGenesis", proof: { outpoint: `${txId}:${request.build.vaultOutputIndex}`, covenantId: request.build.covenantId } });
-  await appendAudit(config, { vaultId: manifest.vaultId, action: "rootedVaultGenesis", actor: "owner", contractVersion: CONTRACT_VERSION_V7, txId, result: "CHAIN_VERIFIED", via: "org-roots" });
-  request.state = RequestState.CHAIN_VERIFIED;
-  request.chain = { successorOutpoint: `${txId}:${request.build.vaultOutputIndex}`, observedAt: new Date().toISOString() };
-  await saveOrgRootRequest(config, request);
-  return request;
+  await ensureOwnSubmissionClaim(config, claim); // every interrupted completion protects its exact operation before writes
+  return finish(config, request, expected, proof, via);
+}
+async function recoverRootGenesisUnlocked({ config, rpc, request, pollAttempts = 30, pollDelayMs = 2000, via = "submit-recovery" }) {
+  if (request.kind !== "rootGenesis") throwFail("not a root genesis request", "UNKNOWN_REQUEST_KIND");
+  assertSignedGenesisBinding(config, request);
+  const expected = rootGenesisExpected(config, request);
+  const root = await loadOrgRoot(config, request.rootCovenantId);
+  const receipt = await getStore(config).read(Categories.RECEIPT, request.txId);
+  if (genesisReceiptMatches(receipt, request, expected) && await sameRootGenesisRecord(config, root, request, expected)) {
+    // A spent genesis output can still complete local bookkeeping through fully
+    // validated completed transition history. No new signature or broadcast.
+    await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.rootCovenantId, action: request.kind });
+    return finishRootGenesis(config, request, expected, { blockDaaScore: null }, via);
+  }
+  return recoverGenesisByObservation({ config, rpc, request, expected, finish: finishRootGenesis, pollAttempts, pollDelayMs, via });
+}
+async function recoverVaultGenesisUnlocked({ config, rpc, request, pollAttempts = 30, pollDelayMs = 2000, via = "submit-recovery" }) {
+  if (request.kind !== "rootedVaultGenesis") throwFail("not a rooted-vault genesis request", "UNKNOWN_REQUEST_KIND");
+  return recoverGenesisByObservation({ config, rpc, request, expected: vaultGenesisExpected(config, request), finish: finishVaultGenesis, pollAttempts, pollDelayMs, via });
+}
+/* Root genesis requests for a root covenant id that has NO record yet and may be completed by observation (newest first). */
+async function listRecoverableRootGenesisRequests(config, rootCovenantId) {
+  const all = await listOrgRootRequests(config, { rootCovenantId });
+  return all.filter((q) => q.kind === "rootGenesis" && GENESIS_RECOVERY_STATES.has(q.state) && typeof q.signedSafeJson === "string" && q.signedSafeJson);
 }
 
 async function submitRootAction({ config, rpc, request }) {
   for (const op of request.vaultOperations ?? []) {
-    const vault = await loadManifestV7(config, op.vaultId);
+    const vault = await loadRootedVaultAny(config, op.vaultId);
     if (!vault) throwFail(`no rooted vault ${op.vaultId}`, "VAULT_NOT_FOUND");
     await assertVaultCompletionAvailable(config, vault, request.id);
   }
@@ -1527,9 +1864,9 @@ async function completeProvenRootAction(config, request, { rootOutIndex, rootAdd
   const vaultId = hasVaultOp ? request.vaultOperations[0].vaultId : null;
   const idx = hasVaultOp ? (vaultOutIndex ?? vaultSuccessorIndex(request)) : null;
   if (hasVaultOp) {
-    vaultManifest = await loadManifestV7(config, vaultId);
+    vaultManifest = await loadRootedVaultAny(config, vaultId);
     if (!vaultManifest) throwFail(`no rooted vault ${vaultId} for a proven root action — refusing to record an unrecoverable completion`, "RECONCILIATION_REQUIRED");
-    c = await classifyVaultRecord(config, vaultManifest, request, idx);
+    c = await classifyVaultRecordAny(config, vaultManifest, request, idx);
     if (!["PREDECESSOR", "SUCCESSOR", "BEYOND"].includes(c.position)) throwFail(`rooted vault ${vaultId} has no proven dependency history for this request`, "VAULT_STATE_UNEXPECTED");
     if (rc.position === "BEYOND" && (c.position === "PREDECESSOR" || c.position === "SUCCESSOR" && !c.consistent) && request.build.successorState !== null) {
       if (!await frozenOutputObserved(config, rpc, request, idx)) throwFail("historical root effect is proven but the vault continuation is not observed — refusing to overwrite potentially newer vault state", "RECONCILIATION_REQUIRED");
@@ -1555,10 +1892,10 @@ async function completeProvenRootAction(config, request, { rootOutIndex, rootAdd
     if (c.position === "SUCCESSOR" && c.consistent) {
       completion.vault = "ALREADY_COMPLETE";
     } else if (c.position === "PREDECESSOR") {
-      await persistManifestV7(config, expectedVaultSuccessorDoc(config, vaultManifest, request, idx, Number(vaultManifest.generation ?? 0) + 1));
+      await persistVaultSuccessorAny(config, vaultManifest, request, idx, Number(vaultManifest.generation ?? 0) + 1);
       completion.vault = "ADVANCED";
     } else if (c.position === "SUCCESSOR") {
-      await persistManifestV7(config, expectedVaultSuccessorDoc(config, vaultManifest, request, idx, Number(vaultManifest.generation ?? 0)));
+      await persistVaultSuccessorAny(config, vaultManifest, request, idx, Number(vaultManifest.generation ?? 0));
       completion.vault = "REPAIRED";
       completion.vaultDifferences = c.differences;
     } else if (c.position === "BEYOND") {
@@ -1759,7 +2096,7 @@ async function completedRequestAt(config, txId) {
   if (hasReceiptPointer(receipt)) {
     const kind = receipt.proof.requestKind;
     if (kind !== "rootAction" && kind !== "vaultAction" || !receipt.proof.requestId) return null;
-    q = kind === "rootAction" ? await loadOrgRootRequest(config, receipt.proof.requestId) : await loadV7WalletRequest(config, receipt.proof.requestId);
+    q = kind === "rootAction" ? await loadOrgRootRequest(config, receipt.proof.requestId) : (await loadV7WalletRequest(config, receipt.proof.requestId)) ?? (await kasProfile.loadKasWalletRequest(config, receipt.proof.requestId));
     if (!q || !receiptPointerMatches(receipt, q)) return null;
   } else {
     // Earlier public APIs wrote receipts without pointers. Associate only a
@@ -1787,6 +2124,11 @@ async function completedRequestAt(config, txId) {
     assertFrozenRequestTransaction(config, q);
     const expected = q.action === "tokenDeposit" ? receipt.proof?.outpoint : receipt.proof?.successorOutpoint;
     if (expected !== `${txId}:0`) return null;
+  } else if (q.action === "agentSpend" && kasProfile.isKasBuild(q.build)) {
+    assertFrozenRequestTransaction(config, q);
+    if (receipt.proof?.successorOutpoint !== `${txId}:${kasProfile.vaultSuccessorIndexOf(q)}`) return null;
+  } else if (q.kind === "kasGenesis" && kasProfile.isKasBuild(q.build)) {
+    if (q.build.txId !== txId || receipt.proof?.outpoint !== `${txId}:${q.build.vaultOutputIndex}` || receipt.proof?.covenantId !== q.build.covenantId) return null;
   } else if (q.kind === "rootedVaultGenesis") {
     if (q.build.txId !== txId || receipt.proof?.outpoint !== `${txId}:${q.build.vaultOutputIndex}` || receipt.proof?.covenantId !== q.build.covenantId) return null;
   } else return null;
@@ -1935,6 +2277,7 @@ function normalizeHistoryVault(doc) {
   return require("./manifest-v7").normalizeManifestV7(doc);
 }
 function rootSuccessorState(request) {
+  if (request.kind === "rootGenesis") return request.build.initialState;
   return request.build.kind === "orgRootTransition" ? request.build.successorState : request.manifest.rootState.after.state;
 }
 
@@ -2104,11 +2447,11 @@ async function verifyRootActionCompletion(config, request, { root: providedRoot 
   if (hasVaultOp) {
     vaultPredecessor = vaultPredecessorOutpoint(request);
     const vaultId = request.vaultOperations[0].vaultId;
-    const vaultManifest = await loadManifestV7(config, vaultId);
+    const vaultManifest = await loadRootedVaultAny(config, vaultId);
     if (!vaultManifest) {
       missing.push(`rooted vault ${vaultId} record missing`);
     } else {
-      vaultPosition = await classifyVaultRecord(config, vaultManifest, request, vaultSuccessorIndex(request));
+      vaultPosition = await classifyVaultRecordAny(config, vaultManifest, request, vaultSuccessorIndex(request));
       if (vaultPosition.position === "BEYOND") {
         /* provably advanced past this transition: nothing to complete on the vault side */
       } else if (vaultPosition.position !== "SUCCESSOR") {
@@ -2495,6 +2838,11 @@ async function assertVaultCompletionAvailable(config, vault, exceptRequestId = n
   // Only actual durable delegate requests add this guard. An unrelated
   // orphan claim must not prevent completion of an already proven root
   // action; its existing claim arbitration/release rules remain unchanged.
+  if (kasProfile.isKasVaultRecord(vault)) {
+    for (const q of await kasProfile.unfinishedDelegateRequests(config, vault)) {
+      if (q.requestId !== exceptRequestId) throwFail(`vault has unfinished delegate request ${q.requestId} — reconcile that request first`, "VAULT_PENDING_REQUEST");
+    }
+  } else
   for (const q of await delegateCandidates(config, vault, { requireClaimAssociation: false })) {
     if (q.requestId === exceptRequestId) continue;
     let complete = false;
@@ -2530,7 +2878,7 @@ async function assertVaultCompletionAvailable(config, vault, exceptRequestId = n
     let complete = false;
     try {
       const q = await completedRequestAt(config, txId);
-      const position = q?.kind === "rootAction" ? await classifyVaultRecord(config, vault, q, vaultSuccessorIndex(q)) : null;
+      const position = q?.kind === "rootAction" ? await classifyVaultRecordAny(config, vault, q, vaultSuccessorIndex(q)) : null;
       complete = position?.consistent && ["SUCCESSOR", "BEYOND"].includes(position.position);
     } catch { /* verification failure is a refusal, never a durable downgrade */ }
     if (!complete) throwFail(`vault ${vault.vaultId} has unverified owner-transition history at ${txId} — reconcile its original request`, "VAULT_PENDING_REQUEST");
@@ -2681,7 +3029,7 @@ async function reconcileDelegateRequests(config, rpc, vault, options = {}) {
 }
 async function submitDelegateRequest({ config, request, rpc: providedRpc, pollAttempts, pollDelayMs }) {
   assertOperationalNetwork(config);
-  assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7);
+  assertGenerationMainnetOperable(config, CONTRACT_VERSION_V7); // a delegate spend mutates an existing payment vault
   if (WALLET_NEGATIVE_OUTCOMES.has(request.state) && savedWalletNegativeOutcome(request)) return request;
   delegateRequire(request.state === "SIGNED" || request.state === "CHAIN_VERIFIED" || DELEGATE_PENDING_STATES.has(request.state), `request is ${request.state}, not signed or recoverable`);
   // R8-09: the direct submit path must honor the same effect ownership as
@@ -2831,7 +3179,7 @@ async function buildV7WalletRequest(args) {
 async function buildV7WalletRequestUnlocked({ config, vaultId, action, params = {}, signerAddress }) {
   try {
     assertOperationalNetwork(config);
-    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7);
+    assertGenerationMainnetOperable(config, CONTRACT_VERSION_V7); // a delegate spend / deposit mutates an existing payment vault
   } catch (e) {
     throw fail(e.message, "BUILD_FAILED");
   }
@@ -3058,8 +3406,20 @@ async function markV7WalletRejectedUnlocked(config, requestId) {
 }
 
 module.exports = {
+  GENESIS_RECOVERY_STATES,
+  verifyGenesisCompletion,
+  recoverRootGenesisUnlocked,
+  recoverVaultGenesisUnlocked,
+  listRecoverableRootGenesisRequests,
+  rootGenesisExpected,
+  vaultGenesisExpected,
   assertFrozenRequestTransaction,
   hasBoundRootCompletionReceipt,
+  completedRequestAt,
+  pendingRootRequests,
+  loadRootedVaultAny,
+  resolveFuel,
+  resolveFunding,
   neverEffective,
   sameEffectDuplicate,
   hasSubmissionEvidence,

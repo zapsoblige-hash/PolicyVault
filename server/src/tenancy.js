@@ -93,6 +93,14 @@ function vaultRoles(loaded) {
      * owner slots (see rootedVaultRoles, which resolves the root record);
      * here only the vault-local agents are derivable. */
     for (const entry of m.agentRegistry || []) add(agents, entry.policy ? entry.policy.agentPk : entry.agentPk);
+  } else if (loaded.version === "v7kas") {
+    /* v0.7-kas rooted KAS safe-payment vault (CANDIDATE, v0.7 enablement 2026-09-10): the vault-local agents come from
+     * its v0.4.1 registry and its vault-level APPROVERS from the live covenant state (sentinel-padded slots, both
+     * spellings read exactly as the v4 branch does); owners come from the root record (rootedVaultRoles). */
+    for (const entry of m.agentRegistry || []) add(agents, entry.policy ? entry.policy.agentPk : entry.agentPk);
+    const state = m.live && m.live.state ? m.live.state : null;
+    const slots = state ? (state.approvers ?? state.approverSlots) : null;
+    if (Array.isArray(slots)) for (const k of slots) add(approvers, k);
   } else if (loaded.version === "v7hd") {
     /* v0.7-payment-hd candidate: every delegation-forest leaf key at every
      * level is an agent participant; owners come from the root record. */
@@ -339,6 +347,10 @@ function requireOrgRootAccess(config, root, principal, need = "read") {
  * root record resolved by covenant id), agents = the vault's own registry /
  * forest leaves. Returns the same shape as vaultRoles plus the root.
  */
+/* the rooted-vault profiles whose OWNERS are the organizational root's active slots */
+function isRootedVaultVersion(version) {
+  return version === "v7" || version === "v7hd" || version === "v7kas";
+}
 async function rootedVaultRoles(config, loaded) {
   const roles = vaultRoles(loaded);
   let root = null;
@@ -360,7 +372,7 @@ async function anyVaultAccessAllowed(config, loaded, principal, need) {
   if (!config.tenancyEnforced) return true;
   if (!principal || !loaded) return false;
   if (loaded.manifest && loaded.manifest.networkId !== undefined && loaded.manifest.networkId !== principal.networkId) return false;
-  const roles = loaded.version === "v7" || loaded.version === "v7hd" ? await rootedVaultRoles(config, loaded) : vaultRoles(loaded);
+  const roles = isRootedVaultVersion(loaded.version) ? await rootedVaultRoles(config, loaded) : vaultRoles(loaded);
   const key = principal.xOnlyPubkey;
   if (need === "owner") return roles.owner.has(key);
   if (need === "build") return roles.owner.has(key) || roles.agents.has(key) || roles.delegates.has(key);
@@ -378,6 +390,7 @@ async function requireAnyVaultAccess(config, loaded, principal, need = "read") {
 }
 
 module.exports = {
+  isRootedVaultVersion,
   vaultRoles,
   vaultParticipants,
   vaultAccessAllowed,

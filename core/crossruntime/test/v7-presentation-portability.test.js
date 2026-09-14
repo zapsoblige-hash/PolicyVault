@@ -56,11 +56,21 @@ const V7_PRESENTATION_FILES = Object.freeze([
   "core/intent/org-root-manifest-v7.js",
   "core/intent/root-script-v7.js", // rc20 review R5-04: the verifier rebuilds the frozen root script (STALE ASSUMPTION: new dependency)
   "core/intent/vault-script-v7.js", // Codex checkpoint 6 (UX-02 / UX-13): the verifier rebuilds the rooted-vault successor script (STALE ASSUMPTION: new dependency)
+  "core/intent/vault-script-v7-kas.js", // v0.7 enablement (2026-09-10): the signer accepts the org-root-KAS manifest family
+  "core/intent/org-root-manifest-v7-kas.js", // v0.7 enablement (2026-09-10): the signer accepts the org-root-KAS manifest family
+  "core/model/vault-state-v7-kas.js",
+  "core/model/vault-transitions-v7-kas.js",
+  "core/model/compute-budget-v7-kas.js",
+  "core/model/vault-state-v4.js",
+  "core/model/vault-transitions-v4.js",
+  "core/model/agent-merkle-v4.js",
+  "core/model/compute-budget-v4.js",
   "core/model/compute-budget-v7.js", // Codex checkpoint 6 (UX-02 / UX-13): the verifier DERIVES every compute budget (STALE ASSUMPTION: new dependency)
   "core/explain/kas.js",
   "core/intent/token-manifest-v5.js",
   "core/explain/token-explain.js",
   "core/explain/org-root-explain.js",
+  "core/explain/org-root-kas-explain.js", // v0.7 enablement (2026-09-10)
   "core/signer/errors.js",
   "core/signer/interface.js",
   /* policyvault-signer/2 portable leaves (Wave 2, Track G: the slot module gained a v2 request path) */

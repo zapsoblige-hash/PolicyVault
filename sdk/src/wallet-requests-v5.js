@@ -50,20 +50,23 @@ const { compileExactStateV5 } = require("./contract-compiler-v5");
 const crypto = require("crypto");
 
 const { getStore, Categories } = require("./store");
-const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
+const { assertVaultIdentityFree, withVaultIdentityLock, normalizeVaultId } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
+const { assertOperationalNetwork, assertGenerationMainnetCreatable, assertGenerationMainnetOperable } = require("./config");
 const { normalizeHex } = require("./vault-state");
 const { parseSompi, sompiToKas, kasToSompi } = require("./amounts");
+/* RC35-REC-01 / legacy F4 (2026-09-11): shared submit-outcome settlement + observation-only genesis recovery primitives */
+const { settleGenesisSubmitError, settleTransitionSubmitError, anyFrozenOutputObserved, frozenInputLive, ensureOwnSubmissionClaim, unobservedRecoveryDisposition, refreshUnobservedGenesis } = require("./genesis-recovery");
 const { resolveAddressIdentity } = require("./address-identity");
 const { connectVerified, getAddressUtxos } = require("./chain");
 const { frozenToWasmTransaction } = require("./frozen-tx-v3");
 const { claimTransition, claimSubmission, releaseTransitionClaim, releaseSubmissionClaim, persistReceipt } = require("./submission-claim");
 const { finalTxToWasm, isDefinitiveSubmitRejection } = require("./wallet-submit-v4");
-const { appendAudit } = require("./audit");
+const { appendAudit, readAudit } = require("./audit");
 const assets = require("../../core/assets");
 
 const { CONTRACT_VERSION_V5, resolveV5Abi, normalizeTemplateV5, normalizeStateV5, stateToJsonV5, computeStateIdV5 } = require("./vault-state-v5");
 const { buildV5Transaction, buildCreateV5, finalizeV5Transaction, buildTokenDepositV5, finalizeTokenDepositV5, OWNER_CONTROL_ACTIONS, SPEND_ACTIONS } = require("./vault-builders-v5");
-const { normalizeRegistry, registryEntryToJson, loadManifestV5, persistManifestV5, manifestToJsonV5, MANIFEST_SCHEMA_V5 } = require("./manifest-v5");
+const { normalizeRegistry, registryEntryToJson, loadManifestV5, persistManifestV5, createManifestV5, manifestToJsonV5, MANIFEST_SCHEMA_V5 } = require("./manifest-v5");
 const { VaultStatus } = require("./manifest");
 
 const V5_WALLET_REQUEST_SCHEMA = "policyvault-wallet-request/v5";
@@ -191,7 +194,15 @@ function advanceRegistryAfterSpendV5(registry, build) {
 /* 1. GENESIS — POST /wallet/v5/create                                  */
 /* ------------------------------------------------------------------ */
 
-async function buildCreateWalletRequestV5({ config, label = "", descriptor, templateIndex = 0, initialAgents = [], feeReserveKas, signerAddress, funding, vaultId }) {
+async function buildCreateWalletRequestV5(args) {
+  /* RC33-ID-01 (2026-09-11): the build (uniqueness check -> request write) is serialized per vault identity; a malformed
+   * identity falls through and is refused exactly as before */
+  let vaultId = null;
+  try { vaultId = args.vaultId ? normalizeHex(args.vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex"); } catch { vaultId = null; }
+  if (vaultId === null) return buildCreateWalletRequestV5Unlocked(args);
+  return withVaultIdentityLock(vaultId, () => buildCreateWalletRequestV5Unlocked({ ...args, vaultId }));
+}
+async function buildCreateWalletRequestV5Unlocked({ config, label = "", descriptor, templateIndex = 0, initialAgents = [], feeReserveKas, signerAddress, funding, vaultId }) {
   try {
     assertOperationalNetwork(config);
     assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V5);
@@ -204,6 +215,7 @@ async function buildCreateWalletRequestV5({ config, label = "", descriptor, temp
   const initialRegistry = entries.map((e) => registryEntryToJson(e));
 
   const vId = vaultId ? normalizeHex(vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex");
+  await assertVaultIdentityFree(config, vId); // RC33-ID-01: an identity held by ANY generation's record or ANY request is refused before anything is built or written
   const template = { owner: ownerXOnly, vaultId: vId, descriptorHash, tokenCovenantId, templateVmHash, templatePrefixLen, templateStateLen, templateSuffixLen };
   const feeReserveSompi = kasToSompi(feeReserveKas, "feeReserveKas");
   const initialState = { feeReserve: feeReserveSompi.toString(), paused: "0", agentRoot: tree.root, policyNonce: "0" };
@@ -403,7 +415,17 @@ function assertImmutable(unsigned, signed) {
   if (JSON.stringify(strip(unsigned)) !== JSON.stringify(strip(signed))) throwFail("signed package mutated a consensus-visible field", "SIGNATURE_INVALID");
 }
 
-async function submitSignatureV5({ config, requestId, signedSafeJson }) {
+/* RC33-ID-01 review finding F1 (2026-09-11): the signature and the submission of a genesis are serialized PER VAULT IDENTITY inside the existing root / signer / request lock (lock order unchanged: root / signer / request first, identity inside), so the commit-phase identity check and the signature store / claim / broadcast that follow it form ONE critical section — a pre-correction pair of drafts naming one identity can never double-sign or double-broadcast under concurrency. A request whose identity cannot be normalized falls through to the unlocked body, which refuses it exactly as before. Only GENESIS requests carry a vault identity to serialize on. */
+async function withGenesisIdentityLockV5(config, requestId, work) {
+  const peek = await loadWalletRequestV5(config, requestId);
+  let vaultId = null;
+  try { vaultId = peek && peek.kind === "genesis" ? normalizeVaultId(peek.vaultId) : null; } catch { vaultId = null; }
+  return vaultId === null ? work() : withVaultIdentityLock(vaultId, work);
+}
+async function submitSignatureV5(args) {
+  return withGenesisIdentityLockV5(args.config, args.requestId, () => submitSignatureV5Unlocked(args));
+}
+async function submitSignatureV5Unlocked({ config, requestId, signedSafeJson }) {
   const request = await loadWalletRequestV5(config, requestId);
   if (!request) throwFail(`no request ${requestId}`, "REQUEST_NOT_FOUND");
   if (request.state !== RequestState.BUILT) throwFail(`request is ${request.state}, not BUILT`, request.state);
@@ -421,6 +443,7 @@ async function submitSignatureV5({ config, requestId, signedSafeJson }) {
   assertImmutable(unsigned, signed);
 
   if (request.kind === "genesis") {
+    await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: request.requestId, exceptTxId: request.txId, phase: "commit" }); // RC33-ID-01: refused before the signature is accepted; the request stays BUILT
     for (let i = 0; i < unsigned.inputs.length; i++) {
       if (!signed.inputs[i]?.signatureScript) {
         request.state = RequestState.WALLET_REJECTED;
@@ -482,15 +505,102 @@ async function submitSignatureV5({ config, requestId, signedSafeJson }) {
 /* 4. SUBMIT — POST /wallet/v5/requests/:id/submit                      */
 /* ------------------------------------------------------------------ */
 
-async function submitWalletRequestV5({ config, requestId, rpc: providedRpc }) {
+async function submitWalletRequestV5(args) {
+  return withGenesisIdentityLockV5(args.config, args.requestId, () => submitWalletRequestV5Unlocked(args));
+}
+/* The EXACT controller output a v0.5 genesis declares (derived from the frozen transaction the funder signed). */
+function genesisExpectedOutputV5(config, request) {
+  const index = request.build.controllerOutputIndex;
+  const out = request.build.frozen.outputs[index];
+  return { address: spkToAddress(config, out.scriptPublicKey), txId: request.txId, index, value: String(out.value), covenantId: request.build.covenantId };
+}
+async function observeGenesisOutputV5(config, rpc, request, { pollAttempts = 30, pollDelayMs = 2000 } = {}) {
+  const expected = genesisExpectedOutputV5(config, request);
+  let proof = null;
+  for (let i = 0; i < pollAttempts && !proof; i++) {
+    const ref = await findOutpoint(rpc, expected.address, expected.txId, expected.index);
+    if (ref && String(ref.covenantId ?? "").toLowerCase() === expected.covenantId && String(ref.amount) === expected.value) proof = ref;
+    if (!proof && i + 1 < pollAttempts) await new Promise((r) => setTimeout(r, pollDelayMs));
+  }
+  return proof;
+}
+/* ONE replayable completion of a PROVEN v0.5 genesis (submit path and observation-only recovery alike). */
+async function completeGenesisV5(config, request) {
+  const state = normalizeStateV5(request.build.initialState);
+  const stateId = computeStateIdV5({ networkId: config.networkId, template: request.build.template, state, contractVersion: CONTRACT_VERSION_V5 });
+  /* RC33-ID-01: ATOMIC create-only completion (sdk/src/vault-identity.js) — never read-then-overwrite */
+  let manifest;
+  try {
+    ({ manifest } = await createManifestV5(config, {
+      schema: MANIFEST_SCHEMA_V5,
+      contractVersion: CONTRACT_VERSION_V5,
+      networkId: config.networkId,
+      vaultId: request.build.template.vaultId,
+      label: request.label ?? "",
+      status: VaultStatus.ACTIVE,
+      template: request.build.template,
+      asset: { descriptor: request.descriptor, templateIndex: request.templateIndex ?? 0 },
+      agentRegistry: request.initialRegistry ?? [],
+      live: { state: stateToJsonV5(state), stateId, outpoint: { transactionId: request.txId, index: request.build.controllerOutputIndex }, outpointValue: state.feeReserve.toString(), scriptSha256: request.build.scriptSha256, covenantId: request.build.covenantId, tokenPosition: null },
+      creationTxId: request.txId,
+      latestTransitionTxId: null
+    }));
+  } catch (e) {
+    if (e.code !== "RECONCILIATION_REQUIRED") throw e;
+    /* RC33-ID-01: the identity holds a DIFFERENT record (any generation) — that record is never replaced; the proven chain
+     * effect stays on THIS request (signed bytes, txid, submission claim intact) as RECONCILIATION_REQUIRED */
+    request.state = RequestState.RECONCILIATION_REQUIRED;
+    request.error = `chain effect proven but the vault record could not be created: ${String(e.message).split("\n")[0]}`;
+    await saveWalletRequestV5(config, request);
+    throw fail(request.error, "RECONCILIATION_REQUIRED");
+  }
+  const receipt = await getStore(config).read(Categories.RECEIPT, request.txId);
+  if (receipt && (receipt.vaultId !== manifest.vaultId || receipt.action !== "createTokenController")) throwFail("a receipt for this transaction names another operation", "RECONCILIATION_REQUIRED");
+  if (!receipt) await persistReceipt(config, { txId: request.txId, vaultId: manifest.vaultId, action: "createTokenController", proof: { outpoint: `${request.txId}:${request.build.controllerOutputIndex}`, covenantId: request.build.covenantId } });
+  if (!(await readAudit(config, { vaultId: manifest.vaultId, txId: request.txId, limit: 500 })).some((e) => e.action === "createTokenController" && e.result === "CHAIN_VERIFIED")) {
+    await appendAudit(config, { vaultId: manifest.vaultId, action: "createTokenController", actor: "owner", contractVersion: CONTRACT_VERSION_V5, txId: request.txId, result: "CHAIN_VERIFIED", via: "wallet/v5" });
+  }
+  /* the submission claim of a PROVEN genesis is released only when it is ours (never another operation's) */
+  const submission = await getStore(config).read(Categories.SUBMISSION_CLAIM, request.txId);
+  if (submission && (submission.vaultId !== request.vaultId || submission.action !== request.action)) throwFail("submission claim belongs to another operation", "CLAIM_CONFLICT");
+  if (submission) await releaseSubmissionClaim(config, request.txId);
+  request.state = RequestState.CHAIN_VERIFIED;
+  request.error = undefined;
+  request.chain = { successorOutpoint: `${request.txId}:${request.build.controllerOutputIndex}`, observedAt: request.chain?.observedAt ?? new Date().toISOString() };
+  await saveWalletRequestV5(config, request);
+  return request;
+}
+/* RC35 legacy F4 (2026-09-11): a genesis whose broadcast outcome is unresolved (SUBMITTING / SUBMITTED /
+ * RECONCILIATION_REQUIRED) or that an earlier runtime persisted as SUBMISSION_REJECTED is recovered by OBSERVATION ONLY
+ * through this SAME request: never rebuilt, never re-signed, never rebroadcast; the recovery belongs to the OPERABLE
+ * set (it keeps working when new creation of this generation is disabled). */
+const GENESIS_RECOVERY_STATES = new Set([RequestState.SUBMITTING, RequestState.SUBMITTED, RequestState.RECONCILIATION_REQUIRED, RequestState.SUBMISSION_REJECTED]);
+async function recoverGenesisV5({ config, rpc, request, pollAttempts, pollDelayMs }) {
+  const fromNegative = request.state === RequestState.SUBMISSION_REJECTED;
+  const proof = await observeGenesisOutputV5(config, rpc, request, { pollAttempts, pollDelayMs });
+  if (!proof) {
+    const disposition = await refreshUnobservedGenesis({ config, rpc, request, claim: { txId: request.txId, vaultId: request.vaultId, action: request.action }, save: (q) => saveWalletRequestV5(config, q) });
+    if (disposition.action === "KEEP_NEGATIVE") return request; // an ESTABLISHED negative: unchanged, nothing rebroadcast
+    if (disposition.action === "PROTECT") await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
+    request.state = RequestState.RECONCILIATION_REQUIRED;
+    request.error = disposition.reason ?? `${request.txId} was broadcast but the controller output is not observed — reconcile (nothing is rebroadcast)`;
+    await saveWalletRequestV5(config, request);
+    throw fail(request.error, "RECONCILIATION_REQUIRED");
+  }
+  if (fromNegative) await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: request.action }); // the false negative released it; a conflicted completion must leave it in place
+  return completeGenesisV5(config, request);
+}
+async function submitWalletRequestV5Unlocked({ config, requestId, rpc: providedRpc, pollAttempts = 30, pollDelayMs = 2000 }) {
   const request = await loadWalletRequestV5(config, requestId);
   if (!request) throwFail(`no request ${requestId}`, "REQUEST_NOT_FOUND");
   if (request.state === RequestState.CHAIN_VERIFIED) return request; // idempotent
-  if (request.state !== RequestState.SIGNED) throwFail(`request is ${request.state}, not SIGNED`, request.state);
+  const recoveringGenesis = request.kind === "genesis" && GENESIS_RECOVERY_STATES.has(request.state);
+  if (request.state !== RequestState.SIGNED && !recoveringGenesis) throwFail(`request is ${request.state}, not SIGNED`, request.state);
 
   try {
     assertOperationalNetwork(config);
-    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V5);
+    if (recoveringGenesis) assertGenerationMainnetOperable(config, CONTRACT_VERSION_V5); // observation of an existing attempt is not a new creation
+    else assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V5);
   } catch (e) {
     throw fail(e.message, "NETWORK_MISMATCH");
   }
@@ -499,6 +609,7 @@ async function submitWalletRequestV5({ config, requestId, rpc: providedRpc }) {
   const { rpc, serverInfo } = owned ? await connectVerified(config) : { rpc: providedRpc, serverInfo: { networkId: config.networkId } };
   try {
     if (serverInfo.networkId !== config.networkId) throw fail(`node network ${serverInfo.networkId} != configured ${config.networkId}`, "NETWORK_MISMATCH");
+    if (recoveringGenesis) return await recoverGenesisV5({ config, rpc, request, pollAttempts, pollDelayMs });
     let transaction;
     if (request.kind === "genesis") {
       const { loadKaspa } = require("./chain");
@@ -521,7 +632,9 @@ async function submitWalletRequestV5({ config, requestId, rpc: providedRpc }) {
         throw fail(e.message, "CLAIM_CONFLICT");
       }
     }
+    if (request.kind === "genesis") await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: request.requestId, exceptTxId: request.txId, phase: "commit" }); // RC33-ID-01: before claims or broadcast
     await claimSubmission(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
+    request.submitStartHash = await require("./submission-outcome-v7").readSubmissionStartHash(rpc);
     request.state = RequestState.SUBMITTING;
     await saveWalletRequestV5(config, request);
 
@@ -531,16 +644,28 @@ async function submitWalletRequestV5({ config, requestId, rpc: providedRpc }) {
     } catch (e) {
       const message = String(e.message ?? e).split("\n")[0];
       request.error = message;
-      if (isDefinitiveSubmitRejection(message)) {
+      /* RC35-REC-01: REJECTED / ALREADY_KNOWN / AMBIGUOUS through the shared classifier. A genesis settles its negative ONLY
+       * with the controller output verified absent; a transition / deposit only with its input still unspent AND every
+       * frozen output absent; an already-known answer is observed like an accepted response; anything else keeps the claims. */
+      const settled = request.kind === "genesis"
+        ? await settleGenesisSubmitError({ config, request, rpc, message, txId: request.txId, expected: genesisExpectedOutputV5(config, request) })
+        : await settleTransitionSubmitError({ config, rpc, request, message, txId: request.txId, predecessorLive: () => frozenInputLive(config, rpc, request.build.frozen, 0), effectAbsent: async () => !(await anyFrozenOutputObserved(config, rpc, request.build.frozen, request.txId)) });
+      if (settled.decision === "REJECTED") {
+        request.state = RequestState.SUBMISSION_REJECTED;
+        request.submissionOutcome = { outcome: RequestState.SUBMISSION_REJECTED, reason: message, txId: request.txId, proof: settled.proof };
+        await saveWalletRequestV5(config, request);
         if (request.kind === "transition") await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
         await releaseSubmissionClaim(config, request.txId);
-        request.state = RequestState.SUBMISSION_REJECTED;
-        await saveWalletRequestV5(config, request);
         throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
       }
-      request.state = RequestState.RECONCILIATION_REQUIRED;
-      await saveWalletRequestV5(config, request);
-      throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      if (settled.decision === "UNCERTAIN") {
+        request.state = RequestState.RECONCILIATION_REQUIRED;
+        request.error = `${message} — ${settled.reason}`;
+        await saveWalletRequestV5(config, request);
+        throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      }
+      request.submissionResponse = { kind: "ALREADY_KNOWN", variant: settled.classification.variant, reason: message, at: new Date().toISOString() };
+      submitted = { transactionId: request.txId };
     }
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
     if (returnedTxId !== request.txId) {
@@ -552,39 +677,13 @@ async function submitWalletRequestV5({ config, requestId, rpc: providedRpc }) {
     await saveWalletRequestV5(config, request);
 
     if (request.kind === "genesis") {
-      const address = spkToAddress(config, request.build.frozen.outputs[request.build.controllerOutputIndex].scriptPublicKey);
-      let proof = null;
-      for (let i = 0; i < 30 && !proof; i++) {
-        const ref = await findOutpoint(rpc, address, request.txId, request.build.controllerOutputIndex);
-        if (ref && String(ref.covenantId ?? "").toLowerCase() === request.build.covenantId) proof = ref;
-        if (!proof) await new Promise((r) => setTimeout(r, 2000));
-      }
+      const proof = await observeGenesisOutputV5(config, rpc, request, { pollAttempts, pollDelayMs });
       if (!proof) {
         request.state = RequestState.RECONCILIATION_REQUIRED;
         await saveWalletRequestV5(config, request);
         throw fail(`${request.txId} submitted but the controller output was not observed — reconcile`, "RECONCILIATION_REQUIRED");
       }
-      const state = normalizeStateV5(request.build.initialState);
-      const stateId = computeStateIdV5({ networkId: config.networkId, template: request.build.template, state, contractVersion: CONTRACT_VERSION_V5 });
-      const manifest = await persistManifestV5(config, {
-        schema: MANIFEST_SCHEMA_V5,
-        contractVersion: CONTRACT_VERSION_V5,
-        networkId: config.networkId,
-        vaultId: request.build.template.vaultId,
-        label: request.label ?? "",
-        status: VaultStatus.ACTIVE,
-        template: request.build.template,
-        asset: { descriptor: request.descriptor, templateIndex: request.templateIndex ?? 0 },
-        agentRegistry: request.initialRegistry ?? [],
-        live: { state: stateToJsonV5(state), stateId, outpoint: { transactionId: request.txId, index: request.build.controllerOutputIndex }, outpointValue: state.feeReserve.toString(), scriptSha256: request.build.scriptSha256, covenantId: request.build.covenantId, tokenPosition: null },
-        creationTxId: request.txId,
-        latestTransitionTxId: null
-      });
-      await persistReceipt(config, { txId: request.txId, vaultId: manifest.vaultId, action: "createTokenController", proof: { outpoint: `${request.txId}:${request.build.controllerOutputIndex}`, covenantId: request.build.covenantId } });
-      await appendAudit(config, { vaultId: manifest.vaultId, action: "createTokenController", actor: "owner", contractVersion: CONTRACT_VERSION_V5, txId: request.txId, result: "CHAIN_VERIFIED", via: "wallet/v5" });
-      request.state = RequestState.CHAIN_VERIFIED;
-      await saveWalletRequestV5(config, request);
-      return request;
+      return await completeGenesisV5(config, request);
     }
 
     if (request.kind === "tokenDeposit") {

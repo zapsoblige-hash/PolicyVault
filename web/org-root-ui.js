@@ -127,7 +127,24 @@
   /* ==================================================================
    * createModule
    * ================================================================== */
-  function createModule({ api, core, setup } = {}) {
+  function createModule({ api, core, setup, kas } = {}) {
+    /* v0.7 enablement (2026-09-10): the rooted KAS safe-payment profile (web/kas-vault-ui.js) — injected, or resolved
+     * lazily from the page; absent => KAS vaults render as read-only statements, never a half-wired control. */
+    const KAS_PROFILE = "policyvault-0.7-kas";
+    let kasCache = kas || null;
+    function kasModule() {
+      if (kasCache) return kasCache;
+      const surface = typeof window !== "undefined" ? window.PolicyVaultKasVaultUI : null;
+      if (!surface || !core || !core.orgRootKasExplain) return null;
+      try { kasCache = surface.createModule({ api, core, setup, payload: { parseSigningPayload, frozenMismatches } }); } catch { kasCache = null; }
+      return kasCache;
+    }
+    const isKasFamily = (manifest) => !!(manifest && core.orgRootManifestV7Kas && manifest.manifestVersion === core.orgRootManifestV7Kas.ORG_ROOT_KAS_MANIFEST_VERSION_1);
+    /* every root-request review/binding verifies through the family's OWN verifier (payment: descriptors + redeems; KAS: redeems) — no default route */
+    function verifyRootManifestByFamily({ manifest, descriptors, redeemScripts }) {
+      if (isKasFamily(manifest)) return core.orgRootManifestV7Kas.verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts: redeemScripts || {} });
+      return core.orgRootManifestV7.verifyOrgRootIntentManifest({ manifest, descriptors: descriptors || {}, redeemScripts: redeemScripts || {} });
+    }
     if (!api || typeof api.getJSON !== "function" || typeof api.postJSON !== "function" || typeof api.resolveXOnly !== "function") {
       throw new Error("org-root-ui: createModule requires api.{getJSON,postJSON,resolveXOnly}");
     }
@@ -332,6 +349,7 @@
       }
       const carriedDescriptors = descriptors || (request.descriptors && typeof request.descriptors === "object" && !Array.isArray(request.descriptors) ? request.descriptors : {}); // rc21 review R6-02
       const carriedRedeems = redeemScripts || (request.redeemScripts && typeof request.redeemScripts === "object" && !Array.isArray(request.redeemScripts) ? request.redeemScripts : {}); // Codex checkpoint 6
+      if (isKasFamily(request.manifest)) { const km = kasModule(); return km ? km.renderKasRootRequestReviewHtml({ ...request, redeemScripts: carriedRedeems }) : statusRegion("This request describes a KAS treasury operation, but the KAS treasury module is not loaded on this page — refusing to render a review. Do not sign.", "bad"); }
       const doc = core.orgRootExplain.structured({ manifest: request.manifest, descriptors: carriedDescriptors, redeemScripts: carriedRedeems });
       const lines = core.orgRootExplain.humanReadable({ manifest: request.manifest, descriptors: carriedDescriptors, redeemScripts: carriedRedeems });
       const lineDivs = lines.map((l) => `<div class="mono" style="padding:0.12rem 0;word-break:break-all">${esc(l)}</div>`).join("");
@@ -643,7 +661,7 @@
       // Codex checkpoint 6 (UX-02 / UX-13): the vault's predecessor redeem script travels on the request too; the verifier rebuilds the
       // vault SUCCESSOR script from it around the reviewed successor state and refuses a substituted continuation (fail closed when absent).
       const redeemScripts = request.redeemScripts && typeof request.redeemScripts === "object" && !Array.isArray(request.redeemScripts) ? request.redeemScripts : {};
-      const ver = core.orgRootManifestV7.verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
+      const ver = verifyRootManifestByFamily({ manifest, descriptors, redeemScripts });
       if (!ver || ver.verdict !== "VERIFIED") refuse(`local verification refused this root request (${((ver && ver.failures) || []).map((f) => f.name).join(", ") || "no verdict"})`, "REVIEW_REFUSED");
       if (String(manifest.network && manifest.network.networkId) !== String(network)) refuse(`this transaction is for ${manifest.network && manifest.network.networkId}, the wallet is on ${network}`, "NETWORK_MISMATCH");
       if (safe.id !== String(manifest.transaction.txId || "").toLowerCase()) refuse("the signing payload is not the reviewed transaction (transaction id differs)", "PAYLOAD_MISMATCH");
@@ -692,8 +710,11 @@
         if (op.manifest.action && op.manifest.action.terminal === true) {
           terminalFamilies.add(innerCov);
           const rk = String(iv.recoveryPk || "").toLowerCase();
-          const reserve = op.manifest.accounting && op.manifest.accounting.kas ? String(op.manifest.accounting.kas.predecessorFeeReserve) : "";
-          if (!HEX64.test(rk) || !/^[0-9]+$/.test(reserve)) refuse("a terminal vault operation carries no verifiable payout (recovery key / fee reserve)", "REVIEW_REFUSED");
+          const acc = op.manifest.accounting && op.manifest.accounting.kas ? op.manifest.accounting.kas : null;
+          /* payment profile: the fee reserve; KAS profile: the ENTIRE balance (protected principal + fee reserve) — the verifier's own terminalPayout */
+          const reserve = acc ? (isKasFamily(manifest) ? String(acc.terminalPayout) : String(acc.predecessorFeeReserve)) : "";
+          if (!HEX64.test(rk) || !/^[0-9]+$/.test(reserve)) refuse("a terminal vault operation carries no verifiable payout (recovery key / amount)", "REVIEW_REFUSED");
+          if (isKasFamily(manifest) && acc && BigInt(reserve) !== BigInt(String(acc.predecessorProtected)) + BigInt(String(acc.predecessorFeeReserve))) refuse("a terminal KAS treasury operation must pay out the ENTIRE balance (principal + reserve)", "REVIEW_REFUSED");
           terminalPayouts.push({ spk: p2pkWire(rk), value: BigInt(reserve) });
         }
       }
@@ -817,7 +838,7 @@
       // slot has nothing to sign — refuse here, before the wallet is ever
       // invoked (the server would refuse the posted signature anyway).
       if (request.state !== "AUTHORIZED") throw fail(`this request is ${request.state || "in an unknown state"} — owner approvals are only collected while it is AUTHORIZED; there is nothing to sign`, "REQUEST_NOT_SIGNABLE");
-      const verification = core.orgRootManifestV7.verifyOrgRootIntentManifest({ manifest: request.manifest, descriptors: descriptors || (request.descriptors && typeof request.descriptors === "object" && !Array.isArray(request.descriptors) ? request.descriptors : {}), redeemScripts: request.redeemScripts && typeof request.redeemScripts === "object" && !Array.isArray(request.redeemScripts) ? request.redeemScripts : {} }); // Codex checkpoint 6: successor-script carriage
+      const verification = verifyRootManifestByFamily({ manifest: request.manifest, descriptors: descriptors || (request.descriptors && typeof request.descriptors === "object" && !Array.isArray(request.descriptors) ? request.descriptors : {}), redeemScripts: request.redeemScripts && typeof request.redeemScripts === "object" && !Array.isArray(request.redeemScripts) ? request.redeemScripts : {} }); // Codex checkpoint 6: successor-script carriage
       if (verification.verdict !== "VERIFIED") {
         throw fail(`local verification refused this root request (${verification.failures.map((f) => f.name).join(", ")}) — refusing to invoke the wallet`, "RESPONSE_BINDING_MISMATCH");
       }
@@ -1075,8 +1096,12 @@
      * exact reason in its title. The server and the covenant re-decide all
      * of it — this is presentation, never authority. */
     function renderRootedVaultOwnerOpsHtml(vault, orgRoot, opts = {}) {
-      const { viewerXOnly = null, pendingRequest = null, networkId = null, loaded = true } = opts || {};
+      const { viewerXOnly = null, pendingRequest = null, networkId = null, loaded = true, capabilities = null } = opts || {};
       const v = vault || {};
+      if (loaded && v.contractVersion === KAS_PROFILE) {
+        const km = kasModule();
+        if (km) return km.renderKasVaultPanelHtml(v, orgRoot, { viewerXOnly, pendingRequest, loaded, availabilityOf: (op) => vaultOpAvailability({ op, vault: v, orgRoot, viewerXOnly, pendingRequestId: pendingRequest ? pendingRequest.id : (orgRoot && orgRoot.pendingRequestId) || null, networkId, capabilities }) });
+      }
       const rootId = orgRoot && orgRoot.rootCovenantId;
       const live = v.live && typeof v.live === "object" ? v.live : null;
       const supported = v.contractVersion === SUPPORTED_ROOTED_PROFILE;
@@ -1149,14 +1174,18 @@
         return unavailable("Organizational root creation availability could not be confirmed. Reopen Organizations to check again. Existing roots and hosted organization grouping remain available.");
       }
       const versions = capabilities.contract.creatableCovenantVersions;
-      if (!versions.includes("policyvault-0.7-root") || !versions.includes("policyvault-0.7-payment")) {
+      /* v0.7 enablement (2026-09-10): a root is offered for creation when the root generation AND at least one rooted
+       * vault profile (the KAS treasury, or the token profile) are creatable on this network per discovery. */
+      if (!versions.includes("policyvault-0.7-root") || !(versions.includes(KAS_PROFILE) || versions.includes("policyvault-0.7-payment"))) {
         return unavailable(`On-chain organizational roots are not available for creation on ${networkId} in this release. Use Create Vault for a single-owner vault, or create a hosted organization below to group vaults.`);
       }
       return { enabled: true, reason: "" };
     }
 
-    function renderOnChainRootSummaryHtml(orgRoots, availabilityContext) {
+    function renderOnChainRootSummaryHtml(orgRoots, availabilityContext, extra = {}) {
       const creation = rootCreationAvailability(availabilityContext);
+      const km = kasModule();
+      const participantHtml = km && extra && Array.isArray(extra.participantVaults) ? km.renderParticipantVaultsHtml(extra.participantVaults, { viewerXOnly: extra.viewerXOnly || null }) : "";
       const rows = (orgRoots || []).map((r) => {
         const frozen = !!r.frozen;
         return (
@@ -1173,8 +1202,15 @@
         (rows ? `<table class="mtable"><thead><tr><th>Root</th><th>Owners</th><th>Changes need</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No organizational roots yet.</div>`) +
         (!creation.enabled ? `<div class="opbanner warn" id="v4-orgroot-availability" role="status">${esc(creation.reason)}</div>` : "") +
         `<button id="v4-orgroot-create-btn" class="primary" style="margin-top:0.6rem"${creation.enabled ? "" : ' disabled aria-describedby="v4-orgroot-availability"'}>Create organizational root</button>` +
-        `</div>`
+        `</div>` + participantHtml
       );
+    }
+    /* v0.7 enablement: is a KAS treasury creatable under a root on this network per discovery? (presentation; the server + SDK re-decide) */
+    function kasCreationAvailability({ networkId, capabilities } = {}) {
+      const unavailable = (reason) => ({ enabled: false, reason });
+      if (!["mainnet", "testnet-10"].includes(networkId) || !capabilities || capabilities.networkId !== networkId || !Array.isArray(capabilities.contract && capabilities.contract.creatableCovenantVersions)) return unavailable("KAS treasury creation availability could not be confirmed. Reopen Organizations to check again.");
+      if (!capabilities.contract.creatableCovenantVersions.includes(KAS_PROFILE)) return unavailable(`KAS treasuries are not available for creation on ${networkId} in this release.`);
+      return { enabled: true, reason: "" };
     }
 
     /* ================================================================
@@ -1414,7 +1450,7 @@
 
     /* Rooted-vault owner operations, named for humans. Delegate spending
      * never needs the root (contract §2: /wallet/v7/requests). */
-    const VAULT_OP_LABEL = Object.freeze({ ownerSetAgentRoot: "Change agent rules", ownerTopUpReserve: "Top up fee reserve", ownerPause: "Pause vault", ownerUnpause: "Unpause vault", ownerEmergencyPause: "Emergency-pause vault", ownerRecover: "Close & recover vault", tokenAgentSpend: "Agent payment" });
+    const VAULT_OP_LABEL = Object.freeze({ ownerSetApprovers: "Change approvers", ownerTopUp: "Add funds", ownerSetAgentRoot: "Change agent rules", ownerTopUpReserve: "Top up fee reserve", ownerPause: "Pause vault", ownerUnpause: "Unpause vault", ownerEmergencyPause: "Emergency-pause vault", ownerRecover: "Close & recover vault", tokenAgentSpend: "Agent payment" });
     function vaultOpLabel(op) { return Object.prototype.hasOwnProperty.call(VAULT_OP_LABEL, String(op)) ? VAULT_OP_LABEL[op] : String(op || "operation"); }
     const short = (s) => { const t = String(s ?? ""); return t.length > 12 ? `${t.slice(0, 8)}…${t.slice(-4)}` : t; };
 
@@ -1447,7 +1483,8 @@
     /* The root action each vault operation requires is the SHARED CORE's own
      * table (core/model/vault-state-v7 OWNER_OP_ROOT_AUTHORITY_V7); this
      * module's copy must agree with it or the operation is not offered. */
-    function vaultOpInfo(op) {
+    function vaultOpInfo(op, profile) {
+      if (profile === KAS_PROFILE) { const km = kasModule(); return km ? km.vaultOpInfo(op) : null; }
       if (!Object.prototype.hasOwnProperty.call(VAULT_OPS, String(op))) return null;
       const info = VAULT_OPS[op];
       const table = core.vaultStateV7 && core.vaultStateV7.OWNER_OP_ROOT_AUTHORITY_V7;
@@ -1455,14 +1492,22 @@
       if (!authority || String(authority.rootActionName) !== info.rootAction) return null;
       return info;
     }
-    function vaultOpAvailability({ op, vault, orgRoot, viewerXOnly, pendingRequestId, networkId } = {}) {
-      const info = vaultOpInfo(op);
-      if (!info) return { enabled: false, offered: false, reason: "this operation is not supported by the approved rooted-vault profile" };
+    function vaultOpAvailability({ op, vault, orgRoot, viewerXOnly, pendingRequestId, networkId, capabilities } = {}) {
       const v = vault || {};
+      const isKas = v.contractVersion === KAS_PROFILE;
+      const info = vaultOpInfo(op, isKas ? KAS_PROFILE : undefined);
+      if (!info) return { enabled: false, offered: false, reason: "this operation is not supported by the approved rooted-vault profile" };
       const off = (reason) => ({ enabled: false, offered: true, reason });
-      if (v.contractVersion !== SUPPORTED_ROOTED_PROFILE) return { enabled: false, offered: false, reason: `owner operations are offered only for ${SUPPORTED_ROOTED_PROFILE} vaults (this vault is ${v.contractVersion || "of an unknown profile"})` };
+      if (v.contractVersion !== SUPPORTED_ROOTED_PROFILE && !isKas) return { enabled: false, offered: false, reason: `owner operations are offered only for ${SUPPORTED_ROOTED_PROFILE} / ${KAS_PROFILE} vaults (this vault is ${v.contractVersion || "of an unknown profile"})` };
       const net = String(networkId || (orgRoot && orgRoot.networkId) || "");
-      if (net.startsWith("mainnet")) return off("policyvault-0.7 organizational roots are not mainnet-authorized — no owner operation can be built on mainnet");
+      if (net.startsWith("mainnet")) {
+        /* the token profile is not in the mainnet set; the KAS treasury is operable on mainnet only when THIS release's
+         * discovery says so (server + SDK re-decide; a missing/foreign discovery fails closed) */
+        if (!isKas) return off("policyvault-0.7-payment rooted vaults are not mainnet-authorized — no owner operation can be built on mainnet");
+        const entries = capabilities && capabilities.contract && Array.isArray(capabilities.contract.covenantVersions) ? capabilities.contract.covenantVersions : null;
+        const entry = entries && capabilities.networkId === net ? entries.find((e) => e && e.contractVersion === KAS_PROFILE) : null;
+        if (!entry || entry.mainnetOperable !== true) return off("mainnet operability of the KAS treasury profile could not be confirmed from this release's discovery — reopen Organizations to check again");
+      }
       const role = viewerRole(orgRoot || {}, viewerXOnly);
       if (role.kind !== "owner") return off("Only an owner of this root can start this");
       if (!v.live || !v.live.outpoint) return off(v.status && !OPERABLE_VAULT_STATUSES.includes(String(v.status)) ? `this vault is ${v.status} — no further owner operation exists` : "this vault has no confirmed on-chain outpoint yet — use Verify state on the root first");
@@ -1497,6 +1542,7 @@
       };
     }
     function vaultOpDraftFrom({ op, vault, currentDaa = null } = {}) {
+      if (vault && vault.contractVersion === KAS_PROFILE) { const km = kasModule(); if (!km) throw fail("the KAS treasury module is not loaded", "SETUP_UNAVAILABLE"); return km.vaultOpDraftFrom({ op, vault, currentDaa }); }
       const info = vaultOpInfo(op);
       if (!info) throw fail(`unknown rooted-vault owner operation ${JSON.stringify(op)} — failing closed`, "UNKNOWN_ACTION");
       if (info.form === "topUp") return { op, amountKas: "" };
@@ -1516,6 +1562,7 @@
       try { return (await api.resolveXOnly(s)).toLowerCase(); } catch (e) { throw fail(`${what} "${s}": ${e.message}`, "AGENT_SET_INVALID", { cause: e }); }
     }
     async function validateVaultOpDraft({ op, draft, vault, currentDaa = null } = {}) {
+      if (vault && vault.contractVersion === KAS_PROFILE) { const km = kasModule(); if (!km) return { ok: false, errors: new Map([["op", "the KAS treasury module is not loaded"]]), vaultOperation: null }; return km.validateVaultOpDraft({ op, draft, vault, currentDaa }); }
       const info = vaultOpInfo(op);
       const errors = new Map();
       if (!info) { errors.set("op", `unknown rooted-vault owner operation ${JSON.stringify(op)} — failing closed`); return { ok: false, errors, vaultOperation: null }; }
@@ -1578,6 +1625,7 @@
 
     /* ---- forms (headless HTML; app-v4.js wires the DOM and reads values back into the draft) ---- */
     function renderVaultOpFormHtml({ op, vault, orgRoot, draft, errors, connectedAddress, currentDaa = null } = {}) {
+      if (vault && vault.contractVersion === KAS_PROFILE) { const km = kasModule(); return km ? km.renderVaultOpFormHtml({ op, vault, orgRoot, draft, errors, connectedAddress, currentDaa }) : statusRegion("the KAS treasury module is not loaded — refusing to render a form", "bad"); }
       const SU = requireSetup("renderVaultOpFormHtml");
       const info = vaultOpInfo(op);
       if (!info) return statusRegion(`unknown rooted-vault owner operation ${esc(JSON.stringify(op))} — refusing to render a form`, "bad");
@@ -1649,6 +1697,7 @@
     function vaultOperationSummary(request) {
       if (!request || !request.manifest || !Array.isArray(request.manifest.vaultOperations) || !request.manifest.vaultOperations.length) return null;
       const carried = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : {});
+      if (isKasFamily(request.manifest)) { const km = kasModule(); return km ? km.kasVaultOperationSummary(request) : { ok: false, lines: ["the KAS treasury module is not loaded — the operation cannot be described; do not sign"] }; }
       let doc;
       try { doc = core.orgRootExplain.structured({ manifest: request.manifest, descriptors: carried(request.descriptors), redeemScripts: carried(request.redeemScripts) }); } catch (e) { return { ok: false, lines: [`the vault operation could not be described from the verified manifest (${e.message}) — do not sign`] }; }
       const v = doc && Array.isArray(doc.vaultOperations) ? doc.vaultOperations[0] : null;
@@ -1763,7 +1812,7 @@
     function renderRootDetailHtml(orgRoot, opts = {}) {
       /* rootedVaults = the summaries of GET /org-roots/:id/vaults (null when they could not be loaded — the panel then
        * says so and offers nothing); pendingRequest = the pending request record when one is pending (F-6 guidance). */
-      const { viewerXOnly = null, currentDaa = null, rootedVaults = null, pendingRequest = null } = opts || {};
+      const { viewerXOnly = null, currentDaa = null, rootedVaults = null, pendingRequest = null, capabilities = null } = opts || {};
       const st = orgRoot.state || {};
       const t = orgRoot.template || {};
       const frozen = !!(st && Number(st.frozen) === 1);
@@ -1802,7 +1851,7 @@
           ? `<div class="review-sec" data-rooted-vaults="${(orgRoot.vaults || []).length}"><div class="review-head"><h4>Rooted vaults (${(orgRoot.vaults || []).length})</h4></div>` +
             (orgRoot.vaults || []).map((vaultId) => {
               const summary = Array.isArray(rootedVaults) ? rootedVaults.find((x) => x && x.vaultId === vaultId) || null : null;
-              return renderRootedVaultOwnerOpsHtml(summary || { vaultId }, orgRoot, { viewerXOnly, pendingRequest, networkId: orgRoot.networkId || null, loaded: !!summary });
+              return renderRootedVaultOwnerOpsHtml(summary || { vaultId }, orgRoot, { viewerXOnly, pendingRequest, networkId: orgRoot.networkId || null, loaded: !!summary, capabilities });
             }).join("") +
             `</div>`
           : "") +
@@ -1812,6 +1861,14 @@
               return `<div class="opbanner warn" data-root-reservation="${esc(pending)}"${g ? ` data-reservation-next="${esc(g.eligibility.kind)}"` : ""}>${g ? esc(g.text) : "A request is already pending on this root — only one governance transaction can be in flight per root transition. Dismissing a wallet prompt does not release it. Open it below to approve, finalize, submit, verify or withdraw it."}</div>`;
             })()
           : "") +
+        ((() => {
+          const km = kasModule();
+          if (!km) return "";
+          const avail = kasCreationAvailability(opts.creationContext || {});
+          const off = !!pending || !canAct || frozen || !avail.enabled || !(orgRoot.live && orgRoot.live.outpoint);
+          const title = pending ? "A request is already pending on this root" : !canAct ? "Only an owner of this root can start this" : frozen ? "The root is FROZEN — unfreeze first" : !avail.enabled ? avail.reason : !(orgRoot.live && orgRoot.live.outpoint) ? "The root has no confirmed on-chain outpoint yet" : "Create a native-KAS treasury owned by this root (candidate profile policyvault-0.7-kas)";
+          return `<div class="actions" data-kas-create-row="1"><button type="button"${off ? " disabled" : ""} class="primary" data-kascreate="${esc(orgRoot.rootCovenantId)}" title="${esc(title)}">Create KAS treasury</button>${!avail.enabled && canAct ? `<span class="hint" style="display:inline">${esc(avail.reason)}</span>` : ""}</div>`;
+        })()) +
         `<div class="actions">` +
         actionBtn("authorize", "", "A heartbeat authorization that changes nothing but restarts the recovery and succession waits") +
         actionBtn("rotate", "warn", "Install a new set of owners and rules (allowed while frozen)") +
@@ -2068,6 +2125,8 @@
     }
 
     return {
+      /* v0.7 enablement: signing-payload tools + KAS profile hooks */
+      parseSigningPayload, frozenMismatches, verifyRootManifestByFamily, isKasFamily, kasModule, kasCreationAvailability, KAS_PROFILE,
       /* rendering */
       renderGenesisPolicyPanelHtml,
       renderRootDetailHtml,

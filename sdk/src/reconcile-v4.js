@@ -78,6 +78,17 @@ async function reconcileVaultV4(config, vaultId, { rpc: providedRpc, stalePendin
   const manifest = await loadManifestV4(config, vaultId); // loader enforces registry root-equality
   if (!manifest) fail(`no v0.4 manifest for vault ${vaultId}`);
   resolveV4Abi(manifest.contractVersion); // accepts the v0.4 family; fails closed otherwise
+  // RC38: unresolved request history takes priority over generic UTXO heuristics.
+  // Lazy import avoids the wallet request / submit / recovery module cycle.
+  const protectedRequest = await require("./wallet-recovery-v4").findProtectedTransitionV4(config, vaultId);
+  if (protectedRequest) {
+    const recordedVaultClosed = manifest.status === "RECOVERED" && manifest.live === null;
+    return { status: "REQUEST_RECOVERY_REQUIRED", vaultId, requestId: protectedRequest.requestId,
+      vaultStatus: manifest.status, recordedVaultClosed,
+      reason: recordedVaultClosed
+        ? "the recorded vault is closed; historical request evidence remains unresolved and protected; no new recovery or transaction is authorized"
+        : "an unresolved transition requires request-scoped observation and protection" };
+  }
   if (!manifest.live) return { status: "TERMINAL", vaultStatus: manifest.status };
   assertOperationalNetwork(config); // Gate R: testnet-10 or unlocked mainnet
   if (manifest.networkId !== config.networkId) fail(`manifest network ${manifest.networkId} != configured ${config.networkId} — refusing`);

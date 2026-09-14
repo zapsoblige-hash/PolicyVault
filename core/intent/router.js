@@ -167,7 +167,7 @@ const MANIFEST_FAMILIES = Object.freeze({
      * alone would be verifying half of the security property. A delegate
      * spend (agentSpend) never touches the root and never NEEDS the
      * org-root wrapper, but the per-op verifier's signature
-     * (verifyRootedKasVaultManifestV7({ manifest, frozen, check })) takes
+     * (verifyRootedKasVaultManifestV7({ manifest, frozen, redeemHex, check })) takes
      * the frozen transaction and an accumulating check() callback — it is
      * the SAME shape the payment profile's own verifyRootedVaultManifestV7
      * uses (also NOT exposed as a router-callable standalone verifier);

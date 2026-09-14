@@ -235,7 +235,7 @@ for (const [name, action, params, prevOver] of [
   emit(name, "accept", build, fin.finalTransaction, { contract: "policyvault-0.7-kas" });
 
   const manifest = buildOrgRootIntentManifestV7Kas({ build, vaultOperations: [{ build }], satisfiedApprovals: signers.length });
-  manifests.push({ name, verdict: verifyOrgRootIntentManifestV7Kas({ manifest }).verdict });
+  manifests.push({ name, verdict: verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts: { [build.covenantId]: build.vaultRedeemScriptHex } }).verdict });
 }
 
 /* SELECTOR CROSS-OVER (identical proof shape to the payment profile): the
@@ -270,7 +270,7 @@ for (const [name, action, params, prevOver] of [
   const fin = finalizeV7KasTransaction({ build, approvals: approvalsFor(build, 1, [0, 1]), fuelSignatureScriptHex: signFuelScript(build, 2) });
   emit("vault_recover", "accept", build, fin.finalTransaction, { contract: "policyvault-0.7-kas" });
   const manifest = buildOrgRootIntentManifestV7Kas({ build, vaultOperations: [{ build }], satisfiedApprovals: 2 });
-  manifests.push({ name: "vault_recover", verdict: verifyOrgRootIntentManifestV7Kas({ manifest }).verdict });
+  manifests.push({ name: "vault_recover", verdict: verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts: { [build.covenantId]: build.vaultRedeemScriptHex } }).verdict });
 
   emit("neg_vault_recover_wrong_destination", "reject", build, mutate(fin.finalTransaction, (j) => {
     j.outputs[0].scriptPublicKey.scriptHex = `20${XO(otherKey)}ac`;

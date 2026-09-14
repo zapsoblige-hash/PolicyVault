@@ -198,12 +198,19 @@ test("every wallet action is present in the role map (fail-closed coverage)", as
 
 /* ---- submission-outcome classification (Bug 2) ---- */
 
+/* RC35-REC-01 (2026-09-11, STALE ASSUMPTION corrected — property preserved and widened): the shared classifier binds the
+ * node's envelope to a 64-hex transaction id (a real node always names the submitted id; the former "deadbeef" / "abc123"
+ * shapes were artefacts of the loose regex and are now AMBIGUOUS, which keeps claims) and treats the node's already-known
+ * answers ("already accepted by the consensus", "already in the mempool") as POSITIVE answers, never as rejections. */
 test("classification: node-evaluated rejections are DEFINITIVE", async () => {
+  const ID = "12ffe0c2353ab546a3d91be0d7bdb635c667bc565441650ce76099938ae4f033";
   assert.ok(isDefinitiveSubmitRejection(
-    "Rejected transaction 12ffe0c2353ab546a3d91be0d7bdb635c667bc565441650ce76099938ae4f033: failed to verify the signature script: script ran, but verification failed"
+    `Rejected transaction ${ID}: failed to verify the signature script: script ran, but verification failed`
   ));
-  assert.ok(isDefinitiveSubmitRejection("Rejected transaction deadbeef: transaction is invalid"));
-  assert.ok(isDefinitiveSubmitRejection("Rejected transaction abc123: policy rejection: mass exceeds limit"));
+  assert.ok(isDefinitiveSubmitRejection(`Rejected transaction ${ID}: transaction is invalid`));
+  assert.ok(isDefinitiveSubmitRejection(`Rejected transaction ${ID}: policy rejection: mass exceeds limit`));
+  assert.equal(isDefinitiveSubmitRejection(`Rejected transaction ${ID}: transaction ${ID} was already accepted by the consensus`), false, "an already-accepted answer is never a rejection");
+  assert.equal(isDefinitiveSubmitRejection("Rejected transaction deadbeef: transaction is invalid"), false, "an envelope without a real transaction id cannot be bound — ambiguous keeps claims");
 });
 
 test("classification: transport/ambiguous failures are NEVER definitive", async () => {

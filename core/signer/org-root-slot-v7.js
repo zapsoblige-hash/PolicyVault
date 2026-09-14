@@ -96,6 +96,16 @@ const {
   normalizeSlotSignatureHex
 } = require("../model/owner-set-v7");
 const { ORG_ROOT_MANIFEST_VERSION_1, verifyOrgRootIntentManifest } = require("../intent/org-root-manifest-v7");
+/* v0.7 enablement (2026-09-10): the org-root-KAS manifest family (owner operations on a ROOTED KAS SAFE-PAYMENT VAULT riding
+ * the same root transition) is a second accepted family. Dispatch is by manifestVersion, each family through ITS OWN
+ * verifier; anything else fails closed (no default route). */
+const { ORG_ROOT_KAS_MANIFEST_VERSION_1, verifyOrgRootIntentManifestV7Kas } = require("../intent/org-root-manifest-v7-kas");
+const ACCEPTED_ROOT_MANIFEST_FAMILIES = Object.freeze([ORG_ROOT_MANIFEST_VERSION_1, ORG_ROOT_KAS_MANIFEST_VERSION_1]);
+function verifyRootManifestByFamily({ manifest, descriptors, redeemScripts }) {
+  if (manifest.manifestVersion === ORG_ROOT_MANIFEST_VERSION_1) return verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
+  if (manifest.manifestVersion === ORG_ROOT_KAS_MANIFEST_VERSION_1) return verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts });
+  return { verdict: "REFUSED", failures: [{ name: "manifestVersion", detail: `unknown org-root manifest family ${String(manifest.manifestVersion)}` }] };
+}
 /*
  * v2 addition (Wave 2, Track G): the SAME Universal Signer Interface v2
  * core (core/signer/v2) every other v2 consumer uses. Imported ADDITIVELY —
@@ -381,10 +391,10 @@ function createRootSlotSigningRequest({
   expiresAtMs,
   nowMs = Date.now()
 } = {}) {
-  if (!isPlainObject(manifest) || manifest.manifestVersion !== ORG_ROOT_MANIFEST_VERSION_1) {
-    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `a ${ORG_ROOT_MANIFEST_VERSION_1} is required — failing closed (no default route)`);
+  if (!isPlainObject(manifest) || !ACCEPTED_ROOT_MANIFEST_FAMILIES.includes(manifest.manifestVersion)) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `a ${ACCEPTED_ROOT_MANIFEST_FAMILIES.join(" or ")} manifest is required — failing closed (no default route)`);
   }
-  const verification = verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
+  const verification = verifyRootManifestByFamily({ manifest, descriptors, redeemScripts });
   if (verification.verdict !== "VERIFIED") {
     throw invalidRequest(
       SLOT_REFUSALS.MANIFEST_NOT_VERIFIED,
@@ -994,10 +1004,10 @@ function createRootSlotSigningRequestV2({
   expiresAtMs,
   nowMs = Date.now()
 } = {}) {
-  if (!isPlainObject(manifest) || manifest.manifestVersion !== ORG_ROOT_MANIFEST_VERSION_1) {
-    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `a ${ORG_ROOT_MANIFEST_VERSION_1} is required — failing closed (no default route)`);
+  if (!isPlainObject(manifest) || !ACCEPTED_ROOT_MANIFEST_FAMILIES.includes(manifest.manifestVersion)) {
+    throw invalidRequest(SLOT_REFUSALS.REQUEST_INVALID, `a ${ACCEPTED_ROOT_MANIFEST_FAMILIES.join(" or ")} manifest is required — failing closed (no default route)`);
   }
-  const verification = verifyOrgRootIntentManifest({ manifest, descriptors, redeemScripts });
+  const verification = verifyRootManifestByFamily({ manifest, descriptors, redeemScripts });
   if (verification.verdict !== "VERIFIED") {
     throw invalidRequest(
       SLOT_REFUSALS.MANIFEST_NOT_VERIFIED,

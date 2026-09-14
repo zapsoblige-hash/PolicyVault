@@ -117,7 +117,11 @@ async function signInCookie(w) {
     r.on("error", reject); r.write(data); r.end();
   });
 }
-const genesisBody = (signer) => ({ vaultId: "7e".repeat(32), label: "g", depositKas: "10", feeReserveKas: "1", signerAddress: signer.address, funding: [{ outpoint: { transactionId: "44".repeat(32), index: 0 }, amount: (5000n * KAS).toString(), scriptPublicKeyHex: `20${signer.xonly}ac` }], agent: { agentAddress: AG.address, maxPerSpendKas: "1", budgetKas: "5", budgetPeriod: { value: 1, unit: "day" }, approvalThresholdKas: "0.5", recipientAddresses: [REC.address] } });
+/* RC33-ID-01 (2026-09-11, sdk/src/vault-identity.js): a vault identity is reserved by the first creation request that
+ * names it (any state) and is never recycled, so each creation in this file mints its own identity — the former fixed
+ * sentinel reused across five creates in one database was a STALE ASSUMPTION of this test asset (the properties under
+ * test — signer binding, foreign 404, signer-only routes — never depended on the identity value). */
+const genesisBody = (signer) => ({ vaultId: require("node:crypto").randomBytes(32).toString("hex"), label: "g", depositKas: "10", feeReserveKas: "1", signerAddress: signer.address, funding: [{ outpoint: { transactionId: "44".repeat(32), index: 0 }, amount: (5000n * KAS).toString(), scriptPublicKeyHex: `20${signer.xonly}ac` }], agent: { agentAddress: AG.address, maxPerSpendKas: "1", budgetKas: "5", budgetPeriod: { value: 1, unit: "day" }, approvalThresholdKas: "0.5", recipientAddresses: [REC.address] } });
 const spendBody = (signer, agentPk = AG.xonly) => ({ vaultId: VAULT_ID, action: "agentSpend", signerAddress: signer.address, params: { payAmountSompi: (4n * KAS).toString(), agentPk, recipient: REC.xonly, fuel: { outpoint: { transactionId: "43".repeat(32), index: 1 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${agentPk}ac` } } });
 const openCount = async () => (await getStore(config).listValues(Categories.REQUEST)).filter((r) => r.state === "BUILT" || r.state === "AWAITING_APPROVALS").length;
 

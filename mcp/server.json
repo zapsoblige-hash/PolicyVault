@@ -6,12 +6,12 @@
     "url": "https://github.com/zapsoblige-hash/PolicyVault",
     "source": "github"
   },
-  "version": "1.5.0",
+  "version": "1.6.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "policyvault-mcp",
-      "version": "1.5.0",
+      "version": "1.6.2",
       "transport": {
         "type": "stdio"
       },

@@ -16,6 +16,7 @@
  *   "v5" | "v6"         token controllers   (template.owner + agentRegistry)
  *   "v7"                rooted vault        (agentRegistry; owners = the org root)
  *   "v7hd"              rooted HD vault     (delegation forest leaves; owners = the org root)
+ *   "v7kas"             rooted KAS vault    (v0.4.1 agent registry + vault-level approver slots; owners = the org root)
  * Unknown schemas fail closed (no default route). Never guesses.
  */
 
@@ -26,6 +27,7 @@ const SCHEMA_V5 = "policyvault-token-controller-manifest/v5";
 const SCHEMA_V6 = "policyvault-controller-manifest/v6";
 const SCHEMA_V7 = "policyvault-rooted-vault-manifest-record/1";
 const SCHEMA_V7_HD = "policyvault-rooted-hd-vault-manifest-record/1";
+const SCHEMA_V7_KAS = "policyvault-rooted-kas-vault-manifest-record/1"; // v0.7 enablement (2026-09-10): rooted KAS safe-payment vault (CANDIDATE)
 
 async function loadAnyManifestAll(config, vaultId) {
   const raw = await getStore(config).read(Categories.VAULT, vaultId);
@@ -51,8 +53,13 @@ async function loadAnyManifestAll(config, vaultId) {
     const manifest = await loadManifestV7Hd(config, vaultId);
     return manifest ? { version: "v7hd", manifest } : null;
   }
+  if (tag === SCHEMA_V7_KAS) {
+    const { loadManifestV7Kas } = require("../../sdk/src/manifest-v7-kas");
+    const manifest = await loadManifestV7Kas(config, vaultId);
+    return manifest ? { version: "v7kas", manifest } : null;
+  }
   // v1 / v2 / v4 (fails closed on anything it does not know)
   return loadAnyManifest(config, vaultId);
 }
 
-module.exports = { loadAnyManifestAll, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V7_HD };
+module.exports = { loadAnyManifestAll, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V7_HD, SCHEMA_V7_KAS };

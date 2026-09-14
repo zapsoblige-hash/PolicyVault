@@ -66,6 +66,7 @@ const V5_V6_FILES = Object.freeze([
   "core/intent/org-root-manifest-v7.js",
   "core/intent/root-script-v7.js", // rc20 review R5-04: the verifier rebuilds the frozen root script (STALE ASSUMPTION: new dependency)
   "core/intent/vault-script-v7.js", // Codex checkpoint 6 (UX-02 / UX-13): the verifier rebuilds the rooted-vault successor script (STALE ASSUMPTION: new dependency)
+  "core/intent/vault-script-v7-kas.js", // R7-04 closure (2026-09-10): the rooted-KAS verifier rebuilds the predecessor + successor scripts from the candidate skeleton
   "core/intent/org-root-manifest-v7-hd.js",
   "core/intent/org-root-manifest-v7-kas.js",
   "core/intent/router.js",

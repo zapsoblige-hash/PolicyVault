@@ -8,7 +8,7 @@ const HEX = /^[0-9a-f]{64}$/;
 const same = (a, b) => a?.transactionId === b?.transactionId && Number(a?.index) === Number(b?.index);
 const unknown = (reason, extra = {}) => ({ outcome: "UNKNOWN", reason, ...extra });
 async function readSubmissionStartHash(rpc) {
-  try { const { sink } = await rpc.getBlockDagInfo(); return typeof sink === "string" && HEX.test(sink) ? sink : null; }
+  try { const response = await rpc.getBlockDagInfo(); if (!response || response.error != null) return null; const { sink } = response; return typeof sink === "string" && HEX.test(sink) ? sink : null; }
   catch { return null; }
 }
 function isBoundRejection(error, txId) {
@@ -25,6 +25,7 @@ async function acceptanceWindow(rpc, start, txId, allowRejectedAnchorReorg = fal
   for (let hop = 0; hop < 2000 && !visited.has(cursor); hop++) {
     visited.add(cursor);
     const r = await rpc.getVirtualChainFromBlock({ startHash: cursor, includeAcceptedTransactionIds: true });
+    if (!r || r.error != null) throw Error("acceptance window returned an error or no response");
     const added = r?.addedChainBlockHashes, entries = r?.acceptedTransactionIds, removed = r?.removedChainBlockHashes;
     if (!Array.isArray(added) || !Array.isArray(entries) || added.length !== entries.length || !added.every((h) => typeof h === "string" && HEX.test(h)) || new Set(added).size !== added.length || !Array.isArray(removed) || !removed.every((h) => typeof h === "string" && HEX.test(h)) || new Set(removed).size !== removed.length) throw Error("incomplete, reorged or malformed acceptance window");
     // RPC removes the initial non-selected path back to the common ancestor.
@@ -95,10 +96,11 @@ async function observeSubmissionOutcome(config, rpc, request, { stalePendingMini
     if (window.initialAnchorReorg && !window.complete) return unknown("removed initial anchor requires complete replacement acceptance coverage");
     const at = Date.parse(request.submittedAt ?? request.outcomeObservationAt ?? "");
     const stale = Number.isFinite(at) && now - at >= stalePendingMinimumMs;
-    if (!rejectedFirstAttempt && (!window.complete || !stale)) return unknown("no complete, aged negative outcome proof", { observationStartHash: start ? null : window.sink });
+    if (!window.complete || window.initialAnchorReorg || !rejectedFirstAttempt && !stale) return unknown("no complete, aged negative outcome proof", { observationStartHash: start ? null : window.sink });
     const second = await inputs();
     if (!await outputsAbsent() || !await mempoolAbsent()) return unknown("transaction appeared or observations changed during arbitration");
-    if (first.every(Boolean) && second.every(Boolean)) return {
+    if (await readSubmissionStartHash(rpc) !== window.sink) return unknown("acceptance tip changed during funding observations");
+    if (first.length > 0 && first.every(Boolean) && second.every(Boolean)) return {
       outcome: rejectedFirstAttempt ? "SUBMISSION_REJECTED" : "NOT_BROADCAST",
       proof: { txId, allInputsUnspent: true, repeatedFundingQueries: true, exactMempoolMiss: true, outputsAbsent: true, startHash: start ?? null, sink: window.sink, completeAcceptanceWindow: window.complete, rejectedFirstAttempt, initialAnchorReorg: window.initialAnchorReorg === true, at: new Date(now).toISOString() }
     };
@@ -118,4 +120,4 @@ async function observeSubmissionOutcome(config, rpc, request, { stalePendingMini
     return unknown("no coherent accepted competing transaction was proved");
   } catch (e) { return unknown(`outcome verification unavailable or contradictory: ${e.message}`); }
 }
-module.exports = { readSubmissionStartHash, isBoundRejection, observeSubmissionOutcome };
+module.exports = { readSubmissionStartHash, acceptanceWindow, isBoundRejection, observeSubmissionOutcome };

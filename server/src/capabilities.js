@@ -1,5 +1,5 @@
 "use strict";
-const { MAINNET_CREATABLE_GENERATIONS } = require("../../sdk/src/config");
+const { MAINNET_CREATABLE_GENERATIONS, MAINNET_OPERABLE_GENERATIONS, isGenerationMainnetCreatable } = require("../../sdk/src/config");
 
 /*
  * Capability / version discovery document (completion-standard surface
@@ -32,6 +32,7 @@ const { WEBHOOK_PAYLOAD_SCHEMA, DEFAULT_MAX_ATTEMPTS, DEFAULT_BACKOFF_MS } = req
 const { SIGNATURE_SCHEME, SIGNATURE_HEADER, DEFAULT_TOLERANCE_SECONDS } = require("./events-signing");
 const { CONTRACT_VERSION_V7_ROOT } = require("../../core/model/vault-state-v7-root");
 const { CONTRACT_VERSION_V7: CONTRACT_VERSION_V7_PAYMENT, OWNER_OP_SELECTOR_V7 } = require("../../core/model/vault-state-v7");
+const { CONTRACT_VERSION_V7_KAS, OWNER_OP_SELECTOR_V7_KAS } = require("../../core/model/vault-state-v7-kas"); // v0.7 enablement (2026-09-10)
 const { OWNER_SLOTS_V7, ROOT_ACTIONS_V7, AUTHORITY_CLASSES_V7 } = require("../../core/model/owner-set-v7");
 const { CONTRACT_VERSION_V5 } = require("../../sdk/src/vault-state-v5");
 const { CONTRACT_VERSION_V6 } = require("../../sdk/src/vault-state-v6");
@@ -63,7 +64,11 @@ const ROUTED_COVENANT_VERSIONS = Object.freeze([
   { contractVersion: CONTRACT_VERSION_V6, status: "FROZEN", authorityModel: "SINGLE_ON_CHAIN_OWNER", venues: ["FIXTURE"] },
   { contractVersion: CONTRACT_VERSION_V7_ROOT, status: "FROZEN", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" },
   { contractVersion: CONTRACT_VERSION_V7_PAYMENT, status: "FROZEN", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" },
-  { contractVersion: CONTRACT_VERSION_V7_PAYMENT_HD, status: "CANDIDATE", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" }
+  { contractVersion: CONTRACT_VERSION_V7_PAYMENT_HD, status: "CANDIDATE", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" },
+  /* v0.7-kas ROOTED KAS SAFE-PAYMENT VAULT — CANDIDATE (not byte-frozen) until the owner's conditional freeze is
+   * satisfied (exact identities, fresh reproducibility, proofs, Codex confirmation); routed on every network, mainnet
+   * creation only through the per-generation allowlist below. */
+  { contractVersion: CONTRACT_VERSION_V7_KAS, status: "CANDIDATE", authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT" }
 ]);
 (function validateRoutedCovenantVersions() {
   const known = new Set(KNOWN_COVENANT_VERSIONS);
@@ -152,8 +157,12 @@ function buildCapabilities(config, principal = null) {
        * per-generation mainnet allowlist may be NEWLY CREATED or mutated on
        * mainnet (sdk/src/config.js MAINNET_CREATABLE_GENERATIONS). On testnet
        * every routed generation is creatable (human acceptance). */
-      covenantVersions: ROUTED_COVENANT_VERSIONS.map((e) => ({ ...e, mainnetCreatable: MAINNET_CREATABLE_GENERATIONS.has(e.contractVersion) })),
-      creatableCovenantVersions: ROUTED_COVENANT_VERSIONS.map((e) => e.contractVersion).filter((v) => config.networkId !== "mainnet" || MAINNET_CREATABLE_GENERATIONS.has(v)),
+      covenantVersions: ROUTED_COVENANT_VERSIONS.map((e) => ({ ...e, mainnetCreatable: isGenerationMainnetCreatable(config, e.contractVersion), mainnetOperable: MAINNET_OPERABLE_GENERATIONS.has(e.contractVersion) })),
+      creatableCovenantVersions: ROUTED_COVENANT_VERSIONS.map((e) => e.contractVersion).filter((v) => config.networkId !== "mainnet" || isGenerationMainnetCreatable(config, v)),
+      /* v0.7 enablement: the owner-reviewed mainnet set + the operator kill switch, stated in discovery (never authority by itself) */
+      mainnetCreatableCovenantVersions: [...MAINNET_CREATABLE_GENERATIONS],
+      mainnetOperableCovenantVersions: [...MAINNET_OPERABLE_GENERATIONS],
+      mainnetCreationDisabled: [...(config.mainnetCreationDisabled ?? [])],
       currentV4Versions: [CONTRACT_VERSION_V4, CONTRACT_VERSION_V4_1]
     },
     /* v0.5 (token controller, FROZEN) / v0.6 (optional atomic composability,
@@ -184,6 +193,20 @@ function buildCapabilities(config, principal = null) {
       spendActions: ["hdSpend", "childSpendL2", "childSpendL3"],
       delegationActions: ["delegateSetChildRoot1", "delegateSetChildRoot2"],
       expiryStatement: "expiry is enforced by PolicyVault's core and by revocation, not by consensus"
+    },
+    /* v0.7-kas ROOTED KAS SAFE-PAYMENT VAULT (v0.7 enablement, 2026-09-10; CANDIDATE, not byte-frozen): a native-KAS
+     * treasury owned by the organizational root; delegates spend under v0.4.1 policies; above a delegate's threshold the
+     * VAULT-LEVEL M-of-N approvers co-sign (the frozen v0.4.1 approval mechanism, a separate tier from the root's quorum);
+     * owner operations are ROOT REQUESTS (POST /org-roots/:rootId/requests with a vaultOperations entry). */
+    kasTreasury: {
+      contractVersion: CONTRACT_VERSION_V7_KAS,
+      status: "CANDIDATE",
+      authorityModel: "ON_CHAIN_ORGANIZATIONAL_ROOT",
+      genesisProfile: CONTRACT_VERSION_V7_KAS,
+      spendActions: ["agentSpend"],
+      ownerActions: [...Object.keys(OWNER_OP_SELECTOR_V7_KAS), "ownerRecover"],
+      approvalTier: "vault-level M-of-N approvers above a delegate's approvalThreshold (frozen v0.4.1 mechanism; POST /wallet/v7/requests/:id/approvals)",
+      recoveryStatement: "ownerRecover pays protectedValue + feeReserve to the recoveryPk pinned at genesis — irreversible, full root quorum"
     },
     /* v0.7 ON-CHAIN ORGANIZATIONAL ROOT (docs/postlaunch/v0.7-app-surface-
      * contract.md §2 "GET /capabilities"). authorityModel here documents

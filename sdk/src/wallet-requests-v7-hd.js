@@ -41,13 +41,16 @@ const crypto = require("crypto");
 
 const { getStore, Categories } = require("./store");
 const { withOrgRootLock } = require("./org-root-lock");
-const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
+const { assertVaultIdentityFree, withVaultIdentityLock, normalizeVaultId } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
+const { assertOperationalNetwork, assertGenerationMainnetCreatable, assertGenerationMainnetOperable } = require("./config");
 const { normalizeHex } = require("./vault-state");
 const { resolveAddressIdentity } = require("./address-identity");
 const { connectVerified, getAddressUtxos } = require("./chain");
 const { frozenToWasmTransaction } = require("./frozen-tx-v3");
 const { claimTransition, claimSubmission, releaseTransitionClaim, releaseSubmissionClaim, persistReceipt } = require("./submission-claim");
 const { finalTxToWasm, isDefinitiveSubmitRejection } = require("./wallet-submit-v4");
+/* RC35-REC-01 / REC-02 parity (2026-09-11): shared submit-outcome settlement + observation-only genesis recovery primitives */
+const { settleGenesisSubmitError, settleTransitionSubmitError, anyFrozenOutputObserved, frozenInputLive, ensureOwnSubmissionClaim, unobservedRecoveryDisposition, refreshUnobservedGenesis } = require("./genesis-recovery");
 const { appendAudit, readAudit } = require("./audit");
 const hd = require("../../core/model/hd-leaf-v7");
 
@@ -65,7 +68,7 @@ const {
   finalizeTokenDepositV7
 } = require("./vault-builders-v7-hd");
 const { loadOrgRoot, templateFieldsFromDescriptor } = require("./wallet-requests-v7");
-const { loadManifestV7Hd, persistManifestV7Hd, normalizeManifestV7Hd, manifestToJsonV7Hd, listRootedHdVaultsV7, forestAsTreeInput, normalizeForestNode, MANIFEST_SCHEMA_V7_HD } = require("./manifest-v7-hd");
+const { loadManifestV7Hd, persistManifestV7Hd, createManifestV7Hd, manifestToJsonV7Hd, listRootedHdVaultsV7, forestAsTreeInput, normalizeForestNode, MANIFEST_SCHEMA_V7_HD } = require("./manifest-v7-hd");
 const { canonicalJsonStringify } = require("../../core/intent/canonical");
 const { VaultStatus } = require("./manifest");
 
@@ -179,7 +182,12 @@ function hdPresentation(build) {
 /* ------------------------------------------------------------------ */
 
 async function buildHdVaultGenesisRequest(args) {
-  return withOrgRootLock(args.rootCovenantId, () => buildHdVaultGenesisRequestUnlocked(args));
+  /* RC33-ID-01 (2026-09-11): the build (uniqueness check -> request write) is serialized per vault identity INSIDE the root
+   * lock (lock order: root, then identity); a malformed identity falls through and is refused exactly as before */
+  let vaultId = null;
+  try { vaultId = args.vaultId ? normalizeHex(args.vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex"); } catch { vaultId = null; }
+  if (vaultId === null) return withOrgRootLock(args.rootCovenantId, () => buildHdVaultGenesisRequestUnlocked(args));
+  return withOrgRootLock(args.rootCovenantId, () => withVaultIdentityLock(vaultId, () => buildHdVaultGenesisRequestUnlocked({ ...args, vaultId })));
 }
 async function buildHdVaultGenesisRequestUnlocked({ config, rootCovenantId, label = "", descriptor, templateIndex = 0, initialAgents = [], recoveryAddress, feeReserveKas, signerAddress, funding, vaultId }) {
   try {
@@ -205,6 +213,7 @@ async function buildHdVaultGenesisRequestUnlocked({ config, rootCovenantId, labe
   const { kasToSompi } = require("./amounts");
 
   const vId = vaultId ? normalizeHex(vaultId, 32, "vaultId") : crypto.randomBytes(32).toString("hex");
+  await assertVaultIdentityFree(config, vId); // RC33-ID-01: an identity held by ANY generation's record or ANY request is refused before anything is built or written
   const template = {
     vaultId: vId, descriptorHash, tokenCovenantId, templateVmHash, templatePrefixLen, templateStateLen, templateSuffixLen,
     orgRootCovenantId: root.rootCovenantId,
@@ -391,8 +400,15 @@ function assertImmutable(unsigned, signed) {
   if (JSON.stringify(strip(unsigned)) !== JSON.stringify(strip(signed))) throwFail("signed package mutated a consensus-visible field", "SIGNATURE_INVALID");
 }
 
+/* RC33-ID-01 review finding F1 (2026-09-11): the signature and the submission of a genesis are serialized PER VAULT IDENTITY inside the existing root / signer / request lock (lock order unchanged: root / signer / request first, identity inside), so the commit-phase identity check and the signature store / claim / broadcast that follow it form ONE critical section — a pre-correction pair of drafts naming one identity can never double-sign or double-broadcast under concurrency. A request whose identity cannot be normalized falls through to the unlocked body, which refuses it exactly as before. Taken INSIDE the request (root) lock. */
+async function withHdGenesisIdentityLock(config, requestId, work) {
+  const peek = await loadHdWalletRequest(config, requestId);
+  let vaultId = null;
+  try { vaultId = peek && peek.kind === "hdGenesis" ? normalizeVaultId(peek.vaultId) : null; } catch { vaultId = null; }
+  return vaultId === null ? work() : withVaultIdentityLock(vaultId, work);
+}
 async function finalizeHdWalletRequest(args) {
-  return withHdRequestLock(args.config, args.requestId, () => finalizeHdWalletRequestUnlocked(args));
+  return withHdRequestLock(args.config, args.requestId, () => withHdGenesisIdentityLock(args.config, args.requestId, () => finalizeHdWalletRequestUnlocked(args)));
 }
 async function finalizeHdWalletRequestUnlocked({ config, requestId, signedSafeJson }) {
   const request = await loadHdWalletRequest(config, requestId);
@@ -411,6 +427,7 @@ async function finalizeHdWalletRequestUnlocked({ config, requestId, signedSafeJs
   assertImmutable(unsigned, signed);
 
   if (request.kind === "hdGenesis") {
+    await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: request.requestId, exceptTxId: request.txId, phase: "commit" }); // RC33-ID-01: refused before the signature is accepted; the request stays BUILT
     for (let i = 0; i < unsigned.inputs.length; i++) {
       if (!signed.inputs[i]?.signatureScript) {
         request.state = RequestState.WALLET_REJECTED;
@@ -456,19 +473,23 @@ async function finalizeHdWalletRequestUnlocked({ config, requestId, signedSafeJs
 /* ------------------------------------------------------------------ */
 
 async function submitHdWalletRequest(args) {
-  return withHdRequestLock(args.config, args.requestId, () => submitHdWalletRequestUnlocked(args));
+  return withHdRequestLock(args.config, args.requestId, () => withHdGenesisIdentityLock(args.config, args.requestId, () => submitHdWalletRequestUnlocked(args)));
 }
-async function submitHdWalletRequestUnlocked({ config, requestId, rpc: providedRpc }) {
+async function submitHdWalletRequestUnlocked({ config, requestId, rpc: providedRpc, pollAttempts = 30, pollDelayMs = 2000 }) {
   const request = await loadHdWalletRequest(config, requestId);
   if (!request) throwFail(`no request ${requestId}`, "REQUEST_NOT_FOUND");
   if (request.state === RequestState.CHAIN_VERIFIED && (request.kind !== "hdGenesis" || (await loadOrgRoot(config, request.build.orgRootCovenantId))?.vaults?.includes(request.vaultId))) return request;
-  const recoveringGenesis = request.kind === "hdGenesis" && ["SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED", "CHAIN_VERIFIED"].includes(request.state);
+  /* RC35-REC-01 (2026-09-11): a genesis an earlier runtime persisted SUBMISSION_REJECTED is recovered by OBSERVATION ONLY through this
+   * same request (a false negative completes; an ESTABLISHED negative stays as it is); recovery is never a new creation. */
+  const recoveringGenesis = request.kind === "hdGenesis" && ["SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED", "SUBMISSION_REJECTED", "CHAIN_VERIFIED"].includes(request.state);
+  const fromNegative = request.kind === "hdGenesis" && request.state === RequestState.SUBMISSION_REJECTED;
   if (request.state !== RequestState.SIGNED && !recoveringGenesis) throwFail(`request is ${request.state}, not SIGNED`, request.state);
   if (request.kind !== "hdGenesis") await assertHdGenesisComplete(config, await loadManifestV7Hd(config, request.vaultId));
 
   try {
     assertOperationalNetwork(config);
-    assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7_HD);
+    if (recoveringGenesis) assertGenerationMainnetOperable(config, CONTRACT_VERSION_V7_HD); // observation of an existing attempt is not a new creation
+    else assertGenerationMainnetCreatable(config, CONTRACT_VERSION_V7_HD);
   } catch (e) {
     throw fail(e.message, "NETWORK_MISMATCH");
   }
@@ -514,6 +535,7 @@ async function submitHdWalletRequestUnlocked({ config, requestId, rpc: providedR
     }
 
     if (!recoveringGenesis) {
+    if (request.kind === "hdGenesis") await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: request.requestId, exceptTxId: request.txId, phase: "commit" }); // RC33-ID-01: before claims or broadcast
     if (request.kind !== "hdGenesis" && request.kind !== "tokenDeposit") {
       try {
         await claimTransition(config, { outpoint: request.predecessorOutpoint, action: request.action, txId: request.txId, vaultId: request.vaultId, stateId: request.predecessorStateId, expected: { kind: "v7HdSuccessor", requestId: request.requestId, txId: request.txId } });
@@ -522,6 +544,7 @@ async function submitHdWalletRequestUnlocked({ config, requestId, rpc: providedR
       }
     }
     await claimSubmission(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
+    request.submitStartHash = await require("./submission-outcome-v7").readSubmissionStartHash(rpc);
     request.state = RequestState.SUBMITTING;
     await saveHdWalletRequest(config, request);
 
@@ -531,16 +554,29 @@ async function submitHdWalletRequestUnlocked({ config, requestId, rpc: providedR
     } catch (e) {
       const message = String(e.message ?? e).split("\n")[0];
       request.error = message;
-      if (isDefinitiveSubmitRejection(message)) {
+      /* RC35-REC-01: REJECTED / ALREADY_KNOWN / AMBIGUOUS through the shared classifier. A genesis settles its negative ONLY with
+       * the vault output verified absent; a spend / delegation / deposit only with its input still unspent AND every frozen
+       * output absent; an already-known answer is observed like an accepted response; anything else keeps the claims. */
+      const genesisOut = request.kind === "hdGenesis" ? request.build.frozen.outputs[request.build.vaultOutputIndex] : null;
+      const settled = request.kind === "hdGenesis"
+        ? await settleGenesisSubmitError({ config, request, rpc, message, txId: request.txId, expected: { address: spkToAddress(config, genesisOut.scriptPublicKey), txId: request.txId, index: request.build.vaultOutputIndex, value: String(genesisOut.value), covenantId: request.build.covenantId } })
+        : await settleTransitionSubmitError({ config, rpc, request, message, txId: request.txId, predecessorLive: () => frozenInputLive(config, rpc, request.build.frozen, 0), effectAbsent: async () => !(await anyFrozenOutputObserved(config, rpc, request.build.frozen, request.txId)) });
+      if (settled.decision === "REJECTED") {
+        request.state = RequestState.SUBMISSION_REJECTED;
+        request.submissionOutcome = { outcome: RequestState.SUBMISSION_REJECTED, reason: message, txId: request.txId, proof: settled.proof };
+        await saveHdWalletRequest(config, request);
         if (request.kind !== "hdGenesis" && request.kind !== "tokenDeposit") await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
         await releaseSubmissionClaim(config, request.txId);
-        request.state = RequestState.SUBMISSION_REJECTED;
-        await saveHdWalletRequest(config, request);
         throw fail(`node rejected the transaction: ${message}`, "SUBMISSION_REJECTED");
       }
-      request.state = RequestState.RECONCILIATION_REQUIRED;
-      await saveHdWalletRequest(config, request);
-      throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      if (settled.decision === "UNCERTAIN") {
+        request.state = RequestState.RECONCILIATION_REQUIRED;
+        request.error = `${message} — ${settled.reason}`;
+        await saveHdWalletRequest(config, request);
+        throw fail(`submit failed: ${message} — reconcile`, "RECONCILIATION_REQUIRED");
+      }
+      request.submissionResponse = { kind: "ALREADY_KNOWN", variant: settled.classification.variant, reason: message, at: new Date().toISOString() };
+      submitted = { transactionId: request.txId };
     }
     const returnedTxId = String(submitted.transactionId ?? submitted).toLowerCase();
     if (returnedTxId !== request.txId) {
@@ -556,16 +592,23 @@ async function submitHdWalletRequestUnlocked({ config, requestId, rpc: providedR
     if (request.kind === "hdGenesis") {
       const address = spkToAddress(config, request.build.frozen.outputs[request.build.vaultOutputIndex].scriptPublicKey);
       let proof = null;
-      for (let i = 0; i < 30 && !proof; i++) {
+      for (let i = 0; i < pollAttempts && !proof; i++) {
         const ref = await findOutpoint(rpc, address, request.txId, request.build.vaultOutputIndex);
         if (ref && String(ref.covenantId ?? "").toLowerCase() === request.build.covenantId && String(ref.amount) === String(request.build.frozen.outputs[request.build.vaultOutputIndex].value)) proof = ref;
-        if (!proof) await new Promise((r) => setTimeout(r, 2000));
+        if (!proof && i + 1 < pollAttempts) await new Promise((r) => setTimeout(r, pollDelayMs));
       }
       if (!proof) {
+        /* RC35-REC-01: an unobserved output keeps an ESTABLISHED negative as it is; a false negative (or an unknown legacy answer) is
+         * PROTECTED — claim re-established, RECONCILIATION_REQUIRED; nothing is rebroadcast */
+        const disposition = await refreshUnobservedGenesis({ config, rpc, request, claim: { txId: request.txId, vaultId: request.vaultId, action: request.action }, save: (q) => saveHdWalletRequest(config, q) });
+        if (disposition.action === "KEEP_NEGATIVE") return { ...request, authorityModel: AUTHORITY_MODEL_HD, status: "CANDIDATE" };
+        if (disposition.action === "PROTECT") await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
         request.state = RequestState.RECONCILIATION_REQUIRED;
+        request.error = disposition.reason ?? `${request.txId} submitted but the vault output was not observed — reconcile (nothing is rebroadcast)`;
         await saveHdWalletRequest(config, request);
-        throw fail(`${request.txId} submitted but the vault output was not observed — reconcile`, "RECONCILIATION_REQUIRED");
+        throw fail(request.error, "RECONCILIATION_REQUIRED");
       }
+      if (fromNegative) await ensureOwnSubmissionClaim(config, { txId: request.txId, vaultId: request.vaultId, action: request.action }); // the false negative released it; a conflicted completion must leave it in place
       const state = normalizeStateV7(request.build.initialState);
       const stateId = computeStateIdV7Hd({ networkId: config.networkId, template: request.build.template, state });
       const expected = {
@@ -577,15 +620,20 @@ async function submitHdWalletRequestUnlocked({ config, requestId, rpc: providedR
         live: { state: stateToJsonV7(state), stateId, outpoint: { transactionId: request.txId, index: request.build.vaultOutputIndex }, outpointValue: state.feeReserve.toString(), scriptSha256: request.build.scriptSha256, covenantId: request.build.covenantId, tokenPosition: null },
         creationTxId: request.txId, latestTransitionTxId: null, generation: 0
       };
-      const current = await loadManifestV7Hd(config, request.vaultId);
-      const completionIdentity = (v) => {
-        const { updatedAt, label, ...identity } = manifestToJsonV7Hd(v);
-        // Compare the representation actually persisted by both JSON and PG;
-        // descriptor normalization may include optional undefined properties.
-        return canonicalJsonStringify(JSON.parse(JSON.stringify(identity, (_key, value) => typeof value === "bigint" ? value.toString() : value)));
-      };
-      if (current && completionIdentity(current) !== completionIdentity(normalizeManifestV7Hd(expected))) throwFail("HD genesis recovery would overwrite a later, unrelated or contradictory vault", "RECONCILIATION_REQUIRED");
-      const manifest = current ?? await persistManifestV7Hd(config, expected);
+      /* RC33-ID-01: ATOMIC create-only completion (sdk/src/vault-identity.js) — the identity is arbitrated across EVERY
+       * generation by the store's create-only primitive; only this exact genesis outcome is accepted as already present. */
+      let manifest;
+      try {
+        ({ manifest } = await createManifestV7Hd(config, expected));
+      } catch (e) {
+        if (e.code !== "RECONCILIATION_REQUIRED") throw e;
+        /* RC33-ID-01: the identity holds a DIFFERENT record (any generation) — that record is never replaced; the proven chain
+         * effect stays on THIS request (signed bytes, txid, submission claim intact) as RECONCILIATION_REQUIRED */
+        request.state = RequestState.RECONCILIATION_REQUIRED;
+        request.error = `chain effect proven but the vault record could not be created: ${String(e.message).split("\n")[0]}`;
+        await saveHdWalletRequest(config, request);
+        throw fail(request.error, "RECONCILIATION_REQUIRED");
+      }
       const root = await loadOrgRoot(config, request.build.orgRootCovenantId);
       if (!root) throwFail("HD genesis root record is missing", "RECONCILIATION_REQUIRED");
       if (!root.vaults.includes(manifest.vaultId)) {

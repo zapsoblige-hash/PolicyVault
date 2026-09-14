@@ -90,8 +90,8 @@
     },
     GENERATION_NOT_MAINNET_AUTHORIZED: {
       title: "This feature is unavailable on mainnet in this release",
-      meaning: "This action uses a covenant generation that is not enabled for mainnet in this release. Changing the address or amounts will not enable it.",
-      next: ["For a supported single-owner vault, use Create Vault with Protocol v0.4.1."]
+      meaning: "This action uses a covenant generation that is not enabled for mainnet in this release, or its new creation has been switched off by the operator. Changing the address or amounts will not enable it. Existing vaults and organizations of an enabled generation stay manageable.",
+      next: ["For a supported single-owner vault, use Create Vault with Protocol v0.4.1.", "For a shared treasury, create an organizational root and a rooted KAS vault when this release lists them as mainnet-creatable in Capabilities."]
     },
     INSUFFICIENT_APPROVALS: {
       title: "Not enough approvals yet",
@@ -337,6 +337,75 @@
      * web/token-vault-ui.js / web/hd-vault-ui.js (fail-closed pre-checks
      * before a network round trip or before the wallet is ever invoked) as
      * well as by the server; both paths render identically here. */
+    /* v0.7 ROOTED KAS TREASURY (v0.7 mainnet enablement, 2026-09-10): the delegate-payment / approver-tier refusals the
+     * KAS profile raises (core/model/vault-transitions-v4 rules re-checked pre-sign by sdk/src/wallet-requests-v7-kas.js)
+     * and the browser's own signing-boundary refusals (web/kas-vault-ui.js). Each is a CLOSED reason; none has an override. */
+    OVER_CAP: {
+      title: "Above this delegate's cap per payment",
+      meaning: "The amount is larger than the cap the owners installed for this delegate. The covenant enforces the cap; PolicyVault refused before anything was signed.",
+      next: ["Pay a smaller amount, or ask the organization's owners to change the delegate rules (a root-governed operation)."]
+    },
+    OVER_BUDGET: {
+      title: "Above this delegate's remaining budget for the period",
+      meaning: "Adding this payment would exceed the delegate's budget for the current period. The budget resets when the period ends; nothing was signed.",
+      next: ["Wait for the period to roll over, pay a smaller amount, or ask the owners to change the rules."]
+    },
+    OVER_AGENT_FEE_CAP: {
+      title: "The network fee exceeds this delegate's fee cap",
+      meaning: "A treasury payment carries the treasury's covenant script, so its network fee is about 0.04 KAS; this delegate's installed fee cap is lower, so the payment cannot be built. Nothing was signed or sent.",
+      next: ["Ask the owners to change the delegate rules with a fee cap of at least 0.05 KAS (Change delegate rules on the treasury).", "Changing the amount or the recipient does not help — the fee depends on the transaction, not the amount."]
+    },
+    INSUFFICIENT_RESERVE: {
+      title: "The treasury's fee reserve cannot pay this payment's network fee",
+      meaning: "Delegate payments take their network fee from the treasury's fee reserve, and the reserve is too low for this payment. Nothing was signed or sent.",
+      next: ["Ask the owners to top up the fee reserve (a root-governed operation)."]
+    },
+    VAULT_PAUSED: {
+      title: "This treasury is paused",
+      meaning: "The owners paused the treasury: the covenant refuses every delegate payment until they unpause it. Nothing was signed or sent.",
+      next: ["Only the organization's owners can unpause it (Unpause treasury on the root)."]
+    },
+    AGENT_NOT_REGISTERED: {
+      title: "This wallet is not a delegate of this treasury",
+      meaning: "Only a wallet with an installed delegate rule can pay from a treasury. The connected wallet has none, so no payment can be built for it.",
+      next: ["Connect the delegate wallet, or ask the owners to install a rule for this wallet."]
+    },
+    NOT_AN_APPROVER: {
+      title: "This wallet is not one of the treasury's approvers",
+      meaning: "Approvals of an above-threshold payment are accepted only from the treasury's installed approver slots. The connected wallet is not one of them; nothing was recorded.",
+      next: ["Connect an approver wallet, or ask the owners to change the approvers."]
+    },
+    VAULT_ID_IN_USE: {
+      /* RC33-ID-01 (2026-09-11): global vault-record uniqueness — sdk/src/vault-identity.js */
+      title: "This vault identity is already in use",
+      meaning: "Every vault record is stored under one global identity shared by every covenant generation. The identity supplied for this creation already belongs to an existing vault record or to an existing creation request, so the creation was refused before any signature was accepted, before any claim was recorded and before anything was sent. Existing records are never replaced and identities are never recycled.",
+      next: ["Create the vault again with a fresh identity (the app generates one automatically).", "If a creation with this identity is still pending, open it and finish or withdraw it instead of creating a duplicate."]
+    },
+    VAULT_PENDING_REQUEST: {
+      title: "The treasury already has an unfinished request",
+      meaning: "A payment or an owner operation on this treasury is still in flight (unsigned, awaiting approvals, submitted, or awaiting reconciliation). Only one transition per treasury can be in flight at a time.",
+      next: ["Open the pending request and finish or withdraw it, or use Verify state on the root to settle an uncertain one."]
+    },
+    AGENT_SET_REQUIRED: {
+      title: "The complete delegate rule set is required",
+      meaning: "Changing delegate rules replaces the whole installed set; the request must carry every delegate's full rule (including its recipients), never a bare Merkle root. Nothing was built.",
+      next: ["Use Change delegate rules on the treasury, which sends the complete set."]
+    },
+    REVIEW_REFUSED: {
+      title: "This browser's own verification refused the transaction",
+      meaning: "PolicyVault re-verified the transaction locally (with the treasury's current script bound) and it did not match the rules being reviewed. The wallet was never invoked; nothing was signed.",
+      next: ["Do not sign this transaction anywhere else.", "Reload and rebuild it; if it refuses again, report the exact reason shown."]
+    },
+    PAYLOAD_MISMATCH: {
+      title: "The transaction handed to the wallet is not the one reviewed",
+      meaning: "The bytes the wallet was about to sign differ from the transaction this browser reviewed (or, for a treasury creation, the destination is not the script rebuilt from the reviewed rules). The wallet was never invoked.",
+      next: ["Do not sign.", "Reload and rebuild the request; if it refuses again, report the exact reason shown."]
+    },
+    NOT_THE_SIGNER: {
+      title: "The connected wallet is not this request's signer",
+      meaning: "This payment was built for a different delegate wallet. Only that wallet can sign it; nothing was signed.",
+      next: ["Connect the wallet the payment was built for, or withdraw the request and build a new one from your wallet."]
+    },
     UNKNOWN_COVENANT_VERSION: {
       title: "PolicyVault does not know this covenant version",
       meaning: "Every vault, request and manifest carries an exact covenant version. An unrecognised one is refused rather than guessed at or routed to a default — that is the fail-closed rule this entire product is built on.",
@@ -394,7 +463,12 @@
     "policyvault-0.7-kas", "policyvault-0.7-payment-hd"
   ].map((version) =>
     `mainnet: covenant generation "${version}" is NOT owner-authorized for mainnet creation/mutation — refusing (fail closed).`
-  );
+  ).concat([
+    "policyvault-0.4.1", "policyvault-0.7-root", "policyvault-0.7-kas"
+  ].map((version) =>
+    /* v0.7 enablement (2026-09-10): the operator kill switch for NEW mainnet creation (existing state stays operable) */
+    `mainnet: creation of covenant generation "${version}" is DISABLED by operator configuration (POLICYVAULT_MAINNET_CREATION_DISABLED) — refusing this new genesis (fail closed).`
+  ));
 
   /* The one honest answer for a code with no closed entry. */
   function explain(code, message) {

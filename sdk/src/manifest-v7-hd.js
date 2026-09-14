@@ -24,6 +24,7 @@
  */
 
 const { getStore, Categories } = require("./store");
+const { createVaultRecordOrMatch } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): atomic create-only genesis completion
 const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
 const { normalizeTemplateV7, normalizeStateV7, stateToJsonV7 } = require("../../core/model/vault-state-v7");
 const { computeStateIdV7Hd } = require("./contract-compiler-v7");
@@ -202,6 +203,18 @@ async function persistManifestV7Hd(config, manifest) {
   return normalized;
 }
 
+/*
+ * RC33-ID-01 (2026-09-11): the CREATE-ONLY sibling of the persist function above, for a PROVEN genesis — the SAME
+ * normalization and encoding, then sdk/src/vault-identity.js's atomic create-or-match write instead of an overwrite.
+ * Returns { manifest, outcome: "CREATED" | "ALREADY_PRESENT" }; throws RECONCILIATION_REQUIRED when the identity holds a
+ * DIFFERENT record of any generation (left untouched). Transitions keep advancing an existing record through persist.
+ */
+async function createManifestV7Hd(config, manifest) {
+  const normalized = normalizeManifestV7Hd({ ...manifest, updatedAt: new Date().toISOString() });
+  const { outcome } = await createVaultRecordOrMatch(config, normalized.vaultId, manifestToJsonV7Hd(normalized));
+  return { manifest: normalized, outcome };
+}
+
 async function listRootedHdVaultsV7(config, { orgRootCovenantId } = {}) {
   const all = await getStore(config).listValues(Categories.VAULT);
   const out = all
@@ -230,6 +243,7 @@ module.exports = {
   manifestToJsonV7Hd,
   loadManifestV7Hd,
   persistManifestV7Hd,
+  createManifestV7Hd,
   listRootedHdVaultsV7,
   normalizeForest,
   normalizeForestNode,

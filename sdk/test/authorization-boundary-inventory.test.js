@@ -91,7 +91,7 @@ function literalPositions() {
   }
   return out;
 }
-const ROUTE_LIST_SHA256 = "583a8563b6f71da28e2c1509070971e6d95e76dbe1cf395ba066711e55507e0f"; // re-pinned with the UX-05 reconcile route (GATE 2 reviewed boundary change; hostile evidence in hosted-build-authority.test.js)
+const ROUTE_LIST_SHA256 = "5752263a11909454c230b0ab58eb117538543eddfaf2d531893c41dd0acc803f"; // re-pinned with POST /wallet/v7/requests/:id/approvals (v0.7-kas vault-level approval tier, reviewed boundary change 2026-09-10); prior 583a8563… (UX-05 reconcile route) // re-pinned with the UX-05 reconcile route (GATE 2 reviewed boundary change; hostile evidence in hosted-build-authority.test.js)
 
 test("row granularity (a): every dispatcher path literal is inventoried at its own segment position", () => {
   const positions = new Set();

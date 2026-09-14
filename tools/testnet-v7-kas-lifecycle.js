@@ -114,6 +114,7 @@ const ROOT_DIR = path.join(__dirname, "..");
 const DATA_ROOT = process.env.PV_LIVE_DATA_ROOT || (DRY ? fs.mkdtempSync("/tmp/pv7kas-dry-") : "/tmp/pv7kas-live-data");
 const EVIDENCE_PATH = path.join(ROOT_DIR, "docs", "testnet-v7-kas-evidence.json");
 const LOCK_PATH = path.join(require("os").homedir(), ".policyvault-testnet-live.lock");
+const LOCK_DISPLAY = "~/.policyvault-testnet-live.lock";
 
 /* ---- SMALL live parameters (gate I5) ---- */
 const ROOT_KAS = 2n * KAS;
@@ -196,7 +197,7 @@ async function acquireLock() {
     try {
       fs.mkdirSync(LOCK_PATH);
       lockHeld = true;
-      record("lock:ACQUIRED", { path: LOCK_PATH });
+      record("lock:ACQUIRED", { path: LOCK_DISPLAY }); // display form: the evidence record never carries an absolute home path (publication privacy)
       return;
     } catch (e) {
       if (e.code !== "EEXIST") throw e;
@@ -209,7 +210,7 @@ function releaseLock() {
   if (!lockHeld) return;
   try {
     fs.rmdirSync(LOCK_PATH);
-    record("lock:RELEASED", { path: LOCK_PATH });
+    record("lock:RELEASED", { path: LOCK_DISPLAY });
   } catch (e) {
     console.error(`[lock] failed to release ${LOCK_PATH}: ${e.message}`);
   } finally {
@@ -430,7 +431,7 @@ async function main() {
       const fin = finalizeV7KasTransaction({ build, approvals: approvalsFor(build.frozen, 1, quorumIdxs, liveOwnerKeys), fuelSignatureScriptHex: signInputOf(build.frozen, 2, PK(fuelKey)) });
       record(`${stepLabel}:AUTHORIZED`, { status: "AUTHORIZED", txId: build.txId, action, opSelector: build.callExtra.opSelector, rootAction: build.rootAuthority.rootAction, requiredApprovals: build.rootAuthority.requiredApprovals, feeSompi: build.requiredFeeSompi });
       const manifest = buildOrgRootIntentManifestV7Kas({ build, vaultOperations: [{ build }], satisfiedApprovals: quorumIdxs.length });
-      const verdict = verifyOrgRootIntentManifestV7Kas({ manifest });
+      const verdict = verifyOrgRootIntentManifestV7Kas({ manifest, redeemScripts: { [build.covenantId]: build.vaultRedeemScriptHex } }); // R7-04: the predecessor redeem is bound pre-sign
       if (verdict.verdict !== "VERIFIED") throw new Error(`${stepLabel}: the org-root-kas manifest failed to verify: ${JSON.stringify(verdict.failures)}`);
       record(`${stepLabel}:SIGNED`, { status: "SIGNED", txId: build.txId, ownerSighash: "ALL", manifestVerdict: verdict.verdict });
       await submitAndProve(stepLabel, fin.finalTransaction, {
@@ -515,7 +516,10 @@ async function main() {
     /* =============================================================== 7. AUTHORITY EXPANSION: setAgentRoot */
     const freshAgent = agentPolicy({ periodSpent: "0" });
     const freshAgentRoot = buildAgentTreeV4([freshAgent]).root;
-    await ownerOp("07-owner-set-agent-root", "ownerSetAgentRoot", { newAgentRoot: freshAgentRoot }, [0, 1]);
+    /* STALE ASSUMPTION corrected (v0.7 enablement, 2026-09-10): since the rc26 R7-02 parity hardening the builder DERIVES the
+     * agent root from the FULL new policy set (with each delegate's recipients) and refuses a bare root — the tool passes
+     * the set; the derived root must still equal the locally computed one. */
+    await ownerOp("07-owner-set-agent-root", "ownerSetAgentRoot", { agents: [{ ...freshAgent, recipients: [...rTree.recipients] }], newAgentRoot: freshAgentRoot }, [0, 1]);
     agents = [freshAgent];
 
     /* =============================================================== 8. AUTHORITY REDUCTION: EMERGENCY pause */

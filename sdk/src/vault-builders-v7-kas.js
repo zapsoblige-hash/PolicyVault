@@ -646,6 +646,11 @@ function finishBuildV7Kas({ config, abi, action, role, encoderFunction, template
     successorState: plan.terminal ? null : stateToJsonV4(plan.successor),
     successorStateId: plan.terminal ? null : compileExactStateV7Kas({ config, template, state: plan.successor, contractVersion: abi.version }).stateId,
     successorScriptSha256: plan.terminal ? null : plan.next.scriptSha256,
+    /* R7-04 closure (parity with vault-builders-v7.js): the PREDECESSOR redeem script + its state region travel with the
+     * build so every verifier (SDK request layer, browser boundary, attestations) rebuilds and binds the predecessor AND
+     * successor scripts — never skipped, never re-derived from server declarations. */
+    vaultRedeemScriptHex: current.scriptHex,
+    vaultStateRegionHex: current.stateRegionHex,
     rootAuthority: rootSide
       ? Object.freeze({
           covenantId: rootSide.covenantId,

@@ -1927,6 +1927,11 @@
             var explainArgs = { manifest: args.manifest, descriptors: args.descriptors, redeemScripts: args.redeemScripts };
             structured = core.orgRootExplain.structured(explainArgs);
             lines = core.orgRootExplain.humanReadable(explainArgs).slice();
+          } else if (core.orgRootManifestV7Kas && manifestVersion === core.orgRootManifestV7Kas.ORG_ROOT_KAS_MANIFEST_VERSION_1 && core.orgRootKasExplain) {
+            /* v0.7 enablement (2026-09-10): the rooted KAS treasury family renders through its own explain layer */
+            var kasArgs = { manifest: args.manifest, redeemScripts: args.redeemScripts };
+            structured = core.orgRootKasExplain.structured(kasArgs);
+            lines = core.orgRootKasExplain.humanReadable(kasArgs).slice();
           }
         } catch (explainError) {
           structured = null;
