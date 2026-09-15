@@ -2608,6 +2608,10 @@
       const addBtn = f.querySelector("#v4-add-agent");
       if (addBtn) addBtn.onclick = () => { readVaultOpDraft(f, op, draft, rootUI, vault); draft.agents.push(rootUI.vaultOpDraftFrom({ op, vault: { agents: [], contractVersion: vault.contractVersion }, currentDaa }).agents[0]); errors.delete("agentRows"); paint(); };
       f.querySelectorAll("[data-remove-agent]").forEach((b) => (b.onclick = () => { readVaultOpDraft(f, op, draft, rootUI, vault); draft.agents.splice(Number(b.getAttribute("data-remove-agent")), 1); errors.delete("agentRows"); paint(); }));
+      if (isKas && info.form === "kasAgents") wireKasAgentControls(f, draft, {
+        read: () => readVaultOpDraft(f, op, draft, rootUI, vault), paint,
+        clearErrors: () => { errors.delete("agents"); errors.delete("agentRows"); }, isBusy: () => busy
+      });
       /* v0.7 enablement: KAS approver rows (setup-ui address rows) inside the Change approvers form */
       const addApprover = f.querySelector("#v4-add-approver");
       if (addApprover) addApprover.onclick = (e) => { e.preventDefault(); readVaultOpDraft(f, op, draft, rootUI, vault); if (draft.approvers.length < 10) draft.approvers.push({ address: "", label: "", publicKey: "" }); if (draft.approvalM === "0") draft.approvalM = "1"; errors.delete("approvers"); errors.delete("approverRows"); paint(); };
@@ -2896,6 +2900,10 @@
       if (first && typeof first.focus === "function") { try { first.focus(); } catch { /* nicety */ } }
       const reopen = $("v4-kas-reopen");
       if (reopen) reopen.onclick = () => openKasBuildReview();
+      wireKasAgentControls(f, w.draft, {
+        read: () => read(f), paint,
+        clearErrors: () => { w.errors.delete("agents"); w.errors.delete("agentRows"); }, isBusy: () => w.busy || !current()
+      });
       f.addEventListener("input", () => { if (w.built) { withdrawBuilt(); const b = m.querySelector("[data-built-pending]"); if (b) b.remove(); } });
       f.addEventListener("click", async (e) => {
         const t = e.target && e.target.closest ? e.target.closest("button") : null;
@@ -3016,9 +3024,49 @@
     d.agents = rows.map((row) => {
       const i = row.getAttribute("data-agent-row");
       const g = (k, fb) => { const el = row.querySelector(`[name="agent-${i}-${k}"]`); return el ? el.value : fb; };
-      return { existing: g("existing", "0") === "1", agentKey: g("agentKey", ""), maxPerSpendKas: g("maxPerSpendKas", ""), periodBudgetKas: g("periodBudgetKas", ""), periodLengthDaa: g("periodLengthDaa", ""), periodStartDaa: g("periodStartDaa", "0"), periodSpent: g("periodSpent", "0"), approvalThresholdKas: g("approvalThresholdKas", ""), agentMaxFeePerTxKas: g("agentMaxFeePerTxKas", ""), recipients: g("recipients", "") };
+      const old = (d.agents || [])[Number(i)] || {};
+      const period = { ...(old.period || {}), preset: g("period", ""), customValue: g("periodValue", ""), customUnit: g("periodUnit", "day") };
+      if (period.existingDaa === undefined && old.periodLengthDaa) period.existingDaa = old.periodLengthDaa;
+      const recipients = [...row.querySelectorAll(`[data-rows="agent-${i}-recipient"] .addr-row`)].map((r) => ({ address: r.querySelector(`[name="agent-${i}-recipient"]`)?.value ?? "" }));
+      return { existing: g("existing", "0") === "1", agentKey: g("agentKey", ""), maxPerSpendKas: g("maxPerSpendKas", ""), periodBudgetKas: g("periodBudgetKas", ""), periodLengthDaa: old.periodLengthDaa || "", period, periodStartDaa: g("periodStartDaa", "0"), periodSpent: g("periodSpent", "0"), approvalThresholdKas: g("approvalThresholdKas", ""), agentMaxFeePerTxKas: g("agentMaxFeePerTxKas", ""), recipients };
     });
     return d;
+  }
+  /* Both treasury setup and Change delegate rules use the same scoped rows.
+   * Capture the complete form before repainting so another delegate's edits,
+   * custom entry and carried existing period never depend on row numbering. */
+  function wireKasAgentControls(f, draft, { read, paint, clearErrors, isBusy }) {
+    const su = setupUi();
+    const live = () => {
+      read();
+      f.querySelectorAll("[data-agent-row]").forEach((row) => {
+        const i = row.getAttribute("data-agent-row"), name = `agent-${i}-period`;
+        const period = draft.agents[Number(i)]?.period;
+        const custom = row.querySelector(`[data-duration-custom="${name}"]`);
+        if (custom) custom.hidden = period?.preset !== "custom";
+        const effect = row.querySelector(`[data-duration-effect="${name}"]`);
+        if (effect) effect.textContent = su.durationEffectText(su.BUDGET_SETTING, period, { allowExactDaa: true });
+        const exact = row.querySelector(`[data-duration-exact="${name}"]`);
+        if (exact) exact.textContent = su.durationExactText(su.BUDGET_SETTING, period, { allowExactDaa: true });
+      });
+    };
+    f.addEventListener("input", live);
+    f.addEventListener("change", live);
+    f.addEventListener("click", (e) => {
+      const button = e.target.closest && e.target.closest("button");
+      const agent = button && button.closest("[data-agent-row]");
+      if (!agent) return;
+      const i = Number(agent.getAttribute("data-agent-row")), kind = `agent-${i}-recipient`;
+      const add = button.id === `v4-add-${kind}`, remove = button.classList.contains(`rm-${kind}`);
+      if (!add && !remove) return;
+      e.preventDefault();
+      if (isBusy()) return;
+      read();
+      const recipients = draft.agents[i].recipients;
+      if (add) recipients.push({ address: "" });
+      else if (recipients.length > 1) recipients.splice(Number(button.closest(".addr-row").getAttribute("data-row")), 1);
+      clearErrors(); paint();
+    });
   }
   function readApproverRows(f, d) {
     const rowsEl = f.querySelector('[data-rows="approver"]');
@@ -3351,8 +3399,9 @@
     const donation = data && data.support && data.support.donation;
     root.innerHTML =
       `<div class="panel"><h3 style="margin-top:0">Support PolicyVault</h3>` +
-      `<p>PolicyVault is <b>free to use</b> — no subscriptions, no fees, no paid features. ` +
-      `Voluntary donations help support continued development and hosting.</p>` +
+      `<p>PolicyVault’s software and self-hosting are free under Apache 2.0. ` +
+      `Official hosted access is currently free. Voluntary KAS donations support continued development and hosting. ` +
+      `Kaspa network transaction fees still apply.</p>` +
       (donation
         ? `<div class="k" style="text-transform:uppercase;font-size:0.72rem;color:var(--muted)">Kaspa donation address (mainnet)</div>` +
           `<div class="donate-box"><span class="mono addr" id="v4-donate-addr">${esc(donation.address)}</span>` +

@@ -31,9 +31,10 @@ first time someone outside the project reads it.
 
 ## Policy this documentation follows (do not restate elsewhere; link here)
 
-- **Free forever, including commercial use.** No subscriptions, fees,
-  paid tiers, or artificial caps; security is never a monetization
-  boundary. Voluntary KAS donations only:
+- **Free software and self-hosting — Apache 2.0, including commercial use.**
+  Official hosted access is currently free. Kaspa network transaction fees
+  still apply; security is never a monetization boundary. Voluntary KAS
+  donations support continued development and hosting:
   `kaspa:qyppakv5y7kmeynffldl9zshwgkjrl3fy9jjj8wf24v7f64v0gnuragz7ehdqhn`.
   See `docs/product-policy.md`.
 - This documentation set claims nothing about certification or

@@ -17,15 +17,15 @@ The authority model, stated once and everywhere enforced:
 
 | Surface | Status |
 |---|---|
-| **Web / Agent platform** | Existing service at https://app.policy-vault.org; served health identifies the active build. The fullscale-rc40 replacement candidate (`79dec5f`) is pending independent acceptance, activation and publication. |
-| Current production source | Public v1.9.3 remains the published baseline. This tree is proposed v1.10.6, image `sha256:3919653b7316228d29c0196d329c3ee3550d07dad7ac9015ada6b98f1cc85a7c`; deployment is not implied by this candidate. |
-| Organizational M-of-N owner root (covenant v0.7) | Included in the replacement candidate. Mainnet activation follows independent review and the contained observation/reconciliation procedure. |
-| Rooted-vault owner operations in the browser (R7-05) + reservation/withdrawal guidance (F-6) | Included in the candidate; exact deployment state comes from served discovery and health. |
+| **Web / Agent platform** | Existing service at https://app.policy-vault.org; served health identifies the active build. Proposed fullscale-rc42 UI candidate `a84e2a9` is pending activation and publication. |
+| Current production source | Public v1.10.6 is the published predecessor. This tree is proposed v1.10.8, image `sha256:f108d5384b3a95b55f52d5e1e706fa565f8a9955e79f5389d28a672bfb0517f2`; candidate preparation does not imply deployment. |
+| Organizational M-of-N owner root (covenant v0.7) | The existing RC40 mainnet generation policy is retained. This UI-only candidate does not change creation authority or covenant bytes. |
+| Rooted-vault owner operations in the browser (R7-05) + reservation/withdrawal guidance (F-6) | Retained; KAS treasury delegate forms use shared recipient and period controls. Existing approval and signing-threshold behavior is preserved. Served discovery and health identify the deployed version. |
 | Hosted tenancy for every route family + generation gate (rc11 remediation) | **LIVE** — closes the rc8 findings (unauthenticated hosted builds, prototype-derived version selection, unsafe mainnet creation of the non-standard v0.4 generation) |
 | Post-launch live-stack review corrections (rc29: webhook target policy + DNS transport, SDK transport recovery key, legacy same-effect completion ownership, image/package LICENSE + NOTICE, privacy-safe runtime artifacts, recovery guidance) | **IN THIS SOURCE and in the `fullscale-rc29` image** — every finding of the independent read-only review of the running rc28 stack corrected RED-first with a permanent regression; the hosted deployment carries them once the served buildId reads `f217011`; installed SDK / mobile clients must upgrade for the transport correction |
 | Second post-launch review corrections (rc30: webhook response-socket lifetime bound; upstream Silverscript ISC notice beside the compiler and the reference program) | **IN THIS SOURCE and in the `fullscale-rc30` image** — both findings of the independent read-only launch review of the running rc29 stack corrected RED-first with a permanent real-socket regression; the hosted deployment carries them once the served buildId reads `9dbc5f7`; no SDK / mobile client byte changed |
 | Organization UI availability correction (rc31: organizational-root creation offered only where capability discovery advertises it; generation refusals say that address/amount changes cannot enable an unsupported mainnet generation; build errors scoped to the wizard) | **IN THIS SOURCE and in the `fullscale-rc31` image** — the owner-observed RC30 finding, corrected RED-first with a 13-case DOM regression that drives the real page and scripts (synthetic wallet, intercepted HTTP); browser presentation only — the server / SDK generation gates are unchanged and remain the authority; no SDK / mobile client byte changed |
-| MCP package (`policyvault-mcp` on npm) | Proposed `policyvault-mcp@1.6.2`; tarball SHA-256 `128403f81d4af7b73ae86a31a750d39ec21c28f518d214f4e678807c3dff0c14`. The registry identifies the delivered version. No genesis, signature or submission tool is exposed. |
+| MCP package (`policyvault-mcp` on npm) | Unchanged `policyvault-mcp@1.6.2`, SHA256 `128403f81d4af7b73ae86a31a750d39ec21c28f518d214f4e678807c3dff0c14`. No genesis, signature or submission tool is exposed. |
 | Flagship wave 1 (v1.6.0 / v1.7.0) and wave 2 (v1.8.0) source | **INCLUDED and LIVE where applicable** (see their CHANGELOG entries; v0.6 stays FIXTURE VENUE ONLY / no mainnet swap; x402 facilitator PRODUCTION-READY, NOT deployed; MCP usage telemetry OFF) |
 | Covenant protocol v0.6 (atomic composability) | **COVENANT-BYTE-FROZEN** (2026-09-03): VM-verified on the real engine with production bytes and testnet-verified (live testnet-10 SELL + BUY). **FIXTURE VENUE ONLY** — no real DEX venue, no mainnet swap, no server/web/mobile/MCP surface, `deadlineDaa` is a pre-sign boundary and not a consensus expiry, and swaps are not economically viable below roughly 10 KAS. **PolicyVault is not a DEX and will not become one.** See `docs/postlaunch/v0.6-covenant-byte-freeze.md` |
 | v0.5 token-controller covenant (byte-frozen) + least-privilege discovery / console correctives + MCP 1.4.2 (v1.5.0) | **LIVE** — production runtime successor `fullscale-rc8` (buildId `1c02162`) deployed and automated-accepted on 2026-09-02: principal-scoped capability discovery, no dev-signer probe on production, zero privileged reads while signed out, opt-in wallet diagnostics; `policyvault-mcp@1.4.2` advertises only the tools a credential's scopes cover (server-side enforcement unchanged). The v0.5 TOKEN CONTROLLER covenant (`contracts/PolicyVault.v0.5.sil`, sha256 `c693aeff…`) ships as SOURCE — COVENANT-BYTE-FROZEN, VM-verified with production bytes and testnet-verified with one live lifecycle; NOT production (no v0.5 surface, no mainnet v0.5 vault). Illustrated onboarding walkthrough (presentation only). See CHANGELOG |
@@ -91,9 +91,16 @@ The authority model, stated once and everywhere enforced:
   AP2 payment-protocol adapters — all thin consumers of one deterministic
   core; none holds independent financial authority.
 
-None of this hosted machinery can move funds: every funds-moving signature is
-made by the owner's or agent's own wallet over frozen bytes, and Kaspa
-consensus checks the covenant regardless of what any server says.
+PolicyVault's API and shipped MCP tools provide scoped reads, supported
+simulations and unsigned requests. The MCP tools hold no signing keys and
+expose no signing or submission operation. PolicyVault's verification tools
+let an external signer check the exact operation before signing. The broader
+API supports attaching externally produced signatures and separately
+authorized submission; the browser also uses an external wallet. An authorized
+delegate, including an agent using an external wallet or signer, operates
+within covenant limits, permitted recipients, budgets and required approvals.
+Requesting, signing, submitting and verified on-chain acceptance are distinct
+stages. Kaspa consensus enforces the covenant.
 
 ## Repository map
 
@@ -131,9 +138,10 @@ The VM workspace expects sibling checkouts of the public `silverscript` and
 
 ## Product policy (permanent)
 
-Free forever, including commercial use — no subscriptions, no transaction
-fees, no paid security, no usage caps. No patents on the protocol or its
-mechanisms. Apache-2.0. Voluntary support only — KAS donations:
+Free software and self-hosting — Apache 2.0, including commercial use.
+Official hosted access is currently free. Kaspa network transaction fees still apply.
+No patents on the protocol or its mechanisms. Voluntary KAS donations support
+continued development and hosting:
 `kaspa:qyppakv5y7kmeynffldl9zshwgkjrl3fy9jjj8wf24v7f64v0gnuragz7ehdqhn`
 (public receiving address; nothing in this software ever asks for or handles
 donation-wallet keys). Details: `docs/product-policy.md`.

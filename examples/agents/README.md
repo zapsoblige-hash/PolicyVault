@@ -72,5 +72,11 @@ third-party model APIs).
   governance/risk/build pipeline and persists nothing.
 - Amounts are integer-sompi decimal strings (1 KAS = 100,000,000
   sompi). The MCP server refuses floats before any network traffic.
-- Scope the credential minimally and rotate it in the PolicyVault app;
-  the agent never needs — and can never use — a signing key.
+- Scope the credential minimally and rotate it in the PolicyVault app.
+  These MCP examples do not hold signing keys or expose signing or submission
+  tools. Elsewhere, an authorized delegate, including an agent using an
+  external wallet or signer, can sign within its covenant authority.
+  The broader API supports attaching externally produced signatures and
+  separately authorized submission. Requesting, signing, submitting and
+  verified on-chain acceptance are distinct stages; covenant limits and
+  required approvals still apply.

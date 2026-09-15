@@ -283,3 +283,6 @@ Source checks recorded for this candidate: Focused RC40 source checks 94/94; new
 
 Delayed lastUsedAt persistence patches only matching currently ACTIVE machine credentials. It does not rewrite credential status or other authorization fields, and does not recreate deleted credentials. JSON correctness remains scoped to one service writer; PostgreSQL uses a conditional atomic field update. Telemetry failure cannot grant authority. The focused source/public evidence is distinct from the retained RC38 full-suite baseline.
 
+## fullscale-rc42 UI candidate
+
+Shared KAS treasury form controls and approved funding/signing copy change presentation and validation only. Backend admission, financial authority, frozen contracts and existing protected recovery history are unchanged. Source checks: 245/245 focused source checks pass, zero failures/skips. Exact-image, public-byte and live verification remain separately bound release evidence.

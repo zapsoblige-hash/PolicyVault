@@ -170,7 +170,7 @@ async function startKasBuild(h, honest = false) {
  f.querySelector('[name="recoveryAddress"]').value='kaspa:qfixturerecovery';
  if(honest) {
   const values={depositKas:'100',feeReserveKas:'5',recoveryAddress:F.genesis.summary.recoveryPk,
-   'agent-0-agentKey':'62'.repeat(32),'agent-0-maxPerSpendKas':'5','agent-0-periodBudgetKas':'20','agent-0-periodLengthDaa':'1000','agent-0-periodStartDaa':'5000','agent-0-approvalThresholdKas':'2','agent-0-agentMaxFeePerTxKas':'0.1','agent-0-recipients':'63'.repeat(32)};
+   'agent-0-agentKey':'62'.repeat(32),'agent-0-maxPerSpendKas':'5','agent-0-periodBudgetKas':'20','agent-0-period':'custom','agent-0-periodValue':'1000','agent-0-periodUnit':'daa','agent-0-periodStartDaa':'5000','agent-0-approvalThresholdKas':'2','agent-0-agentMaxFeePerTxKas':'0.1','agent-0-recipient':'63'.repeat(32)};
   for(const [name,value] of Object.entries(values)){const input=f.querySelector(`[name="${name}"]`);assert.ok(input,name);input.value=value;}
   f.querySelector('[data-rows="approver"]').innerHTML=['91','92'].map(k=>`<div class="addr-row"><input name="approverKey" value="${k.repeat(32)}"></div>`).join('');
   const count=f.querySelector('[name="approvalM"]');count.innerHTML='<option value="1">1</option>';count.value='1';

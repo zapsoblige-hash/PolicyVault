@@ -241,7 +241,7 @@ test("the walkthrough covers the six required steps in order and the last step s
   assert.deepEqual(verdicts, ["ACCEPTED", "REFUSED", "REFUSED", "NEEDS APPROVAL"]);
   const examples = e.card().textContent;
   assert.ok(examples.includes("even a correctly signed 8 KAS transaction would be rejected by Kaspa consensus"));
-  assert.ok(examples.includes("free to use, including commercial use"));
+  assert.ok(examples.includes("PolicyVault’s software and self-hosting are free under Apache 2.0. Official hosted access is currently free."));
   assert.ok(examples.includes("PolicyVault itself never signs"));
 });
 

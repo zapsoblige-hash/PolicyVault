@@ -119,6 +119,19 @@
     function vaultOpConfirmationMatches(op, typed) { const p = vaultOpConfirmPhrase(op); return !!p && String(typed || "").trim() === p; }
 
     /* ---- delegate rule rows (v0.4.1 policy fields, KAS amounts) ---- */
+    function agentPeriodSelection(r) {
+      if (r && r.period) return { ...r.period };
+      const exact = r && r.periodLengthDaa;
+      return exact !== undefined && exact !== null && String(exact) !== ""
+        ? { preset: "existing", existingDaa: String(exact), customValue: "", customUnit: "daa" }
+        : { preset: requireSetup("agentPeriodSelection").BUDGET_SETTING.defaultPreset, customValue: "", customUnit: "day" };
+    }
+    function recipientRowsFrom(value) {
+      // Preserve array order and blank entered rows. Accept historical string
+      // drafts as well, without splitting a newly entered row into several.
+      const rows = Array.isArray(value) ? value : String(value || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+      return rows.length ? rows.map((r) => ({ address: typeof r === "string" ? r : String(r && r.address || "") })) : [{ address: "" }];
+    }
     function agentRowFrom(a, currentDaa) {
       const existing = !!(a && a.agentPk);
       return {
@@ -127,11 +140,12 @@
         maxPerSpendKas: existing && a.maxPerSpend !== undefined ? sompiToKas(a.maxPerSpend) : "",
         periodBudgetKas: existing && a.periodBudget !== undefined ? sompiToKas(a.periodBudget) : "",
         periodLengthDaa: existing ? String(a.periodLengthDaa ?? "") : "",
+        period: agentPeriodSelection(existing ? a : null),
         periodStartDaa: existing ? String(a.periodStartDaa ?? "0") : (currentDaa !== null && currentDaa !== undefined ? String(currentDaa) : "0"),
         periodSpent: existing ? String(a.periodSpent ?? "0") : "0",
         approvalThresholdKas: existing && a.approvalThreshold !== undefined ? sompiToKas(a.approvalThreshold) : "",
         agentMaxFeePerTxKas: existing && a.agentMaxFeePerTx !== undefined ? sompiToKas(a.agentMaxFeePerTx) : "",
-        recipients: existing && Array.isArray(a.recipients) ? a.recipients.map((r) => String(r)).join("\n") : ""
+        recipients: recipientRowsFrom(existing ? a.recipients : null)
       };
     }
     async function validateAgentRows(rows) {
@@ -146,11 +160,17 @@
         try { agentPk = await resolveXOnlyKey(r.agentKey, "Delegate wallet", "AGENT_SET_INVALID"); } catch (e) { errs.agentKey = e.message; }
         if (agentPk && seen.has(agentPk)) errs.agentKey = "This delegate is already listed — one rule per delegate key.";
         if (agentPk) seen.add(agentPk);
-        const recipientsRaw = String(r.recipients || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+        const recipientsRaw = recipientRowsFrom(r.recipients);
         const recipients = [];
-        if (!recipientsRaw.length) errs.recipients = "At least one allowed recipient is required — a delegate with no recipient can pay no one.";
-        for (const rec of recipientsRaw) { try { recipients.push(await resolveXOnlyKey(rec, "Recipient", "AGENT_SET_INVALID")); } catch (e) { errs.recipients = e.message; break; } }
-        if (!errs.recipients && new Set(recipients).size !== recipients.length) errs.recipients = "A recipient is listed twice.";
+        const recipientErrors = {}, seenRecipients = new Map();
+        for (let j = 0; j < recipientsRaw.length; j++) {
+          try {
+            const key = await resolveXOnlyKey(recipientsRaw[j].address, "Recipient", "AGENT_SET_INVALID");
+            if (seenRecipients.has(key)) recipientErrors[j] = `Same as recipient ${seenRecipients.get(key) + 1}.`;
+            else { seenRecipients.set(key, j); recipients.push(key); }
+          } catch (e) { recipientErrors[j] = e.message; }
+        }
+        if (Object.keys(recipientErrors).length) { errs.recipients = "Fix the highlighted recipient rows."; errs.recipientRows = recipientErrors; }
         let agentRecipientRoot = null;
         if (!errs.recipients) { try { agentRecipientRoot = core.recipientMerkle.buildRecipientTree(recipients).root; } catch (e) { errs.recipients = e.message; } }
         const kas = (v, name, positive) => { try { const s = kasToSompi(v, name); if (positive && BigInt(s) <= 0n) return { err: `${name} must be greater than 0 KAS.` }; return { sompi: BigInt(s).toString() }; } catch (e) { return { err: `${name}: ${e.message}` }; } };
@@ -159,7 +179,13 @@
         const threshold = kas(r.approvalThresholdKas, "Approval threshold", false); if (threshold.err) errs.approvalThresholdKas = threshold.err;
         const feeCap = kas(r.agentMaxFeePerTxKas, "Network-fee cap per payment", false); if (feeCap.err) errs.agentMaxFeePerTxKas = feeCap.err;
         else if (BigInt(feeCap.sompi) < MIN_AGENT_FEE_CAP_SOMPI) errs.agentMaxFeePerTxKas = `A treasury payment costs about ${TYPICAL_PAYMENT_FEE_KAS} KAS in network fees (it carries the treasury's covenant script); a cap below 0.05 KAS would make every payment by this delegate impossible.`;
-        const plen = String(r.periodLengthDaa ?? "").trim(); if (!DIGITS.test(plen) || BigInt(plen) <= 0n) errs.periodLengthDaa = "Budget period must be a whole number of DAA score greater than 0.";
+        let plen = String(r.periodLengthDaa ?? "").trim();
+        if (r.period) {
+          // KAS delegates use the same v0.4.1 agent leaf and its exact bounds.
+          const SUI = requireSetup("validateAgentRows");
+          try { plen = SUI.readDurationSelection(SUI.BUDGET_SETTING, r.period, { allowExactDaa: true }).daa; }
+          catch (e) { errs.periodLengthDaa = e.message.replace(/^duration-daa: /, ""); }
+        } else if (!DIGITS.test(plen) || BigInt(plen) <= 0n) errs.periodLengthDaa = "Budget period must be a whole number of DAA score greater than 0.";
         const pstart = String(r.periodStartDaa ?? "0").trim(); if (!DIGITS.test(pstart)) errs.periodStartDaa = "Period start must be a whole DAA score.";
         const pspent = String(r.periodSpent ?? "0").trim(); if (!DIGITS.test(pspent)) errs.periodSpent = "Spent this period must be a whole number of sompi.";
         if (!errs.maxPerSpendKas && !errs.periodBudgetKas && BigInt(cap.sompi) > BigInt(budget.sompi)) errs.maxPerSpendKas = "Cap per payment cannot exceed the budget per period.";
@@ -254,15 +280,17 @@
         const re = rowErrors[i] || {};
         const nm = (k) => `agent-${i}-${k}`;
         return (
-          `<fieldset class="agent-row" data-agent-row="${i}" style="border:1px solid var(--border, #ccc);border-radius:6px;padding:0.6rem;margin:0.5rem 0">` +
+          `<fieldset class="agent-row" data-agent-row="${i}" style="min-width:0;border:1px solid var(--border, #ccc);border-radius:6px;padding:0.6rem;margin:0.5rem 0">` +
           `<legend>Delegate ${i + 1}${r.existing ? " (currently installed)" : " (new)"}</legend>` +
           F({ name: nm("agentKey"), label: "Delegate wallet (address or 64-hex public key)", control: SUI.textInput({ name: nm("agentKey"), value: r.agentKey, mono: true, placeholder: "kaspa… or 64-hex key" }), error: re.agentKey, help: "The wallet (or AI agent key) allowed to pay from this treasury under the rule below." }) +
           F({ name: nm("maxPerSpendKas"), label: "Cap per payment (KAS)", control: SUI.kasInput({ name: nm("maxPerSpendKas"), value: r.maxPerSpendKas, placeholder: "10" }), error: re.maxPerSpendKas }) +
           F({ name: nm("periodBudgetKas"), label: "Budget per period (KAS)", control: SUI.kasInput({ name: nm("periodBudgetKas"), value: r.periodBudgetKas, placeholder: "100" }), error: re.periodBudgetKas }) +
-          F({ name: nm("periodLengthDaa"), label: "Budget period (exact DAA score)", control: SUI.textInput({ name: nm("periodLengthDaa"), value: r.periodLengthDaa, inputmode: "numeric", mono: true, placeholder: "864000" }), help: "About 1 DAA score per second on Kaspa mainnet (864000 ≈ 10 days). The budget resets when a period ends.", error: re.periodLengthDaa }) +
+          F({ name: nm("period"), label: "Budget period", control: SUI.renderDurationControl({ name: nm("period"), setting: SUI.BUDGET_SETTING, selection: agentPeriodSelection(r), allowExactDaa: true }), help: `${SUI.COPY.BUDGET_WINDOW} Choose Custom and DAA score to enter an exact period.`, error: re.periodLengthDaa }) +
           F({ name: nm("approvalThresholdKas"), label: "Approval threshold (KAS)", control: SUI.kasInput({ name: nm("approvalThresholdKas"), value: r.approvalThresholdKas, placeholder: "5" }), help: "Payments ABOVE this amount need M of the treasury's approvers to co-sign. 0 means every payment needs approvals; a threshold at or above the cap means none do.", error: re.approvalThresholdKas }) +
           F({ name: nm("agentMaxFeePerTxKas"), label: "Network-fee cap per payment (KAS)", control: SUI.kasInput({ name: nm("agentMaxFeePerTxKas"), value: r.agentMaxFeePerTxKas, placeholder: "0.1" }), help: `The most this delegate may take from the fee reserve for one payment's network fee. A treasury payment costs about ${TYPICAL_PAYMENT_FEE_KAS} KAS (it carries the treasury's covenant script) — the cap must be at least 0.05 KAS.`, error: re.agentMaxFeePerTxKas }) +
-          `<div class="f f-wide${re.recipients ? " f-invalid" : ""}" data-field="${esc(nm("recipients"))}"><label class="f-label" for="f-${esc(nm("recipients"))}">Allowed recipients (one per line: address or 64-hex key)</label><textarea id="f-${esc(nm("recipients"))}" name="${esc(nm("recipients"))}" rows="3" class="mono">${esc(r.recipients)}</textarea><div class="f-help">The delegate may pay ONLY these destinations — enforced by the covenant.</div>${re.recipients ? `<div class="ferr" style="display:block">${esc(re.recipients)}</div>` : ""}</div>` +
+          `<div class="f f-wide${re.recipients ? " f-invalid" : ""}" data-field="${esc(nm("recipients"))}"><div class="f-label">Allowed recipients</div>` +
+          SUI.renderAddressRows({ kind: nm("recipient"), rows: recipientRowsFrom(r.recipients), errors: re.recipientRows, addLabel: "Add recipient", rowLabel: "recipient", addressLabel: "wallet address or 64-hex public key", placeholder: "kaspa… or 64-hex key" }) +
+          `<div class="f-help">The delegate may pay ONLY these destinations — enforced by the covenant.</div>${re.recipients ? `<div class="ferr" style="display:block">${esc(re.recipients)}</div>` : ""}</div>` +
           `<details class="adv f-tech"><summary>Technical detail (carried exactly)</summary><div class="f-help">period start DAA <span class="mono">${esc(r.periodStartDaa)}</span> · spent this period <span class="mono">${esc(r.periodSpent)}</span> sompi${currentDaa ? ` · current DAA ≈ ${esc(currentDaa)}` : ""}</div></details>` +
           `<input type="hidden" name="${esc(nm("periodStartDaa"))}" value="${esc(r.periodStartDaa)}" /><input type="hidden" name="${esc(nm("periodSpent"))}" value="${esc(r.periodSpent)}" /><input type="hidden" name="${esc(nm("existing"))}" value="${r.existing ? "1" : "0"}" />` +
           `<div class="actions"><button type="button" class="quiet" data-remove-agent="${i}" aria-label="Remove delegate ${i + 1}">Remove delegate</button></div>` +
@@ -471,10 +499,14 @@
       }
       let agents = null;
       if (only("delegates")) {
-        const rows = (Array.isArray(d.agents) ? d.agents : []).filter((r) => r && (v(r.agentKey) || v(r.recipients) || v(r.maxPerSpendKas)));
-        const res = await validateAgentRows(rows);
+        const entries = (Array.isArray(d.agents) ? d.agents : []).map((r, i) => ({ r, i })).filter(({ r }) => r && (
+          ["agentKey", "maxPerSpendKas", "periodBudgetKas", "approvalThresholdKas", "agentMaxFeePerTxKas"].some((k) => v(r[k])) ||
+          recipientRowsFrom(r.recipients).some((row) => v(row.address)) ||
+          (r.period ? r.period.preset !== requireSetup("validateKasDraft").BUDGET_SETTING.defaultPreset || v(r.period.customValue) : v(r.periodLengthDaa))
+        ));
+        const res = await validateAgentRows(entries.map(({ r }) => r));
         if (res.listError) bad("agents", res.listError);
-        if (Object.keys(res.rowErrors).length) { bad("agents", "Fix the highlighted delegate rows."); errors.set("agentRows", res.rowErrors); }
+        if (Object.keys(res.rowErrors).length) { bad("agents", "Fix the highlighted delegate rows."); errors.set("agentRows", Object.fromEntries(Object.entries(res.rowErrors).map(([i, err]) => [entries[Number(i)].i, err]))); }
         agents = res.agents;
       }
       let approverKeys = null, approvalM = null;
@@ -537,9 +569,13 @@
       const v = (x) => (String(x ?? "").trim() || "—");
       const agents = (d.agents || []).filter((r) => r && String(r.agentKey || "").trim());
       const approvers = (d.approvers || []).filter((r) => r && (String(r.address || "").trim() || String(r.publicKey || "").trim()));
+      const periodText = (r) => {
+        try { const n = SUI.readDurationSelection(SUI.BUDGET_SETTING, agentPeriodSelection(r), { allowExactDaa: true }); return `${n.describe.text} (${n.daa} DAA)`; }
+        catch { return "an invalid period — edit the delegate rules"; }
+      };
       return (
         SUI.renderReviewSection({ title: "Treasury", editStep: 0, rows: [["Name", v(d.label)], ["Protected principal", `${v(d.depositKas)} KAS`], ["Fee reserve", `${v(d.feeReserveKas)} KAS`], ["Funding wallet", v(connectedAddress)]] }) +
-        SUI.renderReviewSection({ title: "Delegates", editStep: 1, rows: agents.length ? agents.map((r, i) => [`Delegate ${i + 1}`, `${v(r.agentKey)} — up to ${v(r.maxPerSpendKas)} KAS per payment, ${v(r.periodBudgetKas)} KAS per ${v(r.periodLengthDaa)} DAA, approvals above ${v(r.approvalThresholdKas)} KAS, ${String(r.recipients || "").split(/[\n,]/).filter((s) => s.trim()).length} recipient(s)`]) : [["Delegates", "none yet — the owners can install rules later"]] }) +
+        SUI.renderReviewSection({ title: "Delegates", editStep: 1, rows: agents.length ? agents.map((r, i) => [`Delegate ${i + 1}`, `${v(r.agentKey)} — up to ${v(r.maxPerSpendKas)} KAS per payment, ${v(r.periodBudgetKas)} KAS per ${periodText(r)}, approvals above ${v(r.approvalThresholdKas)} KAS, ${recipientRowsFrom(r.recipients).filter((s) => s.address.trim()).length} recipient(s)`]) : [["Delegates", "none yet — the owners can install rules later"]] }) +
         SUI.renderReviewSection({ title: "Approvals", editStep: 2, rows: [["Approvers", approvers.length ? approvers.map((r) => v(r.publicKey || r.address)).join(", ") : "none"], ["Needed above a threshold", approvers.length ? `${v(d.approvalM)} of ${approvers.length}` : "—"]] }) +
         SUI.renderReviewSection({ title: "Recovery (irreversible)", editStep: 3, rows: [["Recovery wallet", v(d.recoveryAddress)]] }) +
         SUI.renderLiveSummary(kasRulesSummary(d, orgRoot), "v4-kas-summary-review")
@@ -845,7 +881,7 @@
 
     return {
       PROFILE, OWNERSHIP_STATEMENT, KAS_STEPS, VAULT_OPS, VAULT_OP_ORDER, VAULT_OP_LABEL, MAX_AGENTS, MAX_APPROVERS,
-      vaultOpInfo, vaultOpLabel, vaultOpConfirmPhrase, vaultOpConfirmationMatches, vaultOpDraftFrom, validateVaultOpDraft, renderVaultOpFormHtml, agentRowFrom,
+      vaultOpInfo, vaultOpLabel, vaultOpConfirmPhrase, vaultOpConfirmationMatches, vaultOpDraftFrom, validateVaultOpDraft, renderVaultOpFormHtml, agentRowFrom, agentPeriodSelection, recipientRowsFrom,
       renderKasVaultPanelHtml, renderKasRequestCardHtml, renderParticipantVaultsHtml, agentEntryFor, isApproverOf,
       kasDraftDefaults, kasRulesSummary, validateKasDraft, renderKasSetupHtml, renderKasDraftReviewHtml, createKasVaultRequest, kasRootPinsForReview, genesisCrossCheck, renderKasGenesisReviewHtml, bindKasGenesisSigningPayload, signKasGenesisRequest,
       submitKasRequest, rejectKasRequest, fetchKasRequests, fetchKasRequest, fetchParticipantVaults,

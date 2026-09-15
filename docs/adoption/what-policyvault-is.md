@@ -51,13 +51,12 @@ key, at any time (owner recovery is terminal — see
   `not-a-wallet.md` and `SECURITY.md` for the exact security boundary and
   claim discipline.
 
-## Free forever
+## Free software and self-hosting
 
-The protocol, covenant, SDK, API, and normal usage are free and
-unlimited for everyone, including commercial use — no subscriptions, no
-transaction fees, no paid tiers, no artificial usage caps. Security is
-never a monetization boundary. Development is supported only through
-voluntary KAS donations:
+Free software and self-hosting — Apache 2.0, including commercial use.
+Official hosted access is currently free. Kaspa network transaction fees
+still apply. Security is never a monetization boundary. Voluntary KAS
+donations support continued development and hosting:
 
 ```
 kaspa:qyppakv5y7kmeynffldl9zshwgkjrl3fy9jjj8wf24v7f64v0gnuragz7ehdqhn

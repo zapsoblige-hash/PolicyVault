@@ -1,19 +1,17 @@
 # PolicyVault Product Policy (PERMANENT — authoritative)
 
-Decided by the project owner, 2026-08-16. This is the authoritative
-record of PolicyVault's free-forever, voluntary-support, and
-private-until-authorized policies. Where any other document disagrees,
-this file wins.
+Originally decided by the project owner, 2026-08-16. Funding wording was
+updated by the owner's 2026-09-15 copy relay and hosted-access decision
+OWNER-20260914-HOSTED-ACCESS-01 revision 2. The current funding explanation
+below replaces earlier blanket unlimited-free-hosted commitments; software,
+covenant functionality, self-hosting and owner control remain free.
 
-## Free forever — including commercial use
+## Free software and self-hosting — including commercial use
 
-PolicyVault is intended to become the freely usable standard for
-delegated Kaspa spending. The protocol, covenant, SDK, API, security
-features, and normal application usage are **FREE AND UNLIMITED FOREVER**
-for everyone — individuals, businesses, commercial users, organizations,
-developers, and automated agents. **Free forever includes commercial
-use.** There will never be a paid commercial-use license or
-commercial-use fee.
+PolicyVault’s software and self-hosting are free under Apache 2.0, including
+commercial use. Official hosted access is currently free. Kaspa network
+transaction fees still apply. There is no separate paid commercial-use
+license. Security and owner control never become paid boundaries.
 
 Priorities, in order: (1) adoption, (2) interoperability, (3) security,
 (4) neutrality as infrastructure, (5) becoming a broadly used Kaspa
@@ -24,26 +22,39 @@ over revenue extraction.
 harder to adopt, harder to integrate, less neutral, or less trustworthy
 as shared Kaspa infrastructure, PolicyVault does not use that mechanism.
 
-### There must be NONE of the following
+### Software and covenant protections
 
-subscriptions · PolicyVault transaction fees · developer fees ·
-percentage-of-funds fees · paid commercial licenses · paid feature gates ·
-paid security features · premium policy limits · paid API access for
-ordinary use · artificial usage limits intended to force payment ·
-one-time quality-of-life purchases · intentionally degraded free versions.
+The software, self-hosting and covenant functionality retain these
+protections: no subscriptions, PolicyVault transaction fees, developer fees,
+percentage-of-funds fees, paid commercial licenses, paid feature gates,
+paid security features, premium policy limits, paid API access for ordinary
+self-hosted use, artificial usage limits intended to force payment,
+one-time quality-of-life purchases or intentionally degraded free versions.
+Official hosted access follows the separately stated current and deferred
+policy; it does not change these software and covenant protections.
 
 **Security must NEVER become a monetization boundary.** A user who pays
 nothing receives the full normal security model and functionality.
 
 Development may be supported voluntarily through KAS donations,
-sponsorships, grants, and community support only.
+sponsorships, grants and community support. Donations do not unlock
+features, increase limits, improve security or alter access. Billing stays
+outside covenant enforcement and frozen contracts; payment never bypasses
+protective limits or signing requirements.
+
+All implementation specific to the approved future hosted-access model
+remains deferred until full completion of the approved roadmap. This copy
+introduces no billing, telemetry, quotas or enforcement and announces no
+capacity price or availability. Earlier conflicting hosted-access wording
+does not override that owner decision.
 
 ## Voluntary KAS donations
 
 > **Support PolicyVault**
 >
-> PolicyVault is free and unlimited. If you would like to support
-> continued development, voluntary KAS donations are appreciated.
+> PolicyVault’s software and self-hosting are free under Apache 2.0.
+> Official hosted access is currently free. Voluntary KAS donations support
+> continued development and hosting. Kaspa network transaction fees still apply.
 >
 > KAS: `kaspa:qyppakv5y7kmeynffldl9zshwgkjrl3fy9jjj8wf24v7f64v0gnuragz7ehdqhn`
 >

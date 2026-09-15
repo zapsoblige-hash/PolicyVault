@@ -141,7 +141,7 @@
    * statement), p, note, ul, docs (a link to the public documentation;
    * opens in a new tab, no opener/referrer).
    * Copy rules: PolicyVault is NOT a wallet; it never custodies funds; it
-   * never signs; it claims nothing it cannot back; free forever, voluntary
+   * never signs; it claims nothing it cannot back; free software, voluntary
    * support only, no nagging.
    */
   const STEPS = Object.freeze([
@@ -230,7 +230,7 @@
         },
         {
           type: "p",
-          text: "PolicyVault is free to use, including commercial use. Voluntary KAS donations are welcome under Support — they never unlock anything."
+          text: "PolicyVault’s software and self-hosting are free under Apache 2.0. Official hosted access is currently free. Voluntary KAS donations support continued development and hosting. Kaspa network transaction fees still apply."
         }
       ]
     },

@@ -143,7 +143,7 @@
      * the exact DAA score UNCHANGED until the user deliberately picks
      * something else.
      */
-    function renderDurationControl({ name, setting, selection, id }) {
+    function renderDurationControl({ name, setting, selection, id, allowExactDaa = false }) {
       const sel = selection || {};
       const fid = id || `f-${name}`;
       const existing = sel.existingDaa !== undefined && sel.existingDaa !== null && String(sel.existingDaa) !== "";
@@ -156,9 +156,10 @@
       if (existing) {
         options.push({ value: "existing", label: existingDesc ? `Keep current value (${existingDesc.describe.text}${existingDesc.preset ? "" : ", exact"})` : "Keep current value" });
       }
-      for (const p of setting.presets) options.push({ value: p.key, label: p.label });
+      for (const p of setting.presets) options.push({ value: p.key, label: allowExactDaa ? `${p.label} (approx.)` : p.label });
       options.push({ value: "custom", label: "Custom…" });
       const units = ["hour", "day", "week"].map((u) => ({ value: u, label: u === "hour" ? "hours" : u === "day" ? "days" : "weeks" }));
+      if (allowExactDaa) units.push({ value: "daa", label: "DAA score (exact)" });
       const showCustom = current === "custom";
       return (
         `<div class="duration" data-duration="${esc(name)}">` +
@@ -167,19 +168,19 @@
         `<input id="${esc(fid)}-value" name="${esc(name)}Value" value="${esc(sel.customValue ?? "")}" inputmode="numeric" placeholder="e.g. 3" aria-label="${esc(setting.label)} — number" autocomplete="off" />` +
         select({ id: `${fid}-unit`, name: `${name}Unit`, options: units, value: sel.customUnit || (setting.largestUnit === "week" ? "day" : "day"), ariaLabel: `${setting.label} — unit` }) +
         `</div>` +
-        `<div class="f-help duration-effect" data-duration-effect="${esc(name)}" aria-live="polite">${esc(durationEffectText(setting, sel))}</div>` +
-        `<details class="adv f-tech"><summary>Technical detail</summary><div class="f-help" data-duration-exact="${esc(name)}">${esc(durationExactText(setting, sel))}</div></details>` +
+        `<div class="f-help duration-effect" data-duration-effect="${esc(name)}" aria-live="polite">${esc(durationEffectText(setting, sel, { allowExactDaa }))}</div>` +
+        `<details class="adv f-tech"><summary>Technical detail</summary><div class="f-help" data-duration-exact="${esc(name)}">${esc(durationExactText(setting, sel, { allowExactDaa }))}</div></details>` +
         `</div>`
       );
     }
 
     /* The exact protocol value — shown only under "Technical detail". */
-    function durationExactText(setting, raw) {
+    function durationExactText(setting, raw, options) {
       try {
-        const n = readDurationSelection(setting, raw);
+        const n = readDurationSelection(setting, raw, options);
         const flags = [];
         if (n.source === "existing") flags.push("current value kept unchanged");
-        if (n.outOfProductRange) flags.push("outside the range this app offers for new policies");
+        if (n.outOfProductRange) flags.push(options && options.allowExactDaa ? "outside the hours/days/weeks input range" : "outside the range this app offers for new policies");
         if (!n.exact) flags.push(`not a whole number of seconds (${n.describe.exactText})`);
         return `Exactly ${n.daa} DAA score (10 DAA per second; 1 day = 864000)${flags.length ? "; " + flags.join("; ") : ""}.`;
       } catch {
@@ -188,26 +189,35 @@
     }
 
     /* The raw selection read back from a form -> normalized (throws with .code). */
-    function readDurationSelection(setting, raw) {
+    function readDurationSelection(setting, raw, { allowExactDaa = false } = {}) {
       const r = raw || {};
       const preset = r.preset || (r.existingDaa !== undefined && r.existingDaa !== null && String(r.existingDaa) !== "" ? "existing" : setting.defaultPreset);
       if (preset === "existing") return DUR.normalizeDurationSelection(setting, { mode: "existing", daa: r.existingDaa });
-      if (preset === "custom") return DUR.normalizeDurationSelection(setting, { mode: "custom", value: r.customValue, unit: r.customUnit });
+      if (preset === "custom") {
+        // Treasury forms already accept exact positive protocol values. Use
+        // the same core encoding checks without imposing the human-unit range
+        // or claiming a newly entered value is an unchanged existing policy.
+        if (allowExactDaa && r.customUnit === "daa") {
+          const n = DUR.normalizeDurationSelection(setting, { mode: "existing", daa: r.customValue });
+          return Object.freeze({ ...n, source: "custom-exact" });
+        }
+        return DUR.normalizeDurationSelection(setting, { mode: "custom", value: r.customValue, unit: r.customUnit });
+      }
       return DUR.normalizeDurationSelection(setting, { mode: "preset", preset });
     }
 
     /* Live effect line under the control: "about 1 day · exact 864000 DAA …" */
-    function durationEffectText(setting, raw) {
+    function durationEffectText(setting, raw, options) {
       let n;
       try {
-        n = readDurationSelection(setting, raw);
+        n = readDurationSelection(setting, raw, options);
       } catch (e) {
-        if ((raw || {}).preset === "custom" && !String((raw || {}).customValue ?? "").trim()) return `Enter a whole number of hours, days, or weeks. ${COPY.UNITS} ${COPY.MEASUREMENT}`;
+        if ((raw || {}).preset === "custom" && !String((raw || {}).customValue ?? "").trim()) return `Enter a whole number of ${options && options.allowExactDaa ? "hours, days, weeks, or exact DAA score" : "hours, days, or weeks"}. ${COPY.UNITS} ${COPY.MEASUREMENT}`;
         return `${e.message.replace(/^duration-daa: /, "")} ${COPY.UNITS}`;
       }
       const flags = [];
       if (n.source === "existing") flags.push("current value kept unchanged");
-      if (n.outOfProductRange) flags.push("outside the range this app offers for new policies");
+      if (n.outOfProductRange) flags.push(options && options.allowExactDaa ? "outside the hours/days/weeks input range" : "outside the range this app offers for new policies");
       return `${n.describe.text.replace(/^about/, "About")}${flags.length ? " (" + flags.join("; ") + ")" : ""}. ${COPY.MEASUREMENT}`;
     }
 
@@ -257,7 +267,7 @@
      * public-key entry (owners only). `errors` maps row index -> message.
      * A new row is always blank by construction. Labels are rendered as TEXT.
      */
-    function renderAddressRows({ kind, rows, withLabel, allowKey, errors, addLabel, placeholder, min = 1, max, connectedAddress, useConnectedLabel }) {
+    function renderAddressRows({ kind, rows, withLabel, allowKey, errors, addLabel, placeholder, min = 1, max, connectedAddress, useConnectedLabel, rowLabel = kind, addressLabel = "wallet address" }) {
       /* An OPTIONAL list (min 0, e.g. payment approvers) renders no row until
        * the user adds one — a blank row would read as a required entry. A
        * required list always shows at least one (blank) row. */
@@ -267,11 +277,11 @@
         return (
           `<div class="addr-row${err ? " f-invalid" : ""}" data-row="${i}">` +
           (withLabel ? `<input name="${esc(kind)}Label" value="${esc(r.label ?? "")}" placeholder="Name (optional)" aria-label="${esc(kind)} ${i + 1} name" autocomplete="off" class="addr-name" />` : "") +
-          `<input name="${esc(kind)}" value="${esc(keyMode ? "" : r.address ?? "")}" placeholder="${esc(placeholder || "kaspa:…")}" aria-label="${esc(kind)} ${i + 1} wallet address" autocomplete="off" class="mono addr-addr"${keyMode ? " hidden" : ""} />` +
+          `<input name="${esc(kind)}" value="${esc(keyMode ? "" : r.address ?? "")}" placeholder="${esc(placeholder || "kaspa:…")}" aria-label="${esc(rowLabel)} ${i + 1} ${esc(addressLabel)}" autocomplete="off" class="mono addr-addr"${keyMode ? " hidden" : ""} />` +
           (allowKey ? `<input name="${esc(kind)}Key" value="${esc(r.publicKey ?? "")}" placeholder="64-hex public key" aria-label="${esc(kind)} ${i + 1} public key" autocomplete="off" class="mono addr-key"${keyMode ? "" : " hidden"} />` : "") +
-          `<button type="button" class="rm-${esc(kind)} quiet" aria-label="Remove ${esc(kind)} ${i + 1}">Remove</button>` +
+          `<button type="button" class="rm-${esc(kind)} quiet" aria-label="Remove ${esc(rowLabel)} ${i + 1}">Remove</button>` +
           (allowKey ? `<button type="button" class="quiet addr-keytoggle" data-keytoggle="${i}" aria-label="${keyMode ? "Use a wallet address instead" : "Use a public key instead"}">${keyMode ? "Use address" : "Use public key"}</button>` : "") +
-          (err ? `<div class="ferr" style="display:block;flex-basis:100%">${esc(err)}</div>` : "") +
+          (err ? `<div class="ferr" style="display:block;flex-basis:100%;min-width:0;overflow-wrap:anywhere">${esc(err)}</div>` : "") +
           `</div>`
         );
       }).join("");

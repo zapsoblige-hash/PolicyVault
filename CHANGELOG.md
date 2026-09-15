@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.10.8 — fullscale-rc42 UI release candidate
+
+KAS treasury delegate forms use the shared recipient and period controls, and approved public funding/signing explanations distinguish free software and self-hosting from current official hosted access. Existing approver and signing-threshold behavior is preserved. Backend, contract, core, dependency and MCP package bytes are unchanged from RC40. This candidate is not a deployment or human acceptance claim.
+
+Image `sha256:f108d5384b3a95b55f52d5e1e706fa565f8a9955e79f5389d28a672bfb0517f2`, build `a84e2a9`, source `a84e2a957bd6a43a86b28b860c1894515758e1e4`. Source verification: 245/245 focused source checks pass, zero failures/skips.
+
+Public verification: Fresh exported UI suite: 245/245 pass, zero failures/skips. Exact result SHA256 `bae7a348545119a123f75ee8852e61ee46712e583049bfe74c5ab857a73ae7de`. Prior full-suite and MCP evidence is explicitly unchanged baseline reuse; no new full-suite or financial run is claimed.
+
+MCP `policyvault-mcp@1.6.2` remains unchanged, SHA256 `128403f81d4af7b73ae86a31a750d39ec21c28f518d214f4e678807c3dff0c14`; no package republication or new credential proof cycle is part of this UI release.
+
 ## v1.10.6 — fullscale-rc40 release candidate
 
 A narrowly validated retained owner-recovery conflict now returns PROTECTED_UNRESOLVED without writing when another recorded completed owner recovery owns the exact predecessor claim and the retained request, receipt, signatures and closed manifest agree. The historical losing request, winner records, claims, reservations, receipts, manifest and audit remain unchanged; its admission guard remains active. This disposition does not establish rejection or nonacceptance, remove claims, rebuild, sign or rebroadcast. Incomplete or conflicting evidence still refuses.
