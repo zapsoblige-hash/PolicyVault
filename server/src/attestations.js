@@ -52,7 +52,7 @@ const wr4 = require("../../sdk/src/wallet-requests-v4");
 const { getStore, Categories } = require("../../sdk/src/store");
 const { loadAnyManifest } = require("../../sdk/src/manifest-v2");
 const { assignmentFor } = require("../../sdk/src/organization");
-const { loadManifestRecord } = require("./intent-records");
+const { loadManifestRecord, governanceRefusalFor } = require("./intent-records");
 const { verifyIntentManifest } = require("../../core/intent");
 
 const NA = attest.NOT_AVAILABLE;
@@ -99,6 +99,20 @@ const SIGNED_STATES = Object.freeze(
     wr4.RequestState.SUBMITTING,
     wr4.RequestState.SUBMITTED,
     wr4.RequestState.CHAIN_VERIFIED,
+    wr4.RequestState.RECONCILIATION_REQUIRED,
+    wr4.RequestState.TERMINATED_UNKNOWN
+  ])
+);
+
+/* States a v0.4 request reaches only by passing the finalize/submit gate
+ * and entering the submit pipeline (sdk/src/wallet-submit-v4.js): the
+ * frozen transaction may have been sent to the node from SUBMITTING on. */
+const BROADCAST_PIPELINE_STATES = Object.freeze(
+  new Set([
+    wr4.RequestState.SUBMITTING,
+    wr4.RequestState.SUBMITTED,
+    wr4.RequestState.CHAIN_VERIFIED,
+    wr4.RequestState.SUBMISSION_REJECTED,
     wr4.RequestState.RECONCILIATION_REQUIRED,
     wr4.RequestState.TERMINATED_UNKNOWN
   ])
@@ -200,12 +214,67 @@ async function buildAttestationForRequest(config, request, { vault = undefined }
   if (request.intentRecording === "FAILED") {
     decision = "REFUSED";
     refusalCode = "INTENT_DERIVATION_FAILED";
+  } else if (request.governanceConsumption === "REFUSED") {
+    // GOVERNANCE-TERMINAL-RACE-01: the manifest verified but the
+    // proposal was never consumed by this build — never AUTHORIZED.
+    decision = "REFUSED";
+    refusalCode = "GOVERNANCE_PROPOSAL_TERMINAL";
   } else if (manifestRecord && liveVerdict && liveVerdict.ok !== true) {
     decision = "REFUSED";
     refusalCode = "INTENT_VERIFICATION_FAILED";
-  } else if (REFUSAL_STATES.has(request.state)) {
-    decision = "REFUSED";
-    refusalCode = request.state;
+  } else {
+    /* GOVERNANCE-ATTESTATION-LADDER-01 (store-path port of lane de1aab2):
+     * a governed request — bound by its own governanceProposalId or, for a
+     * request that predates the field (RC42), by the manifest record it
+     * CREATED, exactly as the finalize/submit gate binds it — is decided on
+     * the DURABLE proposal truth (record + terminal-claim overlay) through
+     * the gate's own helper. Decided after intent-manifest verification and
+     * before the state refusals: the gate's precedence. So a request the
+     * gate refuses before broadcast (built on RC42 and never consumed by
+     * it, a crash before the refusal marker, consumed by another request,
+     * proposal gone) never presents AUTHORIZED here; an unknown-schema
+     * proposal record or terminal claim throws the gate's own 422
+     * GOVERNANCE_SCHEMA_UNKNOWN. Read-only.
+     *
+     * BROADCAST EVIDENCE: the gate guards finalize/submit, so its refusal
+     * describes only a request that has not reached the broadcast
+     * pipeline. A request with broadcast evidence already passed a gate
+     * that admitted it — RC42's has no governance re-check — and a
+     * REFUSED record with txId null would erase a broadcast or a chain
+     * proof. Broadcast evidence is a broadcast-pipeline state, or a
+     * receipt for the request's txId on a row that carries an accepted
+     * signature (SIGNED_STATES). The receipt half is for the vault
+     * reconcile (sdk/src/reconcile-v4.js), which persists a receipt for a
+     * claimed transaction proven on chain and leaves a FINALIZED or
+     * PREFLIGHT_VERIFIED row's state unchanged: the row's own signed
+     * transaction, which the ladder below presents as BROADCAST. The
+     * receipt is keyed by txId, so an unsigned row holds one only through a
+     * content-identical request that shares its txId (a retry of an RC42
+     * defect row with a new proposal and the same fuel) or tampering; the
+     * ladder shows no broadcast for such a row, so it is refused like the
+     * gate. With broadcast evidence, a TERMINAL result keeps the ladder
+     * below unchanged, while any other refusal (the integrity alarm
+     * GOVERNANCE_PROPOSAL_UNKNOWN: proposal gone or for another vault)
+     * fails closed with the gate's own 409 error — never silently
+     * AUTHORIZED, never a REFUSED record. */
+    const governed = typeof request.governanceProposalId === "string"
+      || (manifestRecord !== null && manifestRecord.requestId === request.requestId && typeof manifestRecord.proposalId === "string");
+    let governanceRefusal = null;
+    if (governed) {
+      sources.push("policyvault-governance-proposal-record/v1");
+      governanceRefusal = await governanceRefusalFor(config, request, manifestRecord);
+      if (governanceRefusal !== null && ((receipt !== null && SIGNED_STATES.has(request.state)) || BROADCAST_PIPELINE_STATES.has(request.state))) {
+        if (governanceRefusal.code !== "GOVERNANCE_PROPOSAL_TERMINAL") throw attestError(409, governanceRefusal.code, governanceRefusal.message);
+        governanceRefusal = null;
+      }
+    }
+    if (governanceRefusal !== null) {
+      decision = "REFUSED";
+      refusalCode = governanceRefusal.code;
+    } else if (REFUSAL_STATES.has(request.state)) {
+      decision = "REFUSED";
+      refusalCode = request.state;
+    }
   }
 
   /* ---------------- the ladder, from durable evidence only ---------------- */

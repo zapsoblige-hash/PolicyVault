@@ -513,7 +513,12 @@ async function handle(config, method, segments, query, body, ctx = {}) {
     // secret-stripped, but a secret-carrying mutation gets no replay dedup
     // rather than any chance of a secret at rest outside its sealed
     // envelope).
-    const secretBearingRoute = segments[0] === "webhooks" || segments[0] === "identities" || segments[0] === "notifications";
+    // /auth routes (AUTH-VERIFY-IDEMPOTENCY-01): POST /auth/verify returns a
+    // live session token in the bearer body or in Set-Cookie, and session
+    // records are stored only as token hashes. Sign-in is also bound to a
+    // one-time challenge nonce, so it is never replayed from a stored
+    // response; challenge and logout are excluded with it.
+    const secretBearingRoute = segments[0] === "webhooks" || segments[0] === "identities" || segments[0] === "notifications" || segments[0] === "auth";
     let result;
     if (method === "POST" && !secretBearingRoute && ctx.headers && typeof ctx.headers.idempotencyKey === "string" && ctx.headers.idempotencyKey.length > 0) {
       const { withIdempotency } = require("./idempotency");
@@ -1088,6 +1093,12 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       const { recordManifestForRequest } = require("./intent-records");
       const governance = require("./governance");
       const riskSvc = require("./risk");
+      // GOVERNANCE-TERMINAL-RACE-01 IR-02: the admitted proposal is bound on
+      // the durable REQUEST itself (the content-addressed manifest record can
+      // be shared by byte-identical requests, so its proposalId is only the
+      // creator's). The finalize/submit gate re-checks this binding against
+      // durable proposal truth.
+      if (consumedProposal) request.governanceProposalId = consumedProposal.record.proposalId;
       let rec;
       try {
         rec = await recordManifestForRequest(config, request, {
@@ -1125,7 +1136,31 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
         });
       }
       if (consumedProposal) {
-        await governance.markProposalConsumed(config, consumedProposal.record, { requestId: request.requestId, txId: request.txId });
+        try {
+          await governance.markProposalConsumed(config, consumedProposal.record, { requestId: request.requestId, txId: request.txId });
+        } catch (error) {
+          // GOVERNANCE-TERMINAL-RACE-01: the proposal reached a terminal
+          // state between admission and consumption (a racing cancel or
+          // another build). The built request is ALREADY durable with a
+          // verified manifest; mark it fail-closed so the finalize/submit
+          // gate refuses it, then refuse this response. Never mistakable
+          // for a consumed build.
+          request.governanceConsumption = "REFUSED";
+          request.governanceConsumptionCode = error.code ?? "GOVERNANCE_REFUSAL";
+          await wr4.saveRequest(config, request);
+          await appendAudit(config, {
+            kind: "governance",
+            vaultId: request.vaultId,
+            action: request.action,
+            actor: request.signerRole,
+            actorXOnly: request.signerXOnly ?? null,
+            result: "FAIL_CLOSED",
+            detail: `proposal ${consumedProposal.record.proposalId} could not be consumed by the built request (${request.governanceConsumptionCode}) — request marked GOVERNANCE_REFUSED; finalize/submit will refuse it`,
+            requestId: request.requestId,
+            proposalId: consumedProposal.record.proposalId
+          });
+          throw error;
+        }
         await appendAudit(config, {
           kind: "governance",
           vaultId: request.vaultId,

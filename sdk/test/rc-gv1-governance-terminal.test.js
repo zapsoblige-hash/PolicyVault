@@ -570,11 +570,30 @@ test("SABOTAGE: neutralizing the cancel transition guard resurrects cancel-after
   const rec = await governance.loadProposalRecord(config, proposal.proposalId);
   await governance.markProposalConsumed(config, rec, { requestId: crypto.randomUUID(), txId: null });
 
+  // GOVERNANCE-TERMINAL-RACE-01 added a SECOND, independent defense: the
+  // create-only terminal claim (`xterm-<proposalId>`) written by the
+  // consumption. Neutralizing the guard alone must therefore no longer
+  // resurrect the defect (defense in depth) ...
+  const CLAIM_KEY = "const terminalClaimKey = (proposalId) => `xterm-${proposalId}`;";
+  assert.ok(original.includes(CLAIM_KEY), "terminal-claim key line present (the GOVERNANCE-TERMINAL-RACE-01 arbiter)");
   fs.writeFileSync(srcPath, original.replace(TARGET, "/* SABOTAGED */ void 0;"));
+  try {
+    const guardOnlyApi = reload();
+    await expectThrow(guardOnlyApi.handle(config, "POST", ["governance", "proposals", proposal.proposalId, "cancel"], {}, {}), 409, "GOVERNANCE_PROPOSAL_TERMINAL");
+    assert.equal(readRecordFile(proposal.proposalId).status, "CONSUMED", "with only the guard neutralized the terminal claim still refuses and the record is untouched");
+  } finally {
+    fs.writeFileSync(srcPath, original);
+    reload();
+  }
+  // ... and neutralizing BOTH defenses (guard + claim keying) resurrects
+  // the live defect, proving the regression tests depend on them.
+  fs.writeFileSync(srcPath, original
+    .replace(TARGET, "/* SABOTAGED */ void 0;")
+    .replace(CLAIM_KEY, "const terminalClaimKey = (proposalId) => `xterm-${proposalId}-${crypto.randomUUID()}`; /* SABOTAGED */"));
   try {
     const sabotagedApi = reload();
     const res = await sabotagedApi.handle(config, "POST", ["governance", "proposals", proposal.proposalId, "cancel"], {}, {});
-    assert.equal(res.status, 200, "sabotaged guard accepted cancel-after-consume (the live RC-GV-1 defect)");
+    assert.equal(res.status, 200, "sabotaged guard + claim accepted cancel-after-consume (the live RC-GV-1 defect)");
     assert.equal(readRecordFile(proposal.proposalId).status, "CANCELLED", "sabotaged code relabeled the consumed proposal's STORED record (misstating history)");
   } finally {
     fs.writeFileSync(srcPath, original);

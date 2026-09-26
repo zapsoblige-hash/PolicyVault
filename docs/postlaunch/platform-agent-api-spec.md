@@ -130,47 +130,48 @@ governance, risk, the SDK builder, or the durable store.
 
 ## 2. Idempotent machine operations (surface 14)
 
-`server/src/idempotency.js`. Header-driven: a mutating POST that carries
-`Idempotency-Key` is wrapped; a POST without it is byte-identical to
-before (the shipped web client never sends it — verified in the
-end-to-end tests). Semantics mirror `server/src/auth.js`'s challenge CAS
-claim exactly:
+`server/src/idempotency.js`. A mutating POST carrying `Idempotency-Key`
+uses a durable claim scoped to the authenticated identity. Header-absent
+behavior is unchanged; the secret-bearing route exclusions now also cover the
+authentication routes (below). All anonymous
+requests share the existing anonymous scope; the scope itself is not authority.
+Secret-bearing routes are excluded from response replay: `/webhooks`,
+`/identities`, `/notifications` and the authentication routes `/auth/*`
+(`POST /auth/verify` returns a live session token, and sign-in is bound to a
+one-time challenge nonce). A request to them with an Idempotency-Key executes
+normally and nothing is persisted for replay.
 
-1. **Claim** the composite key (`<principalScope>:<Idempotency-Key>`) via
-   `platform-store.js` `createExclusive`. Win → execute the real handler
-   exactly once.
-2. **Lose** (key already claimed):
-   - stored request fingerprint (a hash of method+path+query+body,
-     `core/intent` `canonicalJsonStringify`) differs → deterministic 409
-     `IDEMPOTENCY_KEY_CONFLICT`, the handler is never called;
-   - fingerprint matches, still `IN_PROGRESS`, not stale → 409
-     `IDEMPOTENCY_IN_PROGRESS` (a genuine concurrent duplicate never
-     reaches the handler a second time — proven under real concurrency in
-     the funds-safety test);
-   - fingerprint matches, `IN_PROGRESS` but older than
-     `IN_PROGRESS_STALE_MS` (5 minutes — a crashed handler that never
-     completed) → one reclaim attempt;
-   - `COMPLETE` → replay the ORIGINAL response verbatim, with
-     `idempotency: { replayed: true, key }` added to the body (or to the
-     thrown error's `extra`).
-3. On a REAL execution's outcome: a **durable** result (2xx, or any
-   business refusal with `status` in `[400,500)`) is recorded and will be
-   replayed identically on retry. A **transient** result (no status, or
-   `status >= 500` — an infrastructure failure: RPC down, an unexpected
-   internal throw) RELEASES the claim instead of poisoning the key
-   forever; the caller still sees the original error once, but a retry
-   gets a genuinely fresh attempt.
+1. Create the claim once. A successful create acknowledgement grants this
+   invocation permission to call the handler. A missing acknowledgement leaves
+   the outcome uncertain and does not dispatch the handler.
+2. An existing key with a different method/path/query/body fingerprint returns
+   `409 IDEMPOTENCY_KEY_CONFLICT`. An unfinished matching claim returns
+   `409 IDEMPOTENCY_IN_PROGRESS`, or `IDEMPOTENCY_OUTCOME_UNKNOWN` when an
+   uncertain handler result was recorded. Neither age nor an infrastructure
+   error permits replacement or replay of the handler.
+3. Successful definitive responses and deterministic 4xx refusals are first
+   saved as an exact completion receipt embedded in the claim. Conditional
+   updates require the original claim owner and complete expected record.
+   The claim is then marked complete and replays the retained response, with
+   `idempotency: { replayed, key }`. Original creation time is preserved.
+4. Exceptions with no status or a 5xx status, returned 5xx responses, and
+   unavailable persistence acknowledgements remain uncertain. A successful
+   exact readback may establish a saved transition; an error alone cannot.
+5. A later matching request may finalize an already-retained completion
+   receipt and return it. This repairs response persistence without calling
+   the handler. Without such a receipt, the original operation remains
+   protected until its domain outcome can be established independently.
 
-Keys are scoped per authenticated identity (`machine:<identityId>`,
-`wallet:<xOnlyPubkey>`, or `anonymous` for self-hosted/unauthenticated) —
-two different callers can never collide or replay each other's keys
-(proven directly).
+[Inspection and recovery](idempotency-recovery.md) documents supported trusted
+local helpers, legacy compatibility, failure cases and the single-writer JSON
+boundary. Schema 005 and historical migration bytes remain unchanged. Legacy
+complete records still replay; legacy unfinished records do not expire.
 
-**Funds-safety proof** (the property this surface exists for):
-`sdk/test/postlaunch-idempotency-server.test.js` fires two CONCURRENT
-identical `POST /wallet/v4/requests` calls sharing one Idempotency-Key
-through the real server and asserts exactly one durable wallet-request
-row exists afterward — never two.
+Verification includes the existing real API `POST /wallet/v4/requests`
+concurrency and identity tests, plus JSON/PostgreSQL delayed-handler,
+unknown-effect, conditional-update, lost-acknowledgement and fresh-process
+recovery regressions. These tests exercise synthetic operations and establish
+no on-chain payment outcome or release qualification.
 
 ## 3. Dry-run / simulation (surface 16)
 

@@ -146,7 +146,10 @@ class IdempotencyConflictError(ConflictError):
 
 class IdempotencyInProgressError(ConflictError):
     """409 ``IDEMPOTENCY_IN_PROGRESS`` — an identical request holding this
-    key is still executing. The handler was never called a second time."""
+    key is still executing, or was interrupted (server stop or store failure).
+    The claim is never released by age, so this can persist; inspect the
+    operation before using a new key. The handler was never called a second
+    time."""
 
 
 class SchemaVersionError(ApiError):
@@ -165,9 +168,15 @@ class RateLimitError(ApiError):
 class ServerError(ApiError):
     """5xx — an infrastructure failure.
 
-    On a POST carrying an ``Idempotency-Key``, the server RELEASES the claim
-    for these (transient) outcomes, so retrying with the same key gets a
-    genuinely fresh attempt.
+    When the operation itself fails on a POST carrying an ``Idempotency-Key``,
+    this arrives with code ``IDEMPOTENCY_OUTCOME_UNKNOWN`` (not the original
+    server code) and the server keeps the claim: the operation may already
+    have taken effect. A 5xx raised before the operation starts (for example a
+    failed credential lookup) keeps no claim and carries its own code. A
+    same-key retry normally raises ``ConflictError`` with that code; after a
+    server or store failure it can instead raise ``IdempotencyInProgressError``
+    indefinitely or replay the original result. Inspect the operation before
+    using a new key.
     """
 
 

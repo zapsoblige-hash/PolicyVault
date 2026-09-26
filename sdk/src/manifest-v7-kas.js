@@ -139,7 +139,11 @@ async function loadManifestV7Kas(config, vaultId) {
 }
 
 async function persistManifestV7Kas(config, manifest) {
-  const normalized = normalizeManifestV7Kas({ ...manifest, updatedAt: new Date().toISOString() });
+  // G1-01 follow-up (2026-09-17): one write instant prevents normalization
+  // from synthesizing createdAt after the already sampled updatedAt.
+  // Existing creation provenance is retained verbatim.
+  const now = new Date().toISOString();
+  const normalized = normalizeManifestV7Kas({ ...manifest, createdAt: typeof manifest.createdAt === "string" ? manifest.createdAt : now, updatedAt: now });
   await getStore(config).write(Categories.VAULT, normalized.vaultId, manifestToJsonV7Kas(normalized));
   return normalized;
 }
@@ -151,7 +155,11 @@ async function persistManifestV7Kas(config, manifest) {
  * DIFFERENT record of any generation (left untouched). Transitions keep advancing an existing record through persist.
  */
 async function createManifestV7Kas(config, manifest) {
-  const normalized = normalizeManifestV7Kas({ ...manifest, updatedAt: new Date().toISOString() });
+  // G1-01 follow-up (2026-09-17): one write instant prevents normalization
+  // from synthesizing createdAt after the already sampled updatedAt.
+  // Existing creation provenance is retained verbatim.
+  const now = new Date().toISOString();
+  const normalized = normalizeManifestV7Kas({ ...manifest, createdAt: typeof manifest.createdAt === "string" ? manifest.createdAt : now, updatedAt: now });
   const { outcome } = await createVaultRecordOrMatch(config, normalized.vaultId, manifestToJsonV7Kas(normalized));
   return { manifest: normalized, outcome };
 }

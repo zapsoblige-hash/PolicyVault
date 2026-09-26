@@ -315,7 +315,10 @@ async function buildMetricsDocument(config) {
   }
   try {
     const { getStore, Categories } = require("../../sdk/src/store");
-    const proposals = await getStore(config).listValues(Categories.GOVERNANCE_PROPOSAL);
+    // Proposal records only: transition-lock and terminal-claim records
+    // share the category and must never be counted as proposals.
+    const proposals = (await getStore(config).listValues(Categories.GOVERNANCE_PROPOSAL))
+      .filter((r) => r && r.schema === "policyvault-governance-proposal-record/v1");
     doc.governance = { proposalsByStatus: countBy(proposals, "status"), total: proposals.length };
   } catch {
     doc.governance = null;

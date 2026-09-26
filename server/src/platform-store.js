@@ -117,6 +117,19 @@ function credentialCanBeTouched(value, network, key, expected) {
     (value.lastUsedAt == null || (typeof value.lastUsedAt === "string" && value.lastUsedAt < expected.lastUsedAt));
 }
 
+/* Idempotency claims have immutable owners. Only a matching unfinished
+ * snapshot may advance; completion never inserts, expires or resets a claim.
+ * Whole-record equality also protects a prepared completion receipt from a
+ * concurrent unknown-state update. JSON requires one service writer. */
+function validIdempotencyChange(expected, next) {
+  return expected && next && expected.schema === "policyvault-idempotency-record/v1" &&
+    next.schema === expected.schema && expected.status === "IN_PROGRESS" &&
+    ["IN_PROGRESS", "COMPLETE"].includes(next.status) &&
+    typeof expected.claimId === "string" && /^[0-9a-f-]{36}$/.test(expected.claimId) &&
+    next.claimId === expected.claimId && next.requestFingerprint === expected.requestFingerprint &&
+    next.createdAtMs === expected.createdAtMs;
+}
+
 class JsonPlatformStore {
   constructor(config) {
     this.kind = "json";
@@ -151,6 +164,19 @@ class JsonPlatformStore {
     // not route through async read/write hooks that can retain a snapshot.
     const value = { ...envelope.value, lastUsedAt: expected.lastUsedAt };
     persistJsonDurably({ filePath, value: { __key: key, value } });
+    return true;
+  }
+
+  async compareIdempotency(key, expected, next) {
+    if (!validIdempotencyChange(expected, next)) return false;
+    const filePath = jsonPathFor(this._config, Categories.IDEMPOTENCY, key);
+    if (!fs.existsSync(filePath)) return false;
+    const envelope = readJsonStrict(filePath, Categories.IDEMPOTENCY);
+    const { isDeepStrictEqual } = require("node:util");
+    if (!envelope || envelope.__key !== key ||
+        !isDeepStrictEqual(envelope.value, JSON.parse(toJsonb(expected)))) return false;
+    // Synchronous current-state check and durable install: no awaited hook.
+    persistJsonDurably({ filePath, value: { __key: key, value: next } });
     return true;
   }
 
@@ -223,6 +249,16 @@ class PgPlatformStore {
          AND value->>'identityId' = $3 AND value->>'credentialId' = $4
          AND (value->>'lastUsedAt' IS NULL OR (jsonb_typeof(value->'lastUsedAt') = 'string' AND value->>'lastUsedAt' < $5))`,
       [this._network, key, expected.identityId, expected.credentialId, expected.lastUsedAt]
+    );
+    return result.rowCount === 1;
+  }
+
+  async compareIdempotency(key, expected, next) {
+    if (!validIdempotencyChange(expected, next)) return false;
+    const result = await this._pool.query(
+      `UPDATE idempotency_records SET value = $4::jsonb, updated_at = now()
+       WHERE network_id = $1 AND key = $2 AND value = $3::jsonb`,
+      [this._network, key, toJsonb(expected), toJsonb(next)]
     );
     return result.rowCount === 1;
   }

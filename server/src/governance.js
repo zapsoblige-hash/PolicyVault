@@ -304,7 +304,9 @@ async function loadProposalRecord(config, proposalId) {
   if (record.schema !== PROPOSAL_RECORD_SCHEMA) {
     throw govError(422, "GOVERNANCE_SCHEMA_UNKNOWN", `stored proposal record has unknown schema ${JSON.stringify(record.schema)} — failing closed`);
   }
-  return record;
+  // GOVERNANCE-TERMINAL-RACE-01: a present terminal claim is terminal
+  // truth even when the record write never landed (crash after claim).
+  return applyTerminalClaim(record, await loadTerminalClaim(config, proposalId));
 }
 
 /*
@@ -366,6 +368,74 @@ async function releaseTransitionLock(config, proposalId, holderToken) {
   if (existing.schema !== TRANSITION_LOCK_SCHEMA || existing.holderToken !== holderToken) return false;
   await store.remove(Categories.GOVERNANCE_PROPOSAL, key);
   return true;
+}
+
+/*
+ * GOVERNANCE-TERMINAL-RACE-01: the transition lock above serialises
+ * contenders, but a contender whose LOCAL clock sees a live lock as
+ * stale reclaims it and re-arbitrates; the original holder's later
+ * unconditional record write then replaced the contender's terminal
+ * evidence (two successes, CANCELLED and CONSUMED). The terminal
+ * transition itself is therefore arbitrated by a create-only TERMINAL
+ * CLAIM (`xterm-<proposalId>`; link()/EEXIST on the JSON backend,
+ * INSERT ... ON CONFLICT DO NOTHING on PostgreSQL) written BEFORE the
+ * record write: exactly one contender creates it, every other contender
+ * refuses on the claim's terminal state without writing. The claim is
+ * durable evidence and is never removed; reads overlay it, so a crash
+ * after the claim but before the record write still reads terminal.
+ * The stale-lock reclaim stays (it serves crashed holders) but can no
+ * longer yield a second success. The key prefix "xterm-" is outside the
+ * API id charset and claims are filtered out of every listing.
+ */
+const TERMINAL_CLAIM_SCHEMA = "policyvault-governance-terminal-claim/v1";
+const terminalClaimKey = (proposalId) => `xterm-${proposalId}`;
+
+async function loadTerminalClaim(config, proposalId) {
+  const key = terminalClaimKey(proposalId);
+  const existing = await getStore(config).read(Categories.GOVERNANCE_PROPOSAL, key);
+  if (existing === null) return null;
+  if (existing.schema !== TERMINAL_CLAIM_SCHEMA || !["CONSUMED", "CANCELLED"].includes(existing.status)) {
+    throw govError(422, "GOVERNANCE_SCHEMA_UNKNOWN", `terminal claim record ${key} has unknown schema or status — failing closed`);
+  }
+  return existing;
+}
+
+/* The arbiter. Returns { won: true } when THIS call created the claim;
+ * otherwise the claim that already exists (the caller refuses on it). */
+async function claimTerminalTransition(config, proposalId, claim) {
+  const created = await getStore(config).createExclusive(Categories.GOVERNANCE_PROPOSAL, terminalClaimKey(proposalId), {
+    schema: TERMINAL_CLAIM_SCHEMA,
+    proposalId,
+    ...claim,
+    claimedAt: new Date().toISOString(),
+    claimedAtMs: Date.now()
+  });
+  if (created) return { won: true, claim: null };
+  const existing = await loadTerminalClaim(config, proposalId);
+  if (existing === null) throw govError(409, "GOVERNANCE_TRANSITION_BUSY", "the terminal claim for this proposal is unreadable — retry shortly");
+  return { won: false, claim: existing };
+}
+
+/* Pure in-place overlay of a present claim onto a record: the claim is
+ * terminal truth for a record whose own write never landed. Consumption
+ * evidence already on the record is never relabeled (RC-GV-1). */
+function applyTerminalClaim(record, claim) {
+  if (!record || !claim) return record;
+  const consumedEvidence = Boolean(record.lastConsumedAt || record.lastConsumedRequestId);
+  if (claim.status === "CONSUMED") {
+    if (!consumedEvidence) {
+      record.lastConsumedRequestId = claim.requestId ?? null;
+      record.lastConsumedTxId = claim.txId ?? null;
+      record.lastConsumedAt = claim.claimedAt;
+      record.consumedAt = record.consumedAt ?? claim.claimedAt;
+    }
+    record.status = "CONSUMED";
+  } else if (claim.status === "CANCELLED" && !consumedEvidence) {
+    record.status = "CANCELLED";
+    record.cancelledAt = record.cancelledAt ?? claim.claimedAt;
+    record.cancelledBy = record.cancelledBy ?? claim.cancelledBy ?? null;
+  }
+  return record;
 }
 
 /*
@@ -626,6 +696,13 @@ async function cancelProposal({ config, proposalId, cancelledByXOnly }) {
     const from = effectiveProposalStatus(record);
     const allowedFrom = PROPOSAL_STATUS_TRANSITIONS[from];
     if (!allowedFrom || !allowedFrom.includes("CANCELLED")) throw refuseTransition(record, from, "CANCELLED");
+    // GOVERNANCE-TERMINAL-RACE-01: the create-only terminal claim, not
+    // the lock, decides the transition; a loser refuses without writing.
+    const arbiter = await claimTerminalTransition(config, proposalId, { status: "CANCELLED", holderToken, cancelledBy: cancelledByXOnly ?? null });
+    if (!arbiter.won) {
+      const settled = applyTerminalClaim(record, arbiter.claim);
+      throw refuseTransition(settled, effectiveProposalStatus(settled), "CANCELLED");
+    }
     record.status = "CANCELLED";
     record.cancelledAt = new Date().toISOString();
     record.cancelledBy = cancelledByXOnly ?? null;
@@ -648,8 +725,11 @@ async function cancelProposal({ config, proposalId, cancelledByXOnly }) {
 
 async function listProposals(config, { vaultId } = {}) {
   const all = await getStore(config).listValues(Categories.GOVERNANCE_PROPOSAL);
+  const claims = new Map();
+  for (const r of all) if (r && r.schema === TERMINAL_CLAIM_SCHEMA && typeof r.proposalId === "string") claims.set(r.proposalId, r);
   return all
     .filter((r) => r && r.schema === PROPOSAL_RECORD_SCHEMA && (vaultId === undefined || r.proposal?.vaultId === vaultId))
+    .map((r) => applyTerminalClaim(r, claims.get(r.proposalId) ?? null))
     .sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
 }
 
@@ -782,6 +862,16 @@ async function markProposalConsumed(config, record, { requestId, txId }) {
     }
     const allowedFrom = PROPOSAL_STATUS_TRANSITIONS[from];
     if (!allowedFrom || !allowedFrom.includes("CONSUMED")) throw refuseTransition(durable, from, "CONSUMED");
+    // GOVERNANCE-TERMINAL-RACE-01: the create-only terminal claim, not
+    // the lock, decides the transition; a loser refuses without writing.
+    const arbiter = await claimTerminalTransition(config, proposalId, { status: "CONSUMED", holderToken, requestId: requestId ?? null, txId: txId ?? null });
+    if (!arbiter.won) {
+      const settled = applyTerminalClaim(durable, arbiter.claim);
+      if (arbiter.claim.status === "CONSUMED" && requestId != null && arbiter.claim.requestId === requestId) {
+        return settled; // the SAME consumption was claimed but its record write never landed (crash/retry): evidence preserved
+      }
+      throw refuseTransition(settled, effectiveProposalStatus(settled), "CONSUMED");
+    }
     durable.status = "CONSUMED";
     durable.consumedAt = new Date().toISOString();
     durable.lastConsumedRequestId = requestId ?? null;
@@ -840,6 +930,7 @@ async function presentProposal(config, record, manifest, controls) {
 module.exports = {
   ACTION_MATRIX,
   PROPOSAL_RECORD_SCHEMA,
+  TERMINAL_CLAIM_SCHEMA,
   APPROVAL_SCHEMA,
   PROPOSAL_STATUS_TRANSITIONS,
   effectiveProposalStatus,

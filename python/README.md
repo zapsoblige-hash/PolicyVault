@@ -217,7 +217,7 @@ except ApiError as e:
 | `ConflictError` / `IdempotencyConflictError` / `IdempotencyInProgressError` | 409 |
 | `SchemaVersionError` / `UnprocessableError` | 422 |
 | `RateLimitError` | 429 |
-| `ServerError` | 5xx — transient; an idempotency claim is released |
+| `ServerError` | 5xx — infrastructure failure; when the operation itself fails on a keyed POST the code is `IDEMPOTENCY_OUTCOME_UNKNOWN` and the claim is **not** released (a same-key retry normally raises `ConflictError` with that code; after a server or store failure it can raise `IdempotencyInProgressError` indefinitely or replay the original result) |
 
 ---
 

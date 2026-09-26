@@ -106,7 +106,9 @@ function assertRecordIdentity(category, key, record) {
     [Categories.ORG]: [record.orgId],
     [Categories.ORG_CONTROLS]: [record.orgId],
     [Categories.INTENT_MANIFEST]: [record.manifestHash],
-    [Categories.GOVERNANCE_PROPOSAL]: [record.schema === "policyvault-governance-transition-lock/v1" ? record.proposalId ? `xlock-${record.proposalId}` : null : record.proposalId],
+    [Categories.GOVERNANCE_PROPOSAL]: [record.schema === "policyvault-governance-transition-lock/v1" ? record.proposalId ? `xlock-${record.proposalId}` : null
+      : record.schema === "policyvault-governance-terminal-claim/v1" ? record.proposalId ? `xterm-${record.proposalId}` : null
+        : record.proposalId],
     [Categories.GOVERNANCE_APPROVAL]: [record.proposalDigest && record.approverXOnly ? `${record.proposalDigest}-${record.approverXOnly}` : null],
     [Categories.RISK_EVALUATION]: [record.evaluationId]
   };

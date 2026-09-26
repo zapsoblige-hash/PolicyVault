@@ -181,6 +181,35 @@ async function loadManifestRecord(config, manifestHash) {
 }
 
 /*
+ * GOVERNANCE-TERMINAL-RACE-01 IR-02 / GOVERNANCE-ATTESTATION-LADDER-01
+ * (store-path port of lane de1aab2): the durable governance truth for a
+ * request, shared by the finalize/submit gate and the attestation ladder
+ * so both decide on exactly the same evidence. Returns null when no
+ * proposal binds the request, or when the bound proposal records THIS
+ * request as its consumer; otherwise the refusal {code, message}.
+ * Read-only. `record` is the request's manifest record (or null); the
+ * record binds only its CREATOR (a shared, content-identical record names
+ * its creator's proposal, never a later sharer's). An unknown-schema
+ * proposal record or terminal claim throws from loadProposalRecord
+ * (422 GOVERNANCE_SCHEMA_UNKNOWN) — fail closed, never a refusal code.
+ */
+async function governanceRefusalFor(config, request, record) {
+  const boundProposalId = typeof request.governanceProposalId === "string"
+    ? request.governanceProposalId
+    : record && record.requestId === request.requestId && typeof record.proposalId === "string" ? record.proposalId : null;
+  if (boundProposalId === null) return null;
+  const governance = require("./governance");
+  const proposal = await governance.loadProposalRecord(config, boundProposalId);
+  if (!proposal || proposal.proposal?.vaultId !== request.vaultId) {
+    return { code: "GOVERNANCE_PROPOSAL_UNKNOWN", message: "the governance proposal recorded for this request no longer exists for its vault — integrity alarm, failing closed" };
+  }
+  if (governance.effectiveProposalStatus(proposal) !== "CONSUMED" || proposal.lastConsumedRequestId !== request.requestId) {
+    return { code: "GOVERNANCE_PROPOSAL_TERMINAL", message: "the governance proposal recorded for this request was not consumed by it — refusing to finalize/submit" };
+  }
+  return null;
+}
+
+/*
  * The finalize/submit-time gate: a request stamped with a manifestHash
  * must resolve to a stored record whose manifest, RE-VERIFIED NOW
  * (never merely the recorded verdict), passes VERIFIED_EXACT. Requests
@@ -192,6 +221,13 @@ async function assertRequestManifestVerified(config, request) {
     // Manifest DERIVATION failed at build: never mistakable for a
     // request that predates manifest recording — fail closed.
     throw intentError(409, "INTENT_VERIFICATION_FAILED", "intent-manifest derivation failed for this request at build — refusing to finalize/submit");
+  }
+  if (request && request.governanceConsumption === "REFUSED") {
+    // GOVERNANCE-TERMINAL-RACE-01: the governance proposal this build
+    // was admitted under could not be consumed by it (terminal before
+    // consumption). The manifest verified, but the authority did not —
+    // fail closed at every later stage.
+    throw intentError(409, "GOVERNANCE_PROPOSAL_TERMINAL", "the governance proposal for this request was not consumed by it (terminal before consumption) — refusing to finalize/submit");
   }
   if (!request || typeof request.manifestHash !== "string") return null; // predates recording
   const record = await loadManifestRecord(config, request.manifestHash);
@@ -220,6 +256,20 @@ async function assertRequestManifestVerified(config, request) {
       { intent: { manifestHash: record.manifestHash, failureCodes: [...new Set(verification.failures.map((f) => f.code))].sort() } }
     );
   }
+  /* GOVERNANCE-TERMINAL-RACE-01 IR-02: a governed (AUTHORITY EXPANSION)
+   * build is finalizable only while the proposal it was admitted under
+   * records THIS request as its consumer — decided on DURABLE proposal
+   * truth (terminal claim included) at finalize/submit time, never on
+   * the request's own marker alone. A crash between a refused
+   * consumption and the marker write therefore cannot leave a
+   * finalizable request; an ordinary consumed build is unaffected. */
+  // The binding comes from the request itself (set at build); a legacy
+  // request without it is bound through the record only when it CREATED
+  // that record (a shared, content-identical record names its creator's
+  // proposal, never a later sharer's).
+  // (governanceRefusalFor above: the same rule the attestation ladder uses.)
+  const refusal = await governanceRefusalFor(config, request, record);
+  if (refusal !== null) throw intentError(409, refusal.code, refusal.message);
   return record;
 }
 
@@ -227,5 +277,6 @@ module.exports = {
   MANIFEST_RECORD_SCHEMA,
   recordManifestForRequest,
   loadManifestRecord,
+  governanceRefusalFor,
   assertRequestManifestVerified
 };

@@ -176,15 +176,32 @@ try {
 }
 ```
 
-Server semantics (`server/src/idempotency.js`): the first call with a key
-executes exactly once; a retry with the **same** key and the **same** body
+Server semantics (`server/src/idempotency.js`) on idempotency-supported routes:
+the first call with a key executes exactly once; a retry with the **same** key and the **same** body
 replays the original response verbatim (`idempotency.replayed: true`); the
 same key with a *different* body is a deterministic `409
 IDEMPOTENCY_KEY_CONFLICT` and the handler is never called; a genuine
 concurrent duplicate gets `409 IDEMPOTENCY_IN_PROGRESS`. Keys are scoped per
-identity — two callers can never collide or replay each other's keys.
-Infrastructure failures (5xx) *release* the claim rather than poisoning the
-key, so a retry gets a genuinely fresh attempt.
+authenticated identity (wallet or machine); unauthenticated callers share one
+anonymous scope, so use unique random keys there.
+When the operation itself fails on a keyed POST without a definitive 4xx (any
+5xx or status-less error), the response is `503 IDEMPOTENCY_OUTCOME_UNKNOWN` —
+the original error code is not returned — and the claim is kept, because the
+operation may already have taken effect. While the store is healthy, every retry
+with the same key then gets `409 IDEMPOTENCY_OUTCOME_UNKNOWN` without running
+the handler. If the server stopped or its store failed mid-request, a same-key
+retry may instead get `409 IDEMPOTENCY_IN_PROGRESS` indefinitely (age never
+releases a claim), or the retained original response; a claim whose creation
+never landed simply executes afresh. A 5xx raised before the operation starts
+(for example a failed credential lookup) keeps no claim. In every case, inspect
+the operation's domain state before using a new key for a genuinely new attempt.
+
+**Routes that never replay.** The secret-bearing families `/identities`,
+`/webhooks`, `/notifications` and `/auth/*` never persist or replay a keyed
+response: the original status and code are returned, no claim is kept, and a
+same-key retry runs again. `createIdentity`, `mintCredential`, `revokeCredential`
+and `revokeIdentity` send a key by default, so inspect the identity list before
+retrying them.
 
 ### Why there are no automatic retries
 
@@ -193,8 +210,9 @@ executed and the response was lost." A library-level retry of a mutating call
 is therefore a library-level double-spend risk, and this client will not take
 that decision on your behalf.
 
-What it does instead is make **your** retry safe. Hold the key, decide to
-retry, and reuse it:
+What it does instead is make **your** retry safe on idempotency-supported
+routes (not the secret-bearing families above). Hold the key, decide to retry,
+and reuse it:
 
 ```js
 let key = randomIdempotencyKey;
@@ -332,10 +350,12 @@ try {
     err.serverMessage;  // the server's message, unmodified
     err.body;           // the full envelope, verbatim
     err.extra;          // route-specific siblings (request, idempotency, ...)
-    err.idempotencyKey; // reuse to retry safely
+    err.idempotencyKey; // reuse to retry safely (idempotency-supported routes)
   } else if (err instanceof PolicyVaultNetworkError) {
     // No answer arrived. You cannot know whether it executed —
-    // replay err.idempotencyKey to find out safely.
+    // replay err.idempotencyKey to find out safely (idempotency-supported
+    // routes; on /identities, /webhooks, /notifications and /auth/* inspect
+    // state instead).
   }
 }
 ```

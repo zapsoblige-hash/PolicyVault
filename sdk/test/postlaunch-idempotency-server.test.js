@@ -6,7 +6,7 @@
  *
  * Two layers of proof:
  *   - direct unit tests of withIdempotency (fast, precise control over the
- *     durable-vs-transient outcome split and staleness reclaim, which are
+ *     definitive-vs-unknown outcome split and permanent claims, which are
  *     awkward to induce through a real route);
  *   - real server.api.handle() end-to-end through a genuine mutating v0.4
  *     build route (the FUNDS-SAFETY-CRITICAL property): two concurrent
@@ -143,24 +143,13 @@ test("unit: a durable business refusal (<500) is recorded and replayed verbatim 
   await assert.rejects(() => withIdempotency(config, args, run), (e) => e.status === 422 && e.code === "SOME_REFUSAL" && e.extra.idempotency.replayed === true);
 });
 
-test("unit: a transient failure (>=500 or no status) RELEASES the claim — the key is retryable, not poisoned", async () => {
+test("unit: an infrastructure failure preserves the claim and does not execute a retry", async () => {
   let calls = 0;
-  const run = async () => {
-    calls += 1;
-    if (calls === 1) {
-      const e = new Error("kaspad is unreachable");
-      e.status = 503;
-      throw e;
-    }
-    return { status: 200, body: { ok: true, attempt: calls } };
-  };
+  const run = async () => { calls++; throw Object.assign(new Error("acknowledgement unavailable"), { status: 503 }); };
   const args = { rawKey: "unit-key-4", principal: { xOnlyPubkey: "dd".repeat(32) }, method: "POST", segments: ["x"], query: {}, body: {} };
-  await assert.rejects(() => withIdempotency(config, args, run), (e) => e.status === 503);
-  assert.equal(calls, 1);
-  const r = await withIdempotency(config, args, run);
-  assert.equal(calls, 2, "a transient failure must allow a real retry, not a replay of nothing");
-  assert.equal(r.body.attempt, 2);
-  assert.equal(r.body.idempotency.replayed, false, "this is a FRESH execution, not a replay");
+  await assert.rejects(() => withIdempotency(config, args, run), e => e.status === 503 && e.code === "IDEMPOTENCY_OUTCOME_UNKNOWN");
+  await assert.rejects(() => withIdempotency(config, args, run), e => e.status === 409 && e.code === "IDEMPOTENCY_OUTCOME_UNKNOWN");
+  assert.equal(calls, 1, "an error cannot establish that effects did not occur");
 });
 
 test("unit: two DIFFERENT principals using the identical raw key never collide", async () => {
@@ -181,7 +170,7 @@ test("unit: two DIFFERENT principals using the identical raw key never collide",
   assert.equal(calls, 3);
 });
 
-test("unit: a STALE (crashed) IN_PROGRESS claim is reclaimed after the staleness window, not held forever", async () => {
+test("unit: an old IN_PROGRESS claim remains protected without outcome evidence", async () => {
   const store = getPlatformStore(config);
   const compositeKey = "wallet:" + "11".repeat(32) + ":stale-key";
   await store.write(Categories.IDEMPOTENCY, compositeKey, {
@@ -197,13 +186,13 @@ test("unit: a STALE (crashed) IN_PROGRESS claim is reclaimed after the staleness
     calls += 1;
     return { status: 200, body: { reclaimed: true } };
   };
-  const r = await withIdempotency(
+  await assert.rejects(() => withIdempotency(
     config,
     { rawKey: "stale-key", principal: { xOnlyPubkey: "11".repeat(32) }, method: "POST", segments: ["x"], query: {}, body: { a: 1 } },
     run
-  );
-  assert.equal(calls, 1, "a stale IN_PROGRESS claim must be reclaimable, not stuck forever");
-  assert.equal(r.body.reclaimed, true);
+  ), e => e.status === 409 && e.code === "IDEMPOTENCY_IN_PROGRESS");
+  assert.equal(calls, 0, "age is not evidence that the original handler had no effects");
+  assert.equal((await store.read(Categories.IDEMPOTENCY, compositeKey)).status, "IN_PROGRESS");
 });
 
 test("unit: Idempotency-Key shape is validated (bounded length, restricted charset) — fails closed", async () => {
