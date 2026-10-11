@@ -65,7 +65,7 @@ const { assertOperationalNetwork, assertGenerationMainnetCreatable, assertGenera
 const { parseSompi, parsePositiveSompi, kasToSompi, sompiToKas } = require("./amounts");
 const { normalizeHex, normalizeXOnlyPubkey } = require("./vault-state");
 const { resolveAddressIdentity, addressForXOnlyPubkey } = require("./address-identity");
-const { connectVerified, getAddressUtxos } = require("./chain");
+const { connectVerified, getAddressUtxos, canonicalDaaScore } = require("./chain");
 const { frozenToWasmTransaction } = require("./frozen-tx-v3");
 const { p2pkScriptHex } = require("./approval-package-v4");
 const { claimTransition, claimSubmission, loadTransitionClaim, releaseTransitionClaim, releaseSubmissionClaim, persistReceipt } = require("./submission-claim");
@@ -263,17 +263,38 @@ function normalizeOutpoint(op, label) {
   return { transactionId, index };
 }
 
-async function autoFuel(config, rpc, signerAddress, minSompi) {
+/*
+ * RC45 R3N-B1 K2 (contract-03 clarification 01, item 1) — `preferDeep` (the fee input of a ROOT request): an ordinary
+ * UTXO at least INPUT_SPENT_WITHDRAWAL_DEPTH_DAA (1,000 DAA) deep — judged against the virtual DAA score read BEFORE the
+ * UTXO read, so that it is E1 at build — is preferred when one exists (the largest such). It never refuses for
+ * freshness: without such a UTXO, or when that position cannot be read, the largest ordinary UTXO is taken exactly as
+ * before. It narrows, and is never claimed to close, the fee path of residual r13(d).
+ */
+async function autoFuel(config, rpc, signerAddress, minSompi, { preferDeep = false } = {}) {
+  let virtualDaa = null;
+  if (preferDeep) {
+    try {
+      const dag = await rpc.getBlockDagInfo();
+      virtualDaa = canonicalDaaScore(dag && typeof dag === "object" ? dag.virtualDaaScore : undefined);
+    } catch {
+      virtualDaa = null;
+    }
+  }
   const utxos = (await getAddressUtxos(rpc, signerAddress)).filter((u) => u.covenantId === null && u.amount > minSompi).sort((a, b) => (a.amount < b.amount ? 1 : -1));
   if (!utxos.length) throwFail(`no ordinary UTXO > ${minSompi} sompi at ${signerAddress} to pay the network fee — fund the signer address first`, "INSUFFICIENT_FUNDS");
-  return { outpoint: utxos[0].outpoint, amount: utxos[0].amount.toString(), scriptPublicKeyHex: utxos[0].scriptPublicKeyHex };
+  const deep = virtualDaa === null ? undefined : utxos.find((u) => {
+    const d = canonicalDaaScore(u.blockDaaScoreRaw);
+    return d !== null && virtualDaa - d >= INPUT_SPENT_WITHDRAWAL_DEPTH_DAA;
+  });
+  const pick = deep ?? utxos[0];
+  return { outpoint: pick.outpoint, amount: pick.amount.toString(), scriptPublicKeyHex: pick.scriptPublicKeyHex };
 }
 
-async function resolveFuel(config, params, signerAddress, minSompi) {
+async function resolveFuel(config, params, signerAddress, minSompi, { preferDeep = false } = {}) {
   if (params && params.fuel) return params.fuel;
   const { rpc } = await connectVerified(config);
   try {
-    return await autoFuel(config, rpc, signerAddress, minSompi);
+    return await autoFuel(config, rpc, signerAddress, minSompi, { preferDeep });
   } finally {
     await rpc.disconnect();
   }
@@ -626,14 +647,36 @@ async function buildKasVaultOperation({ config, root, action, op, params, signer
     throw fail(e.message, e.code || "BUILD_FAILED");
   }
   if (!ownGet(kasProfile.OWNER_OP_ACTIONS_KAS, op.action)) throwFail(`unknown rooted-KAS-vault owner action ${JSON.stringify(op.action)} — failing closed`, "UNKNOWN_ACTION");
+  /* RC45 L2-01 D7: an UNRESOLVED treasury is refused here, ahead of the completion-availability and root-pin checks
+   * (its record describes a predecessor that moved on chain); record-only, nothing is written. */
+  await assertTreasuryNotUnresolved(config, vaultRecord);
   await assertVaultCompletionAvailable(config, vaultRecord);
   if (vaultRecord.orgRootCovenantId !== root.rootCovenantId) throwFail("this vault is not pinned to this root", "HOSTED_ORG_IS_NOT_A_ROOT");
   if (!vaultRecord.live) throwFail("this rooted vault has no confirmed on-chain outpoint yet", "ROOT_STALE_OUTPOINT");
   const authority = kasProfile.resolveOwnerOpAuthority(op.action);
   if (authority.rootActionName !== action) throwFail(`${op.action} requires the root to run ${authority.rootActionName}, not ${action}`, "OWNER_PATH_TAKES_NO_SIGNATURE");
-  const fuel = await resolveFuel(config, params, signerAddress, 500_000n);
+  const fuel = await resolveFuel(config, params, signerAddress, 500_000n, { preferDeep: true }); // RC45 R3N-B1 K2: a root request's fee input
+  let recordedParams = op.params ?? {};
   let prepared;
-  try { prepared = kasProfile.prepareOwnerOpParams(op.action, op.params ?? {}); } catch (e) { throw fail(e.message, e.code || "BUILD_FAILED"); }
+  try { prepared = kasProfile.prepareOwnerOpParams(op.action, recordedParams); } catch (e) { throw fail(e.message, e.code || "BUILD_FAILED"); }
+  /* RC45 delegate period-start rule (anchor at build; the rule is in manifest-v4.js): a delegate of the new policy set
+   * that is not byte-identical in its nine committed fields to the installed leaf with the same key (a new key, a key
+   * typed into an installed row, a shortened period, a raised budget, any other changed field) commits periodStartDaa =
+   * max(requested, D), D being the configured synced node's canonical virtual DAA score, read also when the fee input is
+   * supplied (an unreadable node refuses PERIOD_START_REQUIRED before anything is written); every other field,
+   * periodSpent included, is committed as requested. The anchored set is prepared again, so the built call and its agent
+   * root, the owners' reviewed policy set, the stored registry and the recorded vault operation all carry the committed
+   * starts. Installed delegates the change leaves byte-identical are carried untouched, and a set without a new or
+   * changed delegate reads no DAA. */
+  const { anchoredLeafPks, anchorRegistryStarts, assertRegistryFoldsToRoot } = require("./manifest-v4"); // the v0.7-kas registry is the v0.4.1 one
+  if (op.action === "ownerSetAgentRoot") {
+    const installed = kasProfile.manifestDoc(vaultRecord).agentRegistry;
+    if (anchoredLeafPks(installed, prepared.newRegistry).length > 0) {
+      const anchored = anchorRegistryStarts({ predecessorEntries: installed, nextEntries: prepared.newRegistry, anchorDaa: await require("./chain").readAnchorDaa(config) });
+      recordedParams = { ...recordedParams, agents: anchored.entries };
+      try { prepared = kasProfile.prepareOwnerOpParams(op.action, recordedParams); } catch (e) { throw fail(e.message, e.code || "BUILD_FAILED"); }
+    }
+  }
   let build;
   try {
     build = kasProfile.buildOwnerOp({
@@ -648,7 +691,63 @@ async function buildKasVaultOperation({ config, root, action, op, params, signer
   } catch (e) {
     throw fail(`rooted-KAS-vault owner-op build failed: ${e.message}`, e.code || "BUILD_FAILED");
   }
-  return { build, vaultRecord, vaultOpEntry: { build }, newRegistry: prepared.newRegistry };
+  /* Registry-to-root integrity: the registry this request stores must fold to exactly the agent root its frozen
+   * transaction commits for the vault successor (REGISTRY_ROOT_MISMATCH otherwise; nothing is written). */
+  if (op.action === "ownerSetAgentRoot") assertRegistryFoldsToRoot({ entries: prepared.newRegistry, committedAgentRoot: build.successorState?.agentRoot, stage: "build" });
+  return { build, vaultRecord, vaultOpEntry: { build }, newRegistry: prepared.newRegistry, recordedParams };
+}
+
+/*
+ * RC45 L2-01 D6 — THE BUILD-TIME LIVENESS GUARD of a root request (buildRootActionRequestUnlocked, after the manifest is
+ * verified and every existing refusal, before the first write). One connection to the configured synced node
+ * (connectVerified) and at most one UTXO read per distinct address: every frozen input whose covenant id is the root's
+ * or, for a v0.7-kas operation, the treasury's must be reported EXACTLY ONCE at its previous outpoint with the frozen
+ * value, the frozen covenant id and, when the node reports them, the frozen script and script version. Otherwise 409
+ * RECORDED_OUTPUT_SPENT naming the role and the outpoint; a node that cannot be connected or read refuses with its own
+ * error. It never writes and keeps no state: it refuses only while the node does not report the output unspent.
+ *
+ * What it prevents: recording (and reserving the root with) a root request that spends a root or v0.7-kas treasury
+ * output the synced node does not report unspent at build time.
+ * What it does not prevent: a spend accepted after this read, or one only in the mempool; a misreporting node; the fee
+ * input and v0.7-payment / HD vault inputs (not checked here); a broadcast outside PolicyVault. It does not promise that
+ * an output stays unspent after the build.
+ */
+async function assertRecordedInputsLive(config, { root, build, vaultRecord, isKasOp }) {
+  const roles = new Map([[lowerHex(root.rootCovenantId), "root"]]);
+  if (isKasOp) roles.set(lowerHex(vaultRecord.live.covenantId), "treasury");
+  const guarded = build.frozen.inputs
+    .map((input) => ({ input, role: input && input.utxo && input.utxo.covenantId != null ? roles.get(lowerHex(input.utxo.covenantId)) : undefined }))
+    .filter((g) => g.role !== undefined);
+  const { rpc } = await connectVerified(config);
+  try {
+    const byAddress = new Map();
+    for (const { input, role } of guarded) {
+      const address = spkToAddress(config, input.utxo.scriptPublicKey);
+      if (!byAddress.has(address)) byAddress.set(address, await getAddressUtxos(rpc, address));
+      const why = recordedInputMismatch(input, byAddress.get(address));
+      if (why !== null) throw recordedOutputSpent(role, input.previousOutpoint, why);
+    }
+  } finally {
+    await rpc.disconnect();
+  }
+}
+/* null when the node's entries report `input`'s previous outpoint exactly once and exact; otherwise why not */
+function recordedInputMismatch(input, refs) {
+  const at = refs.filter((r) => sameOutpoint(r.outpoint, input.previousOutpoint));
+  if (at.length === 0) return "not reported unspent by the synced node";
+  if (at.length > 1) return `reported ${at.length} times by the synced node`;
+  const ref = at[0], spk = input.utxo.scriptPublicKey;
+  const differences = [];
+  if (String(ref.amount) !== String(input.utxo.amount)) differences.push(`value ${ref.amount} (recorded ${input.utxo.amount})`);
+  if (ref.covenantId == null || lowerHex(ref.covenantId) !== lowerHex(input.utxo.covenantId)) differences.push(`covenant id ${ref.covenantId ?? "none"}`);
+  if (ref.scriptPublicKeyHex != null && lowerHex(ref.scriptPublicKeyHex) !== lowerHex(spk.scriptHex)) differences.push("script");
+  if (ref.scriptPublicKeyVersion != null && Number(ref.scriptPublicKeyVersion) !== Number(spk.version ?? 0)) differences.push(`script version ${ref.scriptPublicKeyVersion}`);
+  return differences.length ? `reported by the synced node with a different ${differences.join(", ")}` : null;
+}
+function recordedOutputSpent(role, outpoint, why) {
+  const e = fail(`the recorded ${role} output ${describeOutpoint(outpoint)} this request would spend is ${why}. Nothing was recorded and the root is not reserved; press Verify state before building again`, "RECORDED_OUTPUT_SPENT");
+  e.status = 409; // a conflict with the recorded chain state (contract D6), never a validation answer
+  return e;
 }
 
 async function buildRootActionRequest(args) {
@@ -696,11 +795,12 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
   let build;
   let vaultRecord = null;
   let newRegistry = null; // rc26 round-7 review R7-02: the validated registry entries an ownerSetAgentRoot installs (null for every other request)
+  let recordedOpParams = null; // RC45 delegate period-start rule: a rooted-KAS operation records the params it was built from (the committed starts)
   if (vaultOperations.length === 1) {
     const op = vaultOperations[0];
     const anyRecord = await loadRootedVaultAny(config, op.vaultId);
     if (kasProfile.isKasVaultRecord(anyRecord)) {
-      ({ build, vaultRecord, vaultOpEntry, newRegistry } = await buildKasVaultOperation({ config, root, action, op, params, signerAddress, changeForFuel, rootChain, vaultRecord: anyRecord }));
+      ({ build, vaultRecord, vaultOpEntry, newRegistry, recordedParams: recordedOpParams } = await buildKasVaultOperation({ config, root, action, op, params, signerAddress, changeForFuel, rootChain, vaultRecord: anyRecord }));
     } else {
     if (!ownGet(OWNER_OP_ACTIONS, op.action)) throwFail(`unknown rooted-vault owner action ${JSON.stringify(op.action)} — failing closed`, "UNKNOWN_ACTION");
     try { assertGenerationMainnetOperable(config, CONTRACT_VERSION_V7); } catch (e) { throwFail(e.message, e.code || "BUILD_FAILED"); } // the rooted TOKEN profile is not in the mainnet set
@@ -713,7 +813,7 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
     if (authority.rootActionName !== action) {
       throwFail(`${op.action} requires the root to run ${authority.rootActionName}, not ${action}`, "OWNER_PATH_TAKES_NO_SIGNATURE");
     }
-    const fuel = await resolveFuel(config, params, signerAddress, 500_000n);
+    const fuel = await resolveFuel(config, params, signerAddress, 500_000n, { preferDeep: true }); // RC45 R3N-B1 K2: a root request's fee input
     /* rc26 round-7 review R7-02: ownerSetAgentRoot installs a FULL new delegate policy set. The caller supplies the set
      * as REGISTRY ENTRIES (policy fields + each agent's recipient allowlist, exactly the genesis `agents` shape); the
      * entries are validated here (recipient roots reproduce, closed layout), the builder derives the new agentRoot from
@@ -753,7 +853,7 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
     vaultOpEntry = { build, descriptor: vaultRecord.asset.descriptor };
     }
   } else {
-    const fuel = await resolveFuel(config, params, signerAddress, 500_000n);
+    const fuel = await resolveFuel(config, params, signerAddress, 500_000n, { preferDeep: true }); // RC45 R3N-B1 K2: a root request's fee input
     try {
       build = buildV7RootTransaction({
         config,
@@ -786,6 +886,12 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
   if (verification.verdict !== "VERIFIED") {
     throw fail(`the built transaction failed org-root manifest verification: ${verification.failures.map((f) => f.name).join(", ")}`, "INTENT_VERIFICATION_FAILED");
   }
+  /* RC45 L2-01 D6: after every existing refusal and before the first write, one fresh read of the synced node refuses a
+   * request whose root (or v0.7-kas treasury) input the node does not report unspent and exact. */
+  await assertRecordedInputsLive(config, { root, build: manifestSourceBuild, vaultRecord, isKasOp });
+  /* RC45 R3N-B1 D6b: then every non-root frozen input observed LIVE and exact, with the chain anchor A_b; the marker
+   * rides the build's existing first write below (nothing is written on a refusal). */
+  const inputObservation = await observeInputsAtBuild(config, { root, build: manifestSourceBuild, isKasOp });
 
   const wtx = frozenToWasmTransaction(config, manifestSourceBuild.frozen);
   wtx.finalize();
@@ -811,7 +917,7 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
     /* Codex checkpoint 12 (R7-02): the vault PREDECESSOR identities (outpoint, generation, last transition) are captured
      * from the manifest the build consumed and travel with the request, so a replay after the vault already advanced
      * releases the OLD claim key and can tell a genuinely newer vault transition from a stale record. */
-    vaultOperations: vaultOpEntry ? [{ vaultId: vaultRecord.vaultId, profile: vaultRecord.contractVersion, action: vaultOperations[0].action, params: vaultOperations[0].params ?? {}, predecessor: { outpoint: normalizeOutpoint(vaultRecord.live.outpoint, "vault.live.outpoint"), generation: Number(vaultRecord.generation ?? 0), latestTransitionTxId: vaultRecord.latestTransitionTxId ?? null } }] : [],
+    vaultOperations: vaultOpEntry ? [{ vaultId: vaultRecord.vaultId, profile: vaultRecord.contractVersion, action: vaultOperations[0].action, params: recordedOpParams ?? vaultOperations[0].params ?? {}, predecessor: { outpoint: normalizeOutpoint(vaultRecord.live.outpoint, "vault.live.outpoint"), generation: Number(vaultRecord.generation ?? 0), latestTransitionTxId: vaultRecord.latestTransitionTxId ?? null } }] : [],
     newRegistry, // rc26 round-7 review R7-02: the validated registry entries an ownerSetAgentRoot installs (null otherwise); applied to the durable registry only on CHAIN_VERIFIED
     manifest,
     redeemScripts, // Codex checkpoint 6: the predecessor redeem script this verification rebuilt the successor from travels with the request (bound by the vault input's P2SH + stateBefore)
@@ -831,7 +937,8 @@ async function buildRootActionRequestUnlocked({ config, rootCovenantId, action, 
     createdBy: signerAddress,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    transaction: { unsignedSafeJson, signInputs: manifestSourceBuild.frozen.inputs.map((_, i) => ({ index: i, sighashType: 1 })) }
+    transaction: { unsignedSafeJson, signInputs: manifestSourceBuild.frozen.inputs.map((_, i) => ({ index: i, sighashType: 1 })) },
+    inputObservation // RC45 R3N-B1 D6b marker (optional jsonb member; not attempt evidence, not part of completionReceiptPointer)
   };
   await saveOrgRootRequest(config, request);
   root.pendingRequestId = requestId;
@@ -901,6 +1008,7 @@ async function getOrCreateSlotSigningRequestUnlocked({ config, requestId, slot }
   if (existing) return existing;
   const envelope = getSlotSigningRequest({ config, request, slot });
   request.slotRequestEnvelopes = { ...(request.slotRequestEnvelopes ?? {}), [String(slot)]: envelope };
+  await recordExistenceAtSave(config, request); // RC45 R3N-B1 K1' (fail-soft)
   await saveOrgRootRequest(config, request);
   return envelope;
 }
@@ -945,6 +1053,7 @@ async function submitSlotSignatureUnlocked({ config, requestId, slot, response }
   const responseEnvelopeHash = crypto.createHash("sha256").update(canonicalJsonStringify(response)).digest("hex");
   request.slots[slotIndex] = { ...request.slots[slotIndex], status: "SIGNED", signedAt: new Date().toISOString(), responseEnvelopeHash, _approval: { slot: verified.slot, publicKey: verified.publicKey, signatureHex: verified.signatureHex } };
   request.signaturesPresent = request.slots.filter((s) => s.status === "SIGNED").length;
+  await recordExistenceAtSave(config, request); // RC45 R3N-B1 K1' (fail-soft)
   await saveOrgRootRequest(config, request);
   return request;
 }
@@ -1064,8 +1173,80 @@ async function submitOrgRootRequestSignatureUnlocked({ config, requestId, signed
   request.finalizedTxHex = fin.covenantCallHex;
   request.finalTransaction = fin.finalTransaction;
   request.state = RequestState.SIGNED;
+  await recordExistenceAtSave(config, request); // RC45 R3N-B1 K1' at the save that finalizes a succession (fail-soft)
   await saveOrgRootRequest(config, request);
   return request;
+}
+
+/*
+ * RC45 delegate period-start rule for a root request whose vault operation is a
+ * v0.7-kas ownerSetAgentRoot (a delegate-rule change on a rooted KAS treasury;
+ * the rule itself is in manifest-v4.js, required at call time on these paths
+ * only). `recorded`: the request's recorded vault operation names it; `built`:
+ * its frozen build is that operation. Records this pipeline writes carry both.
+ */
+function kasDelegateRuleChange(request) {
+  const op = request.kind === "rootAction" && Array.isArray(request.vaultOperations) ? request.vaultOperations[0] : null;
+  return {
+    recorded: !!op && op.profile === kasProfile.CONTRACT_VERSION_V7_KAS && op.action === "ownerSetAgentRoot",
+    built: request.kind === "rootAction" && kasProfile.isKasBuild(request.build) && request.build.action === "ownerSetAgentRoot"
+  };
+}
+/* The treasury's installed registry (JSON entries) a delegate-rule change is judged against, or null without a record. */
+async function installedKasRegistry(config, request) {
+  const vaultId = request.vaultOperations?.[0]?.vaultId;
+  const vault = typeof vaultId === "string" ? await kasProfile.loadManifestV7Kas(config, vaultId) : null;
+  return vault ? kasProfile.manifestDoc(vault).agentRegistry : null;
+}
+/*
+ * Check at root finalize (M-of-N collection has no expiry, and a finalized
+ * request can no longer be withdrawn). Writes nothing. The stored registry
+ * must be a list folding to exactly the successor agent root the frozen build
+ * commits (REGISTRY_ROOT_MISMATCH otherwise; a missing registry is refused,
+ * never skipped) and the treasury record must exist (VAULT_NOT_FOUND), both
+ * before any node read. Then, only when the registry holds a leaf that is not
+ * byte-identical to the treasury's CURRENT installed leaf with the same key
+ * (after the treasury advanced, every leaf it no longer matches), the
+ * configured synced node's canonical virtual DAA score is read (unreadable:
+ * PERIOD_START_REQUIRED) and such a leaf whose start lags it by more than its
+ * window refuses PERIOD_START_STALE. Other operations read nothing.
+ */
+async function assertKasDelegateRuleStartsFresh(config, request) {
+  const { anchoredLeafPks, assertLeafStartsFresh, assertRegistryFoldsToRoot } = require("./manifest-v4"); // the v0.7-kas registry is the v0.4.1 one
+  assertRegistryFoldsToRoot({ entries: request.newRegistry, committedAgentRoot: request.build?.successorState?.agentRoot, stage: "root-finalize" });
+  const installed = await installedKasRegistry(config, request);
+  if (installed === null) throwFail(`no v0.7-kas treasury record ${request.vaultOperations?.[0]?.vaultId} for this delegate-rule change — refusing to finalize it`, "VAULT_NOT_FOUND");
+  if (anchoredLeafPks(installed, request.newRegistry).length === 0) return;
+  assertLeafStartsFresh({ predecessorEntries: installed, nextEntries: request.newRegistry, currentDaa: await require("./chain").readAnchorDaa(config), stage: "root-finalize" });
+}
+/*
+ * The stale withdrawal's predicate: true only when it can be evaluated and
+ * holds — the stored registry is a list, the treasury record exists, some leaf
+ * of the registry is not byte-identical to the installed leaf with the same
+ * key, and at the node's canonical virtual DAA score read now such a leaf's
+ * start lags by more than its window (the finalize check above would refuse
+ * PERIOD_START_STALE). It is judged on the stored registry independently of
+ * the registry-to-root check: a withdrawal only moves a request into a state
+ * that is never effective. Staleness only grows with the network position, so
+ * such a request could never have been finalized later. Writes nothing.
+ */
+async function kasDelegateRuleChangeAgedOut(config, request) {
+  const { anchoredLeafPks, assertLeafStartsFresh } = require("./manifest-v4");
+  let installed, currentDaa;
+  try {
+    if (!Array.isArray(request.newRegistry)) return false;
+    installed = await installedKasRegistry(config, request);
+    if (installed === null || anchoredLeafPks(installed, request.newRegistry).length === 0) return false;
+    currentDaa = await require("./chain").readAnchorDaa(config);
+  } catch {
+    return false;
+  }
+  try {
+    assertLeafStartsFresh({ predecessorEntries: installed, nextEntries: request.newRegistry, currentDaa, stage: "withdrawal" });
+  } catch (e) {
+    return e?.code === "PERIOD_START_STALE";
+  }
+  return false;
 }
 
 /*
@@ -1098,6 +1279,11 @@ async function finalizeOrgRootRequestUnlocked({ config, requestId, fuelSignature
   if (approvals.length < required) {
     throw fail(`insufficient owner approvals: ${approvals.length} present, ${required} required`, "UNDER_QUORUM");
   }
+  /* RC45 delegate period-start rule: a v0.7-kas delegate-rule change (named by its recorded operation or by its frozen
+   * build) is checked before the final transaction is assembled. A refusal writes nothing: the request stays AUTHORIZED
+   * with its owner signatures, and once a delegate's start has aged out it can be withdrawn (rejectOrgRootRequest). */
+  const kasRule = kasDelegateRuleChange(request);
+  if (kasRule.recorded || kasRule.built) await assertKasDelegateRuleStartsFresh(config, request);
   const isRootOnly = request.build.kind === "orgRootTransition";
   let fin;
   try {
@@ -1114,6 +1300,7 @@ async function finalizeOrgRootRequestUnlocked({ config, requestId, fuelSignature
   request.finalizedTxHex = fin.covenantCallHex;
   request.finalTransaction = fin.finalTransaction;
   request.state = RequestState.SIGNED;
+  await recordExistenceAtSave(config, request); // RC45 R3N-B1 K1' (fail-soft)
   await saveOrgRootRequest(config, request);
   return request;
 }
@@ -1607,7 +1794,9 @@ async function submitRootAction({ config, rpc, request }) {
   const claim = await loadTransitionClaim(config, rootOutpoint);
   if (claim && (claim.txId !== request.txId || claim.expected?.requestId !== request.id)) throwFail("the root predecessor belongs to another or unbound submission attempt — reconcile its original request", "CLAIM_CONFLICT");
   const arbitration = require("./submission-outcome-v7");
-  request.submitStartHash = await arbitration.readSubmissionStartHash(rpc);
+  /* RC45 R3N-B1 S1/S2: before the first submit-state write, the 20-deep start A_s and every frozen input (the root input
+   * last) are read; a 409 / 422 answer writes nothing and broadcasts nothing; otherwise the C3 route runs from A_s. */
+  request.submitStartHash = (await submitInputRead(config, rpc, request)).hash;
   request.submittedAt = new Date().toISOString();
   request.submissionAttempt = { id: crypto.randomUUID(), phase: "PREPARING", requestFingerprint: completionReceiptPointer(request).requestFingerprint, at: request.submittedAt };
   await saveOrgRootRequest(config, request);
@@ -1819,10 +2008,17 @@ async function recordCompletionFailure(config, request, e) {
  *   duplicates the receipt or the CHAIN_VERIFIED audit line, never
  *   rebroadcasts (this function only reads the node).
  */
-async function completeProvenRootAction(config, request, { rootOutIndex, rootAddress, rootExpectedValue, rootBlockDaaScore = null, vaultOutIndex = null, rpc = null, via }) {
+async function completeProvenRootAction(config, request, { rootOutIndex, rootAddress, rootExpectedValue, rootBlockDaaScore = null, vaultOutIndex = null, rpc = null, via, attribution = null }) {
   let completionStarted = false;
   try {
-  assertFrozenRequestTransaction(config, request);
+  assertRequestTransactionBinding(config, request, { attribution });
+  /* RC45 L2-01 D3: an ATTRIBUTED completion (a root move broadcast outside PolicyVault): a REPLAY carries the bound marker
+   * and takes the marker's mode; a FRESH one carries the in-memory attribution this module issued in D2 (its mode). Every
+   * other request (no marker, no in-memory attribution) keeps C3's completion exactly. */
+  const attributionMarker = boundAttributionMarker(request);
+  const freshAttribution = attributionMarker === null && request.finalTransaction == null && inMemoryAttributionBinds(request, attribution) ? attribution : null;
+  let attributedMode = attributionMarker !== null ? attributionMarker.mode : freshAttribution !== null ? freshAttribution.mode : null;
+  if (freshAttribution !== null && ownGet(OOB_ATTRIBUTION_TREASURY_STATE, attributedMode) === undefined) throwFail(`the attribution of request ${request.id} names no mode FULL or PARTIAL — nothing is written`, "RECONCILIATION_REQUIRED");
   async function assertConsumedInputsAbsent(provingRequest) {
     if (!rpc) throwFail("root completion requires node verification", "RECONCILIATION_REQUIRED");
     for (const input of provingRequest.build.frozen.inputs) {
@@ -1868,7 +2064,14 @@ async function completeProvenRootAction(config, request, { rootOutIndex, rootAdd
     if (!vaultManifest) throwFail(`no rooted vault ${vaultId} for a proven root action — refusing to record an unrecoverable completion`, "RECONCILIATION_REQUIRED");
     c = await classifyVaultRecordAny(config, vaultManifest, request, idx);
     if (!["PREDECESSOR", "SUCCESSOR", "BEYOND"].includes(c.position)) throwFail(`rooted vault ${vaultId} has no proven dependency history for this request`, "VAULT_STATE_UNEXPECTED");
-    if (rc.position === "BEYOND" && (c.position === "PREDECESSOR" || c.position === "SUCCESSOR" && !c.consistent) && request.build.successorState !== null) {
+    /* RC45 C4-03d (C4-03b item check F-01): a REPLAY of a request carrying a BOUND attribution marker whose treasury record
+     * stands at its predecessor is not held to the guard below; the attributed section decides from its own reads (a
+     * FULL marker re-observes the treasury successor strictly: exact, the treasury follows it; absent, i.e. spent outside
+     * PolicyVault since, the marker is downgraded to PARTIAL with the treasury UNRESOLVED; anything else UNSTABLE, nothing
+     * written; a PARTIAL marker never writes the treasury). So a PARTIAL upgrade interrupted after its marker write is
+     * completed or downgraded by the next Verify also once the root has moved on, instead of every Verify throwing here. */
+    const attributedAtPredecessor = attributionMarker !== null && c.position === "PREDECESSOR";
+    if (!attributedAtPredecessor && rc.position === "BEYOND" && (c.position === "PREDECESSOR" || c.position === "SUCCESSOR" && !c.consistent) && request.build.successorState !== null) {
       if (!await frozenOutputObserved(config, rpc, request, idx)) throwFail("historical root effect is proven but the vault continuation is not observed — refusing to overwrite potentially newer vault state", "RECONCILIATION_REQUIRED");
     }
   }
@@ -1880,6 +2083,65 @@ async function completeProvenRootAction(config, request, { rootOutIndex, rootAdd
   const submission = await getStore(config).read(Categories.SUBMISSION_CLAIM, request.txId);
   if (submission && (submission.txId !== request.txId || submission.vaultId !== request.rootCovenantId || submission.action !== request.action)) throwFail("submission claim belongs to another operation", "CLAIM_CONFLICT");
 
+  /* RC45 L2-01 D3 (contract revision 2 + addendum a item 1), the attributed completion's last inspections and first write,
+   * all before completionStarted:
+   *   - the treasury T1 at its PREDECESSOR: a FRESH attribution re-observes T1's successor (FULL: exact; PARTIAL: absent)
+   *     and a mismatch writes nothing (UNSTABLE); a FULL-marker REPLAY re-observes it and, when it is absent (spent outside
+   *     PolicyVault since), downgrades the marker to PARTIAL with T1 UNRESOLVED in ONE save; a PARTIAL-marker REPLAY never
+   *     re-observes T1 (an output that reappeared is ignored here: the completing Verify never upgrades; a LATER Verify
+   *     may, on fresh evidence — upgradePartialAttributions, writer decision 'PARTIAL upgrade'); this holds with the root
+   *     record at A's root successor and with the root record BEYOND it (C4-03d: the historical-continuation guard above
+   *     defers to these reads);
+   *   - T1 not at its predecessor: no T1 read and no mode change (a FULL completion proceeds on C3's SUCCESSOR path); a
+   *     PARTIAL completion requires the predecessor (it never writes T1), else VAULT_STATE_UNEXPECTED, nothing written;
+   *   - a FRESH attribution's first durable write is the request carrying the bound marker, RECONCILIATION_REQUIRED
+   *     (adopted in memory only after the save resolves). */
+  if (attributedMode !== null) {
+    if (!hasVaultOp) throwFail(`an attributed completion carries exactly one treasury operation; request ${request.id} carries none — nothing is written`, "RECONCILIATION_REQUIRED");
+    if (c.position === "PREDECESSOR") {
+      if (freshAttribution !== null || attributionMarker.mode === "FULL") {
+        const seen = await observeTreasurySuccessorStrict(config, rpc, request, idx);
+        if (freshAttribution !== null) {
+          const expected = attributedMode === "FULL" ? "EXACT" : "ABSENT";
+          if (seen.outcome !== expected) throwFail(`treasury ${vaultId}'s successor ${request.txId}:${idx} is ${seen.outcome} on re-observation, not ${expected} as attributed — nothing is written; Verify again`, "UNSTABLE");
+        } else if (seen.outcome === "ABSENT") {
+          const downgraded = { ...request, outOfBandAttribution: { ...attributionMarker, mode: "PARTIAL", modeChangedAt: new Date().toISOString(), treasury: { ...attributionMarker.treasury, state: OOB_ATTRIBUTION_TREASURY_STATE.PARTIAL } } };
+          if (boundAttributionMarker(downgraded) === null) throwFail(`the PARTIAL marker of request ${request.id} would not bind — nothing is written`, "RECONCILIATION_REQUIRED");
+          await saveOrgRootRequest(config, downgraded);
+          Object.assign(request, downgraded);
+          attributedMode = "PARTIAL";
+        } else if (seen.outcome !== "EXACT") {
+          throwFail(`treasury ${vaultId}'s successor ${request.txId}:${idx} is contradictory on re-observation (${seen.reason ?? seen.outcome}) — nothing is written`, "UNSTABLE");
+        }
+      }
+    } else if (attributedMode === "PARTIAL") {
+      throwFail(`a PARTIAL attribution never writes the treasury, and treasury ${vaultId} is at ${describeOutpoint(vaultManifest.live ? vaultManifest.live.outpoint : null)}, not this request's predecessor ${describeOutpoint(vaultPredecessor)} — nothing is written`, "VAULT_STATE_UNEXPECTED");
+    }
+    if (freshAttribution !== null) {
+      const marked = {
+        ...request,
+        state: RequestState.RECONCILIATION_REQUIRED,
+        error: `its transaction ${request.txId}, broadcast outside PolicyVault, is attributed to this request at depth ${freshAttribution.depthDaa} DAA (mode ${attributedMode}); completing its durable records`,
+        outOfBandAttribution: {
+          schema: OOB_ATTRIBUTION_SCHEMA,
+          via: "attribution",
+          txId: request.txId,
+          requestId: request.id,
+          observedVirtualDaa: String(freshAttribution.observedVirtualDaa),
+          rootEntryDaa: String(freshAttribution.rootEntryDaa),
+          depthDaa: String(freshAttribution.depthDaa),
+          requiredDepthDaa: ATTRIBUTION_DEPTH_DAA.toString(),
+          mode: attributedMode,
+          treasury: { vaultId, predecessorOutpoint: { transactionId: vaultPredecessor.transactionId, index: vaultPredecessor.index }, state: OOB_ATTRIBUTION_TREASURY_STATE[attributedMode] },
+          at: new Date().toISOString()
+        }
+      };
+      if (boundAttributionMarker(marked) === null) throwFail(`the attribution marker of request ${request.id} would not bind — nothing is written`, "RECONCILIATION_REQUIRED");
+      await saveOrgRootRequest(config, marked);
+      Object.assign(request, marked);
+    }
+  }
+
   // All inspection prerequisites succeeded. From here, failures represent
   // actual incomplete writes and retain a replayable guard.
   completionStarted = true;
@@ -1889,7 +2151,11 @@ async function completeProvenRootAction(config, request, { rootOutIndex, rootAdd
   }
   /* 1. the vault side first (if any) — validated, replayable */
   if (hasVaultOp) {
-    if (c.position === "SUCCESSOR" && c.consistent) {
+    if (attributedMode === "PARTIAL") {
+      /* RC45 L2-01 D3: PARTIAL never writes the treasury (its successor output was spent outside PolicyVault); the record
+       * stays at the predecessor (checked above) and the treasury is UNRESOLVED, never recovered */
+      completion.vault = "UNRESOLVED";
+    } else if (c.position === "SUCCESSOR" && c.consistent) {
       completion.vault = "ALREADY_COMPLETE";
     } else if (c.position === "PREDECESSOR") {
       await persistVaultSuccessorAny(config, vaultManifest, request, idx, Number(vaultManifest.generation ?? 0) + 1);
@@ -2060,16 +2326,1705 @@ function assertFrozenRequestTransaction(config, request) {
   const unsigned = { ...request.finalTransaction, inputs: request.finalTransaction?.inputs?.map(({ signatureScript, ...i }) => i) };
   delegateRequire(canonicalFrozenTxJson(normalizeFrozenTxV3(unsigned)) === frozen && finalTxToWasm(config, request.finalTransaction).finalize().toString().toLowerCase() === request.txId, "request's final transaction does not bind its frozen bytes and txid");
 }
+
+/* ---- RC45 L2-01: attribution primitives (a root move broadcast outside PolicyVault, attributed to its recorded request) ---- */
+
+/* The depth (the node's virtual DAA score minus the accepting DAA score of the observed root successor entry) such a
+ * move must reach before it is attributed: the same 1,000 DAA confirmation depth as SETTLE_DEPTH_DAA in
+ * sdk/src/reconcile-v4.js. */
+const ATTRIBUTION_DEPTH_DAA = 1000n;
+const OOB_ATTRIBUTION_SCHEMA = "policyvault-oob-attribution/1";
+/* mode -> the treasury state the marker records: FULL follows the request's treasury successor; a PARTIAL completion
+ * never writes the treasury, which is UNRESOLVED until a later Verify freshly observes that successor output exact and
+ * unspent at depth (upgradePartialAttributions) */
+const OOB_ATTRIBUTION_TREASURY_STATE = Object.freeze({ FULL: "ADVANCED", PARTIAL: "UNRESOLVED" });
+const OOB_ATTRIBUTION_REQUEST_STATES = new Set([RequestState.RECONCILIATION_REQUIRED, RequestState.CHAIN_VERIFIED]);
+
+/*
+ * STRICT observation of the frozen output `index` of `request` among `refs`, the node's entries for that output's
+ * address (the caller reads each distinct address once; this only classifies). EXACT iff exactly one entry carries the
+ * request's txid, at `index`, with the frozen value, the frozen covenant id (or none), a REPORTED script equal to the
+ * frozen one, and the frozen script version when the node reports one; ABSENT iff no entry carries the txid; anything
+ * else under the txid (another index, a second entry, another value, covenant id or script, no reported script) is a
+ * CONTRADICTION. frozenOutputObserved above is unchanged.
+ */
+function observeFrozenOutputStrict(request, index, refs) {
+  if (!Array.isArray(refs)) throwFail("the node's entries for an observed address are not a list", "OBSERVATION_ERROR");
+  const out = Number.isInteger(index) && index >= 0 && Array.isArray(request?.build?.frozen?.outputs) ? request.build.frozen.outputs[index] : undefined;
+  if (!out || !out.scriptPublicKey || typeof request.txId !== "string") return { outcome: "CONTRADICTION", reason: `the request declares no frozen output ${index}` };
+  const tx = request.txId.toLowerCase();
+  const under = refs.filter((r) => String(r?.outpoint?.transactionId ?? "").toLowerCase() === tx);
+  if (under.length === 0) return { outcome: "ABSENT" };
+  if (under.length > 1) return { outcome: "CONTRADICTION", reason: `${under.length} entries carry ${tx} at this address` };
+  const ref = under[0];
+  const covenant = out.covenant && out.covenant.covenantId != null ? String(out.covenant.covenantId).toLowerCase() : null;
+  const script = typeof ref.scriptPublicKeyHex === "string" ? ref.scriptPublicKeyHex.toLowerCase() : null;
+  const differences = [];
+  if (Number(ref.outpoint.index) !== index) differences.push(`index ${ref.outpoint.index}`);
+  if (String(ref.amount) !== String(out.value)) differences.push(`value ${ref.amount}`);
+  if ((ref.covenantId == null ? null : String(ref.covenantId).toLowerCase()) !== covenant) differences.push(`covenant id ${ref.covenantId ?? "none"}`);
+  if (script === null) differences.push("no reported script");
+  else if (script !== String(out.scriptPublicKey.scriptHex ?? "").toLowerCase()) differences.push("script");
+  if (ref.scriptPublicKeyVersion != null && Number(ref.scriptPublicKeyVersion) !== Number(out.scriptPublicKey.version ?? 0)) differences.push(`script version ${ref.scriptPublicKeyVersion}`);
+  if (differences.length) return { outcome: "CONTRADICTION", reason: `the entry ${tx}:${ref.outpoint.index} is not frozen output ${index} (${differences.join(", ")})` };
+  return { outcome: "EXACT", entry: ref };
+}
+
+/*
+ * The attribution marker `outOfBandAttribution` (an optional request field; the request schema is unchanged). It is
+ * BOUND — and only a bound marker counts anywhere — iff its schema and via match, it names this request and its txid,
+ * the request carries no final transaction, is RECONCILIATION_REQUIRED or CHAIN_VERIFIED and is a v0.7-kas delegate-rule
+ * change (recorded and built), and the marker names that operation's treasury and its predecessor outpoint; fail
+ * closed besides: its mode is FULL (treasury ADVANCED) or PARTIAL (treasury UNRESOLVED) and its recorded depth meets
+ * ATTRIBUTION_DEPTH_DAA. Returns the marker or null; never throws.
+ */
+function boundAttributionMarker(request) {
+  if (!request || typeof request !== "object" || request.kind !== "rootAction") return null;
+  const m = ownGet(request, "outOfBandAttribution");
+  if (!m || typeof m !== "object" || Array.isArray(m) || m.schema !== OOB_ATTRIBUTION_SCHEMA || m.via !== "attribution") return null;
+  if (typeof request.txId !== "string" || m.txId !== request.txId || typeof request.id !== "string" || m.requestId !== request.id) return null;
+  if (request.finalTransaction != null || !OOB_ATTRIBUTION_REQUEST_STATES.has(request.state)) return null;
+  const rule = kasDelegateRuleChange(request);
+  if (!rule.recorded || !rule.built || request.vaultOperations.length !== 1) return null;
+  const treasuryState = ownGet(OOB_ATTRIBUTION_TREASURY_STATE, m.mode);
+  const t = m.treasury;
+  if (treasuryState === undefined || !t || typeof t !== "object" || typeof t.vaultId !== "string" || t.vaultId !== request.vaultOperations[0].vaultId || t.state !== treasuryState) return null;
+  try {
+    if (!sameOutpoint(normalizeOutpoint(t.predecessorOutpoint, "outOfBandAttribution.treasury.predecessorOutpoint"), vaultPredecessorOutpoint(request))) return null;
+  } catch {
+    return null;
+  }
+  const required = canonicalDaaScore(m.requiredDepthDaa), depth = canonicalDaaScore(m.depthDaa);
+  if (required !== ATTRIBUTION_DEPTH_DAA || depth === null || depth < ATTRIBUTION_DEPTH_DAA) return null;
+  return m;
+}
+
+/* An attribution in memory: issued only by this module's own observation of the attributed transaction, never read
+ * from a record or a caller's argument (the WeakSet admits only the issued objects). */
+const IN_MEMORY_ATTRIBUTIONS = new WeakSet();
+function issueInMemoryAttribution(fields) {
+  const attribution = Object.freeze({ ...fields });
+  IN_MEMORY_ATTRIBUTIONS.add(attribution);
+  return attribution;
+}
+function inMemoryAttributionBinds(request, attribution) {
+  if (!attribution || !IN_MEMORY_ATTRIBUTIONS.has(attribution)) return false;
+  const rule = kasDelegateRuleChange(request);
+  return rule.recorded && rule.built && attribution.requestId === request.id && attribution.txId === request.txId;
+}
+
+/*
+ * The request-to-transaction binding of a root action (completion and completedRequestAt). With a final transaction:
+ * assertFrozenRequestTransaction, unchanged. Without one, only for an in-memory attribution of this request or a bound
+ * marker: assertAttributedTransactionBinding. Otherwise assertFrozenRequestTransaction, which refuses a request without
+ * a final transaction exactly as before. hasBoundRootCompletionReceipt, submitRootAction and the root negative-outcome
+ * settlement keep the strict check.
+ */
+function assertRequestTransactionBinding(config, request, { attribution = null } = {}) {
+  if (request && request.finalTransaction == null && (inMemoryAttributionBinds(request, attribution) || boundAttributionMarker(request) !== null)) {
+    return assertAttributedTransactionBinding(config, request);
+  }
+  return assertFrozenRequestTransaction(config, request);
+}
+
+/*
+ * The binding of a request WITHOUT a final transaction to the transaction observed on chain. A Kaspa transaction id
+ * excludes the signature scripts, so the id recomputed from the frozen bytes must be the request's, its build's and its
+ * manifest's; the manifest's frozen canonical JSON must be the frozen bytes'; the one input carrying the root covenant id
+ * must spend exactly the request's recorded root predecessor; the manifest must verify; the stored registry must fold
+ * to the agent root the frozen transaction commits. Anything else is RECORD_DAMAGED. Reads no node; writes nothing.
+ */
+function assertAttributedTransactionBinding(config, request) {
+  const damaged = (why) => throwFail(`the request's recorded transaction is damaged: ${why} — refusing to bind it to the observed transaction`, "RECORD_DAMAGED");
+  let frozen, txId;
+  try {
+    frozen = normalizeFrozenTxV3(request.build.frozen);
+    txId = frozenToWasmTransaction(config, frozen).finalize().toString().toLowerCase();
+  } catch (e) {
+    damaged(`its frozen bytes cannot be rebuilt (${firstLine(e)})`);
+  }
+  if (typeof request.txId !== "string" || txId !== request.txId || request.build.txId !== request.txId || request.manifest?.transaction?.txId !== request.txId) {
+    damaged("the transaction id recomputed from its frozen bytes, its build's, its manifest's and its own are not all the same");
+  }
+  if (request.manifest.transaction.frozenCanonicalJson !== canonicalFrozenTxJson(frozen)) damaged("its manifest's frozen canonical JSON is not its frozen bytes'");
+  let rootPredecessor;
+  try {
+    rootPredecessor = normalizeOutpoint(request.manifest.root.outpoint, "manifest.root.outpoint");
+  } catch (e) {
+    damaged(`its recorded root predecessor is malformed (${firstLine(e)})`);
+  }
+  const rootCovenantId = String(request.rootCovenantId ?? "").toLowerCase();
+  const rootInputs = frozen.inputs.filter((i) => i.utxo.covenantId !== null && String(i.utxo.covenantId).toLowerCase() === rootCovenantId);
+  if (rootInputs.length !== 1 || !sameOutpoint(rootInputs[0].previousOutpoint, rootPredecessor)) damaged(`its root input does not spend exactly its recorded root predecessor ${describeOutpoint(rootPredecessor)}`);
+  let verification;
+  try {
+    verification = kasProfile.verifyOrgManifest({ manifest: request.manifest, redeemScripts: request.redeemScripts ?? {} });
+  } catch (e) {
+    damaged(`its manifest cannot be verified (${firstLine(e)})`);
+  }
+  if (!verification || verification.verdict !== "VERIFIED") damaged(`its manifest does not verify (${(verification?.failures ?? []).map((f) => f.name).join(", ")})`);
+  try {
+    require("./manifest-v4").assertRegistryFoldsToRoot({ entries: request.newRegistry, committedAgentRoot: request.build?.successorState?.agentRoot, stage: "attribution" });
+  } catch (e) {
+    damaged(`its stored registry does not fold to the committed agent root (${firstLine(e)})`);
+  }
+}
+
+/* ==================================================================================================================
+ * RC45 R3N-B1 — the bounded repair of the B-1 root-wide hold (contract-03: addendum v2b revision 3;
+ * writer amendment A1, which prevails over it; writer clarification 01, which prevails over A1). Internal.
+ *   D6b  the build-time observation of every non-root frozen input (marker inputObservation) and its chain anchor A_b;
+ *   K1'  existence evidence recorded final at the existing slot-request, slot-signature and finalize saves (fail-soft);
+ *   S1/S2 the submit read, before the first submit-state write (start A_s, the inputs, this request's own outputs,
+ *        existence evidence);
+ *   W1-W8 the two-step withdrawal of a finalized, never-attempted request whose input was spent by another transaction,
+ *        final at 1,000 DAA below a 20-deep selected-chain anchor.
+ * Every read is of the configured synced node. Nothing here broadcasts, settles, releases a claim or adopts spent state.
+ * The only writes are the build's existing first write (the marker), the existing slot / finalize saves (K1'), and at
+ * withdrawal the request (the anchor, then REFUSED) and the root's pending pointer.
+ * ================================================================================================================== */
+const INPUT_OBSERVATION_SCHEMA = "policyvault-input-observation/1";
+const INPUT_SPENT_OBSERVATION_SCHEMA = "policyvault-input-spent-observation/1";
+const INPUT_SPENT_WITHDRAWAL_SCHEMA = "policyvault-input-spent-withdrawal/1";
+/* WD-6 constants (B1-14c pins all four). The withdrawal depth is D4's settlement depth (assumption G5). */
+const INPUT_SPENT_WITHDRAWAL_DEPTH_DAA = ATTRIBUTION_DEPTH_DAA;
+/* the anchor is the sink's 20th selected parent: measured never removed (0/300, 0/120, 0/30) while 33-40% of sinks were */
+const CHAIN_ANCHOR_HOPS = 20;
+/* withdrawal step 2 is accepted up to 12,000 DAA (about 20 minutes at 10 BPS) after the anchor; it bounds the scan */
+const WITHDRAWAL_ANCHOR_MAX_AGE_DAA = 12000n;
+/* at most 64 getBlocks batches (up to 15,936 blocks at 10 BPS, above the ~12,050 merged blocks of a 12,000-DAA window) */
+const WITHDRAWAL_SCAN_MAX_BATCHES = 64;
+const EXISTENCE_PATHS = new Set(["E1", "E1s", "E2", "E3"]);
+const HEX64_B1 = /^[0-9a-f]{64}$/;
+/* the owner's sentence (criterion 5 of the owner's direction), verbatim */
+const WITHDRAWAL_NON_REVOCATION_SENTENCE = "Withdrawal does not revoke signatures or prevent an otherwise valid out-of-app broadcast.";
+
+/* An answer carrying its HTTP status on the error itself, so mapError (server/src/org-roots.js) passes it, and its
+ * `extra`, through unchanged. */
+function b1Error(message, code, status, extra) {
+  const e = fail(message, code);
+  e.status = status;
+  if (extra !== undefined) e.extra = extra;
+  return e;
+}
+const canonicalDaaString = (value) => typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value);
+const outpointJson = (op) => ({ transactionId: lowerHex(op.transactionId), index: Number(op.index) });
+const outpointKeyB1 = (op) => `${lowerHex(op.transactionId)}:${Number(op.index)}`;
+/* key-sorted JSON of a stored record (the reload check compares whole records, updatedAt included) */
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value).sort().filter((k) => value[k] !== undefined).map((k) => `${JSON.stringify(k)}:${stableJson(value[k])}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+/* ---- §1.1 the selected-chain anchor ---- */
+
+/* the block of a getBlock answer (rusty-kaspa answers { block }) */
+const rpcBlockOf = (res) => (res && typeof res === "object" && res.block !== undefined ? res.block : res);
+/* getBlock(hash): answered under that hash, on the node's current selected chain (isChainBlock), its header hashing to
+ * it through the engine (sdk/src/tx-identity blockHashOfRpcHeader, as ws4's validateRpcBlock); its canonical header DAA.
+ * Throws otherwise. */
+async function verifiedSelectedChainBlock(config, rpc, hash) {
+  const { blockHashOfRpcHeader } = require("./tx-identity");
+  const block = rpcBlockOf(await rpc.getBlock({ hash, includeTransactions: false }));
+  const vd = block && typeof block === "object" ? block.verboseData : null;
+  if (!vd || typeof vd.hash !== "string" || vd.hash.toLowerCase() !== hash) throw new Error(`the node answered block ${hash} under another hash`);
+  if (vd.isChainBlock !== true) throw new Error(`block ${hash} is not on the node's selected chain`);
+  if (blockHashOfRpcHeader(config, block.header) !== hash) throw new Error(`the header of block ${hash} does not hash to it`);
+  const daaScore = canonicalDaaScore(block.header.daaScore);
+  if (daaScore === null) throw new Error(`block ${hash} carries a header DAA score that is not canonical`);
+  return { hash, daaScore };
+}
+/*
+ * selectedChainAncestor (§1.1): getBlockDagInfo (canonical virtual DAA v, 64-hex sink), then CHAIN_ANCHOR_HOPS
+ * selected-parent hops from the sink (each getBlock answered under the requested hash, its 64-hex selectedParentHash
+ * the next hash), then the hops' end block verified on the selected chain and bound to its header. Answers
+ * { sink, v, hash, daaScore } (daaScore: the anchor's OWN header DAA, never the virtual's). Any error or malformed
+ * answer throws; once v was read, the thrown error carries it as `virtualDaa` (D6b keeps v_b, §1.2 read 1).
+ */
+async function selectedChainAncestor(config, rpc) {
+  const dag = await rpc.getBlockDagInfo();
+  if (!dag || typeof dag !== "object" || dag.error != null) throw new Error("getBlockDagInfo answered an error or nothing");
+  const v = canonicalDaaScore(dag.virtualDaaScore);
+  if (v === null) throw new Error("the node's virtual DAA score is not canonical");
+  try {
+    const sink = typeof dag.sink === "string" ? dag.sink.toLowerCase() : "";
+    if (!HEX64_B1.test(sink)) throw new Error("the node's sink is not a 64-hex block hash");
+    let hash = sink;
+    for (let hop = 0; hop < CHAIN_ANCHOR_HOPS; hop += 1) {
+      const block = rpcBlockOf(await rpc.getBlock({ hash, includeTransactions: false }));
+      const vd = block && typeof block === "object" ? block.verboseData : null;
+      if (!vd || typeof vd.hash !== "string" || vd.hash.toLowerCase() !== hash) throw new Error(`the node answered block ${hash} under another hash`);
+      const parent = typeof vd.selectedParentHash === "string" ? vd.selectedParentHash.toLowerCase() : "";
+      if (!HEX64_B1.test(parent)) throw new Error(`block ${hash} carries a malformed selected parent`);
+      hash = parent;
+    }
+    const anchor = await verifiedSelectedChainBlock(config, rpc, hash);
+    return { sink, v, hash: anchor.hash, daaScore: anchor.daaScore };
+  } catch (e) {
+    const err = new Error(`the node's selected chain could not be walked: ${firstLine(e)}`);
+    err.virtualDaa = v;
+    throw err;
+  }
+}
+
+/* ---- §1.2 classification and roles ---- */
+
+/* LIVE: exactly one entry at the input's previous outpoint with equal amount, null-aware equal covenant id, and equal
+ * script and script version wherever reported; ABSENT: no entry; MISMATCH: anything else. (D6's recordedInputMismatch
+ * stays as it is: it reports a null covenant id as a difference, correct only for covenant inputs.) */
+function classifyFrozenInput(input, refs) {
+  const at = refs.filter((r) => sameOutpoint(r.outpoint, input.previousOutpoint));
+  if (at.length === 0) return { status: "ABSENT", detail: "not reported unspent by the synced node" };
+  if (at.length > 1) return { status: "MISMATCH", detail: `reported ${at.length} times by the synced node` };
+  const ref = at[0], spk = input.utxo.scriptPublicKey;
+  const differences = [];
+  if (String(ref.amount) !== String(input.utxo.amount)) differences.push(`value ${ref.amount} (recorded ${input.utxo.amount})`);
+  const frozenCovenant = input.utxo.covenantId == null ? null : lowerHex(input.utxo.covenantId);
+  const nodeCovenant = ref.covenantId == null ? null : lowerHex(ref.covenantId);
+  if (frozenCovenant !== nodeCovenant) differences.push(`covenant id ${nodeCovenant ?? "none"}`);
+  if (ref.scriptPublicKeyHex != null && lowerHex(ref.scriptPublicKeyHex) !== lowerHex(spk.scriptHex)) differences.push("script");
+  if (ref.scriptPublicKeyVersion != null && Number(ref.scriptPublicKeyVersion) !== Number(spk.version ?? 0)) differences.push(`script version ${ref.scriptPublicKeyVersion}`);
+  return differences.length ? { status: "MISMATCH", detail: `reported by the synced node with a different ${differences.join(", ")}`, entry: ref } : { status: "LIVE", entry: ref };
+}
+/* roles (§1.2): fee = a null covenant id; root = the root's; treasury = the v0.7-kas vault's (a v0.7-kas operation's only
+ * other covenant input); vault = any other non-null, non-root covenant id */
+function frozenInputRole(rootCovenantId, kasTreasury, input) {
+  const covenant = input && input.utxo && input.utxo.covenantId != null ? lowerHex(input.utxo.covenantId) : null;
+  if (covenant === null) return "fee";
+  if (covenant === lowerHex(rootCovenantId)) return "root";
+  return kasTreasury ? "treasury" : "vault";
+}
+const requestCarriesKasTreasury = (request) => Array.isArray(request.vaultOperations) && request.vaultOperations[0]?.profile === kasProfile.CONTRACT_VERSION_V7_KAS;
+function frozenInputsWithRoles(rootCovenantId, kasTreasury, frozen) {
+  return frozen.inputs.map((input, index) => ({ input, index, role: frozenInputRole(rootCovenantId, kasTreasury, input) }));
+}
+/* E1 at build: v_b and d canonical, v_b - d >= 1,000 */
+const deepAtBuild = (virtualDaa, blockDaaScore) => virtualDaa !== null && blockDaaScore !== null && virtualDaa - BigInt(blockDaaScore) >= INPUT_SPENT_WITHDRAWAL_DEPTH_DAA;
+
+/* ---- §1.2 D6b ---- */
+
+function feeInputNotLive(g, reason, detail) {
+  const what = reason === "ABSENT" ? "not reported unspent" : reason === "MISMATCH" ? "reported with different contents" : "not readable from the node";
+  return b1Error(`the fee input ${describeOutpoint(g.input.previousOutpoint)} is ${what} (${detail}). Nothing was recorded and the root is not reserved. Choose another fee input, or build again once it is reported unspent`, "FEE_INPUT_NOT_LIVE", 409, { feeInput: { index: g.index, outpoint: outpointJson(g.input.previousOutpoint), reason, detail: String(detail) } });
+}
+/*
+ * D6b (after D6, before the build's first write; one connection): (1) v_b and A_b (fail-soft: the anchor null on
+ * failure, v_b kept if read); (2) one UTXO read per distinct address of every non-root frozen input, in frozen order,
+ * each input LIVE or the build is refused, writing nothing (WD-5): a fee input -> 409 FEE_INPUT_NOT_LIVE (ABSENT |
+ * MISMATCH | READ_FAILED), a treasury or vault input -> 409 RECORDED_OUTPUT_SPENT through D6's helper, any other read
+ * failure -> that error (422); (3) A_b again, header-bound and on the selected chain (fail-soft: else recorded null).
+ * A1-3: a null anchor with any non-root input not E1 at build -> 422 OBSERVATION_ERROR, writing nothing. Answers the
+ * marker the build's existing first write carries.
+ */
+async function observeInputsAtBuild(config, { root, build, isKasOp }) {
+  const nonRoot = frozenInputsWithRoles(root.rootCovenantId, isKasOp, build.frozen).filter((g) => g.role !== "root");
+  const { rpc } = await connectVerified(config);
+  try {
+    let virtualDaa = null, anchor = null;
+    try {
+      const a = await selectedChainAncestor(config, rpc);
+      virtualDaa = a.v;
+      anchor = { hash: a.hash, daaScore: a.daaScore };
+    } catch (e) {
+      virtualDaa = e && typeof e.virtualDaa === "bigint" ? e.virtualDaa : null;
+    }
+    const byAddress = new Map();
+    const inputs = [];
+    for (const g of nonRoot) {
+      const address = spkToAddress(config, g.input.utxo.scriptPublicKey);
+      if (!byAddress.has(address)) {
+        let refs;
+        try {
+          refs = await getAddressUtxos(rpc, address);
+        } catch (e) {
+          if (g.role === "fee") throw feeInputNotLive(g, "READ_FAILED", firstLine(e));
+          throw e;
+        }
+        byAddress.set(address, refs);
+      }
+      const c = classifyFrozenInput(g.input, byAddress.get(address));
+      if (c.status !== "LIVE") {
+        if (g.role === "fee") throw feeInputNotLive(g, c.status, c.detail);
+        throw recordedOutputSpent(g.role, g.input.previousOutpoint, c.detail);
+      }
+      const d = canonicalDaaScore(c.entry.blockDaaScoreRaw);
+      inputs.push({ index: g.index, role: g.role, outpoint: outpointJson(g.input.previousOutpoint), blockDaaScore: d === null ? null : d.toString() });
+    }
+    if (anchor !== null) {
+      try {
+        const again = await verifiedSelectedChainBlock(config, rpc, anchor.hash);
+        if (again.daaScore !== anchor.daaScore) anchor = null;
+      } catch {
+        anchor = null;
+      }
+    }
+    if (anchor === null && inputs.some((e) => !deepAtBuild(virtualDaa, e.blockDaaScore))) {
+      throw b1Error("the node's chain position could not be read (or its anchor left the selected chain) while an input of this request is less than 1,000 DAA deep, so its existence could not be anchored. Nothing was recorded and the root is not reserved; build again", "OBSERVATION_ERROR", 422);
+    }
+    return {
+      schema: INPUT_OBSERVATION_SCHEMA,
+      txId: lowerHex(build.txId),
+      virtualDaa: virtualDaa === null ? null : virtualDaa.toString(),
+      anchor: anchor === null ? null : { hash: anchor.hash, daaScore: anchor.daaScore.toString() },
+      at: new Date().toISOString(),
+      inputs
+    };
+  } finally {
+    await rpc.disconnect();
+  }
+}
+/* The bound marker (§1.2 "Bound"), else null. */
+function boundInputObservation(request) {
+  const m = request && request.inputObservation;
+  if (!m || typeof m !== "object" || Array.isArray(m) || m.schema !== INPUT_OBSERVATION_SCHEMA) return null;
+  const txId = typeof request.txId === "string" ? request.txId.toLowerCase() : null;
+  if (txId === null || typeof m.txId !== "string" || m.txId.toLowerCase() !== txId || typeof request.build?.txId !== "string" || request.build.txId.toLowerCase() !== txId) return null;
+  if (m.virtualDaa !== null && !canonicalDaaString(m.virtualDaa)) return null;
+  if (m.anchor !== null && !(m.anchor && typeof m.anchor === "object" && typeof m.anchor.hash === "string" && HEX64_B1.test(m.anchor.hash) && canonicalDaaString(m.anchor.daaScore))) return null;
+  let expected;
+  try {
+    expected = frozenInputsWithRoles(request.rootCovenantId, requestCarriesKasTreasury(request), request.build.frozen).filter((g) => g.role !== "root");
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(m.inputs) || m.inputs.length !== expected.length) return null;
+  for (let i = 0; i < expected.length; i += 1) {
+    const e = m.inputs[i];
+    if (!e || typeof e !== "object" || e.index !== expected[i].index || e.role !== expected[i].role || !sameOutpoint(e.outpoint, expected[i].input.previousOutpoint)) return null;
+    if (e.blockDaaScore !== null && !canonicalDaaString(e.blockDaaScore)) return null;
+  }
+  return m;
+}
+
+/* ---- §1.3 + A1-1 existence evidence ---- */
+
+/* a recorded evidence object { path, block, daaScore, finalAt } (W7a, K1'), parsed; null when malformed */
+function parsedExistenceRecord(x) {
+  if (!x || typeof x !== "object" || Array.isArray(x) || !EXISTENCE_PATHS.has(x.path) || !canonicalDaaString(x.daaScore)) return null;
+  const blockless = x.path === "E1" || x.path === "E1s";
+  if (blockless ? x.block !== null : !(typeof x.block === "string" && HEX64_B1.test(x.block))) return null;
+  if (x.finalAt !== null && !canonicalDaaString(x.finalAt)) return null;
+  return { path: x.path, block: x.block, daaScore: BigInt(x.daaScore), finalAt: x.finalAt === null ? null : BigInt(x.finalAt) };
+}
+const existenceJson = (x) => ({ path: x.path, block: x.block ?? null, daaScore: x.daaScore.toString(), finalAt: x.finalAt === null ? null : x.finalAt.toString() });
+/* outpoint key -> evidence recorded FINAL (finalAt set): K1' entries of the marker, then the anchor's spent entries */
+function recordedFinalExistence(marker, spentObservation) {
+  const out = new Map();
+  for (const e of marker?.inputs ?? []) {
+    const x = parsedExistenceRecord(e.existence);
+    if (x && x.finalAt !== null) out.set(outpointKeyB1(e.outpoint), x);
+  }
+  for (const s of spentObservation?.spent ?? []) {
+    const x = parsedExistenceRecord(s.existence);
+    if (x && x.finalAt !== null) out.set(outpointKeyB1(s.outpoint), x);
+  }
+  return out;
+}
+/* one read per observation (a failure memoized as null) */
+async function observationRead(ctx, key, read) {
+  if (!ctx.cache.has(key)) {
+    let value = null;
+    try { value = await read(); } catch { value = null; }
+    ctx.cache.set(key, value);
+  }
+  return ctx.cache.get(key);
+}
+/* the FIRST getVirtualChainFromBlock answer from `startHash`, well-formed as so7's window requires (so7:30, :45) */
+async function firstVirtualChainAnswer(rpc, startHash) {
+  const r = await rpc.getVirtualChainFromBlock({ startHash, includeAcceptedTransactionIds: true });
+  if (!r || typeof r !== "object" || r.error != null) throw new Error("getVirtualChainFromBlock answered an error or nothing");
+  const added = r.addedChainBlockHashes, entries = r.acceptedTransactionIds, removed = r.removedChainBlockHashes;
+  const hashes = (list) => Array.isArray(list) && list.every((h) => typeof h === "string" && HEX64_B1.test(h)) && new Set(list).size === list.length;
+  if (!hashes(added) || !hashes(removed) || !Array.isArray(entries) || entries.length !== added.length) throw new Error("malformed getVirtualChainFromBlock answer");
+  for (let i = 0; i < added.length; i += 1) {
+    const e = entries[i];
+    if (!e || e.acceptingBlockHash !== added[i] || !Array.isArray(e.acceptedTransactionIds) || !e.acceptedTransactionIds.every((id) => typeof id === "string" && HEX64_B1.test(id))) throw new Error("malformed accepted-transaction entry");
+  }
+  return { added, entries, removed };
+}
+/* E2, then E3, from the marker's anchor A_b (fail-soft): { path, block, daaScore, finalAt } or { gap } */
+async function anchoredExistence(ctx, entry) {
+  const anchor = ctx.marker.anchor;
+  if (!anchor) return { gap: "ANCHOR_UNAVAILABLE" };
+  const ab = anchor.hash, abDaa = BigInt(anchor.daaScore);
+  const finalAt = (daa) => (ctx.v - daa >= INPUT_SPENT_WITHDRAWAL_DEPTH_DAA ? ctx.v : null);
+  const d = entry.blockDaaScore === null ? null : BigInt(entry.blockDaaScore);
+  /* E2: d <= DAA(A_b), A_b freshly verified on the selected chain */
+  if (d !== null && d <= abDaa) {
+    const block = await observationRead(ctx, `block:${ab}`, () => verifiedSelectedChainBlock(ctx.config, ctx.rpc, ab));
+    if (block && block.daaScore === abDaa) return { path: "E2", block: ab, daaScore: abDaa, finalAt: finalAt(abDaa) };
+  }
+  /* E3: the creator F_i accepted by exactly one chain block K' of the first answer from A_b, with nothing removed */
+  const answer = await observationRead(ctx, `vcfb:${ab}`, () => firstVirtualChainAnswer(ctx.rpc, ab));
+  if (!answer || answer.removed.length > 0) return { gap: "ANCHOR_UNAVAILABLE" };
+  const creator = lowerHex(entry.outpoint.transactionId);
+  const hits = answer.entries.filter((e) => e.acceptedTransactionIds.some((id) => id === creator));
+  if (hits.length !== 1) return { gap: "CREATOR_NOT_LOCATED" };
+  const k = hits[0].acceptingBlockHash;
+  const block = await observationRead(ctx, `block:${k}`, () => verifiedSelectedChainBlock(ctx.config, ctx.rpc, k));
+  if (!block) return { gap: "CREATOR_NOT_LOCATED" };
+  return { path: "E3", block: k, daaScore: block.daaScore, finalAt: finalAt(block.daaScore) };
+}
+/*
+ * E(i) of an absent non-root input (§1.3, A1-1): E1 (v_b - d >= 1,000), E1s (a LIVE sibling output of the same creating
+ * transaction among this observation's entries, v - d' >= 1,000 with v read before the UTXO reads), evidence recorded
+ * final earlier (W7a, K1'), E2, E3. ctx = { config, rpc, v, marker (bound) | null, siblings, recorded, cache }.
+ * Answers { path, block, daaScore (the existence block's DAA), finalAt, recorded? } or { gap }. Never throws: any failed
+ * or malformed read only makes that path false (WD-1).
+ */
+async function existenceEvidence(ctx, entry) {
+  if (!ctx.marker || !entry) return { gap: "NO_MARKER" };
+  try {
+    const d = entry.blockDaaScore === null ? null : BigInt(entry.blockDaaScore);
+    const vb = ctx.marker.virtualDaa === null ? null : BigInt(ctx.marker.virtualDaa);
+    if (vb !== null && d !== null && vb - d >= INPUT_SPENT_WITHDRAWAL_DEPTH_DAA) return { path: "E1", block: null, daaScore: d, finalAt: vb };
+    const creator = lowerHex(entry.outpoint.transactionId);
+    for (const s of ctx.siblings) {
+      if (lowerHex(s.outpoint.transactionId) !== creator || Number(s.outpoint.index) === Number(entry.outpoint.index)) continue;
+      const ds = canonicalDaaScore(s.blockDaaScoreRaw);
+      if (ds !== null && ctx.v - ds >= INPUT_SPENT_WITHDRAWAL_DEPTH_DAA) return { path: "E1s", block: null, daaScore: ds, finalAt: ctx.v };
+    }
+    const recorded = ctx.recorded.get(outpointKeyB1(entry.outpoint));
+    if (recorded) return { ...recorded, recorded: true };
+    return await anchoredExistence(ctx, entry);
+  } catch {
+    return { gap: "CREATOR_NOT_LOCATED" };
+  }
+}
+
+/* ---- A1-2 K1': existence recorded at the existing saves ---- */
+
+/*
+ * At the existing slot-request, slot-signature and finalize saves (and a succession's signature save, which finalizes
+ * it): for every non-root input of the bound marker without E1 and without evidence recorded final, evaluate E2 and E3
+ * from A_b; evidence whose existence block is on the selected chain and at least 1,000 DAA below the virtual DAA read
+ * first (the W7a rule) is recorded final in the marker entry's optional `existence`. Fail-soft: it never refuses the
+ * save and a failed evaluation records nothing (the marker stays byte-identical). It adds no save.
+ */
+async function recordExistenceAtSave(config, request) {
+  try {
+    const marker = boundInputObservation(request);
+    if (!marker || !marker.anchor) return;
+    const vb = marker.virtualDaa === null ? null : BigInt(marker.virtualDaa);
+    const open = marker.inputs.filter((e) => !deepAtBuild(vb, e.blockDaaScore) && !(parsedExistenceRecord(e.existence)?.finalAt != null));
+    if (!open.length) return;
+    const { rpc } = await connectVerified(config);
+    try {
+      const v = canonicalDaaScore((await rpc.getBlockDagInfo())?.virtualDaaScore);
+      if (v === null) return;
+      const ctx = { config, rpc, v, marker, cache: new Map() };
+      const found = new Map();
+      for (const e of open) {
+        const x = await anchoredExistence(ctx, e);
+        if (x.path && x.finalAt !== null) found.set(e.index, x);
+      }
+      if (!found.size) return;
+      const next = structuredClone(marker);
+      for (const e of next.inputs) if (found.has(e.index)) e.existence = existenceJson(found.get(e.index));
+      request.inputObservation = next;
+    } finally {
+      await rpc.disconnect();
+    }
+  } catch {
+    /* fail-soft (A1-2): nothing is recorded */
+  }
+}
+
+/* ---- §2 S1/S2 the submit read ---- */
+
+function submitReadAnswer(code, finding, g, { existence = null, existenceGap = null, recorded = false } = {}) {
+  const op = describeOutpoint(g.input.previousOutpoint);
+  let message;
+  if (finding === "CONFLICTING_SPEND") {
+    message = `The recorded ${g.role} output ${op} that this finalized request spends is no longer reported unspent, while the root output it spends still is, so this request's own transaction has not spent it: PolicyVault treats it as spent by another transaction. Nothing was recorded or broadcast; the request still reserves the root. Withdraw it (two steps; PolicyVault withdraws only once that spend is final at 1,000 DAA and checks everything again), then press Verify state.`;
+    if ((existence === "E2" || existence === "E3") && !recorded) message += " Start the withdrawal while the node still holds the history from this request's build (at least about 30 hours by default); after that PolicyVault can no longer establish that the output existed.";
+  } else if (finding === "ROOT_INPUT_NOT_LIVE") {
+    message = "The root output this request spends is not reported unspent, and no output of this request's own transaction is observed. Either this request's transaction was broadcast outside PolicyVault and its outputs were already spent, or another root transaction spent the root output; PolicyVault cannot tell which. Nothing was recorded or broadcast. Withdrawal is not available. Press Verify state.";
+  } else if (finding === "INPUT_CONTRADICTED") {
+    message = `The node reports the ${g.role} input ${op} with a different value, covenant id or script than this request records. Nothing was recorded or broadcast. Withdrawal is not available. Press Verify state.`;
+  } else {
+    message = `The ${g.role} input ${op} is not reported unspent, and PolicyVault cannot establish that it was created on the selected chain (${existenceGap}). It may still be created, and then this request can be submitted, so PolicyVault does not treat it as spent and does not withdraw the request. Nothing was recorded or broadcast; the request still reserves the root. Submit again once the input is reported unspent, or press Verify state.`;
+  }
+  return b1Error(message, code, 409, { submitRead: { finding, role: g.role, outpoint: outpointJson(g.input.previousOutpoint), withdrawal: code === "RECORDED_OUTPUT_SPENT" ? "TWO_STEP" : "NONE", existence, existenceGap } });
+}
+/*
+ * S1 (submitRootAction, after the claim check, before the first submit-state write; on the submit's open connection):
+ * (a) the start A_s (an unreadable chain position -> 422 OBSERVATION_ERROR); (b) one UTXO read per distinct address of
+ * every non-root frozen input in frozen order, then the root input's address LAST (D6-exact); (c) only when some input
+ * is not LIVE, one read per distinct frozen-output address (OWN: any entry under X, exact or not); (d) only for a row-5
+ * candidate, existence of the absent non-root inputs. S2: every input LIVE, or OWN -> answers A_s (the C3 route); else
+ * 409 SUBMIT_INPUT_UNRESOLVED (ROOT_INPUT_NOT_LIVE | INPUT_CONTRADICTED | INPUT_EXISTENCE_UNPROVEN) or 409
+ * RECORDED_OUTPUT_SPENT (CONFLICTING_SPEND, TWO_STEP); a node error in (a)-(c) -> that error (422). Writes nothing.
+ */
+async function submitInputRead(config, rpc, request) {
+  let start;
+  try {
+    start = await selectedChainAncestor(config, rpc);
+  } catch (e) {
+    throw b1Error(`the node's chain position could not be read (${firstLine(e)}); nothing was recorded or broadcast`, "OBSERVATION_ERROR", 422);
+  }
+  const all = frozenInputsWithRoles(request.rootCovenantId, requestCarriesKasTreasury(request), request.build.frozen);
+  const nonRoot = all.filter((g) => g.role !== "root"), rootInputs = all.filter((g) => g.role === "root");
+  const siblings = [];
+  const byAddress = new Map();
+  for (const g of nonRoot) {
+    const address = spkToAddress(config, g.input.utxo.scriptPublicKey);
+    if (!byAddress.has(address)) {
+      const refs = await getAddressUtxos(rpc, address);
+      byAddress.set(address, refs);
+      siblings.push(...refs);
+    }
+    g.observed = classifyFrozenInput(g.input, byAddress.get(address));
+  }
+  const rootRefs = new Map();
+  for (const g of rootInputs) {
+    const address = spkToAddress(config, g.input.utxo.scriptPublicKey);
+    if (!rootRefs.has(address)) {
+      const refs = await getAddressUtxos(rpc, address);
+      rootRefs.set(address, refs);
+      siblings.push(...refs);
+    }
+    const refs = rootRefs.get(address);
+    g.observed = recordedInputMismatch(g.input, refs) === null ? { status: "LIVE" } : { status: classifyFrozenInput(g.input, refs).status === "ABSENT" ? "ABSENT" : "MISMATCH" };
+  }
+  const rootLive = rootInputs.length > 0 && rootInputs.every((g) => g.observed.status === "LIVE");
+  if (rootLive && nonRoot.every((g) => g.observed.status === "LIVE")) return start; // row 1
+  const X = lowerHex(request.txId);
+  let own = false;
+  for (const address of [...new Set(request.build.frozen.outputs.map((o) => spkToAddress(config, o.scriptPublicKey)))]) {
+    if ((await getAddressUtxos(rpc, address)).some((r) => lowerHex(r.outpoint.transactionId) === X)) own = true;
+  }
+  if (own) return start; // row 2: this request's own transaction (the GAP-16 route)
+  if (!rootLive) throw submitReadAnswer("SUBMIT_INPUT_UNRESOLVED", "ROOT_INPUT_NOT_LIVE", rootInputs.find((g) => g.observed.status !== "LIVE") ?? { role: "root", input: { previousOutpoint: request.manifest.root.outpoint } }); // row 3
+  const contradicted = nonRoot.find((g) => g.observed.status === "MISMATCH");
+  if (contradicted) throw submitReadAnswer("SUBMIT_INPUT_UNRESOLVED", "INPUT_CONTRADICTED", contradicted); // row 4
+  const marker = boundInputObservation(request);
+  /* E(i) includes evidence an earlier withdrawal step (W7a) or save (K1') recorded final (§1.3) */
+  const ctx = { config, rpc, v: start.v, marker, siblings, recorded: recordedFinalExistence(marker, boundSpentObservation(request)), cache: new Map() };
+  let firstGap = null;
+  for (const g of nonRoot.filter((h) => h.observed.status === "ABSENT")) {
+    const x = await existenceEvidence(ctx, marker ? marker.inputs.find((e) => e.index === g.index) : null);
+    if (x.path) throw submitReadAnswer("RECORDED_OUTPUT_SPENT", "CONFLICTING_SPEND", g, { existence: x.path, recorded: x.recorded === true }); // row 5
+    if (firstGap === null) firstGap = { g, gap: x.gap };
+  }
+  throw submitReadAnswer("SUBMIT_INPUT_UNRESOLVED", "INPUT_EXISTENCE_UNPROVEN", firstGap.g, { existenceGap: firstGap.gap }); // row 6
+}
+
+/* ---- §4 W1-W8 the withdrawal ---- */
+
+/* the bound anchor field (W6 "Anchor field"), else null */
+function boundSpentObservation(request) {
+  const m = request && request.inputSpentObservation;
+  if (!m || typeof m !== "object" || Array.isArray(m) || m.schema !== INPUT_SPENT_OBSERVATION_SCHEMA || m.requestId !== request.id) return null;
+  if (typeof m.txId !== "string" || typeof request.txId !== "string" || m.txId.toLowerCase() !== request.txId.toLowerCase()) return null;
+  if (!m.anchor || typeof m.anchor !== "object" || typeof m.anchor.hash !== "string" || !HEX64_B1.test(m.anchor.hash) || !canonicalDaaString(m.anchor.daaScore)) return null;
+  if (!canonicalDaaString(m.virtualDaa) || typeof m.at !== "string" || !m.at) return null;
+  if (!Array.isArray(m.spent) || m.spent.length === 0) return null;
+  let nonRoot;
+  try {
+    nonRoot = frozenInputsWithRoles(request.rootCovenantId, requestCarriesKasTreasury(request), request.build.frozen).filter((g) => g.role !== "root");
+  } catch {
+    return null;
+  }
+  for (const s of m.spent) {
+    const g = s && typeof s === "object" ? nonRoot.find((h) => h.index === s.index) : undefined;
+    if (!g || g.role !== s.role || !sameOutpoint(g.input.previousOutpoint, s.outpoint) || parsedExistenceRecord(s.existence) === null) return null;
+  }
+  return m;
+}
+/* the bound withdrawal record (W8's trigger), written only by W7b */
+function boundSpentWithdrawal(request) {
+  const m = request && request.inputSpentWithdrawal;
+  return Boolean(m && typeof m === "object" && !Array.isArray(m) && m.schema === INPUT_SPENT_WITHDRAWAL_SCHEMA && m.requestId === request.id
+    && typeof m.txId === "string" && typeof request.txId === "string" && m.txId.toLowerCase() === request.txId.toLowerCase()
+    && m.anchor && typeof m.anchor === "object" && typeof m.anchor.hash === "string" && HEX64_B1.test(m.anchor.hash) && canonicalDaaString(m.anchor.daaScore));
+}
+/* the existing withdrawal tail: release the root's reservation when it names this request */
+async function releaseRootReservation(config, request) {
+  const root = await loadOrgRoot(config, request.rootCovenantId);
+  if (root && root.pendingRequestId === request.id) {
+    root.pendingRequestId = null;
+    await saveOrgRoot(config, root);
+  }
+}
+function withdrawalPending(anchorDaa, anchorWritten) {
+  const earliest = anchorDaa + INPUT_SPENT_WITHDRAWAL_DEPTH_DAA, latest = anchorDaa + WITHDRAWAL_ANCHOR_MAX_AGE_DAA;
+  return b1Error(`withdrawal pending: ${anchorWritten ? "this step recorded only its chain anchor" : "nothing was written"}. The request stays finalized and still reserves the root; withdraw again from DAA ${earliest} to DAA ${latest}, when PolicyVault observes everything again and withdraws only if the spend of its input is then final at 1,000 DAA. ${WITHDRAWAL_NON_REVOCATION_SENTENCE}`, "WITHDRAWAL_DEPTH_PENDING", 409, { earliestDaa: earliest.toString(), latestDaa: latest.toString() });
+}
+/* W1's record preconditions (no node read): { P, rootInput, marker } when they all hold, else { why } */
+async function spentInputWithdrawalRecordGap(config, request) {
+  if (request.kind !== "rootAction") return { why: "it is not a root request" };
+  if (request.state !== RequestState.SIGNED) return { why: `it is ${request.state}, not SIGNED` };
+  if (!request.finalTransaction) return { why: "it carries no final transaction" };
+  try {
+    assertFrozenRequestTransaction(config, request);
+  } catch (e) {
+    return { why: `its final transaction does not bind its frozen bytes and txid (${firstLine(e)})` };
+  }
+  if (await rootRequestHasAttemptEvidence(config, request)) return { why: "it carries submission evidence (resume its reconciliation instead)" };
+  /* the root binding: exactly one frozen input carries the root covenant id and it spends manifest.root.outpoint, which
+   * is the root record's live outpoint (the predicate inside assertAttributedTransactionBinding, applied to B) */
+  const rootCovenantId = lowerHex(request.rootCovenantId);
+  const rootInputs = request.build.frozen.inputs.filter((i) => i && i.utxo && i.utxo.covenantId != null && lowerHex(i.utxo.covenantId) === rootCovenantId);
+  const P = normalizeOutpoint(request.manifest.root.outpoint, "manifest.root.outpoint");
+  if (rootInputs.length !== 1 || !sameOutpoint(rootInputs[0].previousOutpoint, P)) return { why: "its frozen root input does not spend exactly its recorded root predecessor" };
+  const root = await loadOrgRoot(config, request.rootCovenantId);
+  if (!root || !sameOutpoint(root.live?.outpoint, P)) return { why: "the root record no longer names its root predecessor as live" };
+  const marker = boundInputObservation(request);
+  if (!marker) return { why: "it carries no bound build-time input observation (built before this release, or damaged)" };
+  return { P, rootInput: rootInputs[0], marker };
+}
+/*
+ * W2-W7 (a SIGNED request only, A1-4). W1 record preconditions, else CANNOT_REJECT RECORD. One connection, then: r0 the
+ * anchor A (a 20-deep selected-chain ancestor); r1 the root input P LIVE and D6-exact; r2 the other input addresses (any
+ * MISMATCH -> INPUT_CONTRADICTED; none absent -> INPUTS_LIVE; Ê = the absent ones with existence evidence, empty ->
+ * INPUT_EXISTENCE_UNPROVEN); r3 X's mempool entry (an exact miss or orphan-only); r4 P again, the same entry; r5 every
+ * frozen-output address, no entry under X. Any node error -> NODE_ERROR. Every refusal writes nothing. W6: no bound
+ * anchor -> record it (W7a), pending; age < 1,000 -> pending, nothing written; age > 12,000 -> renew; the continuing set
+ * K (anchored inputs of Ê whose existence block lies at or below A1 and 1,000 DAA below v) empty -> renew; the
+ * acceptance window from A1 throwing or incomplete -> renew, accepting X -> ACCEPTED_IN_WINDOW; the block scan from A1
+ * throwing -> SCAN_UNCLEAR, incomplete or naming any spender other than X (inclusion, not acceptance) -> renew;
+ * otherwise W7b: REFUSED with inputSpentWithdrawal, then the reservation released. A reload check precedes every save.
+ */
+async function withdrawSpentInputRequest(config, request, reason) {
+  const loadedJson = stableJson(request);
+  const cannot = (finding, why) => b1Error(`this finalized request cannot be withdrawn: ${why}. Nothing was written`, "CANNOT_REJECT", 409, { withdrawal: { finding } });
+  let record;
+  try {
+    record = await spentInputWithdrawalRecordGap(config, request);
+  } catch (e) {
+    record = { why: `its record cannot be checked (${firstLine(e)})` };
+  }
+  if (!record.marker) throw cannot("RECORD", record.why);
+  const { P, rootInput, marker } = record;
+  const X = lowerHex(request.txId);
+  let rpc;
+  try {
+    ({ rpc } = await connectVerified(config));
+  } catch (e) {
+    throw cannot("NODE_ERROR", `the configured node could not be used (${firstLine(e)})`);
+  }
+  try {
+    const read = async (what, fn) => {
+      try {
+        return await fn();
+      } catch (e) {
+        throw cannot("NODE_ERROR", `the node could not be read (${what}: ${firstLine(e)})`);
+      }
+    };
+    /* r0 */
+    const A = await read("the chain anchor", () => selectedChainAncestor(config, rpc));
+    /* r1 */
+    const rootAddress = spkToAddress(config, rootInput.utxo.scriptPublicKey);
+    const r1 = await read("the root output", () => getAddressUtxos(rpc, rootAddress));
+    if (recordedInputMismatch(rootInput, r1) !== null) throw cannot("ROOT_INPUT_NOT_LIVE", "the root output it spends is not reported unspent and exact (its own transaction or another root transaction may have spent it); press Verify state");
+    const p1 = r1.find((r) => sameOutpoint(r.outpoint, P));
+    /* r2 */
+    const siblings = [...r1];
+    const byAddress = new Map([[rootAddress, r1]]);
+    const nonRoot = frozenInputsWithRoles(request.rootCovenantId, requestCarriesKasTreasury(request), request.build.frozen).filter((g) => g.role !== "root");
+    for (const g of nonRoot) {
+      const address = spkToAddress(config, g.input.utxo.scriptPublicKey);
+      if (!byAddress.has(address)) {
+        const refs = await read(`the ${g.role} input`, () => getAddressUtxos(rpc, address));
+        byAddress.set(address, refs);
+        siblings.push(...refs);
+      }
+      g.observed = classifyFrozenInput(g.input, byAddress.get(address));
+    }
+    if (nonRoot.some((g) => g.observed.status === "MISMATCH")) throw cannot("INPUT_CONTRADICTED", "an input it spends is reported with contents other than those it records");
+    const absent = nonRoot.filter((g) => g.observed.status === "ABSENT");
+    if (!absent.length) throw cannot("INPUTS_LIVE", "every input it spends is reported unspent: submit it");
+    const anchorRecord = boundSpentObservation(request);
+    const ctx = { config, rpc, v: A.v, marker, siblings, recorded: recordedFinalExistence(marker, anchorRecord), cache: new Map() };
+    const evidenced = [];
+    for (const g of absent) {
+      const x = await existenceEvidence(ctx, marker.inputs.find((e) => e.index === g.index));
+      if (x.path) evidenced.push({ g, x });
+    }
+    if (!evidenced.length) throw cannot("INPUT_EXISTENCE_UNPROVEN", "PolicyVault cannot establish that the input reported spent was created on the selected chain, so it does not treat it as spent");
+    /* r3 */
+    const { isExactMempoolMiss, classifyMempoolEntry, locateSpendingTransaction } = require("./wallet-submit-v4");
+    const { transactionIdOfRpcBody, blockHashOfRpcHeader } = require("./tx-identity");
+    const identityOf = (body) => transactionIdOfRpcBody(config, body);
+    const headerHashOf = (header) => blockHashOfRpcHeader(config, header);
+    let mempool = null, miss = false;
+    try {
+      mempool = await rpc.getMempoolEntry({ transactionId: X, includeOrphanPool: true, filterTransactionPool: false });
+    } catch (e) {
+      if (!isExactMempoolMiss(e, X)) throw cannot("NODE_ERROR", `the node could not be read (the mempool: ${firstLine(e)})`);
+      miss = true;
+    }
+    if (!miss) {
+      if (classifyMempoolEntry(mempool, X, identityOf) !== "PRESENT") throw cannot("MEMPOOL_UNCLEAR", "the node's mempool answer for its transaction is not clear");
+      const entry = mempool.entry !== undefined ? mempool.entry : mempool.mempoolEntry;
+      if (typeof entry.isOrphan !== "boolean") throw cannot("MEMPOOL_UNCLEAR", "the node's mempool answer for its transaction is not clear");
+      if (entry.isOrphan === false) throw cannot("IN_TRANSACTION_POOL", "its transaction is in the node's transaction pool");
+    }
+    /* r4 */
+    const r4 = await read("the root output again", () => getAddressUtxos(rpc, rootAddress));
+    if (recordedInputMismatch(rootInput, r4) !== null || !sameObservedEntry(p1, r4.find((r) => sameOutpoint(r.outpoint, P)))) throw cannot("UNSTABLE", "the root output it spends changed during the observation");
+    /* r5 */
+    for (const address of [...new Set(request.build.frozen.outputs.map((o) => spkToAddress(config, o.scriptPublicKey)))]) {
+      const refs = await read("an output address", () => getAddressUtxos(rpc, address));
+      if (refs.some((r) => lowerHex(r.outpoint.transactionId) === X)) throw cannot("OWN_OUTPUT", "an output of its own transaction is observed: submit it, then press Verify state");
+    }
+    /* W7: the reload check before every save */
+    const reloadUnchanged = async () => {
+      let changed;
+      try {
+        const fresh = await loadOrgRootRequest(config, request.id);
+        const root = await loadOrgRoot(config, request.rootCovenantId);
+        changed = !fresh || stableJson(fresh) !== loadedJson || fresh.state !== RequestState.SIGNED || await rootRequestHasAttemptEvidence(config, fresh) || !root || !sameOutpoint(root.live?.outpoint, P);
+      } catch {
+        changed = true;
+      }
+      if (changed) throw cannot("STORE_CHANGED", "the request or its root changed during the observation");
+    };
+    /* W7a: record (or renew) the anchor from r0 and Ê; evidence recorded final for an outpoint is carried */
+    const renew = async () => {
+      await reloadUnchanged();
+      request.inputSpentObservation = {
+        schema: INPUT_SPENT_OBSERVATION_SCHEMA,
+        requestId: request.id,
+        txId: X,
+        anchor: { hash: A.hash, daaScore: A.daaScore.toString() },
+        virtualDaa: A.v.toString(),
+        at: new Date().toISOString(),
+        spent: evidenced.map(({ g, x }) => ({ index: g.index, role: g.role, outpoint: outpointJson(g.input.previousOutpoint), existence: existenceJson(x) }))
+      };
+      await saveOrgRootRequest(config, request);
+      return withdrawalPending(A.daaScore, true);
+    };
+    /* W6 */
+    if (anchorRecord === null) throw await renew(); // step 1
+    const A1 = { hash: anchorRecord.anchor.hash, daaScore: BigInt(anchorRecord.anchor.daaScore) };
+    const age = A.v - A1.daaScore; // A1's own header DAA, never getBlockDagInfo's
+    if (age < INPUT_SPENT_WITHDRAWAL_DEPTH_DAA) throw withdrawalPending(A1.daaScore, false); // step 2
+    if (age > WITHDRAWAL_ANCHOR_MAX_AGE_DAA) throw await renew(); // step 3
+    /* step 4: the continuing set, each existence block at or below A1 and at least 1,000 DAA below v */
+    const continuing = evidenced.filter(({ g, x }) => anchorRecord.spent.some((s) => sameOutpoint(s.outpoint, g.input.previousOutpoint)) && x.daaScore <= A1.daaScore && A.v - x.daaScore >= INPUT_SPENT_WITHDRAWAL_DEPTH_DAA);
+    if (!continuing.length) throw await renew();
+    /* step 5: the acceptance window from A1 (no reorganization allowance) */
+    let window;
+    try {
+      window = await require("./submission-outcome-v7").acceptanceWindow(rpc, A1.hash, X);
+    } catch {
+      throw await renew();
+    }
+    if (!window.complete) throw await renew();
+    if (window.accepted) throw cannot("ACCEPTED_IN_WINDOW", "its transaction is accepted on the selected chain after the anchor; press Verify state");
+    /* step 6: the block scan from A1 (inclusion counts as spending, WD-9) */
+    let scan;
+    try {
+      scan = await locateSpendingTransaction(rpc, { lowHash: A1.hash, sinkHash: window.sink, outpoints: request.build.frozen.inputs.map((i) => i.previousOutpoint), maxBatches: WITHDRAWAL_SCAN_MAX_BATCHES, identityOf, headerHashOf });
+    } catch (e) {
+      throw cannot("SCAN_UNCLEAR", `the block scan after the anchor is not clear (${firstLine(e)})`);
+    }
+    if (!scan.complete || scan.spenders.some((s) => lowerHex(s.txId) !== X)) throw await renew();
+    /* W7b */
+    await reloadUnchanged();
+    request.state = RequestState.REFUSED;
+    request.error = typeof reason === "string" ? reason : null;
+    request.inputSpentWithdrawal = {
+      schema: INPUT_SPENT_WITHDRAWAL_SCHEMA,
+      requestId: request.id,
+      txId: X,
+      anchor: { hash: A1.hash, daaScore: A1.daaScore.toString() },
+      withdrawnAt: new Date().toISOString(),
+      observedVirtualDaa: A.v.toString(),
+      depthDaa: age.toString(),
+      sink: window.sink,
+      spent: continuing.map(({ g, x }) => ({ index: g.index, role: g.role, outpoint: outpointJson(g.input.previousOutpoint), existence: existenceJson(x) })),
+      windowBlocks: window.blocks,
+      scanBlocks: scan.blocks,
+      scanBatches: scan.batches
+    };
+    await saveOrgRootRequest(config, request);
+  } finally {
+    await rpc.disconnect();
+  }
+  await releaseRootReservation(config, request);
+  return request;
+}
+/* ==================================================================================================================
+ * end of RC45 R3N-B1
+ * ================================================================================================================== */
+
+/* ---- RC45 L2-01: attribution (D1/D2), attributed completion entry (D3), settlement (D4), holds after settlement (D4b),
+ *      the settlement hook (D4 ii) and the replay answer keyed on the bound marker (addendum a item 5) ---- */
+
+const ATTRIBUTION_CANDIDATE_CAP = 64;
+/* a FRESH attributable request: never finalized, never attempted, withdrawn or still awaiting finalize */
+const ATTRIBUTION_FRESH_STATES = new Set([RequestState.AUTHORIZED, RequestState.REFUSED]);
+/* root requests S != A on the spent root outpoint P that settlement may prove SUPERSEDED */
+const SETTLEABLE_ROOT_REQUEST_STATES = new Set([RequestState.AUTHORIZED, RequestState.SIGNED, RequestState.BROADCAST, RequestState.CHAIN_SEEN, RequestState.RECONCILIATION_REQUIRED]);
+/* a terminal request on P whose reservation (the root's pending pointer) settlement may finish releasing */
+const FINISHABLE_POINTER_STATES = new Set(["SUPERSEDED", "SUBMISSION_REJECTED", "NOT_BROADCAST", "REFUSED", "STALE", "FAILED"]);
+const NODE_READ_FAILED = Symbol("wallet-requests-v7.attributionNodeReadFailed");
+const lowerHex = (value) => String(value ?? "").toLowerCase();
+const withoutModulePrefix = (message) => String(message ?? "").replace(/^wallet-requests-v7: /, "");
+
+/* An attribution refusal: answered as UNKNOWN { attribution: { outcome, ... } }, never thrown out of the Verify. */
+function attributionRefusal(outcome, reason, detail = {}) {
+  const e = new Error(`wallet-requests-v7: ${reason}`);
+  e.code = outcome;
+  e.attributionOutcome = outcome;
+  e.attributionReason = reason;
+  e.attributionDetail = detail;
+  return e;
+}
+function attributionUnknown(rootCovenantId, outcome, reason, detail = {}) {
+  const attribution = { outcome };
+  for (const key of ["requestId", "txId", "depthDaa"]) if (detail[key] !== undefined && detail[key] !== null) attribution[key] = String(detail[key]);
+  attribution.requiredDepthDaa = ATTRIBUTION_DEPTH_DAA.toString();
+  return { status: "UNKNOWN", rootCovenantId, reason, attribution };
+}
+/* The open node connection as the attributed completion sees it: every error a node call raises is marked as a node read
+ * failure, so the completion's own reads before its first write answer UNKNOWN OBSERVATION_ERROR (nothing written) and
+ * never turn the Verify into an error; the calls themselves are unchanged. */
+function attributionNodeRpc(rpc) {
+  const marked = (e) => {
+    const err = new Error(`wallet-requests-v7: a node read failed (${firstLine(e)})`);
+    err.code = "OBSERVATION_ERROR";
+    err[NODE_READ_FAILED] = true;
+    return err;
+  };
+  return new Proxy(rpc, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target);
+      if (typeof value !== "function") return value;
+      return (...args) => {
+        let out;
+        try { out = value.apply(target, args); } catch (e) { throw marked(e); }
+        return out && typeof out.then === "function" ? Promise.resolve(out).catch((e) => { throw marked(e); }) : out;
+      };
+    }
+  });
+}
+/* A deliberate refusal raised by the completion's own validation (this module or the v0.7-kas profile adapter). */
+function deliberateCompletionRefusal(e) {
+  return Boolean(e) && typeof e.code === "string" && /^(wallet-requests-v7|rooted-kas-profile-v7): /.test(String(e.message ?? ""));
+}
+function sameObservedEntry(a, b) {
+  return Boolean(a && b) && sameOutpoint(a.outpoint, b.outpoint) && String(a.amount) === String(b.amount) && (a.covenantId ?? null) === (b.covenantId ?? null)
+    && (a.scriptPublicKeyHex ?? null) === (b.scriptPublicKeyHex ?? null) && String(a.blockDaaScoreRaw) === String(b.blockDaaScoreRaw);
+}
+/* The strict observation of the treasury successor output `idx` of `request` from one fresh read of its address. */
+async function observeTreasurySuccessorStrict(config, rpc, request, idx) {
+  const out = Number.isInteger(idx) && idx >= 0 ? request?.build?.frozen?.outputs?.[idx] : undefined;
+  if (!rpc || !out) throwFail("the treasury successor of an attributed completion cannot be observed without a node connection and a frozen output", "RECONCILIATION_REQUIRED");
+  return observeFrozenOutputStrict(request, idx, await getAddressUtxos(rpc, spkToAddress(config, out.scriptPublicKey)));
+}
+
+/*
+ * D2 OBSERVATION (fresh reads on the open connection; writes nothing; every refusal is an attributionRefusal):
+ *   1. one canonical virtual DAA read;
+ *   2. one read per distinct candidate root-successor address (more than 64: CANDIDATE_CAP); a candidate's successor is
+ *      observed only EXACT (observeFrozenOutputStrict); anything else under a candidate's txid is a CONTRADICTION;
+ *   3. no observed txid: NO_CANDIDATE; several: CONTRADICTION;
+ *   4. the records carrying the observed txid: several: AMBIGUOUS; the one record A must be a v0.7-kas delegate-rule change,
+ *      FRESH (AUTHORIZED or REFUSED, no final transaction, never attempted) or a REPLAY (RECONCILIATION_REQUIRED with a
+ *      bound marker); a SIGNED never-attempted request: SUBMIT_TO_RECORD; anything else: NOT_IN_SCOPE;
+ *   5. the binding of A's records to the observed transaction (assertAttributedTransactionBinding): else RECORD_DAMAGED;
+ *   6. every frozen input of A reported spent, and T1 recorded on this root at A's predecessor (fresh) or at A's
+ *      predecessor or successor (replay): else CONTRADICTION;
+ *   7. T1's successor read #1 (exact: F; nothing under A's txid: P; anything else: CONTRADICTION) — not for a PARTIAL-marker
+ *      replay, nor for a FULL-marker replay whose T1 record is already at A's successor (addendum a items 1 and 2);
+ *   8. the bracket: the root successor re-read (still the same exact entry) and T1's read #2 (equal to #1): else UNSTABLE;
+ *   9. depth = virtual DAA - the root successor entry's canonical accepting DAA >= 1000 (else BELOW_DEPTH; non-canonical:
+ *      OBSERVATION_ERROR); FULL needs T1's entry at the same accepting DAA (else CONTRADICTION);
+ *  10. the mode: F/F FULL, P/P PARTIAL; a replay that reads no T1 keeps its marker's mode.
+ * A node read that fails is OBSERVATION_ERROR. Store errors propagate unchanged.
+ */
+async function observeAttributableMove(config, rpc, { rootCovenantId, P, records, candidates }) {
+  const read = async (address, what) => {
+    try {
+      return await getAddressUtxos(rpc, address);
+    } catch (e) {
+      throw attributionRefusal("OBSERVATION_ERROR", `${what} ${address} could not be read from the node (${firstLine(e)}) — nothing is written`);
+    }
+  };
+  let virtualDaa;
+  try {
+    virtualDaa = await require("./chain").readCanonicalVirtualDaaScore(rpc);
+  } catch (e) {
+    throw attributionRefusal("OBSERVATION_ERROR", `the node's virtual DAA score could not be read as a canonical integer (${firstLine(e)}) — nothing is written`);
+  }
+  const byAddress = new Map();
+  for (const q of candidates) {
+    let target;
+    try {
+      target = rootSuccessorTarget(config, q);
+    } catch (e) {
+      throw attributionRefusal("RECORD_DAMAGED", `request ${q.id} on the root's recorded outpoint declares no readable root successor (${withoutModulePrefix(firstLine(e))}) — nothing is written`, { requestId: q.id, txId: q.txId });
+    }
+    if (!byAddress.has(target.rootAddress)) byAddress.set(target.rootAddress, []);
+    byAddress.get(target.rootAddress).push({ q, target });
+  }
+  if (byAddress.size > ATTRIBUTION_CANDIDATE_CAP) throw attributionRefusal("CANDIDATE_CAP", `${byAddress.size} distinct candidate root successor addresses exceed the cap of ${ATTRIBUTION_CANDIDATE_CAP} — nothing is attributed or written`);
+  const observed = new Map();
+  for (const [address, list] of byAddress) {
+    const refs = await read(address, "the candidate root successor address");
+    for (const { q, target } of list) {
+      const o = observeFrozenOutputStrict(q, target.rootOutIndex, refs);
+      if (o.outcome === "CONTRADICTION") throw attributionRefusal("CONTRADICTION", `request ${q.id}'s root successor is contradicted on chain: ${o.reason} — nothing is written`, { requestId: q.id, txId: q.txId });
+      if (o.outcome === "EXACT" && !observed.has(lowerHex(q.txId))) observed.set(lowerHex(q.txId), { target, address, entry: o.entry });
+    }
+  }
+  if (observed.size === 0) throw attributionRefusal("NO_CANDIDATE", "the root's recorded outpoint is spent and no recorded request's exact root successor is observed — the move is not attributable to a PolicyVault record; nothing is written");
+  if (observed.size > 1) throw attributionRefusal("CONTRADICTION", `the root successors of ${observed.size} different recorded transactions are observed at once — nothing is written`);
+  const [[X, rootSeen]] = observed;
+  const carrying = records.filter((q) => q && typeof q.txId === "string" && lowerHex(q.txId) === X);
+  if (carrying.length !== 1) throw attributionRefusal("AMBIGUOUS", `${carrying.length} records carry the observed transaction ${X} — it is not attributed to any of them; nothing is written`, { txId: X });
+  const A = carrying[0];
+  const facts = { requestId: A.id, txId: A.txId };
+  const rule = kasDelegateRuleChange(A);
+  const inScope = rule.recorded && rule.built && Array.isArray(A.vaultOperations) && A.vaultOperations.length === 1;
+  const marker = boundAttributionMarker(A);
+  const attempted = await rootRequestHasAttemptEvidence(config, A);
+  const fresh = inScope && ATTRIBUTION_FRESH_STATES.has(A.state) && A.finalTransaction == null && !A.signedSafeJson && !attempted;
+  const replay = inScope && A.state === RequestState.RECONCILIATION_REQUIRED && marker !== null;
+  if (!fresh && !replay) {
+    if (A.state === RequestState.SIGNED && !attempted) throw attributionRefusal("SUBMIT_TO_RECORD", `request ${A.id} is finalized and its transaction ${A.txId}, broadcast outside PolicyVault, is already on the chain — press Submit on it, then Verify state; nothing is written`, facts);
+    throw attributionRefusal("NOT_IN_SCOPE", `the observed transaction ${A.txId} belongs to request ${A.id} (${A.state}${inScope ? "" : ", not a v0.7-kas delegate-rule change"}), which this attribution does not cover — nothing is written`, facts);
+  }
+  try {
+    assertAttributedTransactionBinding(config, A);
+  } catch (e) {
+    throw attributionRefusal("RECORD_DAMAGED", `${withoutModulePrefix(firstLine(e))} (request ${A.id}); nothing is written`, facts);
+  }
+  const inputs = new Map();
+  for (const input of A.build.frozen.inputs) {
+    let address;
+    try {
+      address = spkToAddress(config, input.utxo.scriptPublicKey);
+    } catch (e) {
+      throw attributionRefusal("RECORD_DAMAGED", `an input of request ${A.id} carries no readable script (${withoutModulePrefix(firstLine(e))}) — nothing is written`, facts);
+    }
+    if (!inputs.has(address)) inputs.set(address, []);
+    inputs.get(address).push(input.previousOutpoint);
+  }
+  for (const [address, outpoints] of inputs) {
+    const refs = await read(address, "an input address of the observed transaction");
+    const present = outpoints.find((op) => refs.some((r) => sameOutpoint(r.outpoint, op)));
+    if (present) throw attributionRefusal("CONTRADICTION", `input ${describeOutpoint(present)} of request ${A.id}'s transaction ${A.txId} is still reported unspent, which contradicts its acceptance — nothing is written`, facts);
+  }
+  const vaultId = A.vaultOperations[0].vaultId;
+  let vaultPredecessor;
+  try {
+    vaultPredecessor = vaultPredecessorOutpoint(A);
+  } catch (e) {
+    throw attributionRefusal("RECORD_DAMAGED", `${withoutModulePrefix(firstLine(e))} (request ${A.id}); nothing is written`, facts);
+  }
+  const vIdx = kasProfile.vaultSuccessorIndexOf(A);
+  if (!(vIdx >= 0)) throw attributionRefusal("RECORD_DAMAGED", `request ${A.id}'s transaction declares no treasury successor output — nothing is written`, facts);
+  const vault = await kasProfile.loadManifestV7Kas(config, vaultId);
+  const atPredecessor = Boolean(vault && vault.live) && sameOutpoint(vault.live.outpoint, vaultPredecessor);
+  const atSuccessor = Boolean(vault && vault.live) && sameOutpoint(vault.live.outpoint, { transactionId: A.txId, index: vIdx });
+  if (!vault || vault.orgRootCovenantId !== rootCovenantId || !(atPredecessor || replay && atSuccessor)) {
+    throw attributionRefusal("CONTRADICTION", `treasury ${vaultId} is not recorded on this root at request ${A.id}'s ${replay ? "predecessor or successor" : "predecessor"} ${describeOutpoint(vaultPredecessor)} (recorded at ${describeOutpoint(vault && vault.live ? vault.live.outpoint : null)}) — nothing is written`, facts);
+  }
+  const treasuryAddress = spkToAddress(config, A.build.frozen.outputs[vIdx].scriptPublicKey);
+  const readsTreasury = fresh || marker.mode === "FULL" && atPredecessor;
+  let treasuryFirst = null;
+  if (readsTreasury) {
+    treasuryFirst = observeFrozenOutputStrict(A, vIdx, await read(treasuryAddress, "the treasury successor address"));
+    if (treasuryFirst.outcome === "CONTRADICTION") throw attributionRefusal("CONTRADICTION", `treasury ${vaultId}'s successor is contradicted on chain: ${treasuryFirst.reason} — nothing is written`, facts);
+  }
+  const rootAgain = observeFrozenOutputStrict(A, rootSeen.target.rootOutIndex, await read(rootSeen.address, "the root successor address"));
+  if (rootAgain.outcome !== "EXACT" || !sameObservedEntry(rootAgain.entry, rootSeen.entry)) {
+    throw attributionRefusal("UNSTABLE", `the root successor ${A.txId}:${rootSeen.target.rootOutIndex} changed between two reads (${rootAgain.outcome === "EXACT" ? "its entry differs" : rootAgain.outcome}) — nothing is written; Verify again`, facts);
+  }
+  if (readsTreasury) {
+    const treasurySecond = observeFrozenOutputStrict(A, vIdx, await read(treasuryAddress, "the treasury successor address"));
+    if (treasurySecond.outcome !== treasuryFirst.outcome || treasuryFirst.outcome === "EXACT" && !sameObservedEntry(treasuryFirst.entry, treasurySecond.entry)) {
+      throw attributionRefusal("UNSTABLE", `treasury ${vaultId}'s successor ${A.txId}:${vIdx} changed between two reads (${treasuryFirst.outcome} then ${treasurySecond.outcome}) — nothing is written; Verify again`, facts);
+    }
+  }
+  const rootEntryDaa = canonicalDaaScore(rootSeen.entry.blockDaaScoreRaw);
+  if (rootEntryDaa === null) throw attributionRefusal("OBSERVATION_ERROR", `the node reports no canonical accepting DAA score for the root successor ${A.txId}:${rootSeen.target.rootOutIndex} — nothing is written`, facts);
+  if (virtualDaa < rootEntryDaa) throw attributionRefusal("CONTRADICTION", `the node's virtual DAA score ${virtualDaa} is below the root successor's accepting DAA score ${rootEntryDaa} — nothing is written`, facts);
+  const depth = virtualDaa - rootEntryDaa;
+  if (depth < ATTRIBUTION_DEPTH_DAA) {
+    throw attributionRefusal("BELOW_DEPTH", `request ${A.id}'s transaction ${A.txId}, broadcast outside PolicyVault, is at depth ${depth} DAA, below the required ${ATTRIBUTION_DEPTH_DAA} — nothing is written; Verify again later`, { ...facts, depthDaa: depth.toString() });
+  }
+  if (readsTreasury && treasuryFirst.outcome === "EXACT") {
+    const treasuryEntryDaa = canonicalDaaScore(treasuryFirst.entry.blockDaaScoreRaw);
+    if (treasuryEntryDaa === null) throw attributionRefusal("OBSERVATION_ERROR", `the node reports no canonical accepting DAA score for treasury ${vaultId}'s successor ${A.txId}:${vIdx} — nothing is written`, facts);
+    if (treasuryEntryDaa !== rootEntryDaa) throw attributionRefusal("CONTRADICTION", `treasury ${vaultId}'s successor is reported at accepting DAA ${treasuryEntryDaa}, the root successor of the same transaction at ${rootEntryDaa} — nothing is written`, facts);
+  }
+  const mode = readsTreasury ? (treasuryFirst.outcome === "EXACT" ? "FULL" : "PARTIAL") : marker.mode;
+  return { A, X, target: rootSeen.target, virtualDaa, rootEntryDaa, depth, mode, fresh, replay };
+}
+
+/*
+ * D1 + D2 + D3 + D4 + D4b — reconcile-v7's live-outpoint-gone branch calls this after its claim path found no proof and
+ * before its C3 UNKNOWN, only with claim release allowed, under the root lock every hosted mutation of the root takes.
+ * RECORDS FIRST: without a root request recorded on the root's recorded outpoint P (with a txid and a build) it returns
+ * null — the caller answers C3's UNKNOWN byte-identically — and reads nothing from the node. Otherwise:
+ *   - a refusal of the observation (D2) answers UNKNOWN { attribution: { outcome, requestId?, txId?, depthDaa?,
+ *     requiredDepthDaa: "1000" } } and writes nothing; a node read error is OBSERVATION_ERROR (never an error);
+ *   - the attributed completion (completeProvenRootAction with this module's in-memory attribution, via "attribution"):
+ *     a refusal before its first write answers UNKNOWN (UNSTABLE / RECORD_DAMAGED / OBSERVATION_ERROR /
+ *     COMPLETION_REFUSED), nothing written, no recordCompletionFailure; a failure after its first write is recorded by
+ *     recordCompletionFailure and thrown, as in C3 (the next Verify or Submit replays the bound marker);
+ *   - then settlement (settleStrandedByAttribution; its failures become `unsettled`, never thrown past A's completion)
+ *     and the holds derived from the records afterwards (rootHoldsAfterSettlement);
+ *   - ADVANCED { via: "attribution", mode, depthDaa, requiredDepthDaa, treasury: { vaultId, state }, settled, unsettled,
+ *     holds, buildable }.
+ * Store errors propagate as in C3.
+ */
+async function attributeOutOfBandRootTransition(config, rpc, root) {
+  if (!root || !root.live || !root.live.outpoint) return null;
+  const rootCovenantId = root.rootCovenantId;
+  let P;
+  try {
+    P = normalizeOutpoint(root.live.outpoint, "root.live.outpoint");
+  } catch {
+    return null;
+  }
+  const records = await listOrgRootRequests(config, { rootCovenantId });
+  const candidates = records.filter((q) => q && q.kind === "rootAction" && typeof q.txId === "string" && q.build && q.build.frozen && Array.isArray(q.build.frozen.outputs) && sameOutpoint(q.manifest?.root?.outpoint, P));
+  if (candidates.length === 0) return null;
+  let seen;
+  try {
+    seen = await observeAttributableMove(config, rpc, { rootCovenantId, P, records, candidates });
+  } catch (e) {
+    if (e && e.attributionOutcome) return attributionUnknown(rootCovenantId, e.attributionOutcome, e.attributionReason, e.attributionDetail);
+    throw e;
+  }
+  const { A, target, virtualDaa, rootEntryDaa, depth, mode } = seen;
+  const facts = { requestId: A.id, txId: A.txId };
+  const attribution = issueInMemoryAttribution({ requestId: A.id, txId: A.txId, mode, observedVirtualDaa: virtualDaa.toString(), rootEntryDaa: rootEntryDaa.toString(), depthDaa: depth.toString() });
+  try {
+    await completeProvenRootAction(config, A, { rootOutIndex: target.rootOutIndex, rootAddress: target.rootAddress, rootExpectedValue: target.rootExpectedValue, rootBlockDaaScore: rootEntryDaa.toString(), vaultOutIndex: null, rpc: attributionNodeRpc(rpc), via: "attribution", attribution });
+  } catch (e) {
+    if (e && e.completionStarted) throw await recordCompletionFailure(config, A, e);
+    if (e && e[NODE_READ_FAILED]) return attributionUnknown(rootCovenantId, "OBSERVATION_ERROR", `${withoutModulePrefix(firstLine(e))} during the attributed completion of request ${A.id} — nothing is written`, facts);
+    if (deliberateCompletionRefusal(e)) {
+      const outcome = e.code === "UNSTABLE" || e.code === "RECORD_DAMAGED" ? e.code : "COMPLETION_REFUSED";
+      return attributionUnknown(rootCovenantId, outcome, `the attributed completion of request ${A.id} is refused before any write: ${withoutModulePrefix(firstLine(e))}`, facts);
+    }
+    throw e;
+  }
+  let settlement;
+  try {
+    settlement = await settleStrandedByAttribution(config, rpc, { request: A, depthDaa: depth.toString() });
+  } catch (e) {
+    settlement = { settled: [], unsettled: [{ step: "settlement", reason: firstLine(e) }] };
+  }
+  const { holds, buildable } = await rootHoldsAfterSettlement(config, rootCovenantId);
+  const finalMarker = boundAttributionMarker(A);
+  const finalMode = finalMarker !== null ? finalMarker.mode : mode;
+  const vaultId = A.vaultOperations[0].vaultId;
+  return {
+    status: "ADVANCED",
+    rootCovenantId,
+    txId: A.txId,
+    requestId: A.id,
+    via: "attribution",
+    mode: finalMode,
+    depthDaa: depth.toString(),
+    requiredDepthDaa: ATTRIBUTION_DEPTH_DAA.toString(),
+    treasury: { vaultId, state: OOB_ATTRIBUTION_TREASURY_STATE[finalMode] },
+    settled: settlement.settled,
+    unsettled: settlement.unsettled,
+    holds,
+    buildable,
+    reason: finalMode === "FULL"
+      ? `request ${A.id}'s transaction ${A.txId}, broadcast outside PolicyVault, consumed the root's recorded outpoint; it is attributed to that request at depth ${depth} DAA and the root and treasury ${vaultId} follow its successors`
+      : `request ${A.id}'s transaction ${A.txId}, broadcast outside PolicyVault, consumed the root's recorded outpoint; it is attributed to that request at depth ${depth} DAA and the root follows its successor; the treasury output it created for ${vaultId} was spent outside PolicyVault, so ${vaultId} is UNRESOLVED (its record is unchanged)`
+  };
+}
+
+/* A v0.7-kas delegate request that is unfinished (rooted-kas-profile-v7.js unfinishedDelegateRequests). */
+function kasDelegateUnfinished(q) {
+  return Boolean(q) && q.kind === "agentSpend" && (["SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED"].includes(q.state) || q.state === "SIGNED" && !!q.submissionAttempt);
+}
+/* The pointer naming a terminal request on P without a bound receipt (D4 "finish"), or null. Reads records only. */
+async function finishablePointerRequest(config, root, request, P) {
+  if (!root || !root.pendingRequestId || root.pendingRequestId === request.id) return null;
+  const q = await loadOrgRootRequest(config, root.pendingRequestId);
+  if (!q || q.kind !== "rootAction" || q.rootCovenantId !== request.rootCovenantId || !FINISHABLE_POINTER_STATES.has(q.state) || !sameOutpoint(q.manifest?.root?.outpoint, P) || lowerHex(q.txId) === lowerHex(request.txId)) return null;
+  let bound = true;
+  try {
+    bound = await hasBoundRootCompletionReceipt(config, q);
+  } catch {
+    bound = true; // undeterminable: never finished here
+  }
+  return bound ? null : q;
+}
+/*
+ * The requests an attributed request A leaves stranded, from the records only (no node read): root requests S != A of
+ * this root on A's root predecessor P with S.txId != A.txId in AUTHORIZED, SIGNED, BROADCAST, CHAIN_SEEN or
+ * RECONCILIATION_REQUIRED; unfinished v0.7-kas delegate requests of this root's treasuries sharing a frozen input with A
+ * (T1's predecessor or A's fee input) with D.txId != A.txId; and the pointer naming a terminal request on P without a
+ * bound receipt.
+ */
+async function strandedByAttribution(config, request, { records = null } = {}) {
+  const P = normalizeOutpoint(request.manifest.root.outpoint, "manifest.root.outpoint");
+  const X = lowerHex(request.txId);
+  const list = records ?? (await listOrgRootRequests(config, { rootCovenantId: request.rootCovenantId }));
+  const rootRequests = list.filter((q) => q && q.kind === "rootAction" && q.id !== request.id && q.rootCovenantId === request.rootCovenantId && typeof q.txId === "string" && lowerHex(q.txId) !== X && SETTLEABLE_ROOT_REQUEST_STATES.has(q.state) && sameOutpoint(q.manifest?.root?.outpoint, P));
+  const attributedInputs = request.build.frozen.inputs.map((i) => i.previousOutpoint);
+  const root = await loadOrgRoot(config, request.rootCovenantId);
+  const delegates = [];
+  for (const vaultId of root?.vaults ?? []) {
+    const vault = await kasProfile.loadManifestV7Kas(config, vaultId);
+    if (!vault) continue;
+    for (const d of await kasProfile.unfinishedDelegateRequests(config, vault)) {
+      if (typeof d.txId !== "string" || lowerHex(d.txId) === X || !Array.isArray(d.build?.frozen?.inputs)) continue;
+      const shared = d.build.frozen.inputs.map((i) => i.previousOutpoint).find((o) => attributedInputs.some((a) => sameOutpoint(a, o)));
+      if (shared) delegates.push({ request: d, shared });
+    }
+  }
+  return { P, X, rootRequests, delegates, finish: await finishablePointerRequest(config, root, request, P) };
+}
+
+/*
+ * D4 SETTLEMENT of the requests stranded by the attributed request A (CHAIN_VERIFIED, its transaction accepted: it spent
+ * the root predecessor P and every other frozen input of A). A request is settled only on proof that it can never be
+ * accepted: it spends an outpoint A's accepted transaction spent (an outpoint is spent once, so it could be accepted only
+ * if A were reorganized away deeper than the attribution depth) and no output under its own txid is observed.
+ *   - root request S: an unattempted, claimless S is settled SUPERSEDED in ONE save; an attempted or claimed S in the
+ *     claim path's order (reconcile-v7 reconcileRootNegativeOutcome), releasing only its own claims (a claim naming
+ *     another request leaves S unsettled); then the root's pointer is cleared only when it names S;
+ *   - delegate request D: the delegate negative-outcome writes (wallet-requests-v7-kas recoverKasDelegateRequest);
+ *   - finish: a pointer naming a terminal request on P without a bound receipt: its own claims are released and the
+ *     pointer is cleared.
+ * submissionOutcome { outcome: "SUPERSEDED", proof: { via: "attribution", acceptedConflictingTxId, attributedRequestId,
+ * spentOutpoint, depthDaa } }. Idempotent. Each failure becomes `unsettled: [{ requestId, step, reason }]`; nothing is
+ * thrown for one request. Never settled: other terminal requests, a BUILT or never-attempted SIGNED delegate request,
+ * other roots' requests, anything whose proof fails. Returns { settled, unsettled }.
+ */
+async function settleStrandedByAttribution(config, rpc, { request, depthDaa, records = null }) {
+  const settled = [], unsettled = [];
+  const { P, X, rootRequests, delegates } = await strandedByAttribution(config, request, { records });
+  const reads = new Map();
+  const read = async (address) => {
+    if (!reads.has(address)) reads.set(address, await getAddressUtxos(rpc, address));
+    return reads.get(address);
+  };
+  const ownOutputObserved = async (q) => {
+    for (const address of new Set(q.build.frozen.outputs.map((o) => spkToAddress(config, o.scriptPublicKey)))) {
+      if ((await read(address)).some((r) => lowerHex(r.outpoint.transactionId) === lowerHex(q.txId))) return true;
+    }
+    return false;
+  };
+  const supersededBy = (spent, txId) => ({
+    outcome: "SUPERSEDED",
+    reason: `another confirmed transaction (${request.txId}, request ${request.id}, broadcast outside PolicyVault) spent ${describeOutpoint(spent)}, an output this request needs; ${txId} can never be accepted`,
+    proof: { via: "attribution", acceptedConflictingTxId: request.txId, attributedRequestId: request.id, spentOutpoint: { transactionId: lowerHex(spent.transactionId), index: Number(spent.index) }, depthDaa: String(depthDaa) }
+  });
+  for (const listed of rootRequests) {
+    let step = "load";
+    try {
+      const s = await loadOrgRootRequest(config, listed.id);
+      if (!s || s.kind !== "rootAction" || !SETTLEABLE_ROOT_REQUEST_STATES.has(s.state) || !sameOutpoint(s.manifest?.root?.outpoint, P) || lowerHex(s.txId) === X) continue;
+      step = "proof";
+      if (!Array.isArray(s.build?.frozen?.inputs) || !s.build.frozen.inputs.some((i) => sameOutpoint(i.previousOutpoint, P))) {
+        unsettled.push({ requestId: s.id, step, reason: `its frozen inputs do not spend the root outpoint ${describeOutpoint(P)} — not settled` });
+        continue;
+      }
+      step = "observe";
+      if (await ownOutputObserved(s)) {
+        unsettled.push({ requestId: s.id, step: "proof", reason: `CONTRADICTION: an output under its own transaction ${s.txId} is observed — not settled` });
+        continue;
+      }
+      step = "proof";
+      if (await getStore(config).read(Categories.RECEIPT, s.txId)) {
+        unsettled.push({ requestId: s.id, step, reason: `CONTRADICTION: a receipt exists for its own transaction ${s.txId} — not settled` });
+        continue;
+      }
+      const outcome = supersededBy(P, s.txId);
+      const pointer = completionReceiptPointer(s);
+      if (!(await rootRequestHasAttemptEvidence(config, s))) {
+        step = "settle";
+        s.submissionOutcome = { ...outcome, ...pointer, txId: s.txId };
+        s.state = "SUPERSEDED";
+        s.error = outcome.reason;
+        await saveOrgRootRequest(config, s);
+      } else {
+        step = "claims";
+        const claims = [];
+        let foreign = false;
+        for (const outpoint of [s.manifest.root.outpoint, ...(s.vaultOperations?.length ? [s.build.predecessorOutpoint] : [])]) {
+          const claim = await loadTransitionClaim(config, outpoint);
+          if (claim?.txId === s.txId && claim.expected?.requestId && claim.expected.requestId !== s.id) { foreign = true; break; }
+          claims.push({ outpoint, claim });
+        }
+        if (foreign) {
+          unsettled.push({ requestId: s.id, step, reason: "claim names another request — not settled" });
+          continue;
+        }
+        const submission = await getStore(config).read(Categories.SUBMISSION_CLAIM, s.txId);
+        if (submission && (submission.vaultId !== s.rootCovenantId || submission.action !== s.action)) {
+          unsettled.push({ requestId: s.id, step, reason: "submission claim belongs to another operation — not settled" });
+          continue;
+        }
+        step = "settle";
+        s.submissionOutcome = { ...outcome, ...pointer, txId: s.txId };
+        s.state = RequestState.RECONCILIATION_REQUIRED;
+        await saveOrgRootRequest(config, s);
+        step = "claims";
+        for (const { outpoint, claim } of claims) if (claim?.txId === s.txId) await releaseTransitionClaim(config, { outpoint, txId: s.txId });
+        if (submission) await releaseSubmissionClaim(config, s.txId);
+        step = "settle";
+        s.state = "SUPERSEDED";
+        s.error = outcome.reason;
+        await saveOrgRootRequest(config, s);
+      }
+      step = "pointer";
+      const fresh = await loadOrgRoot(config, s.rootCovenantId);
+      if (fresh && fresh.pendingRequestId === s.id) {
+        fresh.pendingRequestId = null;
+        fresh.updatedAt = new Date().toISOString();
+        await saveOrgRoot(config, fresh);
+      }
+      settled.push({ requestId: s.id, kind: "rootAction", outcome: "SUPERSEDED", spentOutpoint: describeOutpoint(P) });
+    } catch (e) {
+      unsettled.push({ requestId: listed.id, step, reason: firstLine(e) });
+    }
+  }
+  const wrk = delegates.length ? require("./wallet-requests-v7-kas") : null;
+  for (const { request: listed, shared } of delegates) {
+    let step = "load";
+    try {
+      const d = await wrk.loadKasWalletRequest(config, listed.requestId);
+      if (!kasDelegateUnfinished(d) || lowerHex(d.txId) === X) continue;
+      step = "observe";
+      if (await ownOutputObserved(d)) {
+        unsettled.push({ requestId: d.requestId, step: "proof", reason: `CONTRADICTION: an output under its own transaction ${d.txId} is observed — not settled` });
+        continue;
+      }
+      step = "claims";
+      const outcome = supersededBy(shared, d.txId);
+      if (d.predecessorOutpoint) {
+        const claim = await loadTransitionClaim(config, d.predecessorOutpoint);
+        if (claim && claim.txId === d.txId) await releaseTransitionClaim(config, { outpoint: d.predecessorOutpoint, txId: d.txId });
+      }
+      const sub = await getStore(config).read(Categories.SUBMISSION_CLAIM, d.txId);
+      if (sub && sub.vaultId === d.vaultId && sub.action === d.action) await releaseSubmissionClaim(config, d.txId);
+      step = "settle";
+      d.submissionOutcome = { ...outcome, txId: d.txId };
+      d.state = "SUPERSEDED";
+      d.error = outcome.reason;
+      await wrk.saveKasWalletRequest(config, d);
+      settled.push({ requestId: d.requestId, kind: "delegate", vaultId: d.vaultId, outcome: "SUPERSEDED", spentOutpoint: describeOutpoint(shared) });
+    } catch (e) {
+      unsettled.push({ requestId: listed.requestId, step, reason: firstLine(e) });
+    }
+  }
+  let finishing = null;
+  try {
+    const root = await loadOrgRoot(config, request.rootCovenantId);
+    finishing = await finishablePointerRequest(config, root, request, P);
+    if (finishing) {
+      for (const outpoint of [finishing.manifest.root.outpoint, ...(finishing.vaultOperations?.length && finishing.build?.predecessorOutpoint ? [finishing.build.predecessorOutpoint] : [])]) {
+        const claim = await loadTransitionClaim(config, outpoint);
+        if (claim?.txId === finishing.txId && (!claim.expected?.requestId || claim.expected.requestId === finishing.id)) await releaseTransitionClaim(config, { outpoint, txId: finishing.txId });
+      }
+      const sub = await getStore(config).read(Categories.SUBMISSION_CLAIM, finishing.txId);
+      if (sub && sub.vaultId === finishing.rootCovenantId && sub.action === finishing.action) await releaseSubmissionClaim(config, finishing.txId);
+      root.pendingRequestId = null;
+      root.updatedAt = new Date().toISOString();
+      await saveOrgRoot(config, root);
+      settled.push({ requestId: finishing.id, kind: "rootAction", step: "pointer", outcome: finishing.state, reservation: "RELEASED" });
+    }
+  } catch (e) {
+    unsettled.push({ ...(finishing ? { requestId: finishing.id } : {}), step: "pointer", reason: firstLine(e) });
+  }
+  return { settled, unsettled };
+}
+
+/*
+ * D4b HOLDS AFTER SETTLEMENT (records only; no node read; never writes): reload the root; `holds` = the root's pending
+ * pointer and every pendingRootRequests entry as { scope: "root", requestId, state }, plus every v0.7-kas treasury of the
+ * root that is UNRESOLVED (treasuryUnresolved) as { scope: vaultId, reason: "UNRESOLVED", requestId, txId }.
+ * buildable = { root: no root-scope hold, treasuries: the root's treasuries without a hold when the root is buildable,
+ * else [] }. Any error: { holds: null, buildable: null } (not determined).
+ */
+async function rootHoldsAfterSettlement(config, rootCovenantId) {
+  try {
+    const root = await loadOrgRoot(config, rootCovenantId);
+    if (!root) return { holds: null, buildable: null };
+    const holds = [];
+    const named = new Set();
+    if (root.pendingRequestId) {
+      const q = await loadOrgRootRequest(config, root.pendingRequestId);
+      holds.push({ scope: "root", requestId: root.pendingRequestId, state: q ? q.state : null });
+      named.add(root.pendingRequestId);
+    }
+    for (const q of await pendingRootRequests(config, root)) {
+      if (named.has(q.id)) continue;
+      named.add(q.id);
+      holds.push({ scope: "root", requestId: q.id, state: q.state });
+    }
+    const held = new Set();
+    for (const vaultId of root.vaults ?? []) {
+      const vault = await kasProfile.loadManifestV7Kas(config, vaultId);
+      const unresolved = vault ? await treasuryUnresolved(config, vault) : null;
+      if (unresolved) {
+        holds.push({ scope: vaultId, reason: "UNRESOLVED", requestId: unresolved.requestId, txId: unresolved.txId });
+        held.add(vaultId);
+      }
+    }
+    const rootBuildable = !holds.some((h) => h.scope === "root");
+    return { holds, buildable: { root: rootBuildable, treasuries: rootBuildable ? (root.vaults ?? []).filter((v) => !held.has(v)) : [] } };
+  } catch {
+    return { holds: null, buildable: null };
+  }
+}
+
+/*
+ * D7's record-only predicate: the v0.7-kas treasury `vault` is UNRESOLVED when a bound PARTIAL attribution marker of its
+ * root names it while its record still stands at the marker's predecessor outpoint. Returns { requestId, txId } or null.
+ * Used by D4b and by the D7 refusals (assertTreasuryNotUnresolved) and wallet-requests-v7-kas.js reconcileKasVault.
+ */
+function treasuryUnresolvedCandidate(vault) {
+  return !!vault && kasProfile.isKasVaultRecord(vault) && !!vault.live && typeof vault.orgRootCovenantId === "string";
+}
+/* the predicate over `records`, a listing of the requests of the candidate `vault`'s root */
+function treasuryUnresolvedAmong(records, vault) {
+  for (const q of records) {
+    const m = boundAttributionMarker(q);
+    if (m && m.mode === "PARTIAL" && m.treasury.state === OOB_ATTRIBUTION_TREASURY_STATE.PARTIAL && m.treasury.vaultId === vault.vaultId && sameOutpoint(vault.live.outpoint, m.treasury.predecessorOutpoint)) return { requestId: q.id, txId: q.txId };
+  }
+  return null;
+}
+async function treasuryUnresolved(config, vault) {
+  if (!treasuryUnresolvedCandidate(vault)) return null;
+  return treasuryUnresolvedAmong(await listOrgRootRequests(config, { rootCovenantId: vault.orgRootCovenantId }), vault);
+}
+/*
+ * RC45 C4-05 (contract D7, the org summaries): the same predicate for the v0.7-kas treasuries of ONE root from ONE listing
+ * of that root's requests (records only; no node read; never writes). Returns vault -> { requestId, txId } | null, the
+ * answer treasuryUnresolved(config, vault) gives over that listing. A treasury of another root is refused (thrown), never
+ * answered null; a store error propagates, so a summary never shows an undetermined state as null.
+ */
+async function treasuryUnresolvedOfRoot(config, rootCovenantId) {
+  const records = typeof rootCovenantId === "string" ? await listOrgRootRequests(config, { rootCovenantId }) : [];
+  return (vault) => {
+    if (!treasuryUnresolvedCandidate(vault)) return null;
+    if (vault.orgRootCovenantId !== rootCovenantId) throwFail(`treasury ${vault.vaultId} belongs to root ${vault.orgRootCovenantId}, not to root ${rootCovenantId} whose requests were listed`, "RECORD_DAMAGED");
+    return treasuryUnresolvedAmong(records, vault);
+  };
+}
+/*
+ * D7 REFUSAL (record-only, refusal-only; writes nothing): a hosted action on an UNRESOLVED v0.7-kas treasury is refused
+ * 409 TREASURY_STATE_UNRESOLVED naming the attributed request and its txid. Placed ahead of VAULT_PAUSED /
+ * VAULT_PENDING_REQUEST and the completion checks, because the treasury's recorded status and rows describe a
+ * predecessor that moved on chain; network, generation, identity, genesis and action-shape checks and the root-wide
+ * ROOT_PENDING_REQUEST still come first.
+ */
+async function assertTreasuryNotUnresolved(config, vault) {
+  const unresolved = await treasuryUnresolved(config, vault);
+  if (!unresolved) return;
+  const e = fail(`treasury ${vault.vaultId} is UNRESOLVED: PolicyVault cannot confirm this treasury's current state — its expected output was spent outside PolicyVault after an out-of-band change to its delegate rules (root request ${unresolved.requestId}, transaction ${unresolved.txId}, broadcast outside PolicyVault). Hosted actions on this treasury stay closed; a later Verify restores them only if it finds that expected output unspent again, otherwise only the owners' direct on-chain exit can act on it. Nothing was written`, "TREASURY_STATE_UNRESOLVED");
+  e.status = 409; // a conflict with the recorded chain state (contract D7), never a validation answer
+  throw e;
+}
+
+/*
+ * D4 (ii) THE SETTLEMENT HOOK (reconcile-v7's live branch, after discovery, only with claim release allowed): only when
+ * the live outpoint's transaction is a CHAIN_VERIFIED request of this root carrying a bound marker AND the records still
+ * hold a settlement candidate does it settle (with node reads); otherwise it returns null having read nothing from the
+ * node and written nothing. Never throws: every error becomes `unsettled: [{ step: "hook", ... }]` beside the caller's
+ * own (C3) answer. Returns null or { settled, unsettled, fields } — `fields` is what the caller adds to its answer (the
+ * D4b holds and buildability only when something was settled).
+ */
+async function attributionSettlementHook(config, rpc, root) {
+  let request, records;
+  try {
+    if (!root || !root.live || !root.live.outpoint) return null;
+    const liveTx = lowerHex(root.live.outpoint.transactionId);
+    records = await listOrgRootRequests(config, { rootCovenantId: root.rootCovenantId });
+    const marked = records.filter((q) => q && q.kind === "rootAction" && typeof q.txId === "string" && lowerHex(q.txId) === liveTx && q.state === RequestState.CHAIN_VERIFIED && boundAttributionMarker(q) !== null);
+    if (marked.length !== 1) return null;
+    request = marked[0];
+    const stranded = await strandedByAttribution(config, request, { records });
+    if (!stranded.rootRequests.length && !stranded.delegates.length && !stranded.finish) return null;
+  } catch (e) {
+    const unsettled = [{ step: "hook", reason: `the settlement hook could not inspect the records (${firstLine(e)})` }];
+    return { settled: [], unsettled, fields: { unsettled } };
+  }
+  let result;
+  try {
+    result = await settleStrandedByAttribution(config, rpc, { request, depthDaa: boundAttributionMarker(request).depthDaa, records });
+  } catch (e) {
+    result = { settled: [], unsettled: [{ step: "settlement", reason: firstLine(e) }] };
+  }
+  const unsettled = result.unsettled.map((u) => ({ step: "hook", ...(u.requestId ? { requestId: u.requestId } : {}), reason: `${u.step}: ${u.reason}` }));
+  const fields = {};
+  if (result.settled.length) fields.settled = result.settled;
+  if (unsettled.length) fields.unsettled = unsettled;
+  if (result.settled.length) Object.assign(fields, await rootHoldsAfterSettlement(config, root.rootCovenantId));
+  return { settled: result.settled, unsettled, fields };
+}
+
+/*
+ * Addendum a item 5: when reconcile-v7's discovery REPLAYED a request carrying a bound marker, its ADVANCED answer is the
+ * attribution answer keyed on that marker (via "attribution", mode, the marker's depth, the treasury state, the hook's
+ * settled / unsettled lists and the D4b holds and buildability), never the generic replay answer; its reason says that the
+ * root follows the request's successor only when the root record stands there (C4-03d). Returns null when no replayed
+ * request carries a bound marker.
+ */
+async function attributedReplayAnswer(config, rootCovenantId, completion, hook = null) {
+  for (const c of completion ?? []) {
+    if (!c || !c.replayed || typeof c.requestId !== "string") continue;
+    const q = await loadOrgRootRequest(config, c.requestId);
+    const m = boundAttributionMarker(q);
+    if (m === null) continue;
+    const { holds, buildable } = await rootHoldsAfterSettlement(config, rootCovenantId);
+    const vaultId = m.treasury.vaultId;
+    /* C4-03d (C4-03b item check F-05): the answer says the root follows A's successor only when the root record stands at
+     * that exact output (the live outpoint this Verify observed unspent); discovery replays a request otherwise only when
+     * the root record is proven BEYOND it, and then the answer says so, never that the root follows A's successor */
+    const rootNow = await loadOrgRoot(config, rootCovenantId);
+    const rootAtSuccessor = Boolean(rootNow && rootNow.live && rootNow.live.outpoint) && sameOutpoint(rootNow.live.outpoint, { transactionId: q.txId, index: rootSuccessorTarget(config, q).rootOutIndex });
+    const attributed = `the durable completion of request ${q.id} was replayed: its transaction ${q.txId}, broadcast outside PolicyVault, is attributed to it (depth ${m.depthDaa} DAA when attributed)`;
+    const beyond = "the root record already stands at a later transition beyond its successor";
+    return {
+      status: "ADVANCED",
+      rootCovenantId,
+      txId: q.txId,
+      requestId: q.id,
+      via: "attribution",
+      mode: m.mode,
+      depthDaa: String(m.depthDaa),
+      requiredDepthDaa: ATTRIBUTION_DEPTH_DAA.toString(),
+      treasury: { vaultId, state: OOB_ATTRIBUTION_TREASURY_STATE[m.mode] },
+      settled: hook ? hook.settled : [],
+      unsettled: hook ? hook.unsettled : [],
+      holds,
+      buildable,
+      reason: rootAtSuccessor
+        ? (m.mode === "FULL"
+          ? `${attributed}; the root and treasury ${vaultId} follow its successors`
+          : `${attributed}; the root follows its successor and treasury ${vaultId} is UNRESOLVED (its record is unchanged)`)
+        : (m.mode === "FULL"
+          ? `${attributed}; treasury ${vaultId} follows its successor; ${beyond}`
+          : `${attributed}; treasury ${vaultId} is UNRESOLVED (its record is unchanged); ${beyond}`)
+    };
+  }
+  return null;
+}
+
+/*
+ * WRITER DECISION 'PARTIAL upgrade' (RC45 C4-03b; owner criteria 3 — never permanently close a usable treasury — and 4 —
+ * fresh evidence, never adopt known-spent state). It supersedes contract D3 (r2)'s "replay PARTIAL ... never an upgrade"
+ * only for a LATER Verify: the Verify that completes a PARTIAL attribution (fresh or replayed) never upgrades it
+ * (addendum a item 2). reconcile-v7's live branch calls this after discovery, only with claim release allowed and only
+ * when discovery replayed nothing in that Verify, under the root lock every hosted mutation of the root takes.
+ *   RECORDS FIRST (no candidate: null, nothing read from the node, nothing written): a candidate is a v0.7-kas treasury T1
+ *   of this root whose record stands at the predecessor named by exactly one bound PARTIAL marker, carried by a
+ *   CHAIN_VERIFIED request A of this root whose durable completion verifies complete with T1's segment UNRESOLVED and
+ *   whose recorded transaction still binds (assertAttributedTransactionBinding).
+ *   FRESH OBSERVATION per candidate (observeTreasuryUpgrade; any refusal, a node read error included, writes nothing and
+ *   leaves T1 UNRESOLVED): one canonical virtual DAA read; T1's successor read #1 EXACT (still spent: ABSENT; anything
+ *   else under A's txid: CONTRADICTION); every frozen input of A reported spent (T1's recorded predecessor among them);
+ *   with the root record at A's root successor, that output re-read EXACT; the bracket, T1's successor read #2 the same
+ *   entry as #1 (else UNSTABLE); depth = virtual DAA - T1's entry's canonical accepting DAA >= ATTRIBUTION_DEPTH_DAA
+ *   (else BELOW_DEPTH); with the root re-read, the root entry at T1's accepting DAA (else CONTRADICTION, as D2.9).
+ *   THE UPGRADE (three durable writes, in this order): (1) A's marker — mode FULL, treasury ADVANCED, upgradedFrom
+ *   PARTIAL, upgradedAt (= modeChangedAt) and the observation; A stays CHAIN_VERIFIED and every identity field of the
+ *   marker is kept; (2) T1's record at A's treasury successor with A's registry, exactly one generation (the same record
+ *   the attributed completion's FULL vault step writes; it is built before the first write, so a record that cannot be
+ *   built writes nothing); (3) one event line naming T1 and A's transaction (C4-03d, item check F-07). A crash after (1)
+ *   leaves a bound FULL marker with T1 at its predecessor, which the next Verify's discovery replays with the root record
+ *   at A's root successor or BEYOND it (addendum a item 1; C4-03d, item check F-01: it re-observes T1's successor,
+ *   writes T1 when it is exact, downgrades the marker to PARTIAL with T1 UNRESOLVED when it is absent — never a FULL
+ *   marker over a spent T1 record, never a Verify throwing because that output was spent; a contradictory observation
+ *   still writes nothing, UNSTABLE, as addendum a item 1). A crash after (2) leaves the upgrade's records
+ *   complete without its event line (the marker still records the upgrade). The root record and every other treasury are
+ *   untouched; nothing is settled.
+ * Returns null (no candidate) or { upgraded: [...], refused: [...] }; a write failure is thrown.
+ */
+async function upgradePartialAttributions(config, rpc, root) {
+  if (!root || !root.live || !root.live.outpoint || !Array.isArray(root.vaults) || root.vaults.length === 0) return null;
+  const rootCovenantId = root.rootCovenantId;
+  const records = await listOrgRootRequests(config, { rootCovenantId });
+  const partial = records.filter((q) => q && q.kind === "rootAction" && q.rootCovenantId === rootCovenantId && q.state === RequestState.CHAIN_VERIFIED && boundAttributionMarker(q)?.mode === "PARTIAL");
+  if (partial.length === 0) return null;
+  const candidates = [], refused = [];
+  for (const vaultId of root.vaults) {
+    let vault = null, naming = [];
+    try {
+      vault = await kasProfile.loadManifestV7Kas(config, vaultId);
+      if (!vault || !kasProfile.isKasVaultRecord(vault) || !vault.live || vault.orgRootCovenantId !== rootCovenantId) continue;
+      naming = partial.filter((q) => {
+        const m = boundAttributionMarker(q);
+        return m.treasury.vaultId === vaultId && sameOutpoint(vault.live.outpoint, m.treasury.predecessorOutpoint);
+      });
+      if (naming.length === 0) continue;
+      if (naming.length > 1) {
+        refused.push({ vaultId, outcome: "AMBIGUOUS", reason: `${naming.length} attribution markers name treasury ${vaultId}'s recorded outpoint — it stays UNRESOLVED; nothing is written` });
+        continue;
+      }
+      const A = naming[0];
+      const verified = await verifyRootActionCompletion(config, A);
+      if (!verified.complete || verified.vault?.segment !== "UNRESOLVED") {
+        refused.push({ vaultId, requestId: A.id, txId: A.txId, outcome: "NOT_COMPLETE", reason: `request ${A.id}'s durable completion does not verify as PARTIAL (${verified.missing.join("; ") || "treasury segment not UNRESOLVED"}) — nothing is written` });
+        continue;
+      }
+      assertAttributedTransactionBinding(config, A);
+      candidates.push({ A, vault });
+    } catch (e) {
+      refused.push({ vaultId, ...(naming.length === 1 ? { requestId: naming[0].id, txId: naming[0].txId } : {}), outcome: "RECORD_DAMAGED", reason: `the records of treasury ${vaultId} could not be inspected for an upgrade (${withoutModulePrefix(firstLine(e))}) — nothing is written` });
+    }
+  }
+  const upgraded = [];
+  for (const { A, vault } of candidates) {
+    const facts = { vaultId: vault.vaultId, requestId: A.id, txId: A.txId };
+    let seen;
+    try {
+      seen = await observeTreasuryUpgrade(config, rpc, { root, A, vault });
+    } catch (e) {
+      if (e && e.attributionOutcome) {
+        refused.push({ ...facts, outcome: e.attributionOutcome, reason: e.attributionReason });
+        continue;
+      }
+      throw e;
+    }
+    const at = new Date().toISOString();
+    const m = boundAttributionMarker(A);
+    const marked = {
+      ...A,
+      outOfBandAttribution: {
+        ...m,
+        mode: "FULL",
+        modeChangedAt: at,
+        treasury: { ...m.treasury, state: OOB_ATTRIBUTION_TREASURY_STATE.FULL },
+        upgradedFrom: "PARTIAL",
+        upgradedAt: at,
+        upgradeObservation: {
+          treasuryOutpoint: { transactionId: lowerHex(A.txId), index: seen.vIdx },
+          observedVirtualDaa: seen.virtualDaa.toString(),
+          treasuryEntryDaa: seen.entryDaa.toString(),
+          depthDaa: seen.depth.toString(),
+          requiredDepthDaa: ATTRIBUTION_DEPTH_DAA.toString()
+        }
+      }
+    };
+    let successorDoc;
+    try {
+      if (boundAttributionMarker(marked) === null) throwFail(`the upgraded marker of request ${A.id} would not bind`, "RECORD_DAMAGED");
+      successorDoc = kasProfile.expectedVaultSuccessorDoc(config, vault, A, seen.vIdx, Number(vault.generation ?? 0) + 1);
+    } catch (e) {
+      refused.push({ ...facts, outcome: "RECORD_DAMAGED", reason: `treasury ${vault.vaultId}'s upgrade record cannot be built (${withoutModulePrefix(firstLine(e))}) — nothing is written` });
+      continue;
+    }
+    await saveOrgRootRequest(config, marked);
+    Object.assign(A, marked);
+    try {
+      await kasProfile.persistManifestV7Kas(config, successorDoc);
+    } catch (e) {
+      throw fail(`request ${A.id}'s marker records treasury ${vault.vaultId} following its output ${A.txId}:${seen.vIdx}, but the treasury record could not be written (${firstLine(e)}) — Verify again: the next Verify re-observes that output before writing it`, "RECONCILIATION_REQUIRED");
+    }
+    /* C4-03d (C4-03b item check F-07): the upgrade's one event line, appended after the treasury write (as every event
+     * line follows its mutation: a failure here loses the line, never the records above, and is not reported as an upgrade) */
+    try {
+      await appendAudit(config, { vaultId: vault.vaultId, action: "attributionUpgrade", actor: "system", contractVersion: kasProfile.CONTRACT_VERSION_V7_KAS, txId: A.txId, requestId: A.id, result: "TREASURY_FOLLOWS_ATTRIBUTED_OUTPUT", via: "attribution-upgrade", from: "PARTIAL", mode: "FULL", outpoint: `${lowerHex(A.txId)}:${seen.vIdx}`, depthDaa: seen.depth.toString(), requiredDepthDaa: ATTRIBUTION_DEPTH_DAA.toString() });
+    } catch (e) {
+      throw fail(`treasury ${vault.vaultId}'s record now follows its output ${lowerHex(A.txId)}:${seen.vIdx} (request ${A.id}'s marker records the change), but its event line could not be appended (${firstLine(e)})`, "RECONCILIATION_REQUIRED");
+    }
+    upgraded.push({
+      vaultId: vault.vaultId,
+      requestId: A.id,
+      txId: A.txId,
+      from: "PARTIAL",
+      mode: "FULL",
+      treasury: OOB_ATTRIBUTION_TREASURY_STATE.FULL,
+      outpoint: `${lowerHex(A.txId)}:${seen.vIdx}`,
+      depthDaa: seen.depth.toString(),
+      requiredDepthDaa: ATTRIBUTION_DEPTH_DAA.toString(),
+      reason: `treasury ${vault.vaultId}'s output ${lowerHex(A.txId)}:${seen.vIdx}, created by request ${A.id}'s transaction broadcast outside PolicyVault, is observed unspent at depth ${seen.depth} DAA; the treasury record now follows that output with that request's delegate set (mode FULL)`
+    });
+  }
+  return { upgraded, refused };
+}
+
+/*
+ * The fresh observation of one PARTIAL upgrade (see upgradePartialAttributions). Reads only; every refusal is an
+ * attributionRefusal (ABSENT, CONTRADICTION, UNSTABLE, BELOW_DEPTH, OBSERVATION_ERROR, RECORD_DAMAGED). Returns
+ * { vIdx, virtualDaa, entryDaa, depth }.
+ */
+async function observeTreasuryUpgrade(config, rpc, { root, A, vault }) {
+  const read = async (address, what) => {
+    try {
+      return await getAddressUtxos(rpc, address);
+    } catch (e) {
+      throw attributionRefusal("OBSERVATION_ERROR", `${what} ${address} could not be read from the node (${firstLine(e)}) — nothing is written`);
+    }
+  };
+  const vaultId = vault.vaultId;
+  let virtualDaa;
+  try {
+    virtualDaa = await require("./chain").readCanonicalVirtualDaaScore(rpc);
+  } catch (e) {
+    throw attributionRefusal("OBSERVATION_ERROR", `the node's virtual DAA score could not be read as a canonical integer (${firstLine(e)}) — nothing is written`);
+  }
+  const vIdx = kasProfile.vaultSuccessorIndexOf(A);
+  let treasuryAddress, rootTarget;
+  const inputs = new Map();
+  try {
+    if (!(vIdx >= 0)) throwFail(`request ${A.id}'s transaction declares no treasury successor output`, "RECORD_DAMAGED");
+    treasuryAddress = spkToAddress(config, A.build.frozen.outputs[vIdx].scriptPublicKey);
+    rootTarget = rootSuccessorTarget(config, A);
+    for (const input of A.build.frozen.inputs) {
+      const address = spkToAddress(config, input.utxo.scriptPublicKey);
+      if (!inputs.has(address)) inputs.set(address, []);
+      inputs.get(address).push(input.previousOutpoint);
+    }
+  } catch (e) {
+    throw attributionRefusal("RECORD_DAMAGED", `${withoutModulePrefix(firstLine(e))} (request ${A.id}) — nothing is written`);
+  }
+  const first = observeFrozenOutputStrict(A, vIdx, await read(treasuryAddress, "the treasury successor address"));
+  if (first.outcome === "ABSENT") throw attributionRefusal("ABSENT", `treasury ${vaultId}'s output ${A.txId}:${vIdx}, created by request ${A.id}'s transaction, is not reported unspent — ${vaultId} stays UNRESOLVED; nothing is written`);
+  if (first.outcome !== "EXACT") throw attributionRefusal("CONTRADICTION", `treasury ${vaultId}'s successor is contradicted on chain: ${first.reason} — ${vaultId} stays UNRESOLVED; nothing is written`);
+  for (const [address, outpoints] of inputs) {
+    const refs = await read(address, "an input address of the attributed transaction");
+    const present = outpoints.find((op) => refs.some((r) => sameOutpoint(r.outpoint, op)));
+    if (present) throw attributionRefusal("CONTRADICTION", `input ${describeOutpoint(present)} of request ${A.id}'s transaction ${A.txId} is reported unspent, which contradicts its acceptance — ${vaultId} stays UNRESOLVED; nothing is written`);
+  }
+  let rootEntryDaa = null;
+  if (sameOutpoint(root.live.outpoint, { transactionId: A.txId, index: rootTarget.rootOutIndex })) {
+    const rootSeen = observeFrozenOutputStrict(A, rootTarget.rootOutIndex, await read(rootTarget.rootAddress, "the root successor address"));
+    if (rootSeen.outcome === "ABSENT") throw attributionRefusal("UNSTABLE", `the root successor ${A.txId}:${rootTarget.rootOutIndex} is no longer reported unspent — nothing is written; Verify again`);
+    if (rootSeen.outcome !== "EXACT") throw attributionRefusal("CONTRADICTION", `the root successor is contradicted on chain: ${rootSeen.reason} — nothing is written`);
+    rootEntryDaa = canonicalDaaScore(rootSeen.entry.blockDaaScoreRaw);
+    if (rootEntryDaa === null) throw attributionRefusal("OBSERVATION_ERROR", `the node reports no canonical accepting DAA score for the root successor ${A.txId}:${rootTarget.rootOutIndex} — nothing is written`);
+  }
+  const second = observeFrozenOutputStrict(A, vIdx, await read(treasuryAddress, "the treasury successor address"));
+  if (second.outcome !== "EXACT" || !sameObservedEntry(first.entry, second.entry)) {
+    throw attributionRefusal("UNSTABLE", `treasury ${vaultId}'s successor ${A.txId}:${vIdx} changed between two reads (EXACT then ${second.outcome === "EXACT" ? "another entry" : second.outcome}) — nothing is written; Verify again`);
+  }
+  const entryDaa = canonicalDaaScore(first.entry.blockDaaScoreRaw);
+  if (entryDaa === null) throw attributionRefusal("OBSERVATION_ERROR", `the node reports no canonical accepting DAA score for treasury ${vaultId}'s successor ${A.txId}:${vIdx} — nothing is written`);
+  if (virtualDaa < entryDaa) throw attributionRefusal("CONTRADICTION", `the node's virtual DAA score ${virtualDaa} is below the accepting DAA score ${entryDaa} of treasury ${vaultId}'s successor — nothing is written`);
+  const depth = virtualDaa - entryDaa;
+  if (depth < ATTRIBUTION_DEPTH_DAA) throw attributionRefusal("BELOW_DEPTH", `treasury ${vaultId}'s successor ${A.txId}:${vIdx} is at depth ${depth} DAA, below the required ${ATTRIBUTION_DEPTH_DAA} — ${vaultId} stays UNRESOLVED; nothing is written; Verify again later`);
+  if (rootEntryDaa !== null && rootEntryDaa !== entryDaa) throw attributionRefusal("CONTRADICTION", `treasury ${vaultId}'s successor is reported at accepting DAA ${entryDaa}, the root successor of the same transaction at ${rootEntryDaa} — nothing is written`);
+  return { vIdx, virtualDaa, entryDaa, depth };
+}
+
 /* A request that was never finalized, or that ended in a terminal refusal before any submission, cannot have produced
  * the chain effect: builders never broadcast, finalization is what produces the final transaction, and a withdrawal is
- * only granted to an unsigned/unattempted request. Such a record is never associated as the completed request of a
- * receipt or claim, is never a completion candidate, and a failed inspection never writes onto it — otherwise a LEGACY
- * pair of requests sharing one txid (an owner operation withdrawn and rebuilt with the same fuel; a delegate spend built
- * twice) would make the completed request's association ambiguous and guard the vault forever (round-8 R8-01/R8-02). */
+ * only granted to an unsigned/unattempted request, or (the RC45 stale delegate-rule withdrawal) to a never-attempted, unfinalized v0.7-kas
+ * delegate-rule request whose period start aged out; an out-of-band broadcast of either needs the owners' quorum and the
+ * fee key. Such a record is never associated as the completed request of a receipt or claim, is never a completion
+ * candidate, and a failed inspection never writes onto it — otherwise a LEGACY pair of requests sharing one txid (an
+ * owner operation withdrawn and rebuilt with the same fuel; a delegate spend built twice) would make the completed
+ * request's association ambiguous and guard the vault forever (round-8 R8-01/R8-02). */
 const NEVER_EFFECTIVE_STATES = new Set(["REFUSED", "WALLET_REJECTED", "BUILT", "AUTHORIZED"]);
 function neverEffective(request) {
   if (!request) return true;
   if (NEVER_EFFECTIVE_STATES.has(request.state)) return true;
+  // RC45 L2-01: a bound attribution marker records the proven chain effect of a request that never carried a final
+  // transaction (its move was broadcast outside PolicyVault), so discovery replays it.
+  if (boundAttributionMarker(request) !== null) return false;
   // Root actions and the delegate family carry the final transaction from finalization on; such a record without one
   // and without any submission attempt/outcome is a draft an earlier runtime mislabelled (R8-02). Other kinds (genesis
   // requests) are judged by state only.
@@ -2082,7 +4037,7 @@ function neverEffective(request) {
  * request, never a completion candidate, never an admission guard, never relabelled CHAIN_VERIFIED; it may be withdrawn. */
 const SUBMISSION_EVIDENCE_STATES = new Set(["CHAIN_VERIFIED", "BROADCAST", "CHAIN_SEEN", "SUBMITTING", "SUBMITTED", "SUBMISSION_REJECTED", "NOT_BROADCAST", "SUPERSEDED"]);
 function hasSubmissionEvidence(request) {
-  return SUBMISSION_EVIDENCE_STATES.has(request.state) || !!request.submissionAttempt || !!request.submissionOutcome || !!request.chain;
+  return SUBMISSION_EVIDENCE_STATES.has(request.state) || !!request.submissionAttempt || !!request.submissionOutcome || !!request.chain || boundAttributionMarker(request) !== null;
 }
 function sameEffectDuplicate(request, group) {
   if (neverEffective(request) || hasSubmissionEvidence(request)) return false;
@@ -2117,7 +4072,7 @@ async function completedRequestAt(config, txId) {
   const audit = await readAudit(config, { vaultId: entity, txId, limit: 500 });
   if (!audit.some((e) => e.txId === txId && e.action === action && e.result === "CHAIN_VERIFIED")) return null;
   if (q.kind === "rootAction") {
-    assertFrozenRequestTransaction(config, q);
+    assertRequestTransactionBinding(config, q);
     const target = rootSuccessorTarget(config, q);
     if (!receiptMatches(receipt, q, target) || !rewound && (q.chain?.successorOutpoint !== `${txId}:${target.rootOutIndex}` || q.chain?.predecessorOutpoint !== describeOutpoint(q.manifest.root.outpoint))) return null;
   } else if (q.action === "tokenAgentSpend" || q.action === "tokenDeposit") {
@@ -2452,8 +4407,13 @@ async function verifyRootActionCompletion(config, request, { root: providedRoot 
       missing.push(`rooted vault ${vaultId} record missing`);
     } else {
       vaultPosition = await classifyVaultRecordAny(config, vaultManifest, request, vaultSuccessorIndex(request));
+      const marker = boundAttributionMarker(request);
       if (vaultPosition.position === "BEYOND") {
         /* provably advanced past this transition: nothing to complete on the vault side */
+      } else if (vaultPosition.position === "PREDECESSOR" && marker !== null && marker.mode === "PARTIAL") {
+        /* RC45 L2-01: a PARTIAL attribution never writes the treasury (its successor output was spent outside
+         * PolicyVault); the record left at the predecessor is this segment's complete state, UNRESOLVED, not missing */
+        vaultPosition = { ...vaultPosition, segment: "UNRESOLVED" };
       } else if (vaultPosition.position !== "SUCCESSOR") {
         missing.push(`vault record at ${vaultPosition.position}${vaultPosition.differences.length ? ` (${vaultPosition.differences.join("; ")})` : ""}`);
       } else if (!vaultPosition.consistent) {
@@ -3114,13 +5074,35 @@ async function submitDelegateRequest({ config, request, rpc: providedRpc, pollAt
 async function rejectOrgRootRequest(args) {
   return withRootRequestLock(args.config, args.requestId, () => rejectOrgRootRequestUnlocked(args));
 }
+/*
+ * RC45 stale delegate-rule withdrawal: owner slot signatures alone no longer block the withdrawal of a v0.7-kas
+ * delegate-rule change (named by both its recorded operation and its frozen build) that was never finalized and never
+ * attempted and that root finalize would refuse PERIOD_START_STALE at the node's position read now
+ * (kasDelegateRuleChangeAgedOut) — without it such a request would hold the root's reservation forever. Any other
+ * signed request, an unreadable position, a missing treasury record or a registry that is not a list keeps
+ * CANNOT_REJECT. Withdrawn, it is REFUSED (never effective, like the AUTHORIZED state it leaves) and the root's
+ * reservation is released exactly as for an unsigned request.
+ */
 async function rejectOrgRootRequestUnlocked({ config, requestId, reason }) {
   const request = await loadOrgRootRequest(config, requestId);
   if (!request) throwFail(`no request ${requestId}`, "REQUEST_NOT_FOUND");
-  if (![RequestState.AUTHORIZED, RequestState.REFUSED].includes(request.state) || request.signedSafeJson || request.finalTransaction || request.slots?.some((s) => s.status === "SIGNED")) {
+  /* RC45 R3N-B1 dispatch (amendment A1-4): only a SIGNED request enters the input-spent withdrawal (W1-W7); W8 finishes,
+   * with no node read, a REFUSED request with a final transaction and a bound inputSpentWithdrawal (a crash between its
+   * REFUSED save and the pointer save); every other request takes the existing path below, unchanged. */
+  if (request.state === RequestState.SIGNED) return withdrawSpentInputRequest(config, request, reason);
+  if (request.state === RequestState.REFUSED && request.finalTransaction && request.kind === "rootAction" && boundSpentWithdrawal(request)) {
+    await releaseRootReservation(config, request);
+    return request;
+  }
+  const slotSigned = request.slots?.some((s) => s.status === "SIGNED");
+  const kasRule = slotSigned ? kasDelegateRuleChange(request) : null;
+  if (![RequestState.AUTHORIZED, RequestState.REFUSED].includes(request.state) || request.signedSafeJson || request.finalTransaction || slotSigned && !(kasRule.recorded && kasRule.built)) {
     throwFail(`request is ${request.state} or carries signatures — only an unsigned request may be withdrawn`, "CANNOT_REJECT");
   }
   await assertRootRequestNotAttempted(config, request, "CANNOT_REJECT");
+  if (slotSigned && !(await kasDelegateRuleChangeAgedOut(config, request))) {
+    throwFail("request carries owner slot signatures — it may be withdrawn only once a new or changed delegate's budget period start has aged out of its window at the configured node's current network position (not the case, or not determinable now)", "CANNOT_REJECT");
+  }
   if (request.state !== RequestState.REFUSED) {
     request.state = RequestState.REFUSED;
     request.error = typeof reason === "string" ? reason : null;
@@ -3414,6 +5396,25 @@ module.exports = {
   rootGenesisExpected,
   vaultGenesisExpected,
   assertFrozenRequestTransaction,
+  assertRequestTransactionBinding,
+  ATTRIBUTION_DEPTH_DAA,
+  INPUT_SPENT_WITHDRAWAL_DEPTH_DAA,
+  CHAIN_ANCHOR_HOPS,
+  WITHDRAWAL_ANCHOR_MAX_AGE_DAA,
+  WITHDRAWAL_SCAN_MAX_BATCHES,
+  OOB_ATTRIBUTION_SCHEMA,
+  observeFrozenOutputStrict,
+  boundAttributionMarker,
+  attributeOutOfBandRootTransition,
+  settleStrandedByAttribution,
+  rootHoldsAfterSettlement,
+  treasuryUnresolved,
+  treasuryUnresolvedOfRoot,
+  assertTreasuryNotUnresolved,
+  assertRecordedInputsLive,
+  attributionSettlementHook,
+  attributedReplayAnswer,
+  upgradePartialAttributions,
   hasBoundRootCompletionReceipt,
   completedRequestAt,
   pendingRootRequests,

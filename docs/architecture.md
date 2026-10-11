@@ -77,9 +77,19 @@ an integration test that executes its exact output on the real VM
 Rollover uses `require(tx.time >= periodStartDaa + k*periodLengthDaa)`, which
 compiles to CLTV. Kaspa consensus only accepts a transaction whose lock time
 (a DAA score below the lock-time threshold) has been reached, so a delegate
-cannot fake an early period reset; under-claiming elapsed periods is
-budget-conservative. No client clock is trusted. See
-`docs/source-review-findings.md` §3.
+cannot fake an early period reset. No client clock is trusted.
+
+Under-claiming elapsed periods keeps a delegate's cumulative total within one
+budget per period begun since its `periodStartDaa`. It is **not** a burst
+bound. The covenant can prove that a period has begun, never that it is the
+latest one. A delegate whose leaf lags K periods can therefore roll into each
+missed period in turn and spend up to (K+1) × periodBudget − periodSpent at
+once (V041-V07KAS-PERIOD-BANKING-01).
+
+This is VM-VERIFIED for the frozen v0.4.1 and v0.7-kas covenants; other
+generations with the same rollover rule were not probed. The exact bound and
+its scope are in `docs/postlaunch/lead5-reconciliation-remediation.md` §6. See
+also `docs/source-review-findings.md` §3.
 
 ## Durability
 

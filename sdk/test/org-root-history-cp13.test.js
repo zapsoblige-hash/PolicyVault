@@ -2,6 +2,7 @@
 const { test, before } = require("node:test");
 const assert = require("node:assert/strict");
 const fx = require("../testutil/org-root-durable-fixture");
+const { registerFixtureNode, withFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
 const { persistManifestV7 } = require("../src/manifest-v7");
 const { reconcileOrgRootV7 } = require("../src/reconcile-v7");
 const { claimTransition } = require("../src/submission-claim");
@@ -20,6 +21,7 @@ before(async () => {
 async function copy() {
   const config = fx.cloneJsonConfig(base.config, "pv-cp13-history-case-");
   const rpc = fx.mockRpc(); fx.settle(config, rpc, base.first);
+  registerFixtureNode(config, rpc); // RC45 L2-01 guard inventory
   return { config, rpc, o: base.o, first: base.first };
 }
 async function next(x, vaultOp) {
@@ -77,19 +79,19 @@ test("CP13 real history: inconsistent later state/registry cannot be justified b
   assert.deepEqual(await wr7.loadOrgRoot(x.config, x.o.rootCovenantId), priorRoot, "failed inspection never restores a historical pending pointer");
   assert.deepEqual(fx.manifestToJsonV7(await fx.loadManifestV7(x.config, x.o.vaultId)), installedVault);
   const requestCount = (await wr7.listOrgRootRequests(x.config)).length;
-  await assert.rejects(wr7.buildRootActionRequest({ config: fx.reloadJsonConfig(x.config), rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] }), (e) => e.code === "VAULT_PENDING_REQUEST", "contradictory current state is refused before a new owner operation is persisted");
+  await assert.rejects(withFixtureNode(fx.reloadJsonConfig(x.config), () => wr7.buildRootActionRequest({ config: fx.reloadJsonConfig(x.config), rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] })), (e) => e.code === "VAULT_PENDING_REQUEST", "contradictory current state is refused before a new owner operation is persisted");
   assert.equal((await wr7.listOrgRootRequests(x.config)).length, requestCount);
   assert.deepEqual(await wr7.loadOrgRoot(x.config, x.o.rootCovenantId), priorRoot);
   await persistManifestV7(x.config, validVault);
   await reconcileOrgRootV7(fx.reloadJsonConfig(x.config), x.o.rootCovenantId, { rpc: x.rpc });
-  assert.equal((await wr7.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerUnpause", params: {} }] })).state, "AUTHORIZED");
+  assert.equal((await withFixtureNode(x.config, () => wr7.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerUnpause", params: {} }] }))).state, "AUTHORIZED");
 });
 
 test("RC27F admission: a vault's current owner effect does not require tracing later root-only history", { skip }, async () => {
   const x = await copy(), later = await next(x, false);
   const fault = fx.inject(x.config, "readAudit", (query) => query.txId === later.txId, { times: Infinity });
   try {
-    const q = await wr7.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] });
+    const q = await withFixtureNode(x.config, () => wr7.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] }));
     assert.equal(q.state, "AUTHORIZED");
     assert.equal(fault.count(), 0, "unrelated later root-only completion history is outside the vault admission proof");
   } finally { fault.restore(); }
@@ -158,6 +160,6 @@ test("CP13 real deposit and delegate spend: later token metadata and policy rema
   assert.deepEqual(fx.manifestToJsonV7(await fx.loadManifestV7(config, o.vaultId)), installedStale);
   assert.deepEqual(await wr7.loadOrgRootRequest(config, x.first.id), priorRequest);
   assert.deepEqual(await wr7.loadOrgRoot(config, o.rootCovenantId), priorRoot);
-  await assert.rejects(wr7.buildRootActionRequest({ config: fx.reloadJsonConfig(config), rootCovenantId: o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(config, o.owner1), params: { fuel: fx.fuelUtxoFor(config, o.fuelKey) }, vaultOperations: [{ vaultId: o.vaultId, action: "ownerPause", params: {} }] }), (e) => e.code === "VAULT_PENDING_REQUEST", "contradictory token lineage still blocks the next operation");
+  await assert.rejects(withFixtureNode(fx.reloadJsonConfig(config), () => wr7.buildRootActionRequest({ config: fx.reloadJsonConfig(config), rootCovenantId: o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(config, o.owner1), params: { fuel: fx.liveFuelFor(config, o.fuelKey) }, vaultOperations: [{ vaultId: o.vaultId, action: "ownerPause", params: {} }] })), (e) => e.code === "VAULT_PENDING_REQUEST", "contradictory token lineage still blocks the next operation");
 
 });

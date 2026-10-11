@@ -34,24 +34,26 @@ const pg = { host: "127.0.0.1", port: Number(process.env.POLICYVAULT_TEST_PG_POR
 const pgSkip = skip || (!pg.port || !pg.user || !pg.database ? "REQUIREMENT_NOT_AVAILABLE: isolated PostgreSQL" : undefined);
 const roots = [], stores = [], databases = [];
 let base, winning, history, admin, serial = 0;
+/* RC45 F5 (plan r2 §8.1 "CR-H2: RC40 before() :49-54"; §2.2 reorg rule, every ownerRecover is contested): the candidate's
+ * uncontested recover now stops at SUBMITTED (:50, :52 flipped, pinned by the RC45 CR-H2 test below), so the closed-vault
+ * history these tests protect — the winning recovery completed at zero depth with the historical writer's retained own
+ * claim (:54) — is written by the pinned df5b8de writers in POLICYVAULT_TEST_RC44_TREE (sdk/testutil/rc45-f5-rc44-history.js
+ * scenario "rc40": the same fixture manifest, owner TEST key, fuel 54..:1 and settle-on-submit node; a missing or mismatched
+ * tree FAILS, never skips). The :50/:52/:54 assertions are kept here against that RC44-written history. */
+const rc44Roots = [];
 before(async () => {
   if (!toolchain) return;
   base = await fx.baseFixture("ownerRecover");
+  const H5 = require("../testutil/rc45-f5-rc44-history");
+  const rc44 = H5.runF5Rc44Scenario("rc40", { input: { manifest: clone(base.before) }, track: (root) => rc44Roots.push(root) });
   const config = fx.freshConfig(); roots.push(config.dataRoot);
-  await getStore(config).write(Categories.VAULT, base.request.vaultId, clone(base.before));
-  const request = await wr4.buildWalletRequestV4({ ...base.pendingBuild, config, action: "ownerRecover",
-    params: { fuel: { ...base.pendingBuild.params.fuel, outpoint: { transactionId: "54".repeat(32), index: 1 } } } });
-  const signed = makeDevSigner(config, { secretHex: base.owner.secretHex, expectedAddress: base.owner.address }).signInputs(request.transaction.unsignedSafeJson, request.transaction.signInputs);
-  winning = await wr4.finalizeWalletRequestV4({ config, requestId: request.requestId, signedSafeJson: signed });
+  await fx.install(config, await fx.snapshot(fx.loadConfig({ dataRoot: rc44.dataRoot, rpcUrl: "ws://127.0.0.1:1" })));
+  winning = await wr4.loadRequest(config, rc44.result.requestId);
   assert.notEqual(winning.txId, base.request.txId);
-  const node = fx.caseFor({ ...base, request: winning }, config);
-  node.rpc.submitTransaction = async () => { node.settle(); return { transactionId: winning.txId }; };
-  const result = await submit4.submitWalletRequestV4({ config, requestId: winning.requestId, rpc: node.rpc, pollAttempts: 1, pollDelayMs: 0 });
-  assert.equal(result.request.state, "CHAIN_VERIFIED");
-  winning = result.request;
-  assert.equal((await node.manifest()).status, "RECOVERED");
+  assert.equal(winning.state, "CHAIN_VERIFIED"); // was :50, now RC44-written
+  assert.equal((await getStore(config).read(Categories.VAULT, base.request.vaultId)).status, "RECOVERED"); // was :52
   // Historical writer left a successful same-predecessor claim in place.
-  assert.equal((await node.store().read(Categories.TRANSITION_CLAIM, transitionClaimKey(winning.predecessorOutpoint))).txId, winning.txId);
+  assert.equal((await getStore(config).read(Categories.TRANSITION_CLAIM, transitionClaimKey(winning.predecessorOutpoint))).txId, winning.txId); // :54
   await wr4.saveRequest(config, clone(base.request));
   history = await fx.snapshot(config);
   if (!pgSkip) admin = new (require("pg").Pool)(pg);
@@ -61,6 +63,29 @@ after(async () => {
   if (admin) { for (const name of databases) await admin.query(`DROP DATABASE ${name} WITH (FORCE)`); await admin.end(); }
   if (base) base.cleanup();
   for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
+  for (const root of rc44Roots) require("../testutil/rc45-rc44-history").removeOwnedRoot(root);
+});
+/* RC45 F5 (plan r2 §8.1 CR-H2, the flipped :50/:52; sabotage v): the candidate's uncontested owner recover (the former
+ * before() flow, fuel 54..:1, a node that settles on submit) returns at SUBMITTED; the vault stays ACTIVE (no terminal
+ * status at zero depth) and the owner's own claim is kept until Verify writes RECOVERED at depth D. */
+test("RC45 CR-H2: the candidate's uncontested owner recover stops at SUBMITTED with no manifest write; its own claim is kept [RED on C1]", { skip }, async () => {
+  const config = fx.freshConfig(); roots.push(config.dataRoot);
+  await getStore(config).write(Categories.VAULT, base.request.vaultId, clone(base.before));
+  const request = await wr4.buildWalletRequestV4({ ...base.pendingBuild, config, action: "ownerRecover",
+    params: { fuel: { ...base.pendingBuild.params.fuel, outpoint: { transactionId: "54".repeat(32), index: 1 } } } });
+  const signed = makeDevSigner(config, { secretHex: base.owner.secretHex, expectedAddress: base.owner.address }).signInputs(request.transaction.unsignedSafeJson, request.transaction.signInputs);
+  const finalized = await wr4.finalizeWalletRequestV4({ config, requestId: request.requestId, signedSafeJson: signed });
+  assert.notEqual(finalized.txId, base.request.txId);
+  const node = fx.caseFor({ ...base, request: finalized }, config);
+  node.rpc.submitTransaction = async () => { node.settle(); return { transactionId: finalized.txId }; };
+  const manifestBefore = await node.manifest();
+  let result;
+  await assert.doesNotReject(async () => { result = await submit4.submitWalletRequestV4({ config, requestId: finalized.requestId, rpc: node.rpc, pollAttempts: 1, pollDelayMs: 0 }); }, "the recover submit returns");
+  assert.equal(result?.request?.state, "SUBMITTED", "was :50 CHAIN_VERIFIED: every ownerRecover is contested and returns at SUBMITTED");
+  assert.equal((await wr4.loadRequest(config, finalized.requestId)).state, "SUBMITTED");
+  assert.deepEqual(await node.manifest(), manifestBefore, "was :52 RECOVERED: no terminal status is written at zero depth");
+  assert.equal((await node.store().read(Categories.TRANSITION_CLAIM, transitionClaimKey(finalized.predecessorOutpoint))).txId, finalized.txId, "the owner's own claim is kept");
+  assert.equal(await node.store().read(Categories.RECEIPT, finalized.txId), null, "no receipt before Verify at depth D");
 });
 async function makeCase(backend = "JSON") {
   let config, pgOptions;

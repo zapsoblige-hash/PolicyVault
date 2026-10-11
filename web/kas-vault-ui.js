@@ -48,6 +48,30 @@
   const MIN_AGENT_FEE_CAP_SOMPI = 5000000n; // 0.05 KAS
   const TYPICAL_PAYMENT_FEE_KAS = "0.04";
   const NATIVE_SUBNETWORK = "00".repeat(20);
+  /* DELEGATE BUDGET PERIOD START (RC45). The server starts the budget period of every new or changed delegate at the
+   * network position when the change is built (never earlier than the start sent) and refuses it once that start lags
+   * the network position by more than W(L) = max(L - PERIOD_START_ACCEPT_MARGIN_DAA, PERIOD_START_MIN_WINDOW_DAA) DAA
+   * before the creation is signed or the delegate-rule change is finalized. These forms never invent a start: a new row
+   * takes the network position read at Build, an installed row carries its exact start and spent amount. The genesis
+   * cross-check accepts the server's start iff it is at or above max(reviewed start, Build read - WEB_ANCHOR_SLACK_DAA);
+   * a later start only delays the delegate's next budget, so there is no blocking upper bound (more than
+   * ANCHOR_AHEAD_ADVISORY_DAA above the read only adds an advisory line). Served constants mirroring the server's. */
+  const PERIOD_START_ACCEPT_MARGIN_DAA = 6000n;
+  const PERIOD_START_MIN_WINDOW_DAA = 600n;
+  const WEB_ANCHOR_SLACK_DAA = 600n;
+  const ANCHOR_AHEAD_ADVISORY_DAA = 6000n;
+  const isDigitString = (v) => typeof v === "string" && /^[0-9]+$/.test(v);
+  const periodStartWindowDaa = (length) => { const lag = length - PERIOD_START_ACCEPT_MARGIN_DAA; return lag > PERIOD_START_MIN_WINDOW_DAA ? lag : PERIOD_START_MIN_WINDOW_DAA; };
+  /* What a delegate whose budget period starts at S (B per period of L DAA, σ already spent) can pay out at once if its
+   * leaf is confirmed at network position D: K = (S >= D ? 1 : floor((D - 1 - S) / L) + 1) budgets, so max(0, K*B - σ).
+   * Its next budget belongs to the first period start at or above D (S + K*L; S + L for a start not yet reached) and is
+   * spendable once the network moves past that position. Integer DAA and sompi only; null for a non-positive period. */
+  function immediatelySpendable(S, sigma, B, L, D) {
+    if (L <= 0n) return null;
+    const budgets = S >= D ? 1n : (D - 1n - S) / L + 1n;
+    const total = budgets * B - sigma;
+    return { budgets, amount: total > 0n ? total : 0n, next: S + budgets * L };
+  }
 
   function esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -63,7 +87,7 @@
   const isP2shWire = (spk) => /^0000aa20[0-9a-f]{64}87$/.test(String(spk || "").toLowerCase());
   const p2pkOwnerOf = (spk) => { const m = /^000020([0-9a-f]{64})ac$/.exec(String(spk || "").toLowerCase()); return m ? m[1] : null; };
 
-  const KAS_REFUSAL_CODES = Object.freeze(["AGENT_NOT_REGISTERED", "NOT_AN_APPROVER", "UNKNOWN_APPROVER", "VAULT_PAUSED", "VAULT_TERMINAL", "VAULT_PENDING_REQUEST", "VAULT_ID_IN_USE", "INSUFFICIENT_APPROVALS", "DUPLICATE_APPROVAL", "STALE", "RECONCILIATION_REQUIRED", "OVER_CAP", "OVER_BUDGET", "OVER_AGENT_FEE_CAP", "INSUFFICIENT_RESERVE", "RECIPIENT_NOT_ALLOWED", "INTENT_VERIFICATION_FAILED", "GENERATION_NOT_MAINNET_AUTHORIZED", "REVIEW_REFUSED", "PAYLOAD_MISMATCH", "NOT_THE_SIGNER", "WALLET_NOT_READY"]);
+  const KAS_REFUSAL_CODES = Object.freeze(["AGENT_NOT_REGISTERED", "NOT_AN_APPROVER", "UNKNOWN_APPROVER", "VAULT_PAUSED", "VAULT_TERMINAL", "VAULT_PENDING_REQUEST", "VAULT_ID_IN_USE", "INSUFFICIENT_APPROVALS", "DUPLICATE_APPROVAL", "STALE", "PERIOD_START_STALE", "PERIOD_START_REQUIRED", "RECONCILIATION_REQUIRED", "OVER_CAP", "OVER_BUDGET", "OVER_AGENT_FEE_CAP", "INSUFFICIENT_RESERVE", "RECIPIENT_NOT_ALLOWED", "INTENT_VERIFICATION_FAILED", "GENERATION_NOT_MAINNET_AUTHORIZED", "REVIEW_REFUSED", "PAYLOAD_MISMATCH", "NOT_THE_SIGNER", "WALLET_NOT_READY"]);
   function displayCodeFor(e) {
     if (!e) return "UNKNOWN";
     if (e.code) return String(e.code);
@@ -80,6 +104,9 @@
     const PAYLOAD = payload || null;
     const requirePayload = (fn) => { if (!PAYLOAD || typeof PAYLOAD.parseSigningPayload !== "function" || typeof PAYLOAD.frozenMismatches !== "function") throw fail(`kas-vault-ui: ${fn} requires org-root-ui's signing-payload tools`, "PAYLOAD_TOOLS_UNAVAILABLE"); return PAYLOAD; };
     const OWNERSHIP_STATEMENT = EX.KAS_OWNERSHIP_STATEMENT;
+    /* RC45 L2-01: the UNRESOLVED treasury explanation, verbatim (writer decision 'wording after the PARTIAL upgrade',
+     * item 1) */
+    const UNRESOLVED_EXPLANATION = "PolicyVault cannot confirm this treasury's current state: its expected output was spent outside PolicyVault after an out-of-band change to its delegate rules. Hosted actions on this treasury stay closed. A later Verify restores them only if it finds that expected output unspent again (for example after a reorganization); otherwise only the owners' direct on-chain exit can act on it.";
     const kasToSompi = (v, field) => core.amounts.kasToSompi(String(v ?? "").trim(), field);
     const sompiToKas = (v) => core.amounts.sompiToKas(BigInt(String(v)));
     const statusRegion = (inner, cls) => `<div class="opbanner${cls ? ` ${cls}` : ""}" role="status" aria-live="polite" aria-atomic="true">${inner}</div>`;
@@ -88,6 +115,20 @@
       if (!s) throw fail(`${what} is required`, code || "BUILD_FAILED");
       if (HEX64.test(s)) return s.toLowerCase();
       try { return String(await api.resolveXOnly(s)).toLowerCase(); } catch (e) { throw fail(`${what} "${s}": ${e.message}`, code || "BUILD_FAILED", { cause: e }); }
+    }
+    const aboutDaa = (daa) => { try { return core.durationDaa.describeDaa(daa.toString(), { largestUnit: "day" }).text; } catch { return `${daa} DAA`; } };
+    /* The "if confirmed now" sentences for one delegate leaf (JSON registry values) at network position D (a digit
+     * string), or null when the leaf's values are not exact. `warn` = the amount includes earlier, unused periods. */
+    function periodStartLine({ agentPk, periodStartDaa, periodSpent, periodBudget, periodLengthDaa }, D) {
+      if (![periodStartDaa, periodSpent, periodBudget, periodLengthDaa].every(isDigitString) || !isDigitString(D)) return null;
+      const d = BigInt(D), B = BigInt(periodBudget), sigma = BigInt(periodSpent);
+      const r = immediatelySpendable(BigInt(periodStartDaa), sigma, B, BigInt(periodLengthDaa), d);
+      if (!r) return null;
+      const b = sompiToKas(B);
+      const text = `Delegate ${short(agentPk)}: If confirmed now (network position ${D}): can pay out up to ${sompiToKas(r.amount)} KAS at once (${r.budgets} budget period${r.budgets === 1n ? "" : "s"} of ${b} KAS, minus ${sompiToKas(sigma)} KAS already spent); ` +
+        `its next budget of ${b} KAS becomes available at network position ${r.next} (${r.next > d ? `${aboutDaa(r.next - d)} from now` : "once the network moves past it"}); then ${b} KAS per period. The treasury total stays capped by its protected principal.`;
+      const earlier = r.budgets - 1n;
+      return { text, warn: earlier >= 1n ? `This includes ${earlier} earlier, unused period${earlier === 1n ? " — the covenant lets it" : "s — the covenant lets them"} be spent at once.` : null };
     }
 
     /* ================================================================
@@ -132,23 +173,35 @@
       const rows = Array.isArray(value) ? value : String(value || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
       return rows.length ? rows.map((r) => ({ address: typeof r === "string" ? r : String(r && r.address || "") })) : [{ address: "" }];
     }
+    /* A delegate rule row. Never a "0" period start (RC45): an INSTALLED row carries its exact start and spent amount
+     * (digit strings, else the installed rules were not loaded exactly and the row is refused) and its installed key
+     * (`installedKey`, locked); a NEW row takes the network position as its start when it is a digit string, else an
+     * EMPTY start that Build sets from its own fresh read before the final validation. */
     function agentRowFrom(a, currentDaa) {
       const existing = !!(a && a.agentPk);
+      if (existing && !(DIGITS.test(typeof a.periodStartDaa === "string" ? a.periodStartDaa : "") && DIGITS.test(typeof a.periodSpent === "string" ? a.periodSpent : ""))) {
+        throw fail("The installed delegate rules of this treasury could not be loaded exactly. Reload before changing delegate rules.");
+      }
+      const daa = typeof currentDaa === "bigint" ? currentDaa.toString() : currentDaa;
       return {
         existing,
         agentKey: existing ? String(a.agentPk) : "",
+        installedKey: existing ? String(a.agentPk) : "",
         maxPerSpendKas: existing && a.maxPerSpend !== undefined ? sompiToKas(a.maxPerSpend) : "",
         periodBudgetKas: existing && a.periodBudget !== undefined ? sompiToKas(a.periodBudget) : "",
         periodLengthDaa: existing ? String(a.periodLengthDaa ?? "") : "",
         period: agentPeriodSelection(existing ? a : null),
-        periodStartDaa: existing ? String(a.periodStartDaa ?? "0") : (currentDaa !== null && currentDaa !== undefined ? String(currentDaa) : "0"),
-        periodSpent: existing ? String(a.periodSpent ?? "0") : "0",
+        periodStartDaa: existing ? a.periodStartDaa : typeof daa === "string" && DIGITS.test(daa) ? daa : "",
+        periodSpent: existing ? a.periodSpent : "0",
         approvalThresholdKas: existing && a.approvalThreshold !== undefined ? sompiToKas(a.approvalThreshold) : "",
         agentMaxFeePerTxKas: existing && a.agentMaxFeePerTx !== undefined ? sompiToKas(a.agentMaxFeePerTx) : "",
         recipients: recipientRowsFrom(existing ? a.recipients : null)
       };
     }
-    async function validateAgentRows(rows) {
+    /* `allowEmptyNewStart` (the treasury wizard's delegates step only): a NEW row whose start is still empty passes — Build
+     * sets it from a fresh read before the final validation, which refuses any start that is not a digit string. An
+     * installed row needs its exact start and spent amount in every mode, and keeps its installed key. */
+    async function validateAgentRows(rows, { allowEmptyNewStart = false } = {}) {
       const agents = [];
       const seen = new Set();
       const rowErrors = {};
@@ -160,6 +213,12 @@
         try { agentPk = await resolveXOnlyKey(r.agentKey, "Delegate wallet", "AGENT_SET_INVALID"); } catch (e) { errs.agentKey = e.message; }
         if (agentPk && seen.has(agentPk)) errs.agentKey = "This delegate is already listed — one rule per delegate key.";
         if (agentPk) seen.add(agentPk);
+        /* key lock: a different wallet typed into an installed row would carry that row's installed start and spent amount */
+        if (r.existing) {
+          const installedKey = String(r.installedKey ?? "").toLowerCase();
+          if (!HEX64.test(installedKey)) errs.agentKey = "The installed key of this delegate is missing — reload before changing delegate rules.";
+          else if (agentPk && agentPk !== installedKey) errs.agentKey = "An installed delegate's wallet cannot be changed. To use a different wallet, remove this delegate and add a new one.";
+        }
         const recipientsRaw = recipientRowsFrom(r.recipients);
         const recipients = [];
         const recipientErrors = {}, seenRecipients = new Map();
@@ -186,10 +245,18 @@
           try { plen = SUI.readDurationSelection(SUI.BUDGET_SETTING, r.period, { allowExactDaa: true }).daa; }
           catch (e) { errs.periodLengthDaa = e.message.replace(/^duration-daa: /, ""); }
         } else if (!DIGITS.test(plen) || BigInt(plen) <= 0n) errs.periodLengthDaa = "Budget period must be a whole number of DAA score greater than 0.";
-        const pstart = String(r.periodStartDaa ?? "0").trim(); if (!DIGITS.test(pstart)) errs.periodStartDaa = "Period start must be a whole DAA score.";
-        const pspent = String(r.periodSpent ?? "0").trim(); if (!DIGITS.test(pspent)) errs.periodSpent = "Spent this period must be a whole number of sompi.";
+        const pstart = typeof r.periodStartDaa === "string" ? r.periodStartDaa.trim() : "";
+        const pspent = typeof r.periodSpent === "string" ? r.periodSpent.trim() : "";
+        const startDeferred = !r.existing && allowEmptyNewStart && pstart === "";
+        if (r.existing) {
+          if (!DIGITS.test(pstart)) errs.periodStartDaa = "The period start of this delegate is missing — reload before changing delegate rules.";
+          if (!DIGITS.test(pspent)) errs.periodSpent = "The spent amount of this delegate is missing — reload before changing delegate rules.";
+        } else {
+          if (!startDeferred && !DIGITS.test(pstart)) errs.periodStartDaa = "Period start must be a whole DAA score (set from the network position read at Build).";
+          if (!DIGITS.test(pspent)) errs.periodSpent = "Spent this period must be a whole number of sompi.";
+        }
         if (!errs.maxPerSpendKas && !errs.periodBudgetKas && BigInt(cap.sompi) > BigInt(budget.sompi)) errs.maxPerSpendKas = "Cap per payment cannot exceed the budget per period.";
-        if (!Object.keys(errs).length) {
+        if (!Object.keys(errs).length && !startDeferred) {
           const raw = { agentPk, maxPerSpend: cap.sompi, periodBudget: budget.sompi, periodLengthDaa: plen, periodStartDaa: pstart, periodSpent: pspent, approvalThreshold: threshold.sompi, agentMaxFeePerTx: feeCap.sompi, agentRecipientRoot };
           /* the EXACT normalizer the covenant's Merkle-leaf encoding relies on — a malformed policy is refused here */
           try { core.agentMerkle.normalizeAgentPolicyV4(raw); } catch (e) { errs.agentKey = e.message; }
@@ -273,16 +340,31 @@
       if (info.dangerous && !vaultOpConfirmationMatches(op, d.typed)) { errors.set("typed", `Type exactly "${vaultOpConfirmPhrase(op)}" to continue.`); return { ok: false, errors, vaultOperation: null }; }
       return { ok: true, errors, vaultOperation: { vaultId: vault.vaultId, action: op, params: {} } };
     }
-    function renderAgentRowsHtml({ rows, rowErrors, listError, currentDaa }) {
+    /* `finalizeWindow` (Change delegate rules): each row states how long owner approvals and finalize may take after
+     * Build if that delegate is new or changed (W of its budget period). */
+    function renderAgentRowsHtml({ rows, rowErrors, listError, currentDaa, finalizeWindow = false }) {
       const SUI = requireSetup("renderAgentRowsHtml");
       const F = SUI.renderField;
+      const windowLine = (r) => {
+        let length = null;
+        try { length = BigInt(SUI.readDurationSelection(SUI.BUDGET_SETTING, agentPeriodSelection(r), { allowExactDaa: true }).daa); } catch { length = null; }
+        const w = length !== null && length > 0n ? periodStartWindowDaa(length) : null;
+        return `<div class="f-help" data-finalize-window="1">Owner approvals and finalize must complete within ${w !== null ? `${w} DAA of Build (${esc(aboutDaa(w))})` : "this delegate's budget period minus ten minutes (never less than one minute) of Build"} if this delegate is new or changed: PolicyVault starts its budget period at Build and will not finalize the change after that window; the request can then only be withdrawn and built again.</div>`;
+      };
       const rowHtml = (rows || []).map((r, i) => {
         const re = rowErrors[i] || {};
         const nm = (k) => `agent-${i}-${k}`;
+        const keyField = r.existing
+          ? F({ name: nm("agentKey"), label: "Delegate wallet (installed — to use a different wallet, remove this delegate and add a new one)", control: SUI.textInput({ name: nm("agentKey"), value: r.agentKey, mono: true, readonly: true }) + `<input type="hidden" name="${esc(nm("installedKey"))}" value="${esc(r.installedKey)}" />`, error: re.agentKey, help: "The wallet (or AI agent key) allowed to pay from this treasury under the rule below. An installed delegate keeps its wallet." })
+          : F({ name: nm("agentKey"), label: "Delegate wallet (address or 64-hex public key)", control: SUI.textInput({ name: nm("agentKey"), value: r.agentKey, mono: true, placeholder: "kaspa… or 64-hex key" }), error: re.agentKey, help: "The wallet (or AI agent key) allowed to pay from this treasury under the rule below." });
+        const startText = r.existing
+          ? `period start DAA <span class="mono">${esc(r.periodStartDaa)}</span> · spent this period <span class="mono">${esc(r.periodSpent)}</span> sompi — the installed values, carried exactly`
+          : "a new delegate's budget period starts at the network position read when you build (PolicyVault may start it later, never earlier)";
+        const startError = [re.periodStartDaa, re.periodSpent].filter(Boolean).join(" ");
         return (
           `<fieldset class="agent-row" data-agent-row="${i}" style="min-width:0;border:1px solid var(--border, #ccc);border-radius:6px;padding:0.6rem;margin:0.5rem 0">` +
           `<legend>Delegate ${i + 1}${r.existing ? " (currently installed)" : " (new)"}</legend>` +
-          F({ name: nm("agentKey"), label: "Delegate wallet (address or 64-hex public key)", control: SUI.textInput({ name: nm("agentKey"), value: r.agentKey, mono: true, placeholder: "kaspa… or 64-hex key" }), error: re.agentKey, help: "The wallet (or AI agent key) allowed to pay from this treasury under the rule below." }) +
+          keyField +
           F({ name: nm("maxPerSpendKas"), label: "Cap per payment (KAS)", control: SUI.kasInput({ name: nm("maxPerSpendKas"), value: r.maxPerSpendKas, placeholder: "10" }), error: re.maxPerSpendKas }) +
           F({ name: nm("periodBudgetKas"), label: "Budget per period (KAS)", control: SUI.kasInput({ name: nm("periodBudgetKas"), value: r.periodBudgetKas, placeholder: "100" }), error: re.periodBudgetKas }) +
           F({ name: nm("period"), label: "Budget period", control: SUI.renderDurationControl({ name: nm("period"), setting: SUI.BUDGET_SETTING, selection: agentPeriodSelection(r), allowExactDaa: true }), help: `${SUI.COPY.BUDGET_WINDOW} Choose Custom and DAA score to enter an exact period.`, error: re.periodLengthDaa }) +
@@ -291,7 +373,9 @@
           `<div class="f f-wide${re.recipients ? " f-invalid" : ""}" data-field="${esc(nm("recipients"))}"><div class="f-label">Allowed recipients</div>` +
           SUI.renderAddressRows({ kind: nm("recipient"), rows: recipientRowsFrom(r.recipients), errors: re.recipientRows, addLabel: "Add recipient", rowLabel: "recipient", addressLabel: "wallet address or 64-hex public key", placeholder: "kaspa… or 64-hex key" }) +
           `<div class="f-help">The delegate may pay ONLY these destinations — enforced by the covenant.</div>${re.recipients ? `<div class="ferr" style="display:block">${esc(re.recipients)}</div>` : ""}</div>` +
-          `<details class="adv f-tech"><summary>Technical detail (carried exactly)</summary><div class="f-help">period start DAA <span class="mono">${esc(r.periodStartDaa)}</span> · spent this period <span class="mono">${esc(r.periodSpent)}</span> sompi${currentDaa ? ` · current DAA ≈ ${esc(currentDaa)}` : ""}</div></details>` +
+          (finalizeWindow ? windowLine(r) : "") +
+          (startError ? `<div class="ferr" style="display:block">${esc(startError)}</div>` : "") +
+          `<details class="adv f-tech"><summary>Technical detail (carried exactly)</summary><div class="f-help">${startText}${currentDaa ? ` · current DAA ≈ ${esc(currentDaa)}` : ""}</div></details>` +
           `<input type="hidden" name="${esc(nm("periodStartDaa"))}" value="${esc(r.periodStartDaa)}" /><input type="hidden" name="${esc(nm("periodSpent"))}" value="${esc(r.periodSpent)}" /><input type="hidden" name="${esc(nm("existing"))}" value="${r.existing ? "1" : "0"}" />` +
           `<div class="actions"><button type="button" class="quiet" data-remove-agent="${i}" aria-label="Remove delegate ${i + 1}">Remove delegate</button></div>` +
           `</fieldset>`
@@ -335,7 +419,7 @@
       else if (info.form === "kasAgents") {
         const rows = draft && Array.isArray(draft.agents) ? draft.agents : [];
         body = `<div class="f-help">These rules REPLACE the installed set completely${rows.length ? "" : " — an empty set means no delegate can pay until a new set is installed"}. Values are prefilled from the installed rules.</div>` +
-          renderAgentRowsHtml({ rows, rowErrors: (errors && errors.get("agentRows")) || {}, listError: err("agents"), currentDaa: draft && draft.currentDaa });
+          renderAgentRowsHtml({ rows, rowErrors: (errors && errors.get("agentRows")) || {}, listError: err("agents"), currentDaa: draft && draft.currentDaa, finalizeWindow: true });
       } else if (info.form === "approvers") {
         body = renderApproverRowsHtml({ rows: draft && draft.approvers, rowErrors: (errors && errors.get("approverRows")) || {}, approvalM: draft && draft.approvalM, mError: err("approvalM"), listError: err("approvers"), allowEmpty: false });
       } else {
@@ -376,12 +460,16 @@
       const live = v.live && typeof v.live === "object" ? v.live : null;
       const paused = !!(live && live.paused === true);
       const terminal = !!(v.status && String(v.status) !== "ACTIVE" && String(v.status) !== "PAUSED");
-      const badge = !loaded ? "PAUSED" : terminal ? "RECOVERED" : paused ? "PAUSED" : live ? "ACTIVE" : "PAUSED";
-      const badgeText = !loaded ? "NOT LOADED" : terminal ? String(v.status) : paused ? "PAUSED" : live ? "ACTIVE" : "NO LIVE OUTPOINT";
+      /* RC45 L2-01 D7/D8 (C4-05 summaries): stateUnresolved { requestId, txId } = a PARTIAL attribution left this treasury
+       * UNRESOLVED; the server refuses every hosted action on it and its status, balance and delegates are the LAST RECORD */
+      const unresolved = loaded && v.stateUnresolved && typeof v.stateUnresolved === "object" && !Array.isArray(v.stateUnresolved) ? v.stateUnresolved : null;
+      const badge = !loaded ? "PAUSED" : unresolved ? "PAUSED" : terminal ? "RECOVERED" : paused ? "PAUSED" : live ? "ACTIVE" : "PAUSED";
+      const badgeText = !loaded ? "NOT LOADED" : unresolved ? "STATE UNRESOLVED" : terminal ? String(v.status) : paused ? "PAUSED" : live ? "ACTIVE" : "NO LIVE OUTPOINT";
       const guardedBy = pendingRequest && Array.isArray(pendingRequest.vaultOperations) && pendingRequest.vaultOperations.some((op) => op && op.vaultId === v.vaultId) ? pendingRequest : null;
       const agents = Array.isArray(v.agents) ? v.agents : [];
       const approvers = Array.isArray(v.approvers) ? v.approvers.filter((k) => k !== SENTINEL) : [];
       const statusLine = !loaded ? "This treasury's current state could not be loaded — reload before starting anything."
+        : unresolved && live ? `Last record (not the current state): ${String(live.protectedValueKas)} KAS protected · ${String(live.feeReserveKas)} KAS fee reserve · ${paused ? "PAUSED" : "not paused"} · generation ${String(v.generation ?? "?")}`
         : live ? `${String(live.protectedValueKas)} KAS protected · ${String(live.feeReserveKas)} KAS fee reserve · ${paused ? "PAUSED — delegate payments stopped" : "delegate payments allowed under the installed rules"} · generation ${String(v.generation ?? "?")}`
           : terminal ? `This treasury is ${String(v.status)} — it holds nothing and accepts no further operation.` : "No confirmed on-chain outpoint yet — use Verify state on the root after the creation lands.";
       const me = agentEntryFor(v, viewerXOnly);
@@ -394,12 +482,12 @@
             return `<button type="button"${a.enabled ? "" : " disabled"} class="${info.dangerous ? "warn" : info.rootAction === "freeze" ? "warn" : ""}" data-rootvaultop="${esc(op)}" data-vault="${esc(v.vaultId)}" data-root="${esc(rootId)}" title="${esc(a.enabled ? info.describe : a.reason)}">${esc(info.label)}</button>`;
           }).join("")
         : "";
-      const spendBtn = loaded && me && live && !paused && !terminal
+      const spendBtn = loaded && me && live && !paused && !terminal && !unresolved
         ? `<button type="button" class="primary" data-kasspend="${esc(v.vaultId)}" title="Pay from this treasury as delegate ${esc(short(me.agentPk))} under its installed rule">Pay from this treasury</button>`
         : "";
-      const agentLines = agents.length
+      const agentLines = (unresolved ? `<div class="kv-line">Delegate rules below are the last record, not the current state:</div>` : "") + (agents.length
         ? agents.map((a) => `<div class="kv-line">delegate <span class="mono">${esc(short(a.agentPk))}</span>${viewerXOnly && String(a.agentPk).toLowerCase() === String(viewerXOnly).toLowerCase() ? " (you)" : ""}: up to ${esc(sompiToKas(a.maxPerSpend))} KAS per payment, ${esc(sompiToKas(a.periodBudget))} KAS per ${esc(String(a.periodLengthDaa))} DAA (spent ${esc(sompiToKas(a.periodSpent))} KAS), approvals above ${esc(sompiToKas(a.approvalThreshold))} KAS, ${Array.isArray(a.recipients) ? a.recipients.length : "?"} allowed recipient(s)</div>`).join("")
-        : `<div class="kv-line">No delegate rules installed — no one can pay from this treasury until the owners install rules.</div>`;
+        : `<div class="kv-line">No delegate rules installed — no one can pay from this treasury until the owners install rules.</div>`);
       const approverLine = approvers.length
         ? `<div class="kv-line">Approvals above a delegate's threshold: ${esc(String(v.approvalM ?? "?"))} of ${approvers.length} approver(s)${isApproverOf(v, viewerXOnly) ? " (you are an approver)" : ""}: ${approvers.map((k) => `<span class="mono">${esc(short(k))}</span>`).join(", ")}</div>`
         : `<div class="kv-line">No approvers: every payment within a delegate's rules needs only the delegate's signature.</div>`;
@@ -408,6 +496,7 @@
         `<div class="vault-head"><span class="vault-title">${esc(v.label || short(v.vaultId))}</span> <span><span class="badge ${badge}">${esc(badgeText)}</span> <span class="badge ver">KAS treasury · candidate profile</span></span></div>` +
         `<div class="kv-line mono" style="word-break:break-all">treasury ${esc(v.vaultId)}</div>` +
         `<div class="kv-line">${esc(statusLine)}</div>` +
+        (unresolved ? `<div class="opbanner warn" data-treasury-unresolved="${esc(v.vaultId)}"><b>STATE UNRESOLVED</b> — ${esc(UNRESOLVED_EXPLANATION)} Root request ${esc(String(unresolved.requestId ?? "?"))}, transaction ${esc(String(unresolved.txId ?? "?"))}, broadcast outside PolicyVault. The balance and delegate rules shown are the last record, not the current state, and a root FREEZE does not stop this treasury's delegates.</div>` : "") +
         `<div class="hint">${esc(OWNERSHIP_STATEMENT)}</div>` +
         agentLines + approverLine +
         (v.recoveryPk ? `<div class="kv-line">Pinned recovery key — Close &amp; recover pays the ENTIRE balance here, nowhere else: <span class="mono" style="word-break:break-all">${esc(v.recoveryPk)}</span></div>` : "") +
@@ -504,7 +593,7 @@
           recipientRowsFrom(r.recipients).some((row) => v(row.address)) ||
           (r.period ? r.period.preset !== requireSetup("validateKasDraft").BUDGET_SETTING.defaultPreset || v(r.period.customValue) : v(r.periodLengthDaa))
         ));
-        const res = await validateAgentRows(entries.map(({ r }) => r));
+        const res = await validateAgentRows(entries.map(({ r }) => r), { allowEmptyNewStart: step === "delegates" });
         if (res.listError) bad("agents", res.listError);
         if (Object.keys(res.rowErrors).length) { bad("agents", "Fix the highlighted delegate rows."); errors.set("agentRows", Object.fromEntries(Object.entries(res.rowErrors).map(([i, err]) => [entries[Number(i)].i, err]))); }
         agents = res.agents;
@@ -606,11 +695,36 @@
       });
     }
     /* the SERVER's genesis summary vs the LOCALLY normalized intent — a mismatch refuses signing */
-    function genesisCrossCheck({ summary, norm }) {
+    /* With `daaBefore` (RC45: the network position this browser read at Build, BEFORE posting the build) each delegate's
+     * period start in the server's summary is bound first: accepted iff it is at or above max(reviewed start, daaBefore -
+     * WEB_ANCHOR_SLACK_DAA) and then adopted into a COPY of the reviewed rules, the agent root recomputed locally; every
+     * other value is still compared exactly. No read is taken after the build. The adopted rules are returned as `norm`:
+     * the signing-time re-check compares exactly against them (without daaBefore). */
+    function genesisCrossCheck({ summary, norm, daaBefore } = {}) {
       const mismatches = [];
       if (!summary || summary.kind !== "genesis-summary" || summary.contractVersion !== PROFILE) return { ok: false, mismatches: ["the server did not return a KAS treasury genesis summary"] };
       if (!norm || !norm.rootPins || !HEX64.test(String(norm.rootPins.orgRootCovenantId || "")) || !HEX64.test(String(norm.rootPins.rootTemplateVmHash || "")) || norm.rootPins.rootStateLen !== core.vaultStateV7Root.ROOT_STATE_LEN_V7) {
         return { ok: false, mismatches: ["the selected root's independently reviewed identity is missing"] };
+      }
+      const bound = daaBefore !== undefined && daaBefore !== null;
+      const advisories = [];
+      if (bound) {
+        const D = typeof daaBefore === "bigint" ? daaBefore : isDigitString(daaBefore) ? BigInt(daaBefore) : null;
+        if (D === null) mismatches.push("the network position read before the build is not an exact DAA score");
+        else {
+          const server = new Map((Array.isArray(summary.agents) ? summary.agents : []).map((a) => [String(a && a.agentPk).toLowerCase(), a]));
+          const floor = D - WEB_ANCHOR_SLACK_DAA;
+          const agents = norm.agents.map((l) => {
+            const a = server.get(l.agentPk);
+            if (!a) return l; // a missing or extra delegate is reported by the exact comparison below
+            if (!DIGITS.test(String(a.periodStartDaa ?? "")) || !DIGITS.test(String(l.periodStartDaa ?? ""))) { mismatches.push(`delegate ${short(l.agentPk)} period start: server ${a.periodStartDaa} is not an exact network position`); return l; }
+            const S = BigInt(a.periodStartDaa), R = BigInt(l.periodStartDaa), lowest = R > floor ? R : floor;
+            if (S < lowest) { mismatches.push(`delegate ${short(l.agentPk)} period start: server ${S}, earlier than ${lowest} (it must be at or above the reviewed start ${R} and this browser's read ${D} minus ${WEB_ANCHOR_SLACK_DAA})`); return l; }
+            if (S - D > ANCHOR_AHEAD_ADVISORY_DAA) advisories.push(`PolicyVault's node is ahead of this browser's read ${D} (delegate ${short(l.agentPk)} starts at ${S}); a later start only delays this delegate's next budget.`);
+            return { ...l, periodStartDaa: S.toString() };
+          });
+          try { norm = { ...norm, agents, agentRoot: agentRoot(agents) }; } catch (e) { mismatches.push(`the adopted delegate rules could not be folded: ${e.message}`); }
+        }
       }
       const st = summary.initialState || {};
       const cmp = (label, a, b) => { if (String(a) !== String(b)) mismatches.push(`${label}: server ${a}, reviewed ${b}`); };
@@ -643,16 +757,26 @@
       }
       if (summary.depositKas !== undefined) cmp("protected principal (KAS)", summary.depositKas, sompiToKas(norm.protectedSompi));
       if (summary.feeReserveKas !== undefined) cmp("fee reserve (KAS)", summary.feeReserveKas, sompiToKas(norm.feeReserveSompi));
-      return { ok: mismatches.length === 0, mismatches };
+      return bound ? { ok: mismatches.length === 0, mismatches, norm, advisories } : { ok: mismatches.length === 0, mismatches };
     }
-    function renderKasGenesisReviewHtml({ norm, summary, crossCheck, connectedAddress }) {
+    /* Per delegate: what it could pay at once if the creation is confirmed at network position `currentDaa`, and when its
+     * next budget arrives (warning style when that includes earlier, unused periods). "" without a digit-string position. */
+    function periodStartBlockHtml(agents, currentDaa, { warn = false } = {}) {
+      const lines = isDigitString(currentDaa) ? (Array.isArray(agents) ? agents : []).map((a) => periodStartLine(a || {}, currentDaa)).filter(Boolean) : [];
+      if (!lines.length) return "";
+      const banked = lines.some((l) => l.warn);
+      return `<div class="opbanner${warn || banked ? " warn" : ""}" data-period-start-lines="1" style="margin-top:0.6rem">${lines.map((l) => `<div>${esc(l.text)}</div>${l.warn ? `<div><b>${esc(l.warn)}</b></div>` : ""}`).join("")}</div>`;
+    }
+    function renderKasGenesisReviewHtml({ norm, summary, crossCheck, connectedAddress, currentDaa = null }) {
       const SUI = requireSetup("renderKasGenesisReviewHtml");
       const ok = crossCheck && crossCheck.ok;
       const st = (summary && summary.initialState) || {};
       const agents = Array.isArray(summary && summary.agents) ? summary.agents : [];
       const approvers = (Array.isArray(st.approverSlots) ? st.approverSlots : []).filter((k) => k !== SENTINEL);
+      const advisories = crossCheck && Array.isArray(crossCheck.advisories) ? crossCheck.advisories : [];
       return (
         statusRegion(ok ? `<b>VERIFIED — the built treasury matches the rules you reviewed, value for value.</b>` : `<b>DO NOT SIGN — the built treasury does not match the reviewed rules:</b> ${(crossCheck && crossCheck.mismatches || []).map(esc).join("; ")}`, ok ? "" : "bad") +
+        advisories.map((a) => `<div class="hint" style="margin-top:0.3rem">${esc(a)}</div>`).join("") +
         `<div class="f-help">${esc(OWNERSHIP_STATEMENT)}</div>` +
         SUI.renderReviewSection({ title: "What your wallet will sign", rows: [
           ["Protected principal", `${esc(sompiToKas(st.protectedValue || "0"))} KAS`],
@@ -666,6 +790,7 @@
           ["Transaction id", String(summary.txId || "")],
           ["Funding wallet", String(connectedAddress || "")]
         ] }) +
+        periodStartBlockHtml(agents, currentDaa) +
         `<div class="f-help">Your wallet signs the funding inputs only. The treasury output's locking script is rebuilt locally from these rules and must match before the wallet is invoked; a substituted destination refuses.</div>`
       );
     }
@@ -859,14 +984,18 @@
       const lineDivs = lines.map((l) => `<div class="mono" style="padding:0.12rem 0;word-break:break-all">${esc(l)}</div>`).join("");
       return `<div class="${verified ? "opbanner" : "opbanner bad"}" data-org-root-review="${verified ? "verified" : "refused"}" data-kas-root-review="1" role="status" aria-live="polite" aria-atomic="true" style="border-width:2px"><b style="color:${verified ? "var(--good)" : "var(--bad)"}">${verified ? "VERIFIED — EXACT TREASURY OPERATION BEFORE SIGNING" : "DO NOT SIGN — LOCAL VERIFICATION REFUSED"}</b><div style="margin-top:0.4rem;font-size:0.8rem;max-height:18rem;overflow:auto">${lineDivs}</div></div>`;
     }
-    function kasVaultOperationSummary(request) {
+    /* `currentDaa` (RC45): with a digit-string network position every delegate of a new rule set gets the "if confirmed
+     * now" line (warnLines: the indices of the lines to show in warning style — earlier, unused periods); with the option
+     * given but the position unknown, one line says so. This shows the banking of an unchanged idle delegate too; it does
+     * not change it. */
+    function kasVaultOperationSummary(request, { currentDaa } = {}) {
       if (!request || !request.manifest || !Array.isArray(request.manifest.vaultOperations) || !request.manifest.vaultOperations.length) return null;
       const redeemScripts = request.redeemScripts && typeof request.redeemScripts === "object" && !Array.isArray(request.redeemScripts) ? request.redeemScripts : {};
       let doc;
       try { doc = EX.structured({ manifest: request.manifest, redeemScripts }); } catch (e) { return { ok: false, lines: [`the treasury operation could not be verified: ${e.message}`] }; }
       if (doc.verdict !== "VERIFIED_EXACT") return { ok: false, lines: [`the treasury operation FAILED verification (${(doc.refusal && doc.refusal.failingChecks || []).join(", ")}) — do not sign`] };
       const v = doc.vaultOperations[0];
-      const lines = [];
+      const lines = [], warnLines = [];
       lines.push(`${vaultOpLabel(v.sdkAction)} on treasury ${v.vaultId}${v.summary ? ` — ${v.summary}` : ""}`);
       lines.push(`Authority: ${v.mutationClass}; requires the root to run ${v.requiredRootAction === null ? "no root action" : v.requiredRootAction}.`);
       lines.push(`Protected principal ${v.kas.protectedBefore.kas} KAS → ${v.kas.protectedAfter.kas} KAS · fee reserve ${v.kas.feeReserveBefore.kas} KAS → ${v.kas.feeReserveAfter.kas} KAS${v.kas.externalFunding.sompi !== "0" ? ` (funded ${v.kas.externalFunding.kas} KAS from the fee payer)` : ""}.`);
@@ -874,9 +1003,24 @@
       if (v.terminal) lines.push(`TERMINAL: this treasury is CLOSED; ${v.kas.terminalPayout.kas} KAS (its entire balance) is paid to the pinned recovery key ${v.recoveryPk}. Irreversible.`);
       if (v.agentSet !== null && v.agentSet !== undefined) {
         lines.push(v.agentSet.length ? `New delegate rules: ${v.agentSet.length} — the successor agent root is their Merkle root:` : "New delegate rules: EMPTY — after this operation no delegate can pay until a new set is installed.");
-        for (const p of v.agentSet) lines.push(`delegate ${p.agentPk}: up to ${p.maxPerSpend.kas} KAS per payment, ${p.periodBudget.kas} KAS per ${p.periodLengthDaa} DAA, approvals above ${p.approvalThreshold.kas} KAS, fee cap ${p.agentMaxFeePerTx.kas} KAS, recipients: ${(p.recipients || []).join(", ")}`);
+        for (const p of v.agentSet) {
+          lines.push(`delegate ${p.agentPk}: up to ${p.maxPerSpend.kas} KAS per payment, ${p.periodBudget.kas} KAS per ${p.periodLengthDaa} DAA, approvals above ${p.approvalThreshold.kas} KAS, fee cap ${p.agentMaxFeePerTx.kas} KAS, recipients: ${(p.recipients || []).join(", ")}`);
+          const line = isDigitString(currentDaa) ? periodStartLine({ agentPk: p.agentPk, periodStartDaa: p.periodStartDaa, periodSpent: p.periodSpent.sompi, periodBudget: p.periodBudget.sompi, periodLengthDaa: p.periodLengthDaa }, currentDaa) : null;
+          if (line) { lines.push(line.text); if (line.warn) { warnLines.push(lines.length); lines.push(line.warn); } }
+        }
+        if (v.agentSet.length && currentDaa !== undefined && !isDigitString(currentDaa)) lines.push("The current network position could not be read — what each delegate could pay at once if this change is confirmed now is unknown.");
       }
-      return { ok: true, sdkAction: v.sdkAction, vaultId: v.vaultId, terminal: !!v.terminal, lines };
+      return { ok: true, sdkAction: v.sdkAction, vaultId: v.vaultId, terminal: !!v.terminal, lines, warnLines };
+    }
+    /* A creation signed earlier and resumed ("Open this creation"): its delegate period starts were fixed when it was
+     * signed and the server does not re-check them at submit (a signed creation cannot be withdrawn), so the modal states
+     * per delegate, in warning style, what submitting it now would let that delegate pay at once. Display only. */
+    function renderResumedCreationPeriodStartHtml({ request, currentDaa = null } = {}) {
+      const agents = request && request.kind === "kasGenesis" && request.state === "SIGNED" && request.summary && Array.isArray(request.summary.agents) ? request.summary.agents : [];
+      if (!agents.length) return "";
+      const block = periodStartBlockHtml(agents, currentDaa, { warn: true });
+      if (!block) return `<div class="opbanner warn" data-period-start-lines="unknown" style="margin-top:0.6rem">This creation was signed earlier; its delegate period starts were fixed then, and ${isDigitString(currentDaa) ? "its delegate values are not exact" : "the current network position could not be read"} — the immediately spendable amount is unknown.</div>`;
+      return block + `<div class="opbanner warn" style="margin-top:0.3rem">This creation was signed earlier; its delegate period starts were fixed then. Submitting it now gives each delegate the amount above at once.</div>`;
     }
 
     return {
@@ -886,7 +1030,7 @@
       kasDraftDefaults, kasRulesSummary, validateKasDraft, renderKasSetupHtml, renderKasDraftReviewHtml, createKasVaultRequest, kasRootPinsForReview, genesisCrossCheck, renderKasGenesisReviewHtml, bindKasGenesisSigningPayload, signKasGenesisRequest,
       submitKasRequest, rejectKasRequest, fetchKasRequests, fetchKasRequest, fetchParticipantVaults,
       spendDraftFrom, validateSpendDraft, renderSpendFormHtml, buildKasSpend, renderSpendReviewHtml, bindKasSpendSigningPayload, signKasSpend, approveKasSpend,
-      renderKasRootRequestReviewHtml, kasVaultOperationSummary,
+      renderKasRootRequestReviewHtml, kasVaultOperationSummary, renderResumedCreationPeriodStartHtml,
       displayCodeFor
     };
   }

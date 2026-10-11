@@ -223,7 +223,7 @@ async function buildAttestationForRequest(config, request, { vault = undefined }
     decision = "REFUSED";
     refusalCode = "INTENT_VERIFICATION_FAILED";
   } else {
-    /* GOVERNANCE-ATTESTATION-LADDER-01 (store-path port of lane de1aab2):
+    /* GOVERNANCE-ATTESTATION-LADDER-01 (store-path port of the lane change):
      * a governed request — bound by its own governanceProposalId or, for a
      * request that predates the field (RC42), by the manifest record it
      * CREATED, exactly as the finalize/submit gate binds it — is decided on
@@ -238,25 +238,29 @@ async function buildAttestationForRequest(config, request, { vault = undefined }
      *
      * BROADCAST EVIDENCE: the gate guards finalize/submit, so its refusal
      * describes only a request that has not reached the broadcast
-     * pipeline. A request with broadcast evidence already passed a gate
-     * that admitted it — RC42's has no governance re-check — and a
-     * REFUSED record with txId null would erase a broadcast or a chain
-     * proof. Broadcast evidence is a broadcast-pipeline state, or a
-     * receipt for the request's txId on a row that carries an accepted
-     * signature (SIGNED_STATES). The receipt half is for the vault
-     * reconcile (sdk/src/reconcile-v4.js), which persists a receipt for a
-     * claimed transaction proven on chain and leaves a FINALIZED or
-     * PREFLIGHT_VERIFIED row's state unchanged: the row's own signed
-     * transaction, which the ladder below presents as BROADCAST. The
-     * receipt is keyed by txId, so an unsigned row holds one only through a
-     * content-identical request that shares its txId (a retry of an RC42
-     * defect row with a new proposal and the same fuel) or tampering; the
-     * ladder shows no broadcast for such a row, so it is refused like the
-     * gate. With broadcast evidence, a TERMINAL result keeps the ladder
-     * below unchanged, while any other refusal (the integrity alarm
-     * GOVERNANCE_PROPOSAL_UNKNOWN: proposal gone or for another vault)
-     * fails closed with the gate's own 409 error — never silently
-     * AUTHORIZED, never a REFUSED record. */
+     * pipeline. A request with broadcast evidence either passed a gate
+     * that admitted it — RC42's has no governance re-check — or was
+     * completed by Verify (sdk/src/reconcile-v4.js) from the chain's
+     * acceptance of its txid; Verify never completes a request outside
+     * SIGNED_STATES and SUBMISSION_REJECTED that the gate refuses (RC45
+     * R1-03: it advances the vault by the txid, keeps the request's label
+     * and writes no receipt naming it). A REFUSED record with txId null
+     * would erase a broadcast or a chain proof. Broadcast evidence is a
+     * broadcast-pipeline state, or a receipt for the request's txId on a
+     * row that carries an accepted signature (SIGNED_STATES). The receipt
+     * half covers a receipt for the row's own signed transaction proven on
+     * chain while its FINALIZED or PREFLIGHT_VERIFIED state stayed
+     * unchanged (the vault reconcile of earlier releases left it so;
+     * Verify relabels last), which the ladder below presents as
+     * BROADCAST. The receipt is keyed by txId, so an unsigned row the gate
+     * refuses holds one only through a content-identical request that
+     * shares its txId (a retry of an RC42 defect row with a new proposal
+     * and the same fuel) or tampering; the ladder shows no broadcast for
+     * such a row, so it is refused like the gate. With broadcast evidence,
+     * a TERMINAL result keeps the ladder below unchanged, while any other
+     * refusal (the integrity alarm GOVERNANCE_PROPOSAL_UNKNOWN: proposal
+     * gone or for another vault) fails closed with the gate's own 409
+     * error — never silently AUTHORIZED, never a REFUSED record. */
     const governed = typeof request.governanceProposalId === "string"
       || (manifestRecord !== null && manifestRecord.requestId === request.requestId && typeof manifestRecord.proposalId === "string");
     let governanceRefusal = null;

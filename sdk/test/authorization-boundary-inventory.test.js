@@ -21,13 +21,20 @@
  *   2. a listed machine scope disagrees with requiredScopesFor (the
  *      deny-by-default scope table) — the inventory can never drift from
  *      the enforcing code;
- *   3. a non-public route names no auth gate, or names a gate symbol that
- *      is not present in the file it claims enforces it (MISSING PRINCIPAL);
+ *   3. a non-public route names no auth gate, or names an auth gate that
+ *      its OWN handler block and family prelude do not call (MISSING
+ *      PRINCIPAL; RC45 R1-02 binding, sdk/testutil/rc45-r1-authorization-
+ *      binding.js: comments stripped, the handler located mechanically, a
+ *      row whose binding cannot be located fails);
  *   4. a tenant-owned route names no tenancy resolver, or a resolver that
  *      is neither a server/src/tenancy.js export nor a symbol in its file
- *      (BYPASSED RESOLVER); a tenant-owned mutation names no mutation gate;
- *   5. a tenant-owned route has no hostile-evidence test that exercises its
- *      static path segments (GATE 1 coverage);
+ *      (BYPASSED RESOLVER); a tenant-owned mutation names no mutation gate,
+ *      or a mutation gate that is not bound to its own handler block and
+ *      family prelude (a parameterized gate counts only when called with
+ *      { mutation: true } — RC45 R1-02, K7);
+ *   5. a tenant-owned route has no hostile-evidence test that contains a
+ *      request path matching its FULL route pattern, exact version segment
+ *      included (GATE 1 coverage; RC45 R1-02);
  *   6. any server source discards a resolved principal/context
  *      (`void principal`, `void ctx`, `void session`, `void actor…`) —
  *      DISCARDED PRINCIPAL — unless listed under documentedExceptions with
@@ -47,6 +54,9 @@ const inventory = JSON.parse(fs.readFileSync(INVENTORY_PATH, "utf8"));
 const scopes = require("../../server/src/scopes");
 const tenancy = require("../../server/src/tenancy");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
+const BINDING = require("../testutil/rc45-r1-authorization-binding"); // RC45 R1-02 (S-02): GATE 2 binding and GATE 1 full pattern
+const DISPATCH = BINDING.analyzeDispatchers();
+const TENANCY_EXPORTS = new Set(Object.keys(tenancy));
 const scopesSrc = read("server/src/scopes.js");
 const apiSrc = read("server/src/api.js");
 
@@ -91,7 +101,7 @@ function literalPositions() {
   }
   return out;
 }
-const ROUTE_LIST_SHA256 = "5752263a11909454c230b0ab58eb117538543eddfaf2d531893c41dd0acc803f"; // re-pinned with POST /wallet/v7/requests/:id/approvals (v0.7-kas vault-level approval tier, reviewed boundary change 2026-09-10); prior 583a8563… (UX-05 reconcile route) // re-pinned with the UX-05 reconcile route (GATE 2 reviewed boundary change; hostile evidence in hosted-build-authority.test.js)
+const ROUTE_LIST_SHA256 = "efd98341d09d154df301db32a1c0292bd80889527c51a25b6f3cd730aba2d77b"; // re-pinned with the removal of the phantom GET /risk/evaluations row (RC45 R1-02: no dispatcher serves it; api.js answers 404 "unknown risk route"); prior 5752263a… // re-pinned with POST /wallet/v7/requests/:id/approvals (v0.7-kas vault-level approval tier, reviewed boundary change); prior 583a8563… (UX-05 reconcile route) // re-pinned with the UX-05 reconcile route (GATE 2 reviewed boundary change; hostile evidence in hosted-build-authority.test.js)
 
 test("row granularity (a): every dispatcher path literal is inventoried at its own segment position", () => {
   const positions = new Set();
@@ -122,17 +132,19 @@ test("machine scopes in the inventory equal requiredScopesFor for every route (n
   }
 });
 
-test("MISSING PRINCIPAL: every non-public route names an auth gate that exists in the file it claims; tenant-owned routes never accept 'none'/'optional' principals", () => {
+test("MISSING PRINCIPAL (GATE 2 binding, RC45 R1-02): every non-public route names an auth gate that its OWN handler block or family prelude calls (comments stripped; a row whose binding cannot be located fails); tenant-owned routes never accept 'none'/'optional' principals [RED on dc7552e]", () => {
+  const unbound = [];
   for (const r of inventory.routes) {
     if (r.resourceClass === "public") continue;
     assert.notEqual(r.authGate, "n/a", `${r.method} ${r.path}: no auth gate`);
-    const src = read(r.file);
-    assert.ok(src.includes(r.authGate), `${r.method} ${r.path}: auth gate "${r.authGate}" not found in ${r.file}`);
+    unbound.push(...BINDING.bindingReport(r, DISPATCH, TENANCY_EXPORTS).auth);
     if (!PUBLIC_CLASSES.has(r.resourceClass)) assert.ok(["session-or-machine", "session-only"].includes(r.principalType), `${r.method} ${r.path}: tenant-owned route with principalType ${r.principalType}`);
   }
+  assert.deepEqual(unbound, [], "every declared auth gate is bound to its own route (handler block + family prelude); a failing row is corrected to the code (RC45 R1-02, K7)");
 });
 
-test("BYPASSED RESOLVER: every tenant-owned route names a tenancy resolver that is a tenancy.js export or a symbol of its file; every tenant-owned mutation names a mutation gate", () => {
+test("BYPASSED RESOLVER: every tenant-owned route names a tenancy resolver that is a tenancy.js export or a symbol of its file; every tenant-owned mutation names a mutation gate BOUND to its own handler block or family prelude (a parameterized gate only when called with { mutation: true }; RC45 R1-02, K7) [RED on dc7552e]", () => {
+  const unbound = [];
   const tenancyExports = new Set(Object.keys(tenancy));
   for (const r of inventory.routes) {
     if (PUBLIC_CLASSES.has(r.resourceClass)) continue;
@@ -143,22 +155,24 @@ test("BYPASSED RESOLVER: every tenant-owned route names a tenancy resolver that 
     for (const s of symbols) assert.ok(tenancyExports.has(s) || src.includes(s), `${r.method} ${r.path}: resolver symbol "${s}" is neither a tenancy.js export nor present in ${r.file}`);
     if (r.method !== "GET") {
       assert.notEqual(r.mutationGate, "n/a", `${r.method} ${r.path}: tenant-owned mutation without a mutation gate`);
-      const ms = [...r.mutationGate.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)].map((m) => m[0]).filter((s) => /[a-z][A-Z]/.test(s) || tenancyExports.has(s));
-      for (const s of ms) assert.ok(tenancyExports.has(s) || src.includes(s), `${r.method} ${r.path}: mutation gate symbol "${s}" not found`);
     }
   }
+  for (const r of inventory.routes) if (r.resourceClass !== "public" && r.mutationGate !== "n/a") unbound.push(...BINDING.bindingReport(r, DISPATCH, TENANCY_EXPORTS).mutation);
+  assert.deepEqual(unbound, [], "every declared mutation gate is bound to its own route (handler block + family prelude; parameterized gates only with { mutation: true }); a failing row is corrected to the code (RC45 R1-02, K7)");
 });
 
-test("GATE 1 coverage: every tenant-owned route names an existing hostile-evidence test that exercises its static path segments with a foreign principal", () => {
+test("GATE 1 coverage (full pattern, RC45 R1-02): every tenant-owned route names an existing hostile-evidence test that contains a request path matching the route's FULL pattern, its exact version segment included (comments stripped), with a foreign principal [RED on dc7552e]", () => {
+  const unmatched = [];
   for (const r of inventory.routes) {
     if (PUBLIC_CLASSES.has(r.resourceClass)) continue;
     assert.notEqual(r.hostileEvidence, "n/a", `${r.method} ${r.path}: no hostile evidence`);
     const p = path.join(ROOT, r.hostileEvidence);
     assert.ok(fs.existsSync(p), `${r.method} ${r.path}: evidence file ${r.hostileEvidence} does not exist`);
     const src = fs.readFileSync(p, "utf8");
-    for (const seg of staticSegments(r.path)) assert.ok(src.includes(seg), `${r.method} ${r.path}: evidence ${r.hostileEvidence} never mentions segment "${seg}"`);
+    if (!BINDING.evidenceMatches(r, inventory, src)) unmatched.push(`${r.method} ${r.path}: evidence ${r.hostileEvidence} contains no request path matching the full route pattern`);
     assert.match(src, /foreign|FOREIGN|tenant|TENANT|stranger|unauthenticated|UNAUTHENTICATED/, `${r.hostileEvidence} carries no hostile/foreign probe wording`);
   }
+  assert.deepEqual(unmatched, [], "GATE 1: each row's hostile evidence exercises the row's own route, exact version segment included (RC45 R1-02)");
 });
 
 test("DISCARDED PRINCIPAL lint: no server source discards a resolved principal/context (documented exceptions only)", () => {

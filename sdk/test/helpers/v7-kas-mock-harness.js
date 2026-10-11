@@ -9,6 +9,11 @@ const crypto = require("crypto");
 const wr7 = require("../../src/wallet-requests-v7");
 const wr7kas = require("../../src/wallet-requests-v7-kas");
 const { covenantAddress, loadKaspa } = require("../../src/chain");
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel } = require("../../testutil/guard-node");
+/* RC45 R3N-B1a inventory (mock capabilities only): the B1 runtime reads the node's virtual DAA, its sink and the 20-hop
+ * selected-chain walk below it at build and submit, and observes every non-root frozen input live and exact at build,
+ * the supplied fee UTXO included: the table rootGenesis() registers answers a virtual DAA and carries the seam's walk
+ * (registerFixtureNode), and driveRootOp() puts its supplied fee UTXO on the table before the build reads it. */
 
 function createHarness(config) {
   const kaspa = require(config.rustyKaspaModule);
@@ -82,7 +87,8 @@ async function slotSign(cfg, req, slot, key) {
 }
 /* ONE owner operation on the KAS vault riding a root action: build -> slot signatures -> finalize (fuel) -> seed -> submit */
 async function driveRootOp(cfg, rpc, c, rootCovenantId, vaultId, { action = "authorize", op, signers, initiator }) {
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action, params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [op], signerAddress: ADDR(initiator ?? signers[0].key) });
+  /* RC45 L2-01 guard inventory (mock seeding): the build-time node read reaches this harness's mock table */
+  const req = await withFixtureNode(cfg, rpc, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action, params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey), { rpc }) }, vaultOperations: [op], signerAddress: ADDR(initiator ?? signers[0].key) }));
   assert.equal(req.kind, "rootAction");
   assert.equal(req.vaultOperations[0].profile, "policyvault-0.7-kas", "the request records the vault's profile");
   assert.equal(req.manifest.manifestVersion, "policyvault-org-root-kas-manifest/1", "the org-root-KAS manifest family describes the transition");
@@ -106,6 +112,7 @@ function ctx() {
   return { owner1, owner2, owner3, funder, fuelKey, agentKey, otherAgent, recipientKey, recoveryKey, approver1, approver2, stranger, policy };
 }
 async function rootGenesis(cfg, c, rpc) {
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory: root builds on this root read this mock table
   const req = await wr7.buildRootGenesisRequest({
     config: cfg, label: "acme dao",
     owners: [{ slot: 1, publicKey: XO(c.owner1) }, { slot: 2, publicKey: XO(c.owner2) }, { slot: 3, publicKey: XO(c.owner3) }],

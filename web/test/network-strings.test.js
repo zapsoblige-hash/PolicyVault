@@ -75,7 +75,7 @@ const EXEMPT = {
   "app-v4.js": [
     12, // comment restating the two canonical values (dual-network)
     60, // comment quoting the literal for documentation purposes (shifted by the UX-responsiveness pass: retained-state/epoch helpers)
-    3942 // Existing dual-network boot comment; shifted by the RC30/rc31 corrections and by the v0.7 mainnet-enablement KAS treasury wiring (wireKasPanels / openKasSpendFlow / openKasRequestModal / openKasTreasuryWizard inserted above it). Comment byte-identical.
+    4299 // Existing dual-network boot comment; shifted by the RC30/rc31 corrections, by the v0.7 mainnet-enablement KAS treasury wiring (wireKasPanels / openKasSpendFlow / openKasRequestModal / openKasTreasuryWizard inserted above it), by later pre-RC42 edits (stale since e5e51bd: 3991) and by RC45 F8 (closed Verify status map, WEB-2/WEB-3). Comment byte-identical.
   ],
   "wallet.js": [
     90, // normalizeNetwork(): canonical output-value production from an arbitrary provider string (shifted by the 2026-09-02 console corrective: opt-in walletDebugEnabled() helper)

@@ -24,6 +24,11 @@ const {
   RequestState
 } = require("../src/wallet-requests-v4");
 const { makeDevSigner } = require("../src/signer-dev");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pv4-wr-"));
 const config = loadConfig({ dataRoot });
@@ -42,8 +47,20 @@ const recipient = KEY(0x28);
 const other = KEY(0x29);
 const approvers = [KEY(20), KEY(21), KEY(22)];
 
-const VAULT_ID = "22".repeat(32);
-const template = { owner: XO(owner), vaultId: VAULT_ID };
+/* LEAD-5 (lane checkpoint 6ff4539; docs/postlaunch/lead5-reconciliation-remediation.md):
+ * a finalized (PREFLIGHT_VERIFIED) request is a PROTECTED unresolved
+ * transition — the pipeline refuses ANOTHER build/finalize attempt on that
+ * vault with REQUEST_RECOVERY_REQUIRED until request-scoped recovery resolves
+ * it. Every seed therefore opens a FRESH vault (the last byte increments; the
+ * first vault is the historical 22…22); the assertions are unchanged. */
+let vaultCounter = 0;
+let VAULT_ID = "22".repeat(32);
+let template = { owner: XO(owner), vaultId: VAULT_ID };
+function rotateVault() {
+  VAULT_ID = "22".repeat(31) + (0x22 + vaultCounter).toString(16).padStart(2, "0");
+  vaultCounter += 1;
+  template = { owner: XO(owner), vaultId: VAULT_ID };
+}
 
 function agentEntry(kp, recipients, over = {}) {
   return {
@@ -71,6 +88,7 @@ function stateFor(registry, over = {}) {
  * two-tab protection, exercised deliberately elsewhere). */
 let seedCounter = 0;
 async function seedManifest(registry, over = {}) {
+  rotateVault();
   seedCounter += 1;
   const outTxId = seedCounter.toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const state = stateFor(registry, over);
@@ -134,6 +152,12 @@ test("G6: reserve-funded agent spend — BUILD (agent authz) -> sign -> FINALIZE
   const done = await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: signed });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
   assert.equal(done.txId, req.txId);
+  // LEAD-5: the finalized request PROTECTS the vault — another build is refused.
+  await assert.rejects(async () => buildWalletRequestV4({
+    config, vaultId: VAULT_ID, action: "agentSpend",
+    params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) },
+    signerAddress: ADDR(agentA)
+  }), (e) => e.code === "REQUEST_RECOVERY_REQUIRED");
 });
 
 test("G6: fuel-funded agent spend with an explicit fuel UTXO -> preflight PASS", async () => {

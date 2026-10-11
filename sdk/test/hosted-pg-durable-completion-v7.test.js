@@ -27,6 +27,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 const path = require("node:path");
 const fx = require("../testutil/org-root-durable-fixture");
+const { withFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
 const { loadConfig } = require("../src/config");
 const { openPgStore } = require("../src/store");
 const { reconcileOrgRootV7 } = require("../src/reconcile-v7");
@@ -114,7 +115,7 @@ test("PG durable recovery: a failure AFTER root advancement (root predecessor cl
   assert.equal(root.live.outpoint.transactionId, fin.txId, "root advanced before the failure (jsonb round trip)");
   assert.equal(root.pendingRequestId, fin.id, "guard held in the database");
   assert.equal((await wr7.verifyRootActionCompletion(fresh, req)).complete, false);
-  await assert.rejects(() => wr7.buildRootActionRequest({ config: fresh, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(fresh, o.fuelKey) }, signerAddress: fx.ADDR(fresh, o.owner1) }), (e) => e.code === "ROOT_PENDING_REQUEST");
+  await assert.rejects(() => withFixtureNode(fresh, () => wr7.buildRootActionRequest({ config: fresh, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(fresh, o.fuelKey) }, signerAddress: fx.ADDR(fresh, o.owner1) })), (e) => e.code === "ROOT_PENDING_REQUEST");
   const r = await reconcileOrgRootV7(fresh, o.rootCovenantId, { rpc });
   assert.equal(r.root.status, "ADVANCED", JSON.stringify(r.root));
   assert.ok(r.root.completion.some((c) => c.replayed && c.requestId === fin.id));

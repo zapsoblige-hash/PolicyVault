@@ -46,6 +46,11 @@ const { normalizeStateV4, computeStateIdV4, stateToJsonV4, CONTRACT_VERSION_V4 }
 const { compileExactStateV4 } = require("../src/contract-compiler-v4");
 const { MANIFEST_SCHEMA_V4, persistManifestV4 } = require("../src/manifest-v4");
 const { requiredScopesFor, SCOPES } = require("../../server/src/scopes");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pv-attest-"));
 const config = loadConfig({ dataRoot, buildId: "attest-test-build" });

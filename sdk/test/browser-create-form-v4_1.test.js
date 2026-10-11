@@ -61,6 +61,9 @@ async function harness() {
       calls.create.push(body);
       return json(422, { error: { code: "TEST_STOP", message: "harness stop" } });
     }
+    /* RC45 R2-07: the friendly create reads the node's network position (GET /network/status, a digit-string
+     * virtualDaaScore) before it posts, and refuses to post without one; answered as a synced node. */
+    if (u.includes("/network/status")) return json(200, { networkId: "testnet-10", isSynced: true, hasUtxoIndex: true, virtualDaaScore: "545000000" });
     if (u.includes("/organizations")) return json(200, { organizations: [], assignments: {}, assignmentsVersion: 0 });
     if (u.includes("/vaults")) return json(200, { vaults: [] });
     return json(200, {});

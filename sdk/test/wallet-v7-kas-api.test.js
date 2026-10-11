@@ -36,11 +36,19 @@ const crypto = require("crypto");
 const { loadConfig } = require("../src/config");
 const { ENCODER_PATH } = require("../src/vault-builders-v4");
 const wr7 = require("../src/wallet-requests-v7");
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table also carries the seam's walk (registerFixtureNode)
+ * and each root build's supplied fee UTXO (seedFixtureFuel) — the B1 build observes every non-root input live and exact */
 const wr7kas = require("../src/wallet-requests-v7-kas");
 const { loadManifestV7Kas, listRootedKasVaultsV7 } = require("../src/manifest-v7-kas");
 const { reconcileOrgRootV7, reconcileVault } = require("../src/reconcile-v7");
 const { covenantAddress, loadKaspa } = require("../src/chain");
 const { getStore, Categories } = require("../src/store");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 function freshConfig() {
   return loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv7kas-api-")) });
@@ -103,6 +111,7 @@ function seedRootAction(cfg, rpc, finalized) {
   seedOutputs(cfg, rpc, finalized.build.frozen, finalized.txId, (o) => (o.covenant ? o.covenant.covenantId : null));
 }
 async function driveGenesis(cfg, request, funderKey, rpc) {
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory: root builds on this config read this mock table
   const signed = signAll(request.transaction.unsignedSafeJson, request.transaction.signInputs.map((s) => [s.index, funderKey]));
   const finalized = await wr7.submitOrgRootRequestSignature({ config: cfg, requestId: request.id, signedSafeJson: signed });
   assert.equal(finalized.state, "SIGNED");
@@ -120,7 +129,7 @@ async function slotSign(cfg, req, slot, key) {
 }
 /* ONE owner operation on the KAS vault riding a root action: build -> slot signatures -> finalize (fuel) -> seed -> submit */
 async function driveRootOp(cfg, rpc, c, rootCovenantId, vaultId, { action = "authorize", op, signers, initiator }) {
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action, params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [op], signerAddress: ADDR(initiator ?? signers[0].key) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action, params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, vaultOperations: [op], signerAddress: ADDR(initiator ?? signers[0].key) }));
   assert.equal(req.kind, "rootAction");
   assert.equal(req.vaultOperations[0].profile, "policyvault-0.7-kas", "the request records the vault's profile");
   assert.equal(req.manifest.manifestVersion, "policyvault-org-root-kas-manifest/1", "the org-root-KAS manifest family describes the transition");
@@ -272,7 +281,7 @@ test("KAS lifecycle: root genesis -> KAS vault genesis -> owner top-up via the r
   const pending = (await wr7kas.listKasWalletRequests(cfg, { vaultId })).find((q) => q.state === "RECONCILIATION_REQUIRED");
   assert.ok(pending, "the unproven request is truthfully RECONCILIATION_REQUIRED");
   await assert.rejects(() => wr7kas.buildKasWalletRequest({ config: cfg, vaultId, action: "agentSpend", params: { payAmountSompi: KAS.toString(), recipient: XO(c.recipientKey) }, signerAddress: ADDR(c.agentKey) }), (e) => e.code === "VAULT_PENDING_REQUEST");
-  await assert.rejects(() => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [{ vaultId, action: "ownerPause", params: {} }], signerAddress: ADDR(c.owner1) }), (e) => e.code === "VAULT_PENDING_REQUEST", "an owner op is refused while a delegate request is unfinished");
+  await assert.rejects(() => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, vaultOperations: [{ vaultId, action: "ownerPause", params: {} }], signerAddress: ADDR(c.owner1) })), (e) => e.code === "VAULT_PENDING_REQUEST", "an owner op is refused while a delegate request is unfinished");
   const unresolved = await reconcileVault(cfg, rpc, vaultId);
   assert.equal(unresolved.status, "UNKNOWN", `without the successor on chain nothing advances: ${JSON.stringify(unresolved)}`);
   seedOutputs(cfg, rpc, pending.build.frozen, pending.txId, (o) => (o.covenant ? o.covenant.covenantId : null));
@@ -301,7 +310,7 @@ test("KAS lifecycle: root genesis -> KAS vault genesis -> owner top-up via the r
   vault = await loadManifestV7Kas(cfg, vaultId);
   assert.equal(vault.live.state.activeApproverCount, 1);
   const newPolicy = { ...c.policy, agentPk: XO(c.otherAgent), maxPerSpend: (2n * KAS).toString() };
-  await assert.rejects(() => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [{ vaultId, action: "ownerSetAgentRoot", params: { newAgentRoot: "11".repeat(32) } }], signerAddress: ADDR(c.owner1) }), (e) => e.code === "AGENT_SET_REQUIRED", "a bare root is never accepted");
+  await assert.rejects(() => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, vaultOperations: [{ vaultId, action: "ownerSetAgentRoot", params: { newAgentRoot: "11".repeat(32) } }], signerAddress: ADDR(c.owner1) })), (e) => e.code === "AGENT_SET_REQUIRED", "a bare root is never accepted");
   const setRoot = await driveRootOp(cfg, rpc, c, rootCovenantId, vaultId, { op: { vaultId, action: "ownerSetAgentRoot", params: { agents: [newPolicy] } }, signers: [{ slot: 1, key: c.owner1 }, { slot: 2, key: c.owner2 }] });
   assert.equal(setRoot.newRegistry.length, 1);
   vault = await loadManifestV7Kas(cfg, vaultId);
@@ -330,7 +339,7 @@ test("KAS emergency path: ownerEmergencyPause under FREEZE needs ONE owner (K=1)
   const rpc = mockRpc();
   const rootCovenantId = await rootGenesis(cfg, c, rpc);
   const { vaultId } = await kasGenesis(cfg, c, rpc, rootCovenantId);
-  const freeze = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "freeze", params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [{ vaultId, action: "ownerEmergencyPause", params: {} }], signerAddress: ADDR(c.owner3) });
+  const freeze = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "freeze", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, vaultOperations: [{ vaultId, action: "ownerEmergencyPause", params: {} }], signerAddress: ADDR(c.owner3) }));
   assert.equal(freeze.requiredApprovals, "1");
   assert.equal(freeze.actionClass, "AUTHORITY-REDUCING");
   assert.equal(freeze.manifest.manifestVersion, "policyvault-org-root-kas-manifest/1");
@@ -346,7 +355,7 @@ test("KAS emergency path: ownerEmergencyPause under FREEZE needs ONE owner (K=1)
   assert.equal(vault.status, "PAUSED");
   assert.equal(vault.live.state.paused, 1n);
   await assert.rejects(() => wr7kas.buildKasWalletRequest({ config: cfg, vaultId, action: "agentSpend", params: { payAmountSompi: KAS.toString(), recipient: XO(c.recipientKey) }, signerAddress: ADDR(c.agentKey) }), (e) => e.code === "VAULT_PAUSED");
-  await assert.rejects(() => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [{ vaultId, action: "ownerUnpause", params: {} }], signerAddress: ADDR(c.owner1) }), (e) => /frozen|FROZEN/.test(e.message) || e.code === "ROOT_FROZEN", "a frozen root refuses an AUTHORIZE-path vault op until unfrozen");
+  await assert.rejects(() => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, vaultOperations: [{ vaultId, action: "ownerUnpause", params: {} }], signerAddress: ADDR(c.owner1) })), (e) => /frozen|FROZEN/.test(e.message) || e.code === "ROOT_FROZEN", "a frozen root refuses an AUTHORIZE-path vault op until unfrozen");
 });
 
 test("KAS genesis refusals: no principal, malformed policy set, root not live; nothing durable is written", { skip: SKIP }, async () => {

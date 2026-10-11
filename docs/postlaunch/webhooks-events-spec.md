@@ -83,14 +83,16 @@ the mutation.
 | `request.built` | action, contractVersion, state, aboveThreshold, signerRole | a durable, intent-verified request exists (create + transition builds) |
 | `request.approval.collected` | action, collected, required, complete | an approver signature was accepted |
 | `request.finalized` | action, state | owner/agent signature attached; VM preflight passed |
-| `request.confirmed` | action, state, terminal | submit succeeded — **which in this pipeline means chain proof**: txid verified, predecessor consumed, exact successor observed |
+| `request.confirmed` | action, state, terminal | submit reached `CHAIN_VERIFIED` — **which in this pipeline means chain proof**: txid verified, predecessor consumed, exact successor observed. Only for `CHAIN_VERIFIED` (RC45 A4, H-50): a submit that returns at `SUBMITTED` (the owner's contested Pause, and every Close & recover) emits no `request.*` event |
 | `request.failed` | action, stage (`intent`\|`finalize`\|`submit`\|`genesis-submit`), code | a durable request's finalize/submit/intent gate refused |
 | `request.rejected` | action, state | the signer declined in the wallet / cancelled |
 
 **There is deliberately NO "submitted but unproven" success event.**
 `submitTransaction` returning is not success in PolicyVault; the event
 stream refuses to claim an unproven broadcast. A crash-after-broadcast
-surfaces later through reconciliation (`vault.reconciled`). Legacy v0.2
+surfaces later through reconciliation (`vault.reconciled`), and so does a
+submit that returned at `SUBMITTED`: Verify completes it only once the
+transaction is observed at depth. Legacy v0.2
 routes emit no events (documented limitation; poll `/audit` for those).
 
 ### 4.2 Vault lifecycle
@@ -98,7 +100,34 @@ routes emit no events (documented limitation; poll `/audit` for those).
 | type | data |
 |---|---|
 | `vault.created` | contractVersion, label — genesis chain-proven |
-| `vault.reconciled` | outcome (reconciler status: CONSISTENT / CLAIM_PENDING / CLAIM_RELEASED / ADVANCED / TERMINAL / UNKNOWN…), to |
+| `vault.reconciled` | outcome (the Verify status), to |
+
+`vault.reconciled` is emitted by the Verify route (`POST /vaults/:id/reconcile`)
+from the status it returns; it is a notification, never authority. For a
+v0.4-family vault (RC45, `sdk/src/reconcile-v4.js`) `outcome` is one of
+`CONSISTENT`, `ADVANCED`, `TERMINAL` (the record agrees with the chain, or
+Verify settled it on positive chain evidence at a depth of 1,000 DAA),
+`CLAIM_PENDING` (observed below that depth, or a live claim that may still
+execute), `REQUEST_RECOVERY_REQUIRED` (signed work on the recorded outpoint
+may still execute; on a closed vault, unresolved history), `UNKNOWN` (the
+recorded outpoint is spent and no known spender was seen) or
+`CHAIN_CONTRADICTION` (the chain currently contradicts the record, for
+example a reorganization). `UNKNOWN` and `CHAIN_CONTRADICTION` write nothing,
+and a node that cannot be read, or an environment failure that R1-04 classifies (a missing binary, a spawn error, a signal or temp-file I/O of the `pv_tx_probe` harness, or any compiler or VM-preflight failure), answers
+`422 RECONCILE_FAILED` with no event; a dynamic-loader failure of
+`pv_tx_probe` is not one (lead5 L-17).
+`CLAIM_RELEASED` is no longer produced for the v0.4 family (Verify never
+releases a claim on age or absence); a legacy v0.2 vault's reconciler keeps
+its own statuses. `correlation` carries `txId` and, whenever the outcome
+names one (`ADVANCED`, `CLAIM_PENDING` for a recorded transaction below the
+depth, `REQUEST_RECOVERY_REQUIRED`),
+`requestId` (RC45 A5). `data` stays exactly `{outcome, to}`: the `settled[]`
+list a Verify answer returns (records completed, superseded as `STALE`, or an
+established rejection's leftover released) is **not published**, and those
+settlements emit **no `request.*` event** — neither a superseded (`STALE`)
+loser nor an owner completion that Verify finishes at depth (a contested
+Pause, and every Close & recover); a consumer reads them from the request
+records or the audit trail.
 
 ### 4.3 Governance and risk (hosted coordination plane)
 
@@ -291,7 +320,14 @@ Event visibility uses exactly the hosted global audit feed's derivation
 (`events.js eventVisibleTo`): vault events require covenant participation
 in that vault (read), org events require org membership, identity events
 require the creating wallet; anything else is invisible (**default
-deny**). Self-hosted mode (tenancy disabled) exposes the whole stream to
+deny**). An identity event that carries an `orgId` goes, like an org event,
+to that organization's readers (its owner and its wallet members). It
+carries one only when its creator owns that organization (RC45 R1-11):
+`POST /identities` refuses an `orgId` the caller does not own
+(`platform-agent-api-spec.md` §1.2), and `identity.revoked` omits the stored
+`orgId` unless the revoking wallet still owns that organization. Identity
+events stored before RC45 keep their `orgId`; nothing is rewritten.
+Self-hosted mode (tenancy disabled) exposes the whole stream to
 the single local operator. Both the polling route and the delivery
 scanner apply the same rule; hostile cross-tenant reads are tested.
 

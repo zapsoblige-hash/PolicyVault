@@ -681,9 +681,9 @@
      */
     async verify(v, { quiet } = {}) {
       if (!quiet) note("Verifying vault state on-chain…");
-      let reconcile;
+      let reconcile, vault; const prior = ui.vaults.find((x) => x.vaultId === v); // RC45 R1-10 (S-04): the card before this Verify; a v0.4-family answer never reaches the v0.2 table below (noteVerifyV04)
       try {
-        ({ reconcile } = await postJSON(`/vaults/${v}/reconcile`, {}));
+        ({ reconcile, vault } = await postJSON(`/vaults/${v}/reconcile`, {}));
       } catch (e) {
         note(`Verification failed: ${e.message}`, "warn");
         return loadVaults();
@@ -696,7 +696,7 @@
         CLAIM_PENDING: "Still verifying — the outcome cannot be proven yet. Try again in a couple of minutes.",
         UNKNOWN: "Automatic verification could not establish the vault state. Controls remain disabled."
       };
-      note(messages[reconcile.status] ?? `Verification result: ${reconcile.status}`, reconcile.status === "UNKNOWN" ? "warn" : "");
+      if (!noteVerifyV04(reconcile, prior, vault)) note(messages[reconcile.status] ?? `Verification result: ${reconcile.status}`, reconcile.status === "UNKNOWN" ? "warn" : "");
       return loadVaults();
     },
     async cancelRequest(requestId) {
@@ -1068,9 +1068,9 @@
   function operationalHtml(v) {
     const op = v.operational;
     if (!op || op.status === "ACTIVE" || op.status === "CLOSED") return "";
-    if (op.status === "WAITING_FOR_SIGNATURE") {
+    if (op.status === "WAITING_FOR_SIGNATURE") { // RC45 R1-01 (C7): Cancel posts to the legacy v0.2 reject route, so only a v0.2 vault offers it
       return `<div class="opbanner">Waiting for wallet approval.
-        ${op.request ? `<button class="act" onclick="pvActions.cancelRequest('${esc(op.request.requestId)}')">Cancel request</button>` : ""}
+        ${op.request && v.contractVersion === "policyvault-0.2" ? `<button class="act" onclick="pvActions.cancelRequest('${esc(op.request.requestId)}')">Cancel request</button>` : ""}
         ${advancedDetailsHtml(op)}</div>`;
     }
     if (op.status === "TRANSACTION_PENDING") {
@@ -1243,7 +1243,7 @@
       renderVaults();
       renderOrgPanel(); // overview/delegate stats derive from vault truth
       for (const v of ui.vaults) {
-        if (v.operational?.status === "ACTION_REQUIRED_VERIFY" && !autoVerified.has(v.vaultId)) {
+        if (v.operational?.status === "ACTION_REQUIRED_VERIFY" && !isV04Family(v) && !autoVerified.has(v.vaultId)) { // RC45 R1-10 (S-04): app-v4.js owns v0.4-family vaults; never auto-verified here
           autoVerified.add(v.vaultId);
           window.pvActions.verify(v.vaultId, { quiet: true });
         }
@@ -1414,6 +1414,41 @@
     if (!ui.address) setWalletState(kasware.detect() ? WalletState.DISCONNECTED : WalletState.NOT_DETECTED);
 
     await Promise.all([netP, dataP]);
+  }
+
+  /* ---------------- v0.4-family Verify answers ---------------- */
+
+  /*
+   * RC45 R1-10 (S-04). This console's Verify table (pvActions.verify) is
+   * reconcile-v2's. app-v4.js owns the v0.4 family (policyvault-0.4,
+   * policyvault-0.4.1): loadVaults never auto-verifies such a vault, and
+   * any Verify answer for one is told through web/refusal-explain.js's
+   * closed map (verifyStatus / renderVerifyHtml: good / warn / bad; an
+   * answer the map does not know is bad with its token, never success),
+   * never through the v0.2 table. The family is read from the card on
+   * screen before the Verify or from the route's `vault` document after
+   * it; either one naming it is enough. A restore is derived exactly as
+   * app-v4.js derives it (R1-07, C8): the card was TERMINATED_UNKNOWN
+   * before this Verify and the route's `vault` document is live after it;
+   * no response field is read for it. Without the module the summary
+   * keeps the raw token in "warn", never success. Returns false, having
+   * shown nothing, for a vault outside the family.
+   */
+  function isV04Family(v) {
+    return Boolean(v && typeof v === "object" && (v.contractVersion === "policyvault-0.4" || v.contractVersion === "policyvault-0.4.1"));
+  }
+  function noteVerifyV04(result, prior, after) {
+    if (!isV04Family(prior) && !isV04Family(after)) return false;
+    const live = Boolean(after && after.live && after.status !== "RECOVERED" && after.status !== "TERMINATED_UNKNOWN");
+    const context = { restored: Boolean(prior && prior.status === "TERMINATED_UNKNOWN" && live) };
+    const mod = window.PolicyVaultRefusalExplain;
+    const view = mod && typeof mod.verifyStatus === "function" ? mod.verifyStatus(result, context) : null;
+    const status = result && typeof result.status === "string" ? result.status : "no status";
+    note(`Verify state: ${status}`, view ? view.level : "warn");
+    if (!view || typeof mod.renderVerifyHtml !== "function") return true;
+    try { $("notice").innerHTML = mod.renderVerifyHtml(result, context); }
+    catch { /* the plain summary already stands */ }
+    return true;
   }
 
   /* ---------------- organization UI wiring ---------------- */

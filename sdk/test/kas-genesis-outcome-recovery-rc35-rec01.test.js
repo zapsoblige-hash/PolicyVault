@@ -38,6 +38,11 @@ const { KAS, toolchainSkip, mainnetConfig, answers, scriptedRpc, persistLegacyNe
 const SKIP = toolchainSkip("pv-rec01-probe-");
 const KAS_V = "policyvault-0.7-kas";
 const { negativeRpc } = require("./helpers/negative-proof-fixtures");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 async function setup(t, cfgOverride = null) {
   const cfg = cfgOverride ?? loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-rec01-")) });

@@ -28,6 +28,15 @@ const { loadTransitionClaim, transitionClaimKey } = require("../src/submission-c
 const { getStore, Categories } = require("../src/store");
 const { readAudit } = require("../src/audit");
 const { loadKaspa, covenantAddress } = require("../src/chain");
+/* RC45 L2-01 guard inventory (mock seeding): a root build reads the configured node once; this fixture's builds reach
+ * its own mock table (registered per data root by organization()) through the TEST seam sdk/testutil/guard-node.js.
+ * RC45 R3N-B1a inventory (mock capabilities only): the B1 runtime also reads the node's virtual DAA, its sink and the
+ * 20-hop selected-chain walk below it (build and submit), and observes every non-root frozen input live and exact at
+ * build, the supplied fee UTXO included. The table registered by organization() therefore answers a virtual DAA
+ * (FIXTURE_DAA) and carries the seam's walk (registerFixtureNode), liveFuelFor() puts the supplied fee UTXO on the table
+ * before the build reads it, and
+ * settle() — the transaction's acceptance — also spends that fee UTXO (spendFixtureFuel), as the real chain does. */
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel, spendFixtureFuel, FIXTURE_DAA } = require("./guard-node");
 
 const KAS = 100_000_000n;
 
@@ -71,6 +80,8 @@ function mockRpc() {
 const utxo = (address, txId, index, amount, covenantId) => ({ address, outpoint: { transactionId: txId, index }, amount: BigInt(amount), covenantId: covenantId ?? null });
 function spkAddress(cfg, spk) { return kaspaOf(cfg).addressFromScriptPublicKey({ version: spk.version, script: spk.scriptHex }, cfg.networkId).toString(); }
 function fuelUtxoFor(cfg, key, amount = 50n * KAS) { return { outpoint: { transactionId: crypto.randomBytes(32).toString("hex"), index: 0 }, amount: amount.toString(), scriptPublicKeyHex: `20${XO(cfg, key)}ac` }; }
+/* a fee UTXO that the fixture node (registered for cfg) carries, as the real chain carries the fee payer's UTXO */
+const liveFuelFor = (cfg, key, amount) => seedFixtureFuel(cfg, fuelUtxoFor(cfg, key, amount));
 function signAll(cfg, unsignedSafeJson, entries) {
   const kaspa = kaspaOf(cfg);
   const tx = kaspa.Transaction.deserializeFromSafeJSON(unsignedSafeJson);
@@ -100,6 +111,7 @@ async function driveGenesis(cfg, request, funderKey, rpc) {
 
 /* one organization (2-of-3) + one rooted vault with ONE agent */
 async function organization(cfg, rpc, { seed = 0x70 } = {}) {
+  registerFixtureNode(cfg, rpc);
   const owner1 = KEY(cfg, seed + 1), owner2 = KEY(cfg, seed + 2), owner3 = KEY(cfg, seed + 3), funder = KEY(cfg, 0xf0), fuelKey = KEY(cfg, 0x64), agentKey = KEY(cfg, 0x62), recipientKey = KEY(cfg, 0x63);
   const ref = compileKcc20Program({ config: cfg, state: assets.kcc20.ZERO_STATE, familyBound: 2 });
   const descriptor = { schema: "policyvault-asset-descriptor/1", assetId: H(0x11), displayName: "Org Token", tokenStandard: "kcc20/1", tokenCovenantId: H(0x54), acceptedTransferTemplates: [{ templateVmHashBlake2b256: ref.templateVmHashBlake2b256, prefixLen: ref.geometry.prefixLen, suffixLen: ref.geometry.suffixLen, stateLayout: "kcc20-state/1" }], decimalsDisplay: 2, issuerPowers: { mint: false, burn: false, freeze: false, blacklist: false, redemptionControl: false, upgradeMigration: false, controllerRotation: false, emergencyControl: false } };
@@ -114,7 +126,7 @@ async function organization(cfg, rpc, { seed = 0x70 } = {}) {
 
 /* build + 2 owner-slot signatures + the fee signature for ONE root action — NOT submitted */
 async function signedRootAction(cfg, o, { action = "authorize", vaultOperations = [] } = {}) {
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action, params: { fuel: fuelUtxoFor(cfg, o.fuelKey) }, vaultOperations, signerAddress: ADDR(cfg, o.owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action, params: { fuel: liveFuelFor(cfg, o.fuelKey) }, vaultOperations, signerAddress: ADDR(cfg, o.owner1) }));
   for (const [slot, key] of [[1, o.owner1], [2, o.owner2]]) {
     const s = sign65(cfg, req.transaction.unsignedSafeJson, req.rootInputIndex, key);
     const r = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: req.id, slot });
@@ -136,8 +148,10 @@ const signedRootOnly = (cfg, o) => signedRootAction(cfg, o, {});
 /* TERMINAL: ownerRecover on the rooted vault rides the ordinary `authorize` root action (OWNER_OP_ROOT_AUTHORITY_V7) */
 const signedTerminalRecover = (cfg, o) => signedRootAction(cfg, o, { vaultOperations: [{ vaultId: o.vaultId, action: "ownerRecover", params: {} }] });
 
-/* seed the chain with the finalized transaction's successor outputs (root; vault continuation or the terminal payout) */
+/* seed the chain with the finalized transaction's successor outputs (root; vault continuation or the terminal payout);
+ * R3N-B1a inventory: a fee UTXO the seam seeded for it is spent with it */
 function settle(cfg, rpc, finalized) {
+  spendFixtureFuel(cfg, finalized.build.frozen, { rpc });
   const outputs = finalized.build.frozen.outputs;
   const rootOutIdx = outputs.findIndex((x) => x.covenant && x.covenant.covenantId === finalized.rootCovenantId);
   const rootAddr = spkAddress(cfg, outputs[rootOutIdx].scriptPublicKey);
@@ -165,6 +179,19 @@ async function spendPredecessors(cfg, rpc, o) {
   const compiled = compileExactStateV7({ config: cfg, template: m.template, state: stateToJsonV7(m.live.state), contractVersion: m.contractVersion });
   rpc.clear(covenantAddress(cfg, Buffer.from(compiled.scriptHex, "hex")));
   return { rootOutpoint: root.live.outpoint, vaultOutpoint: m.live.outpoint };
+}
+
+/* R3N-B1a inventory: put the rooted vault's recorded live output on a fixture node (exactly that UTXO: its outpoint,
+ * value and covenant id at the vault's covenant address), as the real chain carries it — for a case whose node table
+ * was started from the root record only, when a root build that spends the vault's output reads it (D6b) */
+async function seedVaultLive(cfg, rpc, o) {
+  const m = await loadManifestV7(cfg, o.vaultId);
+  const { compileExactStateV7 } = require("../src/contract-compiler-v7");
+  const { stateToJsonV7 } = require("../../core/model/vault-state-v7");
+  const compiled = compileExactStateV7({ config: cfg, template: m.template, state: stateToJsonV7(m.live.state), contractVersion: m.contractVersion });
+  const address = covenantAddress(cfg, Buffer.from(compiled.scriptHex, "hex"));
+  rpc.seed(address, utxo(address, m.live.outpoint.transactionId, m.live.outpoint.index, m.live.outpointValue, o.vaultCovenantId));
+  return m.live.outpoint;
 }
 
 const auditLinesFor = async (cfg, txId) => (await readAudit(cfg, { limit: 1000 })).filter((e) => e && e.txId === txId && e.result === "CHAIN_VERIFIED");
@@ -226,10 +253,10 @@ function inject(cfg, method, predicate, { times = 1, message } = {}) {
 }
 
 module.exports = {
-  KAS, H, KEY, XO, ADDR, kaspaOf,
+  KAS, FIXTURE_DAA, H, KEY, XO, ADDR, kaspaOf,
   toolchainAvailable, freshJsonConfig, reloadJsonConfig, cloneJsonConfig,
-  mockRpc, utxo, spkAddress, fuelUtxoFor, signAll, sign65,
+  mockRpc, utxo, spkAddress, fuelUtxoFor, liveFuelFor, signAll, sign65,
   driveGenesis, organization, signedRootAction, signedSetAgentRoot, signedRootOnly, signedTerminalRecover, setAgentRootEntries,
-  settle, spendPredecessors, assertFullyCompleted, inject,
+  settle, spendPredecessors, seedVaultLive, assertFullyCompleted, inject,
   auditLinesFor, loadSubmissionClaim, loadReceipt, transitionClaimKey, manifestToJsonV7, loadManifestV7, wr7, Categories, getStore
 };

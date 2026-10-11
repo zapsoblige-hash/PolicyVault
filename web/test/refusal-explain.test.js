@@ -78,7 +78,11 @@ const SOURCE_HAYSTACK = [
   /* v0.7 ROOTED KAS TREASURY (v0.7 mainnet enablement, 2026-09-10): the delegate-payment / approver-tier codes
    * (core/model/vault-transitions-v4 rules re-checked pre-sign by the KAS SDK layer) and the browser signing-boundary
    * codes web/kas-vault-ui.js throws before the wallet is invoked. */
-  "web/kas-vault-ui.js", "sdk/src/wallet-requests-v7-kas.js", "core/model/vault-transitions-v4.js"
+  "web/kas-vault-ui.js", "sdk/src/wallet-requests-v7-kas.js", "core/model/vault-transitions-v4.js",
+  /* RC45 F8 (plan rc45-simplified-plan-r2 §5 WEB-1, §8.1; CR-L16): the v0.4 transition guard's refusal
+   * REQUEST_RECOVERY_REQUIRED is thrown by sdk/src/wallet-recovery-v4.js, so an explanation of it is grounded in
+   * that emitter — never only in WEB-1's own literal in web/app-v4.js (CR2-L14, asserted below). */
+  "sdk/src/wallet-recovery-v4.js"
 ]
   .filter((f) => fs.existsSync(path.join(REPO, f)))
   .map((f) => fs.readFileSync(path.join(REPO, f), "utf8"))
@@ -87,6 +91,80 @@ const SOURCE_HAYSTACK = [
 test("every explained code is a code this codebase actually emits (no invented codes)", () => {
   const missing = RX.codes().filter((c) => !SOURCE_HAYSTACK.includes(c));
   assert.deepEqual(missing, [], `explanation table contains codes no source emits: ${missing.join(", ")}`);
+});
+
+/* RC45 F8 (plan rc45-simplified-plan-r2 §5 WEB-1 "New REQUEST_RECOVERY_REQUIRED refusal entry", §8.1; CR-L16,
+ * CR2-L14, CR2-L16). RED on C1 e62b1973: the closed table has no REQUEST_RECOVERY_REQUIRED entry, so the v0.4
+ * guard's refusal renders unexplained. The haystack check above only proves SOME listed source contains the code;
+ * app-v4.js is listed and WEB-1 may put the literal there itself, so this test also requires the literal in the
+ * emitter, sdk/src/wallet-recovery-v4.js (the part that holds on C1). */
+test("RC45 WEB-1: REQUEST_RECOVERY_REQUIRED has a closed explanation stating that unresolved signed work blocks the action while Pause and Close & recover stay available on a live vault, grounded in its emitter sdk/src/wallet-recovery-v4.js [RED on C1]", () => {
+  const emitter = fs.readFileSync(path.join(REPO, "sdk/src/wallet-recovery-v4.js"), "utf8");
+  assert.ok(emitter.includes('"REQUEST_RECOVERY_REQUIRED"'), "the code is thrown by sdk/src/wallet-recovery-v4.js (CR2-L14: not only WEB-1's own literal)");
+  assert.ok(RX.codes().includes("REQUEST_RECOVERY_REQUIRED"), "the closed table explains REQUEST_RECOVERY_REQUIRED (WEB-1)");
+  const e = RX.explain("REQUEST_RECOVERY_REQUIRED");
+  const text = [e.title, e.meaning, ...e.next].join(" ");
+  assert.ok(text.includes("Unresolved signed work blocks this action; on a live vault, Pause and Close & recover stay available."), `the plan's WEB-1 entry text (CR2-L16); got: ${text}`);
+  const html = RX.renderRefusalHtml({ summary: "Pause rejected", code: "REQUEST_RECOVERY_REQUIRED", message: "SERVER-DETAIL-4471" });
+  assert.match(html, /data-refusal="REQUEST_RECOVERY_REQUIRED"/, "rendered as an explained refusal");
+  assert.match(html, /SERVER-DETAIL-4471/, "the server's message stays visible");
+});
+
+/* RC45 R2-06: the two refusals of the hosted delegate period-start rule (a new or changed delegate's budget period
+ * starts at the network position of the build; a request whose start aged past its window is refused before it can
+ * be signed into a state that cannot be withdrawn or broadcast). RED on b89f0f7: the closed table has neither entry,
+ * so both render unexplained. Each entry is required word for word, and grounded in its emitters — the rule's throw
+ * sites (sdk/src/manifest-v4.js freshness check; sdk/src/chain.js canonical node DAA read) and the hosted status
+ * mappings — not only in the haystack above. The registry-to-root integrity refusal (REGISTRY_ROOT_MISMATCH, an
+ * internal store-integrity fault) deliberately gets no entry: the honest unexplained fallback shows its code and the
+ * server's message. */
+const R2_06_ENTRIES = {
+  PERIOD_START_STALE: {
+    title: "This request waited too long to be signed or sent",
+    meaning: "PolicyVault starts the budget period of every new or changed delegate at the network position when the change is built. This request is now older than that delegate's budget period allows, so confirming it would hand the delegate more than one period's budget at once. Nothing was stored or broadcast by this step. PolicyVault did not keep or send the signature you gave for this step; a signed transaction would stay valid until one of its coins is spent (for a creation, its funding coins), so do not broadcast it from anywhere else — build it again. The covenant cannot check this; PolicyVault refuses it.",
+    next: [
+      "Withdraw (Cancel) this request and build the action again — the new build starts the period at the current network position.",
+      "For a signed vault request that is already armed: Pause, press Verify about two minutes later, then unpause and build the action again."
+    ]
+  },
+  PERIOD_START_REQUIRED: {
+    title: "The current network position could not be read",
+    meaning: "PolicyVault anchors every new or changed delegate's budget period to the synced Kaspa node's current DAA score and refuses rather than guess when it cannot read it. No request was built. If this action used a released risk review, that review was used up and must be released again.",
+    next: ["Check the network banner, then try again when the node is synced."]
+  }
+};
+/* an emitter throws the code as a string literal; a status mapping names it as a literal or a table key */
+const literalIn = (rel, code) => new RegExp(`["'\`]${code}["'\`]`).test(fs.readFileSync(path.join(REPO, rel), "utf8"));
+const tokenIn = (rel, code) => new RegExp(`\\b${code}\\b`).test(fs.readFileSync(path.join(REPO, rel), "utf8"));
+
+test("RC45 R2-06: PERIOD_START_STALE has the closed explanation word for word (waited too long; nothing stored or broadcast; the signature given for this step was not kept or sent and must not be broadcast elsewhere; withdraw and build again, or for an armed vault request Pause, Verify, unpause), grounded in the freshness check's emitter and the hosted 409 mappings [RED on b89f0f7]", () => {
+  assert.ok(RX.codes().includes("PERIOD_START_STALE"), "the closed table explains PERIOD_START_STALE");
+  const e = RX.explain("PERIOD_START_STALE");
+  assert.deepEqual({ title: e.title, meaning: e.meaning, next: e.next }, R2_06_ENTRIES.PERIOD_START_STALE, "the entry's exact title, meaning and next steps");
+  assert.ok(literalIn("sdk/src/manifest-v4.js", "PERIOD_START_STALE"), "sdk/src/manifest-v4.js (the freshness check) throws PERIOD_START_STALE");
+  for (const rel of ["server/src/api.js", "server/src/org-roots.js", "web/kas-vault-ui.js"]) assert.ok(tokenIn(rel, "PERIOD_START_STALE"), `${rel} maps PERIOD_START_STALE`);
+  const html = RX.renderRefusalHtml({ summary: "Finalize rejected", code: "PERIOD_START_STALE", message: "SERVER-DETAIL-5521" });
+  assert.match(html, /data-refusal="PERIOD_START_STALE"/, "rendered as an explained refusal");
+  assert.match(html, /SERVER-DETAIL-5521/, "the server's message stays visible");
+});
+
+test("RC45 R2-06: PERIOD_START_REQUIRED has the closed explanation word for word (the network position could not be read; no request was built; a released risk review used before the read must be released again; check the network banner), grounded in the canonical node DAA read's emitters and the hosted 422 mapping [RED on b89f0f7]", () => {
+  assert.ok(RX.codes().includes("PERIOD_START_REQUIRED"), "the closed table explains PERIOD_START_REQUIRED");
+  const e = RX.explain("PERIOD_START_REQUIRED");
+  assert.deepEqual({ title: e.title, meaning: e.meaning, next: e.next }, R2_06_ENTRIES.PERIOD_START_REQUIRED, "the entry's exact title, meaning and next steps");
+  for (const rel of ["sdk/src/chain.js", "sdk/src/ux-normalize-v4.js"]) assert.ok(literalIn(rel, "PERIOD_START_REQUIRED"), `${rel} throws PERIOD_START_REQUIRED`);
+  for (const rel of ["server/src/org-roots.js", "web/kas-vault-ui.js"]) assert.ok(tokenIn(rel, "PERIOD_START_REQUIRED"), `${rel} maps PERIOD_START_REQUIRED`);
+  const html = RX.renderRefusalHtml({ summary: "Build rejected", code: "PERIOD_START_REQUIRED", message: "SERVER-DETAIL-5522" });
+  assert.match(html, /data-refusal="PERIOD_START_REQUIRED"/, "rendered as an explained refusal");
+  assert.match(html, /SERVER-DETAIL-5522/, "the server's message stays visible");
+});
+
+test("RC45 R2-06: the registry-to-root integrity refusal REGISTRY_ROOT_MISMATCH gets no closed entry — it renders unexplained with its code and the server's message verbatim", () => {
+  assert.equal(RX.explain("REGISTRY_ROOT_MISMATCH"), null);
+  const html = RX.renderRefusalHtml({ summary: "Finalize rejected", code: "REGISTRY_ROOT_MISMATCH", message: "SERVER-DETAIL-5523" });
+  assert.match(html, /data-refusal="unexplained"/);
+  assert.match(html, /REGISTRY_ROOT_MISMATCH/);
+  assert.match(html, /SERVER-DETAIL-5523/);
 });
 
 test("an unknown code gets NO explanation — explain() returns null and never guesses", () => {

@@ -134,6 +134,12 @@
       meaning: "PolicyVault cannot act on a vault whose exact on-chain state it has not confirmed. It fails closed instead of assuming.",
       next: ["Use Verify state on the vault card, then retry the action."]
     },
+    REQUEST_RECOVERY_REQUIRED: {
+      /* RC45 F8 WEB-1 (plan r2 §5, CR2-L16): the v0.4 transition guard, sdk/src/wallet-recovery-v4.js */
+      title: "Signed work on this vault is still unresolved",
+      meaning: "Unresolved signed work blocks this action; on a live vault, Pause and Close & recover stay available. A signed request on this vault's current state may still be broadcast and take effect, so PolicyVault refuses a second transaction rather than risking a conflicting spend. The message above names the blocking request.",
+      next: ["Use Verify state on the vault: it settles the request only once the chain shows its outcome at depth.", "On a live vault, Pause or Close & recover — if yours confirms first, the pending request can never execute."]
+    },
     VAULT_TERMINAL: {
       title: "This vault is closed",
       meaning: "The vault was recovered or otherwise terminated. It is permanently read-only history; no transaction can be built for it.",
@@ -153,6 +159,25 @@
       title: "That address was rejected",
       meaning: "The address is malformed, has a bad checksum, is an unsupported type, or belongs to a different Kaspa network than this server is configured for.",
       next: ["Paste the address again from the wallet that owns it, and check it is for this network."]
+    },
+
+    /* ---- delegate budget period start (hosted rule; the covenant cannot check it) ----
+     * PERIOD_START_STALE: the freshness check of sdk/src/manifest-v4.js, run before a v0.4.1 genesis-submit,
+     * finalize or submit and before a v0.7-kas creation signature or root-request finalize (409 in server/src/api.js
+     * and server/src/org-roots.js). PERIOD_START_REQUIRED: the canonical node DAA read of sdk/src/chain.js and the
+     * friendly-create read of sdk/src/ux-normalize-v4.js (422). */
+    PERIOD_START_STALE: {
+      title: "This request waited too long to be signed or sent",
+      meaning: "PolicyVault starts the budget period of every new or changed delegate at the network position when the change is built. This request is now older than that delegate's budget period allows, so confirming it would hand the delegate more than one period's budget at once. Nothing was stored or broadcast by this step. PolicyVault did not keep or send the signature you gave for this step; a signed transaction would stay valid until one of its coins is spent (for a creation, its funding coins), so do not broadcast it from anywhere else — build it again. The covenant cannot check this; PolicyVault refuses it.",
+      next: [
+        "Withdraw (Cancel) this request and build the action again — the new build starts the period at the current network position.",
+        "For a signed vault request that is already armed: Pause, press Verify about two minutes later, then unpause and build the action again."
+      ]
+    },
+    PERIOD_START_REQUIRED: {
+      title: "The current network position could not be read",
+      meaning: "PolicyVault anchors every new or changed delegate's budget period to the synced Kaspa node's current DAA score and refuses rather than guess when it cannot read it. No request was built. If this action used a released risk review, that review was used up and must be released again.",
+      next: ["Check the network banner, then try again when the node is synced."]
     },
 
     /* ---- signing / submission ---- */
@@ -450,8 +475,119 @@
       title: "Delegation is refused while the organizational root is frozen",
       meaning: "This vault is bound to an on-chain organizational root. While that root is FROZEN, no delegation on any vault it roots is authorized.",
       next: ["The owners can UNFREEZE the root with their approval quorum (M of N of the installed set), then retry this action."]
+    },
+
+    /* ---- RC45 L2-01 (Narrowed C + guard) and R3N-B1: the organizational-root request refusals of
+     * sdk/src/wallet-requests-v7.js (and sdk/src/wallet-requests-v7-kas.js for TREASURY_STATE_UNRESOLVED), served by
+     * server/src/org-roots.js. RECORDED_OUTPUT_SPENT is the BUILD-time answer here; the same code answered by Submit
+     * (with extra.submitRead) has its own explanation below (SUBMIT_CONTEXT), chosen from that structured field only. */
+    RECORDED_OUTPUT_SPENT: {
+      title: "An output this request would spend is no longer reported unspent",
+      meaning: "Before recording anything, PolicyVault read the synced node: the recorded root or treasury output this request would spend is not reported unspent (or not with the recorded value, covenant id and script). Nothing was recorded and the root is not reserved. That output may have been spent outside PolicyVault, including by a transaction of an earlier request broadcast outside PolicyVault.",
+      next: [
+        "Press Verify state on the root.",
+        "Build again only if Verify then shows the root (and the treasury) verified with no request holding it.",
+        "If Verify answers UNKNOWN (the root moved outside PolicyVault, duplicate records, or a request outside this repair's scope), the build stays refused while that answer stands."
+      ]
+    },
+    TREASURY_STATE_UNRESOLVED: {
+      title: "This treasury's state is UNRESOLVED",
+      /* binding wording: writer decision 'wording after the PARTIAL upgrade' item 1, verbatim */
+      meaning: "PolicyVault cannot confirm this treasury's current state: its expected output was spent outside PolicyVault after an out-of-band change to its delegate rules. Hosted actions on this treasury stay closed. A later Verify restores them only if it finds that expected output unspent again (for example after a reorganization); otherwise only the owners' direct on-chain exit can act on it.",
+      next: [
+        "Hosted owner operations on this treasury (FREEZE and emergency pause included) and its delegate payments are refused while it is UNRESOLVED; a root FREEZE does not stop its delegates.",
+        "Press Verify state on the root later: it reopens this treasury only if it observes that expected output unspent again at depth.",
+        "The owners' direct on-chain exit moves the root outside PolicyVault, which then answers UNKNOWN for the root."
+      ]
+    },
+    SUBMIT_INPUT_UNRESOLVED: {
+      title: "Submit refused — an input of this request is not confirmed unspent",
+      meaning: "Before recording anything, PolicyVault read every output this finalized request spends. One is not reported unspent, or is reported with different contents, and PolicyVault cannot establish that another transaction spent it. Nothing was recorded or broadcast; the request still reserves the root, and withdrawal is not available for this answer.",
+      next: ["Press Verify state on the root.", "The server's message above names the input and what was observed."]
+    },
+    WITHDRAWAL_DEPTH_PENDING: {
+      title: "Withdrawal pending — the second step comes later",
+      meaning: "PolicyVault withdraws a finalized request whose input another transaction spent in two steps, at least 1,000 DAA apart: the first step records only a chain anchor, and the second step withdraws only if that spend is then final at 1,000 DAA and every observation agrees again. This step wrote at most that anchor; the request stays finalized and still reserves the root.",
+      /* C4-06c (writer clarification 02 item 1): while a withdrawal is pending the text offers Wait, step 2 or Submit and
+       * claims nothing about which succeeds; the server re-decides each */
+      next: ["Wait, then take the second step between the earliest and latest network positions (DAA) named in the message above, or press Submit on the same finalized request: PolicyVault re-reads the chain for each and decides.", "Until then the request keeps its reservation; Verify state on the root shows whether anything changed."]
+    },
+    FEE_INPUT_NOT_LIVE: {
+      title: "The fee input is not reported unspent",
+      meaning: "PolicyVault reads the fee input before recording a root request, and it is not reported unspent, is reported with different contents, or could not be read from the node. Nothing was recorded and the root is not reserved.",
+      next: ["Choose another fee input, or build again once it is reported unspent."]
+    },
+    OBSERVATION_ERROR: {
+      title: "The node could not be read exactly",
+      meaning: "PolicyVault refuses rather than guess when it cannot read the synced node's chain position, or an output a root request spends, exactly. At build nothing was recorded and the root is not reserved. At Submit nothing was recorded or broadcast; the finalized request still reserves the root.",
+      next: ["Check the network banner.", "When the node answers again, repeat the same step: build again (nothing is reserved), or press Submit on the same finalized request (it is never rebuilt)."]
+    },
+    CANNOT_REJECT: {
+      title: "This request cannot be withdrawn now",
+      meaning: "PolicyVault withdraws only an unsigned request that was never sent, a delegate-rule change whose budget period start has aged out, or a finalized, never-sent request whose input another transaction spent, once that spend is final at 1,000 DAA. This request does not meet that rule now, so nothing was written and it keeps its reservation of the root.",
+      next: ["Read the message above: it names why.", "Continue the request as its state allows, or press Verify state on the root."]
     }
   };
+
+  /* R3N-B1 (addendum v2b revision 3 §2 S3, §5 R4; writer amendment A1-6): the Submit answers, keyed on the structured
+   * extra.submitRead.finding the server attaches (never on message text). */
+  const HOLD_CLAUSE = "holds the root until it is withdrawn (two steps, at least 1,000 DAA apart), or longer in the disclosed cases where a withdrawal cannot be proven safe";
+  const RETENTION_NOTE = "Start the withdrawal while the node still holds the history from this request's build (at least about 30 hours by default); after that PolicyVault can no longer establish that the output existed, unless the first step already recorded that evidence.";
+  const SUBMIT_CONTEXT = Object.freeze({
+    CONFLICTING_SPEND: Object.freeze({
+      title: "Submit refused — nothing was recorded or sent",
+      meaning: `A recorded output this finalized request spends is no longer reported unspent, while the root output it spends still is, so this request's own transaction has not spent it: PolicyVault treats it as spent by another transaction. Nothing was recorded or broadcast. The request still reserves the root: it ${HOLD_CLAUSE}.`,
+      next: Object.freeze([
+        "Withdraw it in two steps: the first step records a chain anchor; PolicyVault withdraws at the second step, at least 1,000 DAA later, only once that spend is final at 1,000 DAA and it has checked everything again.",
+        "Then press Verify state on the root."
+      ])
+    }),
+    ROOT_INPUT_NOT_LIVE: Object.freeze({
+      title: "Submit refused — the root output it spends is not reported unspent",
+      meaning: "The root output this request spends is not reported unspent, and no output of this request's own transaction is observed. Either this request's transaction was broadcast outside PolicyVault and its outputs were already spent, or another root transaction spent the root output; PolicyVault cannot tell which. Nothing was recorded or broadcast. Withdrawal is not available.",
+      next: Object.freeze(["Press Verify state on the root."])
+    }),
+    INPUT_CONTRADICTED: Object.freeze({
+      title: "Submit refused — an input is reported with different contents",
+      meaning: "The node reports an input of this request with a different value, covenant id or script than this request records. Nothing was recorded or broadcast. Withdrawal is not available.",
+      next: Object.freeze(["Press Verify state on the root."])
+    }),
+    INPUT_EXISTENCE_UNPROVEN: Object.freeze({
+      title: "Submit refused — an input is not reported unspent",
+      meaning: "An input of this request is not reported unspent, and PolicyVault cannot establish that it was created on the selected chain. It may still be created, and then this request can be submitted, so PolicyVault does not treat it as spent and does not withdraw the request. Nothing was recorded or broadcast; the request still reserves the root.",
+      next: Object.freeze(["Submit again once the input is reported unspent, or press Verify state on the root."])
+    })
+  });
+  /* CANNOT_REJECT of the input-spent withdrawal (extra.withdrawal.finding): the next step each finding allows. C4-06c
+   * (writer clarification 02 item 1): after a CANNOT_REJECT finding the next step is Submit, then Verify state; the
+   * server's submit read decides (a 409 with nothing written, or the completion route when its own output is observed). */
+  const SUBMIT_DECIDES = "PolicyVault re-reads every input before recording anything";
+  const WITHDRAWAL_FINDING_NEXT = Object.freeze({
+    INPUTS_LIVE: "Every output it spends is reported unspent again: submit it, then press Verify state on the root.",
+    OWN_OUTPUT: "An output of this request's own transaction is observed: submit it, then press Verify state on the root.",
+    IN_TRANSACTION_POOL: `This request's own transaction is in the node's transaction pool: press Submit on it, then Verify state on the root (${SUBMIT_DECIDES}), and do not withdraw it.`,
+    ROOT_INPUT_NOT_LIVE: `The root output it spends is not reported unspent, and this request's own transaction may have spent it: press Submit on it, then Verify state on the root (${SUBMIT_DECIDES}).`,
+    INPUT_EXISTENCE_UNPROVEN: `PolicyVault cannot establish that the spent input existed on the selected chain, so it does not withdraw the request: press Submit on it, then Verify state on the root (${SUBMIT_DECIDES} and refuses, with nothing written, while one is not reported unspent).`,
+    ACCEPTED_IN_WINDOW: `This request's own transaction was accepted after the anchor: press Submit on it, then Verify state on the root (${SUBMIT_DECIDES}).`,
+    UNSTABLE: `The root output it spends changed while PolicyVault was reading it: press Submit on it, then Verify state on the root (${SUBMIT_DECIDES}).`
+  });
+  const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+  const digits = (v) => (typeof v === "string" && /^(0|[1-9][0-9]*)$/.test(v) ? v : null);
+  /* the structured extra of a refusal (the server spreads it into the error body), or null */
+  function refusalExtra(extra) {
+    return isObj(extra) ? extra : null;
+  }
+  function submitContextOf(code, extra) {
+    const x = refusalExtra(extra);
+    const read = x && isObj(x.submitRead) ? x.submitRead : null;
+    if (!read) return null;
+    if (code === "RECORDED_OUTPUT_SPENT" && read.finding === "CONFLICTING_SPEND" && read.withdrawal === "TWO_STEP") {
+      const base = SUBMIT_CONTEXT.CONFLICTING_SPEND;
+      return read.existence === "E2" || read.existence === "E3" ? { title: base.title, meaning: base.meaning, next: [...base.next, RETENTION_NOTE] } : base;
+    }
+    if (code === "SUBMIT_INPUT_UNRESOLVED" && ["ROOT_INPUT_NOT_LIVE", "INPUT_CONTRADICTED", "INPUT_EXISTENCE_UNPROVEN"].includes(read.finding)) return SUBMIT_CONTEXT[read.finding];
+    return null;
+  }
 
   /* Older SDK request wrappers replace the generation guard's code with
    * BUILD_FAILED. Recognize only its exact refusal sentence for these
@@ -470,26 +606,38 @@
     `mainnet: creation of covenant generation "${version}" is DISABLED by operator configuration (POLICYVAULT_MAINNET_CREATION_DISABLED) — refusing this new genesis (fail closed).`
   ));
 
-  /* The one honest answer for a code with no closed entry. */
-  function explain(code, message) {
+  /* The one honest answer for a code with no closed entry. `extra` is the
+   * refusal's STRUCTURED detail as the server sent it (never message text):
+   * it selects only the R3N-B1 Submit and withdrawal variants of a known code. */
+  function explain(code, message, extra) {
     if (typeof code !== "string" || !code) return null;
     if (code === "BUILD_FAILED" && typeof message === "string" &&
         LEGACY_MAINNET_GENERATION_REFUSALS.some((guard) => message.includes(guard))) {
       return TABLE.GENERATION_NOT_MAINNET_AUTHORIZED;
     }
-    return Object.prototype.hasOwnProperty.call(TABLE, code) ? TABLE[code] : null;
+    if (!Object.prototype.hasOwnProperty.call(TABLE, code)) return null;
+    const submit = submitContextOf(code, extra);
+    if (submit) return submit;
+    const x = refusalExtra(extra);
+    if (code === "WITHDRAWAL_DEPTH_PENDING" && x && digits(x.earliestDaa) && digits(x.latestDaa)) {
+      return { title: TABLE.WITHDRAWAL_DEPTH_PENDING.title, meaning: TABLE.WITHDRAWAL_DEPTH_PENDING.meaning, next: [`Wait, then take the second step from DAA ${x.earliestDaa} to DAA ${x.latestDaa}, or press Submit on the same finalized request: PolicyVault re-reads the chain for each and decides.`, TABLE.WITHDRAWAL_DEPTH_PENDING.next[1]] };
+    }
+    if (code === "CANNOT_REJECT" && x && isObj(x.withdrawal) && Object.prototype.hasOwnProperty.call(WITHDRAWAL_FINDING_NEXT, x.withdrawal.finding)) {
+      return { title: TABLE.CANNOT_REJECT.title, meaning: TABLE.CANNOT_REJECT.meaning, next: [WITHDRAWAL_FINDING_NEXT[x.withdrawal.finding], TABLE.CANNOT_REJECT.next[0]] };
+    }
+    return TABLE[code];
   }
 
   /*
-   * renderRefusalHtml({ summary, code, message })
+   * renderRefusalHtml({ summary, code, message, extra })
    *
    * `summary` is the one-line text already written to the status region
    * (kept as the heading so the region reads the same to a screen reader
    * and to the eye). The code and the server's message are ALWAYS shown.
    * Everything is escaped; nothing here is ever inserted unescaped.
    */
-  function renderRefusalHtml({ summary, code, message }) {
-    const e = explain(code, message);
+  function renderRefusalHtml({ summary, code, message, extra }) {
+    const e = explain(code, message, extra);
     const head = `<div class="refusal-head"><b>${esc(e ? e.title : summary || "Refused")}</b></div>`;
     const detail =
       `<div class="refusal-detail hint">` +
@@ -632,6 +780,194 @@
     );
   }
 
+  /* ------------------------------------------------------------------ *
+   * v0.4-FAMILY TRANSITION LINES (RC45 F8; plan r2 §5 WEB-1, CR-H2,     *
+   * CR-M7, CR2-L13, CR2-M5). The shared OUTCOMES and TABLE entries above *
+   * stay unchanged: these lines are true only of a v0.4 / v0.4.1        *
+   * TRANSITION (every Close & recover stops at SUBMITTED until Verify   *
+   * completes it at depth; an armed request blocks ordinary actions;    *
+   * owner break-glass is never refused by pending work on a live vault).*
+   * They are requested only by the v0.4 transition caller               *
+   * (web/app-v4.js completeRequestFlow) and are keyed on the request's  *
+   * own contractVersion and kind, so a genesis or another generation    *
+   * never receives them.                                                *
+   * ------------------------------------------------------------------ */
+  const V04_FAMILY = Object.freeze(["policyvault-0.4", "policyvault-0.4.1"]);
+  const V04_TRANSITION_LINES = Object.freeze({
+    closure: "If this was Close & recover, do not move the recovered funds until Verify state shows RECOVERED.",
+    armed:
+      "This signed request can still be broadcast and blocks other actions on this vault until it completes. " +
+      "Pause and Close & recover stay available; after a Pause, Verify at depth marks it superseded, then Unpause through a governance proposal (three owner signatures, plus any delay or quorum).",
+    available: "Pause and Close & recover stay available."
+  });
+  function v04TransitionLines(request, { state, code } = {}) {
+    if (!request || typeof request !== "object" || !V04_FAMILY.includes(request.contractVersion)) return [];
+    if (request.kind !== undefined && request.kind !== "transition") return [];
+    if (code === "CLAIM_CONFLICT") return [V04_TRANSITION_LINES.available];
+    if (code) return [];
+    if (state === "SUBMITTED") return [V04_TRANSITION_LINES.closure];
+    if (state === "PREFLIGHT_VERIFIED" || state === "FINALIZED") return [V04_TRANSITION_LINES.armed];
+    return [];
+  }
+  function renderV04TransitionLinesHtml(request, which) {
+    const lines = v04TransitionLines(request, which);
+    return lines.length ? `<ul class="refusal-next" data-v04-transition="1">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : "";
+  }
+
+  /* ------------------------------------------------------------------ *
+   * VERIFY — the closed map of Verify state answers (POST              *
+   * /vaults/:id/reconcile on a v0.4-family vault, sdk/src/reconcile-v4.js)*
+   * RC45 F8 WEB-1 (plan r2 §5 WEB-1, CR-M1, CR2-L14, CR2-L16). Rule 5    *
+   * applies here too: an answer this map does not know renders "bad"   *
+   * with its token shown, never success. `level` is the status-region  *
+   * class:                                                             *
+   *   "good" — the record agrees with the chain, or this Verify settled *
+   *            it on positive chain evidence at depth;                  *
+   *   "warn" — not settled yet (below depth, a live claim, or signed    *
+   *            work that may still execute); never success;            *
+   *   "bad"  — PolicyVault cannot establish the vault's state from the  *
+   *            chain; nothing changed.                                  *
+   * Verify writes only on positive chain evidence at depth; UNKNOWN and *
+   * CHAIN_CONTRADICTION never write.                                    *
+   * RC45 R1-07 (F-02; C8): an answer that wrote is told as a write.     *
+   * "Nothing was changed." is said only when settled[] is empty and no  *
+   * restore occurred; each settled[] entry is labelled by its resulting *
+   * state (completed / superseded / released leftover; any other state  *
+   * keeps its raw token on a neutral line). A restore is not in the     *
+   * answer: the caller derives it (the card was TERMINATED_UNKNOWN      *
+   * before this Verify and the route's `vault` document is live after   *
+   * it) and passes { restored: true }; no response field is read for it.*
+   * ------------------------------------------------------------------ */
+  const VERIFY_STATUSES = Object.freeze({
+    CONSISTENT: { level: "good", title: "The recorded vault state matches the chain" },
+    ADVANCED: { level: "good", title: "Verify settled the vault from the chain" },
+    TERMINAL: { level: "good", title: "This vault is closed — history only" },
+    CLAIM_PENDING: { level: "warn", title: "Not settled yet" },
+    REQUEST_RECOVERY_REQUIRED: { level: "warn", title: "Signed work on this vault is still unresolved" },
+    UNKNOWN: { level: "bad", title: "PolicyVault cannot establish this vault's state" },
+    CHAIN_CONTRADICTION: { level: "bad", title: "The chain contradicts the record" }
+  });
+  /* Kaspa's DAA score advances about 10 per second; the settlement depth is
+   * 1,000 DAA (about 100 s). Display only; integers only. */
+  const DAA_PER_SECOND = 10n;
+  const DEFAULT_WAIT_SECONDS = 100n;
+  const short = (id) => (typeof id === "string" && id ? (id.length > 16 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id) : "—");
+  const decimal = (v) => (typeof v === "string" && /^\d{1,19}$/.test(v) ? BigInt(v) : null);
+  function waitSeconds(depth, required) {
+    const d = decimal(depth), r = decimal(required);
+    if (d === null || r === null) return DEFAULT_WAIT_SECONDS;
+    const remaining = r > d ? r - d : 0n;
+    const seconds = (remaining + DAA_PER_SECOND - 1n) / DAA_PER_SECOND;
+    return seconds > 0n ? seconds : 1n;
+  }
+  function entryLine(entry) {
+    if (!entry || typeof entry !== "object") return "an unrecognised entry";
+    return `${entry.action ?? "request"} request ${short(entry.requestId)} — ${entry.state ?? "state unknown"}` +
+      (entry.signerRole ? ` (${entry.signerRole})` : "") + (entry.txId ? ` — txid ${short(entry.txId)}` : "");
+  }
+  /* RC45 R1-07: the label of a settled[] entry by its resulting state
+   * (sdk/src/reconcile-v4.js entryOf). A state not listed here is never
+   * told as one of these; it keeps its raw token under SETTLED_UNLABELLED. */
+  const SETTLED_LABELS = Object.freeze([
+    ["CHAIN_VERIFIED", "Completed by this Verify"],
+    ["STALE", "Superseded by this Verify"],
+    ["SUBMISSION_REJECTED", "Released by this Verify (an established rejection's leftover claims and reservation)"]
+  ]);
+  const SETTLED_UNLABELLED = "Settled by this Verify with a resulting state this page does not describe (nothing is assumed)";
+  const RESTORED_LINE =
+    "Restored: this vault was recorded as TERMINATED_UNKNOWN before this Verify and is live again; " +
+    "its last recorded live state was restored from the chain at depth.";
+  /* The answers after which a restore can stand (sdk/src/reconcile-v4.js
+   * restore and completePositive / adoption from a TERMINATED_UNKNOWN base);
+   * TERMINAL, UNKNOWN and CHAIN_CONTRADICTION never carry the notice. */
+  const RESTORE_ANSWERS = Object.freeze(["CONSISTENT", "ADVANCED", "CLAIM_PENDING", "REQUEST_RECOVERY_REQUIRED"]);
+  function verifyStatus(result, context) {
+    const status = result && typeof result === "object" && typeof result.status === "string" ? result.status : "";
+    const known = Object.prototype.hasOwnProperty.call(VERIFY_STATUSES, status);
+    const lines = [];
+    const list = (label, entries) => {
+      if (Array.isArray(entries) && entries.length) lines.push(`${label}: ${entries.map(entryLine).join("; ")}.`);
+    };
+    const listSettled = (entries) => {
+      if (!Array.isArray(entries)) return;
+      for (const [state, label] of SETTLED_LABELS) list(label, entries.filter((e) => e && typeof e === "object" && e.state === state));
+      list(SETTLED_UNLABELLED, entries.filter((e) => !(e && typeof e === "object" && SETTLED_LABELS.some(([state]) => e.state === state))));
+    };
+    if (!known) {
+      lines.push("PolicyVault has no closed description for this Verify answer, so it is not treated as success. Nothing is assumed; inspect the vault under Details / Activity.");
+      return { status, known, level: "bad", title: "Unrecognised Verify answer", lines };
+    }
+    const r = result;
+    // Only the caller's own derivation counts (C8); a `restored` key in the answer is never read.
+    const restored = Boolean(context && typeof context === "object" && context.restored === true) && RESTORE_ANSWERS.includes(status);
+    // An absent settled[] is empty; anything else that is not an empty array is never told "nothing".
+    const settledNothing = r.settled === undefined || (Array.isArray(r.settled) && r.settled.length === 0);
+    if (restored) lines.push(RESTORED_LINE);
+    if (status === "CONSISTENT") {
+      if (settledNothing && !restored) lines.push("Nothing was changed.");
+      listSettled(r.settled);
+    } else if (status === "ADVANCED") {
+      lines.push(`The vault advanced by ${r.to ?? "an unnamed action"}${r.adopted === true ? " (change made outside PolicyVault)" : ""}` +
+        `${r.txId ? ` — txid ${short(r.txId)}` : ""}${r.requestId ? ` — request ${short(r.requestId)}` : ""}.`);
+      listSettled(r.settled);
+    } else if (status === "TERMINAL") {
+      lines.push(`The vault is recorded as ${r.vaultStatus ?? "closed"}; there is nothing further to verify.`);
+      listSettled(r.settled);
+    } else if (status === "CLAIM_PENDING") {
+      if (r.required !== undefined && r.required !== null) {
+        lines.push(`${r.txId ? `Transaction ${short(r.txId)} is ` : ""}confirming (${r.depth ?? "?"} of ${r.required}); press Verify again in about ${waitSeconds(r.depth, r.required)} s. ` +
+          "If this is a closure, do not move the recovered funds until Verify shows RECOVERED.");
+      } else if (r.claimTxId) {
+        lines.push(`A claim by ${short(r.claimTxId)} may still execute. Pause and Close & recover stay available; Verify again later.`);
+      } else {
+        lines.push("The outcome is not settled yet. Pause and Close & recover stay available; Verify again later.");
+      }
+      listSettled(r.settled);
+    } else if (status === "REQUEST_RECOVERY_REQUIRED") {
+      if (r.recordedVaultClosed === true) {
+        // RC45 R1-13 (C1): "nothing was written" only when settled[] is absent or empty;
+        // otherwise this Verify finished records first and listSettled names them below.
+        lines.push(settledNothing
+          ? "The vault is recorded as closed (closed vault, history only): historical signed work remains unresolved and protected; nothing was written and no new transaction is authorized."
+          : "The vault is recorded as closed (closed vault, history only): historical signed work remains unresolved and protected; no new transaction is authorized.");
+      } else {
+        lines.push("Signed work may still execute and blocks other actions; Pause and Close & recover stay available — if yours confirms first, the pending one can never execute.");
+        lines.push("If it is your own signed request: Pause, then Verify at depth marks it superseded, then Unpause through a governance proposal (three owner signatures, plus any delay or quorum).");
+      }
+      list("Pending", r.pending);
+      listSettled(r.settled);
+    } else if (status === "UNKNOWN") {
+      lines.push(
+        `${settledNothing ? "Nothing changed. " : ""}The vault may have moved outside PolicyVault with a vault key. Do not sign new actions for this vault. ` +
+        "If a delegate key may be misused, pause or close the vault on chain with the owner key. " +
+        "Hosted Pause and Close & recover cannot act on this vault. " +
+        "After you act on chain, PolicyVault keeps showing this vault's last recorded state; only a recover that spends the recorded outpoint can be pasted below."
+      );
+      listSettled(r.settled);
+    } else if (status === "CHAIN_CONTRADICTION") {
+      lines.push("The chain currently contradicts the record (for example a reorganization); nothing changed; Verify again later.");
+    }
+    return { status, known, level: VERIFY_STATUSES[status].level, title: VERIFY_STATUSES[status].title, lines };
+  }
+  /*
+   * renderVerifyHtml(result, context) — the raw status token and the
+   * server's own `reason` always stay visible; everything is escaped.
+   * `context` is the caller's own { restored } derivation (R1-07, C8).
+   */
+  function renderVerifyHtml(result, context) {
+    const v = verifyStatus(result, context);
+    const reason = result && typeof result === "object" && typeof result.reason === "string" ? result.reason : "";
+    return (
+      `<div class="refusal" data-verify-answer="${esc(v.status || "none")}" data-verify-level="${esc(v.level)}">` +
+      `<div class="refusal-head"><b>${esc(v.title)}</b></div>` +
+      `<div class="refusal-detail hint">Verify state: <span class="mono">${esc(v.status || "no status")}</span>` +
+      (reason ? ` — ${esc(reason)}` : "") +
+      `</div>` +
+      v.lines.map((l) => `<div class="refusal-why">${esc(l)}</div>`).join("") +
+      `</div>`
+    );
+  }
+
   const api = {
     explain,
     renderRefusalHtml,
@@ -639,7 +975,12 @@
     outcome,
     isVerifiedOutcome,
     renderOutcomeHtml,
-    outcomeStates: () => Object.keys(OUTCOMES).slice().sort()
+    outcomeStates: () => Object.keys(OUTCOMES).slice().sort(),
+    v04TransitionLines,
+    renderV04TransitionLinesHtml,
+    verifyStatus,
+    renderVerifyHtml,
+    verifyStatuses: () => Object.keys(VERIFY_STATUSES).slice().sort()
   };
   if (typeof window !== "undefined") window.PolicyVaultRefusalExplain = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

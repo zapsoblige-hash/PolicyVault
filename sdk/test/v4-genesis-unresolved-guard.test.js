@@ -28,6 +28,11 @@ const { loadManifestV4 } = require("../src/manifest-v4");
 const { CONTRACT_VERSION_V4_1 } = require("../../core/model/vault-state-v4.js");
 const { getStore, Categories } = require("../src/store");
 const { negativeRpc } = require("./helpers/negative-proof-fixtures");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa, withDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const config = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-ux05-")) });
 const kaspa = require(config.rustyKaspaModule);
@@ -181,10 +186,14 @@ async function uncertainAttempt(cfg, built, { anchor = "31".repeat(32), missingA
     }
   } });
   node.state.start = anchor;
+  /* RC45 R2-13: this file's node reports virtual DAA "1" (fakeRpc); the
+   * genesis-submit period-start check reads it before the claim. */
+  withDaa(node.rpc, "1");
   if (missingAnchor) {
     const read = node.rpc.getBlockDagInfo;
     node.rpc.getBlockDagInfo = async () => {
-      if (!node.state.submitted) throw Error("TEST original prebroadcast tip unavailable");
+      // The DAA is answered; reading the prebroadcast tip (the sink) fails.
+      if (!node.state.submitted) return { virtualDaaScore: "1", get sink() { throw Error("TEST original prebroadcast tip unavailable"); } };
       return read();
     };
   }

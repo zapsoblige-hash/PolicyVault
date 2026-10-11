@@ -35,6 +35,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fx = require("../testutil/org-root-durable-fixture");
+const { registerFixtureNode, withFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
 const { reconcileOrgRootV7 } = require("../src/reconcile-v7");
 const { claimTransition, loadTransitionClaim } = require("../src/submission-claim");
 const { persistManifestV7 } = require("../src/manifest-v7");
@@ -58,11 +59,12 @@ async function settledCopy() {
   const b = await baseFixture();
   const cfg = fx.cloneJsonConfig(b.cfg);
   const rpc = fx.mockRpc();
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory
   const pred = await fx.spendPredecessors(cfg, rpc, b.o);
   fx.settle(cfg, rpc, b.fin);
   return { cfg, rpc, o: b.o, fin: b.fin, pred };
 }
-const newBuildAllowed = async (cfg, o) => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(cfg, o.fuelKey) }, signerAddress: fx.ADDR(cfg, o.owner1) });
+const newBuildAllowed = async (cfg, o) => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fx.liveFuelFor(cfg, o.fuelKey) }, signerAddress: fx.ADDR(cfg, o.owner1) }));
 
 /* ------------------------------------------------------------------ *
  * §3 focused recovery controls: every consequential failure boundary of
@@ -251,7 +253,7 @@ test("R7-02 checkpoint 13 — generation-only later vault evidence is refused wi
   assert.equal(await fx.loadReceipt(cfg, fin.txId), null);
   const requestCount = (await wr7.listOrgRootRequests(cfg)).length;
   for (const vaultOperations of [[], [{ vaultId: o.vaultId, action: "ownerPause", params: {} }]]) {
-    await assert.rejects(wr7.buildRootActionRequest({ config: fx.reloadJsonConfig(cfg), rootCovenantId: o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(cfg, o.owner1), params: { fuel: fx.fuelUtxoFor(cfg, o.fuelKey) }, vaultOperations }), (e) => e.code === "ROOT_PENDING_REQUEST", "unfinished completion stays guarded without pinning the old root request");
+    await assert.rejects(withFixtureNode(fx.reloadJsonConfig(cfg), () => wr7.buildRootActionRequest({ config: fx.reloadJsonConfig(cfg), rootCovenantId: o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(cfg, o.owner1), params: { fuel: fx.fuelUtxoFor(cfg, o.fuelKey) }, vaultOperations })), (e) => e.code === "ROOT_PENDING_REQUEST", "unfinished completion stays guarded without pinning the old root request");
   }
   assert.equal((await wr7.listOrgRootRequests(cfg)).length, requestCount);
   assert.deepEqual(await wr7.loadOrgRoot(cfg, o.rootCovenantId), rootBefore);
@@ -259,7 +261,7 @@ test("R7-02 checkpoint 13 — generation-only later vault evidence is refused wi
   await reconcileOrgRootV7(fx.reloadJsonConfig(cfg), o.rootCovenantId, { rpc });
   assert.equal((await wr7.loadOrgRootRequest(cfg, fin.id)).state, "CHAIN_VERIFIED");
   assert.equal(await loadTransitionClaim(cfg, pred.rootOutpoint), null);
-  assert.equal((await wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(cfg, o.owner1), params: { fuel: fx.fuelUtxoFor(cfg, o.fuelKey) } })).state, "AUTHORIZED");
+  assert.equal((await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(cfg, o.owner1), params: { fuel: fx.liveFuelFor(cfg, o.fuelKey) } }))).state, "AUTHORIZED");
 });
 
 test("R7-02 checkpoint 12 — an UNEXPLAINED vault record (neither predecessor nor successor, no recorded predecessor generation — a legacy request) FAILS CLOSED: truthful RECONCILIATION_REQUIRED, nothing overwritten, no guessed state", { skip: SKIP }, async () => {
@@ -297,8 +299,10 @@ test("R7-02 checkpoint 12 — ROOT-ONLY action on the deferred path: a claim-rel
   const genesisBroadcasts = rpc.submits(); // the two genesis broadcasts went through this same mock node
   const root0 = await wr7.loadOrgRoot(cfg, o.rootCovenantId);
   const pred = { rootOutpoint: root0.live.outpoint };
-  rpc.clear(root0.live.address);
+  /* R3N-B1a inventory (TEST BUG): the root predecessor is spent when the transaction settles, not before its first
+   * broadcast (a node reports X's spend of it and X's outputs in one UTXO-index update) */
   await assert.rejects(() => wr7.submitOrgRootRequest({ config: cfg, requestId: fin.id, rpc, pollAttempts: 1, pollDelayMs: 1 }), (e) => e.code === "RECONCILIATION_REQUIRED");
+  rpc.clear(root0.live.address);
   fx.settle(cfg, rpc, fin);
   const inj = fx.inject(cfg, "remove", (cat, key) => cat === Categories.TRANSITION_CLAIM && key === fx.transitionClaimKey(pred.rootOutpoint));
   await assert.rejects(() => reconcileOrgRootV7(cfg, o.rootCovenantId, { rpc }), (e) => e.code === "RECONCILIATION_REQUIRED");

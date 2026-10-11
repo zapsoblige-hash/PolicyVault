@@ -31,13 +31,15 @@ const { loadAnyManifestAll } = require("./manifest-any");
  * dispatched WITHOUT the request context, so in hosted mode any caller
  * (even unauthenticated) could create controllers, build requests into
  * foreign inboxes, list every tenant's requests and sign / submit / reject
- * them. Hosted tenancy now mirrors the v4 rule set exactly:
+ * them. Hosted tenancy follows the v4 rule set:
  *   create   — signerAddress (the funding owner) must be the principal;
  *   requests — principal holds build authority on the vault (owner or
  *              registered agent); signer is a participant; an agent builds
  *              only for its own key; owner may build for its own agents;
  *   list/GET — the request's signer or a vault participant;
- *   mutate   — the request's signer or a wallet with build authority.
+ *   mutate   — the request's signer or a wallet with build authority;
+ *   reject   — the request's signer or the vault owner, as for v4
+ *              (RC45 AZ-02).
  * Foreign objects answer the non-oracle 404. Self-hosted mode unchanged.
  */
 /* rc12 review R-08: a malformed wallet payload answers a CLOSED code/message (400 BAD_SIGNATURE), never the text of an internal TypeError. */
@@ -103,6 +105,23 @@ async function requireRequestAccess(config, principal, request, requestId, { mut
     if (!(signer === principal.xOnlyPubkey || mayBuild)) throw surfaceError(403, "REQUEST_FORBIDDEN", "this wallet may review this request; it cannot sign, submit or reject it");
   }
   return request;
+}
+/*
+ * RC45 AZ-02: rejecting a /wallet/v5 or /wallet/v6 request is for the
+ * request's signer or the controller owner (template.owner). Called after
+ * requireRequestAccess's mutation gate, which already answered 404 to a
+ * principal that cannot see the request; any other participant (a registered
+ * agent included) gets 403 REQUEST_FORBIDDEN before anything is written.
+ * Machine credentials act as the wallet that minted them. Self-hosted mode is
+ * unchanged.
+ */
+async function requireTokenRequestRejecter(config, principal, request) {
+  if (!config.tenancyEnforced) return;
+  const signer = xOnly(config, request.signerAddress);
+  if (signer && signer === principal.xOnlyPubkey) return; // an unresolvable stored signer never grants rejection
+  const loaded = await loadVaultScoped(config, request.vaultId);
+  if (loaded && (await tenancy.anyVaultAccessAllowed(config, loaded, principal, "owner"))) return;
+  throw surfaceError(403, "REQUEST_FORBIDDEN", "only the wallet that signs this request or the vault owner may reject it");
 }
 
 function surfaceError(status, code, message) {
@@ -296,7 +315,8 @@ async function dispatchWalletTokenSurface(config, method, segments, query, body,
     }
     // POST /wallet/v{5,6}/requests/:id/reject
     if (method === "POST" && segments.length === 5 && segments[2] === "requests" && segments[4] === "reject") {
-      await requireRequestAccess(config, principal, await loadRequest(config, segments[3]), segments[3], { mutation: true }); // F-04
+      const rejecting = await requireRequestAccess(config, principal, await loadRequest(config, segments[3]), segments[3], { mutation: true }); // F-04
+      await requireTokenRequestRejecter(config, principal, rejecting); // RC45 AZ-02: the signer or the controller owner
       const request = await markRejected(config, segments[3]);
       if (!request) throw surfaceError(404, "REQUEST_NOT_FOUND", `no request ${segments[3]}`);
       return { status: 200, body: { request: presentRequest(request) } };

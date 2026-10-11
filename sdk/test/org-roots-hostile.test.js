@@ -27,6 +27,9 @@ const { OWNER_SLOTS_V7 } = require("../../core/model/owner-set-v7");
 const { ENCODER_PATH } = require("../src/vault-builders-v4");
 
 const wr7 = require("../src/wallet-requests-v7");
+const { registerFixtureNode, withFixtureNode, fixtureNodeFor, chainWalk, seedFixtureFuel, FIXTURE_DAA } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table also carries the seam's walk (registerFixtureNode)
+ * and each root build's supplied fee UTXO (seedFixtureFuel) — the B1 build observes every non-root input live and exact */
 
 function freshConfig() {
   return loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv7-hostile-")) });
@@ -104,6 +107,7 @@ async function setupRoot(cfg) {
   const owner1 = KEY(0x71), owner2 = KEY(0x72), owner3 = KEY(0x73), outsider = KEY(0x99);
   const funder = KEY(0xf0);
   const rpc = mockRpc();
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory
 
   const req = await wr7.buildRootGenesisRequest({
     config: cfg, label: "hostile org",
@@ -123,7 +127,7 @@ async function setupRoot(cfg) {
 test("finalize below quorum is refused with UNDER_QUORUM; at quorum it succeeds", { skip: SKIP }, async () => {
   const cfg = freshConfig();
   const { rootCovenantId, owner1, owner2 } = await setupRoot(cfg);
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(owner1) }));
 
   await assert.rejects(() => wr7.finalizeOrgRootRequest({ config: cfg, requestId: req.id }), (e) => { assert.equal(e.code, "UNDER_QUORUM"); return true; });
 
@@ -144,7 +148,7 @@ test("finalize below quorum is refused with UNDER_QUORUM; at quorum it succeeds"
 test("duplicate slot signature is refused (DUPLICATE_SLOT_SIGNATURE)", { skip: SKIP }, async () => {
   const cfg = freshConfig();
   const { rootCovenantId, owner1 } = await setupRoot(cfg);
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(owner1) }));
   const envelope = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: req.id, slot: 1 });
   const sig = sign65(req.transaction.unsignedSafeJson, req.rootInputIndex, owner1);
   await wr7.submitSlotSignature({ config: cfg, requestId: req.id, slot: 1, response: slotResponse(envelope, ADDR(owner1), sig) });
@@ -157,7 +161,7 @@ test("duplicate slot signature is refused (DUPLICATE_SLOT_SIGNATURE)", { skip: S
 test("a signature from a real key OUTSIDE the owner set is refused (foreign key)", { skip: SKIP }, async () => {
   const cfg = freshConfig();
   const { rootCovenantId, owner1, outsider } = await setupRoot(cfg);
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(owner1) }));
   const envelope = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: req.id, slot: 1 });
   const outsiderSig = sign65(req.transaction.unsignedSafeJson, req.rootInputIndex, outsider);
   /* the outsider's REAL signature is placed under slot 1's response, but the
@@ -171,14 +175,14 @@ test("a signature from a real key OUTSIDE the owner set is refused (foreign key)
 test("wrong manifest digest / envelope for another request is refused (RESPONSE binding)", { skip: SKIP }, async () => {
   const cfg = freshConfig();
   const { rootCovenantId, owner1, owner2 } = await setupRoot(cfg);
-  const reqA = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(owner1) });
+  const reqA = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(owner1) }));
   /* STALE ASSUMPTION corrected (rc16 review N-02 server guard): a slot signing
    * request is only issued while the request is AUTHORIZED, so the attacker's
    * envelope for A is obtained BEFORE A is withdrawn — the replay property
    * under test (A's response presented against B) is unchanged. */
   const envelopeA = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: reqA.id, slot: 1 });
   await wr7.rejectOrgRootRequest({ config: cfg, requestId: reqA.id, reason: "clear pending" });
-  const reqB = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(owner2) });
+  const reqB = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(owner2) }));
 
   const sigA = sign65(reqA.transaction.unsignedSafeJson, reqA.rootInputIndex, owner1);
   const responseForA = slotResponse(envelopeA, ADDR(owner1), sigA);
@@ -216,7 +220,7 @@ test("a stale/absent root outpoint refuses a new root-action build (ROOT_STALE_O
     updatedAt: new Date().toISOString()
   });
   await assert.rejects(
-    () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: H(0x77), action: "authorize", params: { fuel: fuelUtxoFor(funder) }, signerAddress: ADDR(owner1) }),
+    () => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: H(0x77), action: "authorize", params: { fuel: fuelUtxoFor(funder) }, signerAddress: ADDR(owner1) })),
     (e) => { assert.equal(e.code, "ROOT_STALE_OUTPOINT"); return true; }
   );
 });
@@ -226,7 +230,7 @@ test("a hosted-org admin (real address, NOT an active slot) cannot create a root
   const { rootCovenantId } = await setupRoot(cfg);
   const hostedAdmin = KEY(0x42); // a real wallet identity, but never placed in any owner slot
   await assert.rejects(
-    () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(hostedAdmin) }),
+    () => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(hostedAdmin) })),
     (e) => { assert.equal(e.code, "NOT_AN_ACTIVE_SLOT"); return true; }
   );
 });
@@ -251,11 +255,11 @@ test("at most ONE vault operation per root transition (covenant refuses a second
   const cfg = freshConfig();
   const { rootCovenantId, owner1 } = await setupRoot(cfg);
   await assert.rejects(
-    () => wr7.buildRootActionRequest({
-      config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) },
+    () => withFixtureNode(cfg, () => wr7.buildRootActionRequest({
+      config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) },
       vaultOperations: [{ vaultId: H(0x01), action: "ownerPause", params: {} }, { vaultId: H(0x02), action: "ownerPause", params: {} }],
       signerAddress: ADDR(owner1)
-    }),
+    })),
     (e) => { assert.equal(e.code, "ONE_VAULT_OPERATION_PER_ROOT_TRANSITION"); return true; }
   );
 });
@@ -263,7 +267,7 @@ test("at most ONE vault operation per root transition (covenant refuses a second
 test("PENDING is never presented as success: BROADCAST/SIGNED are not CHAIN_VERIFIED, and re-submitting after a definitive rejection never advances the record", { skip: SKIP }, async () => {
   const cfg = freshConfig();
   const { rootCovenantId, owner1, owner2 } = await setupRoot(cfg);
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(owner1) }));
   const e1 = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: req.id, slot: 1 });
   await wr7.submitSlotSignature({ config: cfg, requestId: req.id, slot: 1, response: slotResponse(e1, ADDR(owner1), sign65(req.transaction.unsignedSafeJson, req.rootInputIndex, owner1)) });
   const e2 = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: req.id, slot: 2 });
@@ -275,10 +279,16 @@ test("PENDING is never presented as success: BROADCAST/SIGNED are not CHAIN_VERI
   assert.notEqual(finalized.state, "CHAIN_VERIFIED");
 
   /* a node that DEFINITIVELY rejects the transaction must never advance
-   * the root record, and the request must record the refusal honestly */
+   * the root record, and the request must record the refusal honestly.
+   * R3N-B1a inventory (TEST BUG): this node reports what a node reports for this never-broadcast request — its root
+   * and fee inputs unspent (the fixture's table) — and carries the seam's walk, so the submit reaches the broadcast the
+   * leg is about. (An empty answer — the request's inputs spent by other transactions — no longer reaches a broadcast
+   * under R3N-B1: Submit refuses it, nothing written, pinned by B1-05c; for this standard transaction a node would
+   * answer such a broadcast as a disallowed orphan, not a bound rejection.) */
+  const table = fixtureNodeFor(cfg);
   const rejectingRpc = {
-    async getUtxosByAddresses() {
-      return { entries: [] }; // the root's own live outpoint is reported ABSENT: definitive-rejection path re-checks it
+    async getUtxosByAddresses(args) {
+      return table.getUtxosByAddresses(args);
     },
     async submitTransaction() {
       const err = new Error(`Rejected transaction ${finalized.txId}: mempool policy violation`);
@@ -286,6 +296,7 @@ test("PENDING is never presented as success: BROADCAST/SIGNED are not CHAIN_VERI
     },
     async disconnect() {}
   };
+  chainWalk(rejectingRpc, cfg, { daa: FIXTURE_DAA });
   await assert.rejects(
     () => wr7.submitOrgRootRequest({ config: cfg, requestId: req.id, rpc: rejectingRpc }),
     (e) => { assert.ok(["SUBMISSION_REJECTED", "RECONCILIATION_REQUIRED"].includes(e.code)); return true; }
@@ -299,7 +310,7 @@ test("PENDING is never presented as success: BROADCAST/SIGNED are not CHAIN_VERI
 test("a manifest with a tampered field fails local re-verification (manifest hash / structural checks)", { skip: SKIP }, async () => {
   const cfg = freshConfig();
   const { rootCovenantId, owner1 } = await setupRoot(cfg);
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(KEY(0x64)) }, signerAddress: ADDR(owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(KEY(0x64))) }, signerAddress: ADDR(owner1) }));
   const { verifyOrgRootIntentManifest } = require("../../core/intent/org-root-manifest-v7");
   const tampered = { ...req.manifest, action: { ...req.manifest.action, requiredApprovals: "1" } }; // claim a lower threshold than the real one
   const verdict = verifyOrgRootIntentManifest({ manifest: tampered });

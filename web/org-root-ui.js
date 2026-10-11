@@ -84,7 +84,12 @@
     "DUPLICATE_SLOT_SIGNATURE", "SLOT_KEY_MISMATCH", "RESPONSE_BINDING_MISMATCH",
     "ROOT_FROZEN", "ROOT_STALE_OUTPOINT", "ROOT_PENDING_REQUEST",
     "DELAY_NOT_ELAPSED", "ROOT_INPUT_REQUIRED", "OWNER_PATH_TAKES_NO_SIGNATURE",
-    "HOSTED_ORG_IS_NOT_A_ROOT"
+    "HOSTED_ORG_IS_NOT_A_ROOT",
+    /* RC45 L2-01 / R3N-B1: the server's root-request refusals of sdk/src/wallet-requests-v7.js (build-time liveness
+     * guard, UNRESOLVED treasury, the Submit read, the two-step input-spent withdrawal, the fee-input read, the node
+     * observation refusal); server-detected, explained by web/refusal-explain.js */
+    "RECORDED_OUTPUT_SPENT", "TREASURY_STATE_UNRESOLVED", "SUBMIT_INPUT_UNRESOLVED", "WITHDRAWAL_DEPTH_PENDING",
+    "FEE_INPUT_NOT_LIVE", "OBSERVATION_ERROR", "CANNOT_REJECT"
   ]);
 
   /* Map a caught error's LOCAL core code (owner-set-v7's `.code`) or a
@@ -376,12 +381,81 @@
       FAILED: { level: "failed", title: "Failed — nothing verified", meaning: "PolicyVault recorded a failure for this request. Use Verify state on the root before starting a replacement; the root may or may not have moved." },
       SUBMISSION_REJECTED: { level: "failed", title: "Rejected by the network — nothing happened", meaning: "The node refused the transaction; it was not accepted. The root is unchanged." },
       RECONCILIATION_REQUIRED: { level: "pending", title: "Outcome unknown — reconcile before anything else", meaning: "The transaction was handed to the network but PolicyVault could not prove whether it landed. Use Verify state on the root; do not build a replacement until this is resolved." },
-      STALE: { level: "failed", title: "Stale — the root moved on", meaning: "Another transaction spent the root outpoint this request was built on, so this request can never be broadcast. Nothing from it happened." }
+      STALE: { level: "failed", title: "Stale — the root moved on", meaning: "Another transaction spent the root outpoint this request was built on, so this request can never be broadcast. Nothing from it happened." },
+      /* RC45 L2-01 D4: settled by an attributed Verify (proof of never-confirm: its input was spent by the accepted transaction) */
+      SUPERSEDED: { level: "failed", title: "Superseded — another transaction spent its input", meaning: "Another confirmed transaction spent an output it needs; nothing from it happened. It can never be accepted unless the network reverses that transaction, and it holds no reservation." }
     });
     const UNKNOWN_REQUEST_OUTCOME = Object.freeze({ level: "pending", title: "Outcome NOT confirmed", meaning: "PolicyVault has no closed description for this request state, so it is treated as unconfirmed — never as success." });
+
+    /* ================================================================
+     * RC45 L2-01 (contract revision 2 §1 D8) and R3N-B1 (addendum v2b revision 3 §4 T-B1, §5 R4; writer amendment A1-6):
+     * the served withdrawal and attribution texts. Display only; the server decides every withdrawal and every Verify.
+     * ================================================================ */
+    /* the owner's sentence (criterion 5 of the owner's direction), verbatim */
+    const OWNER_WITHDRAWAL_SENTENCE = "Withdrawal does not revoke signatures or prevent an otherwise valid out-of-app broadcast.";
+    /* contract D8's withdrawal text S, verbatim */
+    const WITHDRAWAL_TEXT_S = "Withdrawing marks this request withdrawn in PolicyVault and releases the root's reservation. It does not revoke the owner signatures already given: anyone holding them and the fee-input signature can still broadcast this exact transaction outside PolicyVault while the outputs it spends are unspent. Withdrawing broadcasts nothing.";
+    /* writer amendment A1-6, verbatim: the hold is never said to always end */
+    const HOLD_CLAUSE = "holds the root until it is withdrawn (two steps, at least 1,000 DAA apart), or longer in the disclosed cases where a withdrawal cannot be proven safe";
+    const INPUT_ROLES = Object.freeze(["fee", "treasury", "vault"]);
+    const roleOutput = (role) => (INPUT_ROLES.includes(role) ? `${role} output` : "output");
+    /* T-B1 (the input-spent withdrawal), opening with the owner's sentence */
+    function inputSpentWithdrawalText(role) {
+      return `${OWNER_WITHDRAWAL_SENTENCE} PolicyVault withdraws this finalized request only because the ${roleOutput(role)} it spends was spent by another transaction, and that spend is final at 1,000 DAA. This request's transaction can therefore no longer be accepted unless the network reverses more than 1,000 DAA of its history; if that happened and the transaction were broadcast outside PolicyVault, PolicyVault would not recognize it as this request. Withdrawing marks this request withdrawn in PolicyVault and releases the root's reservation. It broadcasts nothing.`;
+    }
+    const lowerOf = (v) => (typeof v === "string" ? v.toLowerCase() : null);
+    const isDigits = (v) => typeof v === "string" && /^(0|[1-9][0-9]*)$/.test(v);
+    const fmtDaa = (v) => (isDigits(v) ? v.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "?");
+    /* R3N-B1 records as the server serves them (display gating only; the server re-checks every one) */
+    function inputSpentObservationOf(request) {
+      const m = request && request.inputSpentObservation;
+      if (!m || typeof m !== "object" || Array.isArray(m) || m.schema !== "policyvault-input-spent-observation/1" || m.requestId !== request.id) return null;
+      if (!lowerOf(m.txId) || lowerOf(m.txId) !== lowerOf(request.txId) || !m.anchor || typeof m.anchor !== "object" || !HEX64.test(String(m.anchor.hash || "")) || !isDigits(m.anchor.daaScore)) return null;
+      return Array.isArray(m.spent) && m.spent.length ? m : null;
+    }
+    function inputSpentWithdrawalOf(request) {
+      const m = request && request.inputSpentWithdrawal;
+      if (!m || typeof m !== "object" || Array.isArray(m) || m.schema !== "policyvault-input-spent-withdrawal/1" || m.requestId !== request.id) return null;
+      return lowerOf(m.txId) && lowerOf(m.txId) === lowerOf(request.txId) ? m : null;
+    }
+    const firstSpentRole = (m) => (m && Array.isArray(m.spent) && m.spent[0] && typeof m.spent[0] === "object" ? m.spent[0].role : null);
+    /* The out-of-band attribution marker (contract D5) as the web reads it: { bound, mode }. Only a marker whose mode is
+     * FULL reads as FULL; anything else a request carries (PARTIAL, unreadable) is never presented as proven, and a
+     * PARTIAL marker's upgradedFrom / upgradedAt / upgradeObservation fields (kept by a FULL -> PARTIAL downgrade) are
+     * never read as an upgrade (C4-03d check F-04). */
+    function attributionMarkerOf(request) {
+      const m = request && request.outOfBandAttribution;
+      if (m === undefined || m === null) return null;
+      const op = request && Array.isArray(request.vaultOperations) ? request.vaultOperations[0] : null;
+      const bound = !!m && typeof m === "object" && !Array.isArray(m) && m.schema === "policyvault-oob-attribution/1" && m.via === "attribution" &&
+        !!lowerOf(m.txId) && lowerOf(m.txId) === lowerOf(request.txId) && (m.mode === "FULL" || m.mode === "PARTIAL") &&
+        !!m.treasury && typeof m.treasury === "object" && !!op && m.treasury.vaultId === op.vaultId;
+      if (!bound) return { bound: false, mode: null, marker: m };
+      const upgraded = m.mode === "FULL" && m.upgradedFrom === "PARTIAL" && !!m.upgradeObservation && typeof m.upgradeObservation === "object" ? m.upgradeObservation : null;
+      return { bound: true, mode: m.mode, marker: m, upgraded };
+    }
+    const signedSlotCount = (request) => (request && Array.isArray(request.slots) ? request.slots.filter((s) => s && s.status === "SIGNED").length : 0);
     /* UX-09: the description follows the ACTUAL state AND the collected
-     * approvals — "no owner has approved yet" is said only when that is true. */
-    function requestOutcome(state, counts) {
+     * approvals — "no owner has approved yet" is said only when that is true.
+     * RC45: with the request passed in, a withdrawn request that carries signatures and a chain-verified root move that
+     * left its treasury UNRESOLVED get their own closed descriptions. */
+    function requestOutcome(state, counts, request) {
+      if (request && typeof request === "object" && String(state) === "REFUSED") {
+        const withdrawal = inputSpentWithdrawalOf(request);
+        if (withdrawal) return { level: "failed", title: "Withdrawn — PolicyVault will not send it", meaning: inputSpentWithdrawalText(firstSpentRole(withdrawal)) };
+        if (signedSlotCount(request) > 0 || request.finalTransaction || request.signedSafeJson) {
+          return { level: "failed", title: "Withdrawn — PolicyVault will not finalize or send it", meaning: `${OWNER_WITHDRAWAL_SENTENCE} ${WITHDRAWAL_TEXT_S} The root itself is unchanged by the withdrawal.` };
+        }
+      }
+      if (request && typeof request === "object" && String(state) === "CHAIN_VERIFIED") {
+        const a = attributionMarkerOf(request);
+        if (a && a.mode !== "FULL") {
+          const vaultId = request.vaultOperations && request.vaultOperations[0] ? request.vaultOperations[0].vaultId : "?";
+          return a.bound
+            ? { level: "warn", title: "Chain-verified root move — treasury UNRESOLVED", meaning: `A transaction broadcast outside PolicyVault (${request.txId}) consumed the root's predecessor and created the root's successor, and PolicyVault attributes it to this request. The treasury output it created for ${vaultId} was spent outside PolicyVault, so that treasury is UNRESOLVED, not proven: its record is unchanged and its hosted actions are refused.` }
+            : { level: "warn", title: "Chain-verified root move — attribution record not readable", meaning: `This request carries an out-of-band attribution record that this page cannot read exactly, so its treasury ${vaultId} is not presented as proven. Use Verify state on the root.` };
+        }
+      }
       const base = Object.prototype.hasOwnProperty.call(REQUEST_OUTCOMES, String(state)) ? REQUEST_OUTCOMES[state] : UNKNOWN_REQUEST_OUTCOME;
       if (String(state) === "AUTHORIZED" && counts && Number.isFinite(Number(counts.present)) && Number.isFinite(Number(counts.required))) {
         const p = Number(counts.present), r = Number(counts.required);
@@ -394,31 +468,105 @@
     /* UX-09: the NESTED reconciliation outcome (POST /org-roots/:id/reconcile →
      * { reconcile: { root: { status }, vaults } }) rendered truthfully — a
      * green message only for a proven state. */
+    /* RC45 L2-01 (contract revision 2 §1 D8, D4b; addendum a item 5; R3N-B1 amendment A1-6): the attribution answer and
+     * the fields the settlement hook and the PARTIAL upgrade add to a Verify answer. Buildability is stated ONLY from
+     * the server's `buildable` (D4b) — never assumed; T1 is never listed buildable in PARTIAL; nothing here says the
+     * treasury, the root or the organization was recovered. */
+    const shortId = (id) => `${String(id || "?").slice(0, 8)}…`;
+    function attributionHoldsText(root, { partialVaultId = null } = {}) {
+      const holds = Array.isArray(root.holds) ? root.holds : null;
+      const b = root.buildable && typeof root.buildable === "object" ? root.buildable : null;
+      if (holds === null || b === null || typeof b.root !== "boolean") {
+        return { ok: false, text: " Whether owner actions on the root and its treasuries are available again was not determined by this check (its holds could not be read); press Verify state again." };
+      }
+      const rootHolds = holds.filter((h) => h && h.scope === "root");
+      const treasuryHolds = holds.filter((h) => h && h.scope !== "root");
+      let text = "";
+      if (b.root === true && rootHolds.length === 0) {
+        const held = new Set(treasuryHolds.map((h) => h.scope));
+        if (partialVaultId) held.add(partialVaultId);
+        const listed = (Array.isArray(b.treasuries) ? b.treasuries : []).filter((v) => typeof v === "string" && !held.has(v));
+        text += ` As of this check, owner actions on the root${listed.length ? ` and on treasur${listed.length === 1 ? "y" : "ies"} ${listed.map(shortId).join(", ")}` : ""}, FREEZE included, can be built again; a treasury's own unfinished delegate request still refuses that treasury's owner actions.`;
+      } else {
+        const named = rootHolds.map((h) => `request ${h.requestId} (${h.state || "state unknown"})`);
+        text += ` Owner actions on the root stay refused: ${named.length ? `${named.join(", ")} still ${named.length === 1 ? "holds" : "hold"} it` : "a request still holds it"}. Press Verify state again after ${named.length === 1 ? "that request is" : "those requests are"} finished or withdrawn.`;
+      }
+      for (const h of treasuryHolds) {
+        if (partialVaultId && h.scope === partialVaultId) continue;
+        text += ` Treasury ${shortId(h.scope)} is UNRESOLVED (request ${h.requestId}, transaction ${h.txId}); its hosted actions are refused.`;
+      }
+      return { ok: b.root === true && rootHolds.length === 0, text };
+    }
+    function attributionSettlementText(root) {
+      let text = "";
+      const settled = Array.isArray(root.settled) ? root.settled : [];
+      const unsettled = Array.isArray(root.unsettled) ? root.unsettled : [];
+      if (settled.length) text += ` Settled by this Verify on proof that they can never be accepted: ${settled.map((s) => `request ${s && s.requestId} (${s && s.outcome})`).join(", ")}.`;
+      if (unsettled.length) text += ` Not settled by this Verify: ${unsettled.map((u) => `${u && u.requestId ? `request ${u.requestId}` : "a step"} at ${u && u.step} (${u && u.reason})`).join("; ")}.`;
+      return { text, unsettled: unsettled.length > 0 };
+    }
+    function treasuryUpgradeText(root) {
+      const ups = Array.isArray(root.treasuryUpgrades) ? root.treasuryUpgrades : [];
+      return ups.filter((u) => u && typeof u === "object" && u.mode === "FULL" && u.from === "PARTIAL").map((u) =>
+        ` Treasury ${shortId(u.vaultId)}: its expected output ${u.outpoint}, created by request ${u.requestId}'s transaction broadcast outside PolicyVault, is observed unspent at depth ${fmtDaa(u.depthDaa)} DAA, so this Verify recorded the treasury as following that output (mode FULL); the delegates that request installed can pay from it outside PolicyVault at any time.`).join("");
+    }
+    function describeAttributionAdvanced(root, vaultNote) {
+      const mode = root.mode === "FULL" || root.mode === "PARTIAL" ? root.mode : null;
+      const vaultId = root.treasury && typeof root.treasury === "object" ? root.treasury.vaultId : null;
+      const lead = `Root state advanced by attribution: request ${root.requestId}'s transaction ${root.txId}, broadcast outside PolicyVault, consumed the root's recorded outpoint and is attributed to that request at depth ${fmtDaa(root.depthDaa)} DAA (required ${fmtDaa(root.requiredDepthDaa)} DAA).`;
+      const settlement = attributionSettlementText(root);
+      if (mode === "FULL") {
+        const holds = attributionHoldsText(root);
+        const warning = ` Treasury ${shortId(vaultId)} follows that transaction's treasury output (mode FULL). Warning: the delegates this request installed on treasury ${shortId(vaultId)} can pay from it outside PolicyVault at any time; a hosted FREEZE or pause of that treasury that loses that race is refused or fails, and a request it leaves stranded ${HOLD_CLAUSE}.`;
+        return { level: holds.ok && !settlement.unsettled ? "good" : "warn", status: "ADVANCED", text: `${lead}${warning}${holds.text}${settlement.text}${treasuryUpgradeText(root)}${vaultNote}` };
+      }
+      if (mode === "PARTIAL") {
+        const holds = attributionHoldsText(root, { partialVaultId: vaultId });
+        const warning = ` Treasury ${shortId(vaultId)} is UNRESOLVED: the treasury output that transaction created was spent outside PolicyVault, so PolicyVault cannot confirm that treasury's state and its record is unchanged. Hosted actions on treasury ${shortId(vaultId)}, FREEZE and emergency pause included, are refused, and a root FREEZE does not stop its delegates; only the owners' direct on-chain exit can act on it.`;
+        return { level: "warn", status: "ADVANCED", text: `${lead}${warning}${holds.text}${settlement.text}${treasuryUpgradeText(root)}${vaultNote}` };
+      }
+      return { level: "bad", status: "ADVANCED", text: `${lead} The attribution mode is not one this page knows, so nothing about the treasury or the root's availability is assumed; press Verify state again.${vaultNote}` };
+    }
     function describeReconcileOutcome(res) {
       const root = res && res.reconcile && res.reconcile.root ? res.reconcile.root : null;
       const st = root ? String(root.status || "") : "";
       const vaults = res && res.reconcile && Array.isArray(res.reconcile.vaults) ? res.reconcile.vaults : [];
       const vaultNote = vaults.length ? ` Vaults: ${vaults.map((v) => `${String(v.vaultId || "?").slice(0, 8)}… ${v.status}`).join("; ")}.` : "";
+      /* the settlement hook's and the PARTIAL upgrade's fields on any other answer (D4 (ii); C4-05 treasuryUpgrades) */
+      const extra = (base) => {
+        if (!root || root.via === "attribution") return base;
+        const settlement = attributionSettlementText(root);
+        const upgrades = treasuryUpgradeText(root);
+        const holds = settlement.text && (Array.isArray(root.holds) || root.holds === null) ? attributionHoldsText(root) : null;
+        if (!settlement.text && !upgrades) return base;
+        const warn = settlement.unsettled || (holds && !holds.ok);
+        return { ...base, level: warn && base.level === "good" ? "warn" : base.level, text: `${base.text}${settlement.text}${holds ? holds.text : ""}${upgrades}` };
+      };
+      if (st === "ADVANCED" && root.via === "attribution") return describeAttributionAdvanced(root, vaultNote);
+      if (st === "UNKNOWN" && root.attribution && typeof root.attribution === "object" && root.attribution.outcome === "SUBMIT_TO_RECORD") {
+        return { level: "warn", status: st, text: `Outcome UNKNOWN: request ${root.attribution.requestId} is finalized and its transaction ${root.attribution.txId}, broadcast outside PolicyVault, is already on the chain. Press Submit on that request, then Verify state. Nothing was written by this check; do not build a replacement.${vaultNote}` };
+      }
       switch (st) {
-        case "CONSISTENT": return { level: "good", status: st, text: `Root state verified against the chain (live outpoint consistent).${vaultNote}` };
-        case "ADVANCED": return { level: "good", status: st, text: `Root state advanced: a submitted transaction${root.txId ? ` (${root.txId})` : ""} was proven on the chain and the root record now follows it.${vaultNote}` };
-        case "CLAIM_PENDING": return { level: "warn", status: st, text: `NOT verified: a submitted transaction is still pending${root.claimTxId ? ` (${root.claimTxId})` : ""}${Number.isFinite(root.ageMs) ? `, ${Math.round(root.ageMs / 1000)} s old` : ""} — do not start another governance action until it resolves.${vaultNote}` };
-        case "CLAIM_RELEASED": return { level: "warn", status: st, text: `A stale submission claim${root.claimTxId ? ` (${root.claimTxId})` : ""} was released: that transaction never landed. Check the request before retrying.${vaultNote}` };
+        case "CONSISTENT": return extra({ level: "good", status: st, text: `Root state verified against the chain (live outpoint consistent).${vaultNote}` });
+        case "ADVANCED": return extra({ level: "good", status: st, text: `Root state advanced: a submitted transaction${root.txId ? ` (${root.txId})` : ""} was proven on the chain and the root record now follows it.${vaultNote}` });
+        case "CLAIM_PENDING": return extra({ level: "warn", status: st, text: `NOT verified: a submitted transaction is still pending${root.claimTxId ? ` (${root.claimTxId})` : ""}${Number.isFinite(root.ageMs) ? `, ${Math.round(root.ageMs / 1000)} s old` : ""} — do not start another governance action until it resolves.${vaultNote}` });
+        case "CLAIM_RELEASED": return extra({ level: "warn", status: st, text: `A stale submission claim${root.claimTxId ? ` (${root.claimTxId})` : ""} was released: that transaction never landed. Check the request before retrying.${vaultNote}` });
         case "NO_LIVE_OUTPOINT": return { level: "warn", status: st, text: "The root has no live outpoint recorded yet — genesis not chain-verified.${vaultNote}".replace("${vaultNote}", vaultNote) };
         case "UNKNOWN": return { level: "bad", status: st, text: `Outcome UNKNOWN: the root's chain state could not be proven${root.reason ? ` (${root.reason})` : ""}. Do not treat any pending request as done and do not start a replacement until this is resolved.${vaultNote}` };
         default: return { level: "bad", status: st || "MISSING", text: `Reconciliation returned no recognized root status${st ? ` (${st})` : ""} — treated as NOT verified.${vaultNote}` };
       }
     }
-    function isVerifiedRequestOutcome(state) { return requestOutcome(state).level === "verified"; }
+    function isVerifiedRequestOutcome(state, request) { return requestOutcome(state, null, request).level === "verified"; }
     /* Codex checkpoint 6 (UX-09): a succession's closed descriptions — ONE successor signature, never owner approvals. */
     const SUCCESSION_OUTCOMES = Object.freeze({
       AUTHORIZED: { level: "pending", title: "Authorized — awaiting the designated successor's signature", meaning: "PolicyVault built and froze the exact succession transaction. Only the designated successor's signature authorizes it (no owner approvals are collected); it is not signed and nothing has moved." },
       SIGNED: { level: "pending", title: "Signed by the successor — NOT yet broadcast", meaning: "The designated successor signed the root input and the fee input and the transaction is assembled. It has NOT been sent to the network and the root has not changed." }
     });
-    function successionOutcome(state) {
+    function successionOutcome(state, request) {
       const k = String(state);
       if (Object.prototype.hasOwnProperty.call(SUCCESSION_OUTCOMES, k)) return SUCCESSION_OUTCOMES[k];
-      return requestOutcome(state);
+      /* R3N-B1: a succession withdrawn by the input-spent withdrawal reads as T-B1 (it is never "nothing happened") */
+      return requestOutcome(state, null, request && inputSpentWithdrawalOf(request) ? request : null);
     }
     /* "signed" / "unsigned" / "unknown" for the successor's single signature, by request state. */
     function successionSignatureState(state) {
@@ -1514,6 +1662,9 @@
       if (v.status && !OPERABLE_VAULT_STATUSES.includes(String(v.status))) return off(`this vault is ${v.status} — no further owner operation exists`);
       const pending = pendingRequestId !== undefined ? pendingRequestId : (orgRoot && orgRoot.pendingRequestId) || null;
       if (pending) return off("A request is already pending on this root — only one governance transaction can be in flight per root transition");
+      /* RC45 L2-01 D7 (C4-05 summaries): the server refuses every hosted action on an UNRESOLVED treasury (409
+       * TREASURY_STATE_UNRESOLVED); display only */
+      if (isKas && v.stateUnresolved && typeof v.stateUnresolved === "object") return off(`this treasury is UNRESOLVED (request ${v.stateUnresolved.requestId}, transaction ${v.stateUnresolved.txId}, broadcast outside PolicyVault) — PolicyVault refuses hosted actions on it until a later Verify observes its expected output unspent again`);
       const frozen = !!(orgRoot && orgRoot.state && Number(orgRoot.state.frozen) === 1);
       if (frozen) return off(info.rootAction === "freeze" ? "the root is already FROZEN — an emergency pause freezes it; unfreeze first (approval quorum), then pause the vault" : `the root is FROZEN — ${info.label.toLowerCase()} needs the root to run ${info.rootAction}, which a frozen root refuses until it is unfrozen`);
       const paused = !!(v.live && v.live.paused === true);
@@ -1694,10 +1845,10 @@
     }
 
     /* ---- the PLAIN-LANGUAGE consequences of a request's vault operation, from the VERIFIED manifest (core.orgRootExplain) ---- */
-    function vaultOperationSummary(request) {
+    function vaultOperationSummary(request, { currentDaa } = {}) {
       if (!request || !request.manifest || !Array.isArray(request.manifest.vaultOperations) || !request.manifest.vaultOperations.length) return null;
       const carried = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : {});
-      if (isKasFamily(request.manifest)) { const km = kasModule(); return km ? km.kasVaultOperationSummary(request) : { ok: false, lines: ["the KAS treasury module is not loaded — the operation cannot be described; do not sign"] }; }
+      if (isKasFamily(request.manifest)) { const km = kasModule(); return km ? km.kasVaultOperationSummary(request, { currentDaa }) : { ok: false, lines: ["the KAS treasury module is not loaded — the operation cannot be described; do not sign"] }; }
       let doc;
       try { doc = core.orgRootExplain.structured({ manifest: request.manifest, descriptors: carried(request.descriptors), redeemScripts: carried(request.redeemScripts) }); } catch (e) { return { ok: false, lines: [`the vault operation could not be described from the verified manifest (${e.message}) — do not sign`] }; }
       const v = doc && Array.isArray(doc.vaultOperations) ? doc.vaultOperations[0] : null;
@@ -1724,22 +1875,195 @@
      * / pendingRootRequests / assertVaultCompletionAvailable): ONE durable
      * pending root transition per root, unsigned-below-quorum included; an
      * owner request naming a vault also guards that vault; ONLY an unsigned,
-     * never-attempted request may be withdrawn (the server refuses anything
-     * else with CANNOT_REJECT); a finalized request resumes its ORIGINAL
+     * never-attempted request may be withdrawn — or (RC45) a never-attempted,
+     * unfinalized KAS delegate-rule change whose new or changed delegate's
+     * period start has aged out — (the server refuses anything else with
+     * CANNOT_REJECT); a finalized request resumes its ORIGINAL
      * submission; an attempted or uncertain request needs outcome recovery
      * (Verify state) before anything can replace it. Dismissing a wallet
      * prompt never releases a reservation. No expiry, no quorum relaxation.
      * ================================================================ */
     const ATTEMPTED_STATES = Object.freeze(["BROADCAST", "CHAIN_SEEN", "SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED"]);
-    const TERMINAL_REQUEST_STATES = Object.freeze(["REFUSED", "CHAIN_VERIFIED", "VERIFIED_OUTCOME", "SUBMISSION_REJECTED", "STALE", "FAILED"]);
-    function withdrawEligibility(request) {
+    const TERMINAL_REQUEST_STATES = Object.freeze(["REFUSED", "CHAIN_VERIFIED", "VERIFIED_OUTCOME", "SUBMISSION_REJECTED", "STALE", "FAILED", "SUPERSEDED"]);
+
+    /* ================================================================
+     * RC45 — DELEGATE BUDGET PERIOD START of a KAS treasury delegate-rule change (a root request whose vault operation
+     * is a policyvault-0.7-kas ownerSetAgentRoot). The server starts the budget period of every new or changed delegate at
+     * the network position when the change is built and refuses to FINALIZE it (409 PERIOD_START_STALE) once such a
+     * delegate's start lags the network position D by more than W(L) = max(L - 6000, 600) DAA; a never-attempted request
+     * with owner signatures may then be withdrawn. "New or changed" = a leaf of the stored registry (newRegistry) whose
+     * nine committed fields are not all equal to the treasury's INSTALLED leaf with the same key. This page evaluates
+     * exactly that predicate, and only from installed rows loaded exactly (installedKasRows) and a digit-string D: it
+     * never judges over all leaves. Without the rows the finalize deadline is unknown (or, with the installed key set
+     * known, shown for the provably new delegates only) and nothing is hidden on this page's own judgement — the
+     * server's answer at finalize decides. Display and gating only; never a security boundary.
+     * ================================================================ */
+    const PERIOD_START_ACCEPT_MARGIN_DAA = 6000n; // served constants mirroring the server's rule
+    const PERIOD_START_MIN_WINDOW_DAA = 600n;
+    const KAS_LEAF_FIELDS = Object.freeze(["agentPk", "maxPerSpend", "periodBudget", "periodLengthDaa", "periodStartDaa", "periodSpent", "approvalThreshold", "agentMaxFeePerTx", "agentRecipientRoot"]);
+    const LEAF_DIGITS = /^(0|[1-9][0-9]*)$/;
+    const isDaaString = (v) => typeof v === "string" && /^[0-9]+$/.test(v);
+    const periodStartWindowDaa = (length) => { const lag = length - PERIOD_START_ACCEPT_MARGIN_DAA; return lag > PERIOD_START_MIN_WINDOW_DAA ? lag : PERIOD_START_MIN_WINDOW_DAA; };
+    function isKasDelegateRuleChange(request) {
+      const op = request && request.kind === "rootAction" && Array.isArray(request.vaultOperations) ? request.vaultOperations[0] : null;
+      return !!op && op.profile === KAS_PROFILE && op.action === "ownerSetAgentRoot";
+    }
+    /* A registry entry's nine committed fields in canonical form (64-hex keys and roots, digit strings otherwise), else null. */
+    function canonicalKasLeaf(entry) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+      for (const f of KAS_LEAF_FIELDS) {
+        const v = entry[f];
+        if (typeof v !== "string" || !(f === "agentPk" || f === "agentRecipientRoot" ? HEX64.test(v) : LEAF_DIGITS.test(v))) return null;
+      }
+      return BigInt(entry.periodLengthDaa) > 0n ? Object.freeze(Object.fromEntries(KAS_LEAF_FIELDS.map((f) => [f, entry[f]]))) : null;
+    }
+    /* canonical leaves keyed by agentPk, or null (not a list, a malformed row, a key twice) */
+    function kasLeafMap(entries) {
+      if (!Array.isArray(entries)) return null;
+      const map = new Map();
+      for (const e of entries) { const leaf = canonicalKasLeaf(e); if (!leaf || map.has(leaf.agentPk)) return null; map.set(leaf.agentPk, leaf); }
+      return map;
+    }
+    const sameKasLeaf = (a, b) => !!a && !!b && KAS_LEAF_FIELDS.every((f) => a[f] === b[f]);
+    /* The installed rows of the request's treasury from GET /org-roots/:id/vaults: `installedAgents` only when the answer
+     * is a list with exactly ONE summary for that vaultId, of contractVersion policyvault-0.7-kas, whose every row carries
+     * the nine committed fields canonically; `installedKeys` when such a summary's rows all carry a canonical, distinct key
+     * (the key set is known even if a row failed the nine-field check). Anything else: neither (not loaded). */
+    function installedKasRows(vaults, vaultId) {
+      const none = { installedAgents: null, installedKeys: null };
+      if (!Array.isArray(vaults) || typeof vaultId !== "string") return none;
+      const matches = vaults.filter((v) => v && typeof v === "object" && v.vaultId === vaultId);
+      if (matches.length !== 1 || matches[0].contractVersion !== KAS_PROFILE || !Array.isArray(matches[0].agents)) return none;
+      const rows = matches[0].agents;
+      const keys = rows.map((r) => (r && typeof r === "object" && typeof r.agentPk === "string" && HEX64.test(r.agentPk) ? r.agentPk : null));
+      if (keys.some((k) => k === null) || new Set(keys).size !== keys.length) return none;
+      return { installedAgents: kasLeafMap(rows) ? rows : null, installedKeys: keys };
+    }
+    /* The finalize deadline of a KAS delegate-rule change: the earliest S + W(L) over its new or changed leaves.
+     * kind "exact" (installed rows loaded), "newOnly" (only the key set known: over the leaves whose keys are absent from
+     * it), "none" (rows loaded, no new or changed leaf), "unknown" (anything else); null for any other request. */
+    function finalizeDeadline(request, { installedAgents = null, installedKeys = null } = {}) {
+      if (!isKasDelegateRuleChange(request)) return null;
+      const stored = kasLeafMap(request.newRegistry);
+      if (!stored) return { kind: "unknown", cause: "registry" };
+      const earliest = (leaves) => leaves.reduce((min, l) => { const d = BigInt(l.periodStartDaa) + periodStartWindowDaa(BigInt(l.periodLengthDaa)); return min === null || d < min ? d : min; }, null);
+      const installed = kasLeafMap(installedAgents);
+      if (installed) {
+        const anchored = [...stored.values()].filter((l) => !sameKasLeaf(installed.get(l.agentPk), l));
+        return anchored.length ? { kind: "exact", deadline: earliest(anchored), anchored } : { kind: "none" };
+      }
+      const keys = Array.isArray(installedKeys) && installedKeys.every((k) => typeof k === "string" && HEX64.test(k)) ? new Set(installedKeys) : null;
+      const added = keys ? [...stored.values()].filter((l) => !keys.has(l.agentPk)) : [];
+      return added.length ? { kind: "newOnly", deadline: earliest(added) } : { kind: "unknown", cause: "installed" };
+    }
+    /* The server's finalize refusal / stale-withdrawal predicate: true ONLY with the installed rows loaded and a digit-string
+     * network position, when some new or changed leaf has D - periodStartDaa > W(periodLengthDaa) (D past the deadline). */
+    function periodStartAgedOut(request, { currentDaa = null, installedAgents = null } = {}) {
+      if (!isDaaString(currentDaa)) return false;
+      const d = finalizeDeadline(request, { installedAgents });
+      return !!d && d.kind === "exact" && BigInt(currentDaa) > d.deadline;
+    }
+    /* The finalize deadline as text (null when there is none to state). Never gates anything. */
+    function finalizeDeadlineText(request, { currentDaa = null, installedAgents = null, installedKeys = null } = {}) {
+      const d = finalizeDeadline(request, { installedAgents, installedKeys });
+      if (!d || d.kind === "none") return null;
+      if (d.kind === "unknown") {
+        return d.cause === "registry"
+          ? "The finalize deadline is unknown: this request's stored delegate rules could not be read exactly. PolicyVault checks it when the request is finalized."
+          : "The finalize deadline is unknown: this treasury's installed delegate rules could not be loaded. PolicyVault checks it when the request is finalized.";
+      }
+      const now = isDaaString(currentDaa) ? BigInt(currentDaa) : null;
+      const when = now === null ? "" : d.deadline >= now ? ` (${approxDelay((d.deadline - now).toString())} from now at 10 DAA per second)` : " (that network position has passed)";
+      return `Must be finalized before network position ${d.deadline}${d.kind === "newOnly" ? " for the new delegates" : ""}${when}. After that PolicyVault will not finalize it; it can only be withdrawn and built again.` +
+        (d.kind === "newOnly" ? " A change to an installed delegate may set an earlier deadline that this page cannot compute: the treasury's installed delegate rules could not be loaded exactly. PolicyVault checks it when the request is finalized." : "");
+    }
+    function finalizeDeadlineHtml(request, opts = {}) {
+      const text = finalizeDeadlineText(request, opts);
+      return text ? `<div class="f-help" data-finalize-deadline="1">${esc(text)}</div>` : "";
+    }
+    /* A finalized (SIGNED) delegate-rule change is not refused at submit and cannot be withdrawn. When a new or changed
+     * delegate's start has aged past its window, the Submit area says so with what each such delegate could pay at once
+     * if submitted now (with the installed rows not loaded: every delegate of the request). Display only. */
+    function signedAgedStartHtml(request, { currentDaa = null, installedAgents = null } = {}) {
+      if (!request || request.state !== "SIGNED" || !isKasDelegateRuleChange(request) || !isDaaString(currentDaa)) return "";
+      const stored = kasLeafMap(request.newRegistry);
+      if (!stored) return "";
+      const D = BigInt(currentDaa);
+      const installed = kasLeafMap(installedAgents);
+      const judged = [...stored.values()].filter((l) => !installed || !sameKasLeaf(installed.get(l.agentPk), l));
+      const aged = judged.filter((l) => D - BigInt(l.periodStartDaa) > periodStartWindowDaa(BigInt(l.periodLengthDaa)));
+      if (!aged.length) return "";
+      const lines = (installed ? aged : [...stored.values()]).map((l) => {
+        const S = BigInt(l.periodStartDaa), L = BigInt(l.periodLengthDaa), B = BigInt(l.periodBudget), sigma = BigInt(l.periodSpent);
+        const budgets = S >= D ? 1n : (D - 1n - S) / L + 1n;
+        const total = budgets * B - sigma;
+        return `Delegate ${l.agentPk.slice(0, 8)}…${l.agentPk.slice(-4)}: if submitted now (network position ${D}) it can pay out up to ${core.amounts.sompiToKas(total > 0n ? total : 0n)} KAS at once (${budgets} budget period${budgets === 1n ? "" : "s"} of ${core.amounts.sompiToKas(B)} KAS, minus ${core.amounts.sompiToKas(sigma)} KAS already spent).`;
+      });
+      return `<div class="opbanner warn" data-period-start-aged="1" style="margin-top:0.6rem"><b>Its period start aged after it was finalized; a finalized request cannot be withdrawn.</b>${lines.map((l) => `<div>${esc(l)}</div>`).join("")}</div>`;
+    }
+
+    /* `currentDaa`, `installedAgents`, `serverRefusedStale` (RC45, KAS delegate-rule changes only): an AUTHORIZED,
+     * never-attempted request carrying owner signatures is offered the stale withdrawal ONLY when the server's predicate
+     * holds on the loaded installed rows (periodStartAgedOut) or the server itself answered this request's finalize with
+     * 409 PERIOD_START_STALE; the result then carries `periodStartStale` and Approve / Finalize are not offered. Without
+     * the options (the root page's reservation guidance) the result is today's.
+     * R3N-B1 (addendum v2b revision 3 §5 R4): a SIGNED (finalized, never attempted) request is offered the two-step
+     * input-spent withdrawal ONLY with a bound inputSpentObservation (its first step recorded an anchor) or after this
+     * page saw its Submit answered 409 RECORDED_OUTPUT_SPENT with withdrawal TWO_STEP (`serverRefusedSpent`); the result
+     * carries `inputSpent`. `rootPendingRequestId` (the root record's pointer): a REFUSED request the pointer still
+     * names is offered "Finish withdrawal" (kind "finish"). The server re-decides every withdrawal (CANNOT_REJECT). */
+    function inputSpentOfferText(anchored, role) {
+      const what = INPUT_ROLES.includes(role) ? `its ${role} output` : "an output it spends";
+      let when = "PolicyVault withdraws it in two steps at least 1,000 DAA apart: the first step records only a chain anchor, and the second withdraws it only once that spend is final at 1,000 DAA and everything it observes agrees again (otherwise it records a new anchor or refuses)";
+      if (anchored && isDigits(anchored.anchor.daaScore)) {
+        const a = BigInt(anchored.anchor.daaScore);
+        when = `its first step recorded a chain anchor at DAA ${a}: withdraw again from DAA ${a + 1000n} to DAA ${a + 12000n}, when PolicyVault withdraws it only if that spend is then final at 1,000 DAA and everything it observes agrees again (otherwise it records a new anchor or refuses)`;
+      }
+      return `${what} is no longer reported unspent while the root output it spends still is, and PolicyVault treats it as spent by another transaction, so this finalized request can be withdrawn in two steps — ${when}. ${OWNER_WITHDRAWAL_SENTENCE} Withdrawing broadcasts nothing; meanwhile this request ${HOLD_CLAUSE}.`;
+    }
+    /* C4-06c (writer clarification 02 to contract-03, item 1). The request modal's next step for a SIGNED request whose
+     * withdrawal step 1 recorded an anchor (R3: "Anchor present: Wait, step 2, or Submit"), and after a CANNOT_REJECT
+     * answer to its withdrawal (every CANNOT_REJECT finding is final for that call: Submit, then Verify state). The server
+     * re-decides every action; neither text claims which action succeeds. */
+    function anchoredWithdrawalNext(anchored) {
+      const span = anchored && isDigits(anchored.anchor.daaScore)
+        ? ` from DAA ${BigInt(anchored.anchor.daaScore) + 1000n} to DAA ${BigInt(anchored.anchor.daaScore) + 12000n}`
+        : " at least 1,000 DAA after the first";
+      return `Its first withdrawal step recorded a chain anchor. Wait, then take the second step${span}, or press Submit on this request: PolicyVault re-reads the chain for each and decides, and nothing is retried automatically. Then press Verify state on the root.`;
+    }
+    const WITHDRAW_REFUSAL_LEAD = Object.freeze({
+      INPUTS_LIVE: "Every output it spends is reported unspent again",
+      OWN_OUTPUT: "An output of this request's own transaction is observed",
+      ROOT_INPUT_NOT_LIVE: "The root output it spends is not reported unspent (this request's own transaction may have spent it), so the withdrawal was refused",
+      ACCEPTED_IN_WINDOW: "The node reports this request's own transaction accepted after the anchor, so the withdrawal was refused",
+      IN_TRANSACTION_POOL: "This request's own transaction is in the node's transaction pool, so the withdrawal was refused",
+      UNSTABLE: "The root output it spends changed while PolicyVault was reading it, so the withdrawal was refused",
+      INPUT_EXISTENCE_UNPROVEN: "PolicyVault cannot establish that the spent input existed on the selected chain, so the withdrawal was refused"
+    });
+    function withdrawRefusalNext(finding) {
+      const lead = Object.prototype.hasOwnProperty.call(WITHDRAW_REFUSAL_LEAD, finding)
+        ? WITHDRAW_REFUSAL_LEAD[finding]
+        : `The withdrawal was refused${/^[A-Z][A-Z_]{0,40}$/.test(finding) ? ` (${finding})` : ""}`;
+      return `${lead}: submit it, then press Verify state on the root. PolicyVault re-reads every input before recording anything, and nothing is retried automatically.`;
+    }
+    function withdrawEligibility(request, { currentDaa = null, installedAgents = null, serverRefusedStale = false, serverRefusedSpent = false, spentRole = null, rootPendingRequestId = null } = {}) {
       if (!request) return { kind: "none", reason: "no request" };
       const st = String(request.state || "");
       const signedSlots = (request.slots || []).filter((s) => s && s.status === "SIGNED").length;
       const attempted = !!(request.submissionAttempt || request.submissionOutcome);
+      if (st === "REFUSED" && typeof rootPendingRequestId === "string" && rootPendingRequestId === request.id) {
+        return { kind: "finish", reason: "this request is withdrawn (REFUSED), but the root's reservation still names it: Finish withdrawal releases that reservation and broadcasts nothing" };
+      }
       if (TERMINAL_REQUEST_STATES.includes(st)) return { kind: "none", reason: `this request is ${st} — it holds no reservation` };
       if (ATTEMPTED_STATES.includes(st) || attempted) return { kind: "recover", reason: "this request was handed to the network (or its outcome is unknown): use Verify state on the root — it cannot be withdrawn or replaced until its outcome is proven" };
-      if (st === "SIGNED") return { kind: "resume", reason: "this request is finalized (its fee input is signed) — resume it by submitting; a finalized request is never withdrawn" };
+      if (st === "SIGNED") {
+        const anchored = inputSpentObservationOf(request);
+        if (anchored || serverRefusedSpent === true) return { kind: "withdraw", inputSpent: true, anchored: !!anchored, reason: inputSpentOfferText(anchored, firstSpentRole(anchored) || spentRole) };
+        return { kind: "resume", reason: "this request is finalized (its fee input is signed) — resume it by submitting; a finalized request is never withdrawn while the outputs it spends are unspent" };
+      }
+      if (st === "AUTHORIZED" && signedSlots > 0 && isKasDelegateRuleChange(request) && (serverRefusedStale === true || periodStartAgedOut(request, { currentDaa, installedAgents }))) {
+        return { kind: "withdraw", periodStartStale: true, reason: `its delegate budget period start has aged out, so PolicyVault will not finalize it — ${WITHDRAWAL_TEXT_S} ${OWNER_WITHDRAWAL_SENTENCE}` };
+      }
       if (st === "AUTHORIZED" && signedSlots > 0) {
         const required = /^[1-9][0-9]*$/.test(String(request.requiredApprovals ?? "")) ? Number(request.requiredApprovals) : null;
         const atQuorum = required !== null && signedSlots >= required;
@@ -1750,23 +2074,28 @@
     }
     function reservationGuidance({ request, orgRoot } = {}) {
       if (!request) return null;
-      const elig = withdrawEligibility(request);
+      const elig = withdrawEligibility(request, { rootPendingRequestId: orgRoot && typeof orgRoot.pendingRequestId === "string" ? orgRoot.pendingRequestId : null });
       const vaultOps = Array.isArray(request.vaultOperations) ? request.vaultOperations : [];
       const guardedVaultIds = vaultOps.map((op) => op && op.vaultId).filter(Boolean);
       const label = `${actionLabel(request.action || request.kind)}${vaultOps.length ? ` — ${vaultOpLabel(vaultOps[0].action)} on vault ${short(vaultOps[0].vaultId)}` : ""}`;
-      const next = elig.kind === "withdraw"
-        ? "Withdraw it (safe: it is unsigned and was never attempted; only its own reservation is released) or continue collecting approvals."
-        : elig.kind === "collect"
-          ? "Collect the remaining owner approvals, then finalize and submit — a request with a signature attached is not withdrawn."
-          : elig.kind === "resume"
-            ? "Submit it to the network — the ORIGINAL finalized transaction is resumed, never rebuilt or replaced."
-            : elig.kind === "recover"
-              ? "Use Verify state (outcome recovery) — nothing new can start on this root until its outcome is proven."
-              : "Open it to see its state.";
-      void orgRoot;
+      /* C4-06c (clarification 02 item 1, R3 "Anchor present: Wait, step 2, or Submit"): the root page names Submit too; the
+       * server's submit read decides */
+      const next = elig.kind === "finish"
+        ? "Finish withdrawal: the request is already withdrawn; this releases only the reservation it still holds (nothing is broadcast)."
+        : elig.kind === "withdraw" && elig.inputSpent
+          ? "Wait, then take the second withdrawal step (at least 1,000 DAA after the first; PolicyVault withdraws it only once the spend of its input is final at 1,000 DAA), or press Submit on it (PolicyVault re-reads every input before recording anything); then use Verify state. Nothing new can start on this root until then."
+          : elig.kind === "withdraw"
+            ? "Withdraw it (safe: it is unsigned and was never attempted; only its own reservation is released) or continue collecting approvals."
+            : elig.kind === "collect"
+              ? "Collect the remaining owner approvals, then finalize and submit — a request with a signature attached is not withdrawn."
+              : elig.kind === "resume"
+                ? "Submit it to the network — the ORIGINAL finalized transaction is resumed, never rebuilt or replaced."
+                : elig.kind === "recover"
+                  ? "Use Verify state (outcome recovery) — nothing new can start on this root until its outcome is proven."
+                  : "Open it to see its state.";
       return {
         requestId: request.id, label, state: request.state, guardedVaultIds, eligibility: elig, next,
-        text: `Request ${label} (${request.id}, ${request.state}) holds this root's transition reservation${guardedVaultIds.length ? ` and guards vault ${guardedVaultIds.map(short).join(", ")}` : ""}: no other governance action or owner operation can be started on this root${guardedVaultIds.length ? " or that vault" : ""} until it completes or is withdrawn. Dismissing a wallet prompt, closing this window or disconnecting the wallet does NOT release it — only a durable withdrawal of an unsigned request, or its proven outcome, does. This reservation is PolicyVault's local coordination, not an on-chain freeze: agent payments continue under the vault's rules. Next: ${next}`
+        text: `Request ${label} (${request.id}, ${request.state}) holds this root's transition reservation${guardedVaultIds.length ? ` and guards vault ${guardedVaultIds.map(short).join(", ")}` : ""}: no other governance action or owner operation can be started on this root${guardedVaultIds.length ? " or that vault" : ""} until it completes or is withdrawn. Dismissing a wallet prompt, closing this window or disconnecting the wallet does NOT release it — only a durable withdrawal (of an unsigned request, or in two steps of a finalized request whose input another transaction spent), or its proven outcome, does. This reservation is PolicyVault's local coordination, not an on-chain freeze: agent payments continue under the vault's rules. Next: ${next}`
       };
     }
 
@@ -1892,7 +2221,16 @@
     /* (c) request status: plain language, the viewer's role, collected
      * approvals, remaining waiting conditions, next possible action. */
     function renderRequestDetailHtml(request, opts = {}) {
-      const { orgRoot = null, viewerXOnly = null, currentDaa = null } = opts || {};
+      /* RC45 (KAS delegate-rule changes): installedAgents / installedKeys = installedKasRows of the request's treasury
+       * (null = not loaded); serverRefusedStale = this request's finalize was answered 409 PERIOD_START_STALE.
+       * R3N-B1 (R4), from this page's own answers for this request: serverRefusedSpent (+ spentRole) = its Submit was
+       * answered 409 RECORDED_OUTPUT_SPENT with withdrawal TWO_STEP; submitRefusal = the finding of a 409
+       * SUBMIT_INPUT_UNRESOLVED; withdrawRefusal = the finding of a CANNOT_REJECT answer to its withdrawal. orgRoot's
+       * pointer (pendingRequestId) decides "Finish withdrawal" for a REFUSED request.
+       * C4-06c (writer clarification 02 to contract-03): verifySubmitToRecord = this page's Verify state answered UNKNOWN
+       * SUBMIT_TO_RECORD naming this request; rootUnreadable = the root could not be re-read for this REFUSED request (its
+       * reservation is then neither confirmed nor denied, and only Verify state is offered). */
+      const { orgRoot = null, viewerXOnly = null, currentDaa = null, installedAgents = null, installedKeys = null, serverRefusedStale = false, serverRefusedSpent = false, spentRole = null, submitRefusal = null, withdrawRefusal = null, verifySubmitToRecord = false, rootUnreadable = false } = opts || {};
       // UX-09: approvals are derived from the ACTUAL slot statuses; the
       // server's counter is cross-checked and the smaller count wins (fail
       // closed) with a visible warning when they disagree.
@@ -1901,7 +2239,7 @@
       const present = serverPresent === null ? slotSigned : Math.min(serverPresent, slotSigned);
       const countMismatch = serverPresent !== null && serverPresent !== slotSigned;
       const required = request.requiredApprovals ?? "?";
-      const outcome = String(request.action || "") === "succession" ? successionOutcome(request.state) : requestOutcome(request.state, { present, required: Number(required) }); // Codex checkpoint 6 (UX-09)
+      const outcome = String(request.action || "") === "succession" ? successionOutcome(request.state, request) : requestOutcome(request.state, { present, required: Number(required) }, request); // checkpoint 6 (UX-09); RC45: the request decides the withdrawn / UNRESOLVED variants
       const statusOf = (s) => `<span class="badge ${s.status === "SIGNED" ? "ACTIVE" : s.status === "REFUSED" ? "PAUSED" : ""}">${esc(s.status === "SIGNED" ? "approved" : s.status === "REFUSED" ? "refused" : "waiting")}</span>`;
       const mySlot = (request.slots || []).find((s) => s.publicKey && viewerXOnly && String(s.publicKey).toLowerCase() === String(viewerXOnly).toLowerCase());
       const successionRoleText = (() => {
@@ -1923,8 +2261,41 @@
       const pinnedSuccessor = isSuccession ? successionSignerOf(request, orgRoot) : null;
       const viewerIsSuccessor = !!(pinnedSuccessor && viewerXOnly && String(viewerXOnly).toLowerCase() === pinnedSuccessor);
       const successorSigned = isSuccession ? successionSignatureState(request.state) : null;
+      /* F-6: the authorized next step for the reservation this request holds; withdrawal is offered ONLY when eligible.
+       * RC45: a KAS delegate-rule change the server will not finalize (its predicate on the loaded installed rows, or its
+       * own 409 PERIOD_START_STALE) is offered the withdrawal and no Finalize. */
+      /* C4-06c (clarification 02 item 3): an unreadable root names no pointer, so no "Finish withdrawal" is derived from it */
+      const eligOpts = { currentDaa, installedAgents, serverRefusedStale, serverRefusedSpent, spentRole, rootPendingRequestId: !rootUnreadable && orgRoot && typeof orgRoot.pendingRequestId === "string" ? orgRoot.pendingRequestId : null };
+      const isSigned = String(request.state) === "SIGNED";
+      /* C4-06c (clarification 02 item 1; R4): after this page saw Submit answered SUBMIT_INPUT_UNRESOLVED (withdrawal not
+       * available for that answer) or Verify state answer SUBMIT_TO_RECORD for this request (its own transaction is on the
+       * chain), no withdrawal is offered here; Submit and Verify state are. Reopening re-derives every offer. */
+      const noSpentWithdrawal = isSigned && (verifySubmitToRecord === true || typeof submitRefusal === "string");
+      const eligFull = withdrawEligibility(request, eligOpts);
+      const eligAll = noSpentWithdrawal && eligFull.kind === "withdraw" && eligFull.inputSpent === true
+        ? { kind: "resume", reason: "this request is finalized (its fee input is signed): after the last answer on this page Submit and Verify state are offered, and no withdrawal" }
+        : eligFull;
+      /* a succession keeps its own AUTHORIZED withdrawal below; it takes only the R3N-B1 offers from withdrawEligibility */
+      const elig = !isSuccession || eligAll.kind === "finish" || (eligAll.kind === "withdraw" && eligAll.inputSpent) ? eligAll : { kind: "none", reason: "" };
+      const periodStartStale = elig.periodStartStale === true;
+      const inputSpentOffer = elig.kind === "withdraw" && elig.inputSpent === true;
+      /* C4-06c (clarification 02 item 1): Submit is offered for every SIGNED request, with or without a withdrawal anchor and
+       * after every answer on this page; the server's submit read decides (409 with nothing written, or the existing
+       * completion route when this request's own output is observed). Nothing is retried automatically, and a build, a
+       * rebuild or a replacement is never offered. */
+      const marker = attributionMarkerOf(request);
       let next;
-      if (isSuccession) {
+      if (elig.kind === "finish") next = "Finish withdrawal: this request is already withdrawn, but the root's reservation still names it. Finishing releases that reservation and broadcasts nothing; nothing new can start on this root before then.";
+      else if (String(request.state) === "REFUSED" && rootUnreadable) next = "PolicyVault could not re-read the root, so whether this request still reserves it could not be confirmed. Press Verify state on the root; nothing is assumed about the reservation until the root is read again.";
+      else if (isSigned && verifySubmitToRecord === true) next = "Verify state found this request's own transaction on the chain, broadcast outside PolicyVault: press Submit on this request, then Verify state on the root. Submit uses the same signed transaction; nothing is built or replaced, and nothing is retried automatically.";
+      else if (isSigned && typeof withdrawRefusal === "string") next = withdrawRefusalNext(withdrawRefusal);
+      else if (inputSpentOffer && elig.anchored) next = anchoredWithdrawalNext(inputSpentObservationOf(request));
+      else if (inputSpentOffer) next = "Withdraw it in two steps (at least 1,000 DAA apart), then press Verify state on the root.";
+      else if (isSigned && ["ROOT_INPUT_NOT_LIVE", "INPUT_CONTRADICTED"].includes(submitRefusal)) next = "Press Verify state on the root; withdrawal is not available for this Submit answer.";
+      else if (isSigned && submitRefusal === "INPUT_EXISTENCE_UNPROVEN") next = "Submit again once the input is reported unspent, or press Verify state on the root.";
+      else if (String(request.state) === "REFUSED" && /^Withdrawn — /.test(outcome.title)) next = "Withdrawn in PolicyVault; this request no longer reserves the root. A new request can be started if it is still needed.";
+      else if (String(request.state) === "CHAIN_VERIFIED" && outcome.level === "warn") next = "The root follows this transaction's root successor. The treasury it changed stays UNRESOLVED: its hosted actions are refused and a root FREEZE does not stop its delegates. Use Verify state on the root.";
+      else if (isSuccession) {
         if (request.state === "AUTHORIZED") next = viewerIsSuccessor ? "Approve in wallet (designated successor): your wallet signs the root input and your own fee input in one step and PolicyVault submits it. The network accepts it only once the root has been untouched for the succession waiting period; nothing else is collected." : "Waiting for the designated successor to sign in their wallet — no owner approval is needed or collected. Anyone may submit it afterwards.";
         else if (request.state === "SIGNED") next = "Signed by the designated successor and assembled — submit it to the network.";
         else if (outcome.level === "verified") next = "Complete — verified on the chain.";
@@ -1933,6 +2304,7 @@
         else if (outcome.level === "failed") next = "Nothing happened; start a new request if still needed.";
         else next = "Waiting for the network; use Verify state on the root to check.";
       }
+      else if (periodStartStale) next = "PolicyVault will not finalize this request: a new or changed delegate's budget period start has aged out. Withdraw it, then build the delegate rule change again.";
       else if (request.state === "AUTHORIZED" && present < Number(required)) next = `Collect ${Number(required) - present} more owner approval${Number(required) - present === 1 ? "" : "s"}, then finalize.`;
       else if (gate.enabled && !fuelOwner.ok) next = `Enough approvals: ${describeFeePayer(fuelOwner.payer)} finalizes it — that wallet funds the network fee and signs the fee input${request.createdBy ? ` (the request was started by ${request.createdBy})` : ""} — then anyone submits it.`;
       else if (gate.enabled) next = "Enough approvals: Finalize — your wallet funds the network fee and signs the fee input, PolicyVault assembles the transaction — then submit it to the network.";
@@ -1954,11 +2326,20 @@
       const vaultOps = (request.vaultOperations || []).map((op) => `${VAULT_OP_LABEL[op.action] || op.action} on vault ${op.vaultId}`);
       /* R7-05: the vault operation's consequences from the VERIFIED manifest (fee reserve before/after, terminal payout
        * and recovery key, every installed agent rule and its recipients) — never only the operation's name. */
-      const opSummary = vaultOps.length ? vaultOperationSummary(request) : null;
-      /* F-6: the authorized next step for the reservation this request holds; withdrawal is offered ONLY when eligible. */
-      const elig = isSuccession ? { kind: "none", reason: "" } : withdrawEligibility(request);
-      const reservationText = TERMINAL_REQUEST_STATES.includes(String(request.state)) ? null
-        : `${elig.reason ? `${elig.reason.charAt(0).toUpperCase()}${elig.reason.slice(1)}. ` : ""}While this request is pending it reserves the root's next transition${vaultOps.length ? " and guards the named vault" : ""}; dismissing a wallet prompt, closing this window or disconnecting the wallet does not release it. This is PolicyVault's local coordination, not an on-chain freeze.`;
+      const opSummary = vaultOps.length ? vaultOperationSummary(request, { currentDaa }) : null;
+      const opWarnLines = new Set(opSummary && Array.isArray(opSummary.warnLines) ? opSummary.warnLines : []);
+      const deadlineText = request.state === "AUTHORIZED" ? finalizeDeadlineText(request, { currentDaa, installedAgents, installedKeys }) : null;
+      const reasonLead = elig.reason ? `${elig.reason.charAt(0).toUpperCase()}${elig.reason.slice(1)}${/[.!?]$/.test(elig.reason) ? "" : "."} ` : "";
+      const reservationText = elig.kind === "finish" ? `${reasonLead}This is PolicyVault's local coordination, not an on-chain freeze.`
+        : TERMINAL_REQUEST_STATES.includes(String(request.state)) ? null
+        : `${reasonLead}While this request is pending it reserves the root's next transition${vaultOps.length ? " and guards the named vault" : ""}; dismissing a wallet prompt, closing this window or disconnecting the wallet does not release it. This is PolicyVault's local coordination, not an on-chain freeze.`;
+      /* RC45 L2-01 D5: the out-of-band attribution this request carries; an upgrade is read only from a FULL marker */
+      const attributionLine = !marker ? ""
+        : `<div class="rv-row"><div class="rv-k">Attribution</div><div class="rv-v" data-attribution-mode="${esc(marker.bound ? marker.mode : "UNREADABLE")}">${esc(!marker.bound
+          ? "This request carries an out-of-band attribution record this page cannot read exactly; its treasury is not presented as proven."
+          : `Its transaction was broadcast outside PolicyVault and attributed to this request at depth ${fmtDaa(marker.marker.depthDaa)} DAA (mode ${marker.mode}). ${marker.mode === "FULL"
+            ? `Treasury ${marker.marker.treasury.vaultId} follows its treasury output${marker.upgraded ? ` ${marker.upgraded.treasuryOutpoint && typeof marker.upgraded.treasuryOutpoint === "object" ? `${marker.upgraded.treasuryOutpoint.transactionId}:${marker.upgraded.treasuryOutpoint.index}` : ""}, observed unspent at depth ${fmtDaa(marker.upgraded.depthDaa)} DAA by a later Verify (mode changed from PARTIAL to FULL${typeof marker.marker.upgradedAt === "string" ? ` at ${marker.marker.upgradedAt}` : ""})` : ""}; the delegates this request installed can pay from it outside PolicyVault at any time.`
+            : `Treasury ${marker.marker.treasury.vaultId} is UNRESOLVED: the output this transaction created for it was spent outside PolicyVault.`}`)}</div></div>`;
       return (
         `<div class="panel" data-org-root-request="${esc(request.id)}">` +
         `<div class="vault-head"><span class="vault-title">${esc(actionLabel(request.action || request.kind))}</span> <span class="badge ${outcome.level === "verified" ? "ACTIVE" : outcome.level === "failed" ? "RECOVERED" : "PAUSED"}">${esc(outcome.title)}</span></div>` +
@@ -1967,27 +2348,42 @@
         (isSuccession
           ? `<div class="rv-row"><div class="rv-k">Authorization</div><div class="rv-v">${esc(successorSigned === "signed" ? "signed by the designated successor (one signature: the root input and the successor's fee input)" : successorSigned === "unsigned" ? "not yet signed by the designated successor — no owner approvals are collected for a succession" : "the successor's signature state is not recorded for this request state")}</div></div>`
           : `<div class="rv-row"><div class="rv-k">Approvals</div><div class="rv-v">${esc(String(present))} of ${esc(String(required))} collected${countMismatch ? ` — <b>warning:</b> the server counts ${esc(String(serverPresent))} but ${esc(String(slotSigned))} owner slot${slotSigned === 1 ? "" : "s"} actually carry a signature; the smaller count is used` : ""}</div></div>`) +
-        chainLine + errorLine +
+        chainLine + attributionLine + errorLine +
         `<div class="rv-row"><div class="rv-k">Your role</div><div class="rv-v">${esc(successionRoleText || roleTextOwner)}</div></div>` +
-        (vaultOps.length ? `<div class="rv-row"><div class="rv-k">Vault operation</div><div class="rv-v" data-vault-operation-summary="${opSummary && opSummary.ok ? "verified" : "refused"}">${opSummary ? opSummary.lines.map((l) => `<div${/^agent [0-9a-f]{64}:/.test(l) ? ' class="mono" style="word-break:break-all;font-size:0.8rem"' : ""}>${esc(l)}</div>`).join("") : vaultOps.map(esc).join("<br/>")}</div></div>` : "") +
+        (vaultOps.length ? `<div class="rv-row"><div class="rv-k">Vault operation</div><div class="rv-v" data-vault-operation-summary="${opSummary && opSummary.ok ? "verified" : "refused"}">${opSummary ? opSummary.lines.map((l, i) => `<div${opWarnLines.has(i) ? ' class="opbanner warn" style="margin:0.2rem 0"' : /^agent [0-9a-f]{64}:/.test(l) ? ' class="mono" style="word-break:break-all;font-size:0.8rem"' : ""}>${esc(l)}</div>`).join("") : vaultOps.map(esc).join("<br/>")}</div></div>` : "") +
+        (deadlineText ? `<div class="rv-row"><div class="rv-k">Finalize deadline</div><div class="rv-v" data-finalize-deadline="1">${esc(deadlineText)}</div></div>` : "") +
         waitLine +
         `<div class="rv-row"><div class="rv-k">Next</div><div class="rv-v">${esc(next)}</div></div>` +
         (reservationText ? `<div class="rv-row"><div class="rv-k">Reservation</div><div class="rv-v" data-reservation-next="${esc(elig.kind)}">${esc(reservationText)}</div></div>` : "") +
         `</div>` +
         ((request.slots || []).length ? ownerTable(request.slots, viewerXOnly, statusOf) : "") +
         ((request.warnings || []).length ? `<div class="f-help">Warnings: ${request.warnings.map(esc).join(", ")}</div>` : "") +
+        signedAgedStartHtml(request, { currentDaa, installedAgents }) +
         `<div class="actions">` +
-        (isSuccession ? "" : `<button${gate.enabled && fuelOwner.ok ? "" : " disabled"} data-rootfinalize="${esc(request.id)}" title="${esc(gate.enabled ? fuelOwner.reason : gate.reason)}">Finalize (sign the fee input)</button>`) +
+        (isSuccession || periodStartStale ? "" : `<button${gate.enabled && fuelOwner.ok ? "" : " disabled"} data-rootfinalize="${esc(request.id)}" title="${esc(gate.enabled ? fuelOwner.reason : gate.reason)}">Finalize (sign the fee input)</button>`) +
         `<button${request.state === "SIGNED" ? "" : " disabled"} data-rootsubmit="${esc(request.id)}" class="primary">Submit to network</button>` +
-        /* F-6: withdrawal ONLY for an unsigned, never-attempted request (the server refuses everything else with CANNOT_REJECT);
-         * a succession keeps the pinned successor's existing withdrawal offer (single-signer path, no owner slots). */
-        (isSuccession
-          ? (request.state === "AUTHORIZED" ? `<button class="warn" data-rootreject="${esc(request.id)}">Withdraw request</button>` : "")
-          : elig.kind === "withdraw"
-            ? `<button class="warn" data-rootreject="${esc(request.id)}" title="${esc(elig.reason)}">Withdraw request</button>`
-            : elig.kind === "recover"
-              ? `<button data-rootreconcile="${esc(request.rootCovenantId)}" data-rootreconcile-request="${esc(request.id)}">Verify state (recover outcome)</button>`
-              : "") +
+        /* F-6: withdrawal ONLY for an unsigned, never-attempted request, or (RC45) a KAS delegate-rule change the server will
+         * not finalize, or (R3N-B1) a finalized, never-attempted request whose input another transaction spent (two steps),
+         * or "Finish withdrawal" of a REFUSED request the root's pointer still names (the server refuses everything else
+         * with CANNOT_REJECT); a succession keeps the pinned successor's existing withdrawal offer (single-signer path, no
+         * owner slots) and takes the R3N-B1 offers. */
+        (elig.kind === "finish"
+          ? `<button class="warn" data-rootreject="${esc(request.id)}" data-rootfinish="1" title="${esc(elig.reason)}">Finish withdrawal</button>`
+          : inputSpentOffer
+            ? `<button class="warn" data-rootreject="${esc(request.id)}" data-rootspent="${elig.anchored ? "step2" : "step1"}" title="${esc(elig.reason)}">${elig.anchored ? "Withdraw request (second step)" : "Withdraw request (two steps)"}</button>`
+            : isSuccession
+              ? (request.state === "AUTHORIZED" ? `<button class="warn" data-rootreject="${esc(request.id)}">Withdraw request</button>` : "")
+              : elig.kind === "withdraw"
+                ? `<button class="warn" data-rootreject="${esc(request.id)}" title="${esc(elig.reason)}">Withdraw request</button>`
+                : elig.kind === "recover"
+                  ? `<button data-rootreconcile="${esc(request.rootCovenantId)}" data-rootreconcile-request="${esc(request.id)}">Verify state (recover outcome)</button>`
+                  : "") +
+        /* R3N-B1 (R4): Verify state next to the two-step withdrawal, "Finish withdrawal" and a Submit refusal of the read;
+         * C4-06c: also after a CANNOT_REJECT finding or a SUBMIT_TO_RECORD answer for a SIGNED request, and for a REFUSED
+         * request whose root could not be re-read (clarification 02 items 1 and 3) */
+        (elig.kind !== "recover" && (elig.kind === "finish" || inputSpentOffer || (isSigned && (submitRefusal || typeof withdrawRefusal === "string" || verifySubmitToRecord === true)) || (String(request.state) === "REFUSED" && rootUnreadable)) || (String(request.state) === "CHAIN_VERIFIED" && outcome.level === "warn")
+          ? `<button data-rootreconcile="${esc(request.rootCovenantId)}" data-rootreconcile-request="${esc(request.id)}">Verify state</button>`
+          : "") +
         `</div>` +
         `<details class="adv"><summary>Technical details</summary><div class="mono id">kind ${esc(request.kind)}${request.action ? ` · action ${esc(request.action)}` : ""}${request.actionClass ? ` · ${esc(request.actionClass)}` : ""} · state ${esc(request.state)}` +
         (request.signerVisibleDigest ? `<br/>signer-visible digest ${esc(request.signerVisibleDigest)}` : "") + (request.manifestHash ? `<br/>manifest hash ${esc(request.manifestHash)}` : "") + (request.txId ? `<br/>txid ${esc(request.txId)}` : "") + `</div></details>` +
@@ -2139,6 +2535,8 @@
       /* rooted-vault owner operations — browser initiation (R7-05) and reservation / withdrawal guidance (F-6) */
       VAULT_OPS, VAULT_OP_ORDER, SUPPORTED_ROOTED_PROFILE, vaultOpLabel, vaultOpInfo, vaultOpAvailability, vaultOpConfirmPhrase, vaultOpConfirmationMatches,
       vaultOpDraftFrom, validateVaultOpDraft, renderVaultOpFormHtml, vaultOperationSummary, withdrawEligibility, reservationGuidance,
+      /* RC45: delegate budget period start of a KAS treasury delegate-rule change */
+      isKasDelegateRuleChange, installedKasRows, finalizeDeadline, finalizeDeadlineText, finalizeDeadlineHtml,
       /* guided setup (owner UX directive 2026-09-05) */
       ROOT_STEPS, ROOT_COPY, FEE_ESTIMATE, VAULT_OP_LABEL,
       actionLabel, describeDelay, approxDelay, recoveryHelpText, successionHelpText, newOwnerSetRecoveryHelp, fuelInputIndex, fuelOwnerGate,

@@ -48,8 +48,10 @@ const {
   RESERVATION_LOCK_SCHEMA,
   reservationKey,
   consumeReservationForRequest,
+  reserveForSpendBuild,
   listReservationsV4
 } = require("../src/budget-reservation");
+const crypto = require("crypto");
 const { getStore, Categories } = require("../src/store");
 const { makeDevSigner } = require("../src/signer-dev");
 
@@ -250,31 +252,6 @@ test("ADVERSARIAL: sequential build -> reject -> rebuild (release works end-to-e
   await markWalletRejected(config, second.requestId);
 });
 
-test("ADVERSARIAL: finalize CONSUMES; consumed keeps counting until the manifest advances; exact-boundary admission", async () => {
-  await seedManifest([tightEntry()]);
-  const req = await buildSpend(20n);
-  const done = await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: devSign(req, agentA) });
-  assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
-  const resv = await listResv();
-  assert.equal(resv.length, 1);
-  assert.equal(resv[0].status, "CONSUMED");
-  assert.equal(resv[0].txId, done.txId, "consumption ties the finalized txid");
-  // consumed still counts: another 20 would make 40 > 30
-  await assert.rejects(() => buildSpend(20n), (e) => e.code === "BUDGET_RESERVED_EXCEEDED");
-  // exact boundary: 20 consumed + 10 = 30 <= 30 admits
-  const fill = await buildSpend(10n);
-  assert.equal(fill.state, RequestState.BUILT);
-  // and now the window is exactly full — 1 more KAS refuses, naming BOTH holders
-  await assert.rejects(
-    () => buildSpend(1n),
-    (e) => e.code === "BUDGET_RESERVED_EXCEEDED" && e.message.includes(req.requestId) && e.message.includes(fill.requestId)
-  );
-  await markWalletRejected(config, fill.requestId);
-  // NOTE: req is PREFLIGHT_VERIFIED (claims held) — its reservation stays
-  // CONSUMED until a manifest advance or reconciliation releases it; the
-  // next test re-seeds (new outpoint), which sweeps it as context-stale.
-});
-
 test("ADVERSARIAL: rollover (periodsElapsed >= 1) reserves the NEW window — independent of the current window's reservations", async () => {
   await seedManifest([tightEntry()]);
   const current = await buildSpend(20n); // window 541000000
@@ -429,4 +406,45 @@ test("SIMULATE: the dry-run path takes NO reservation and persists NOTHING (data
   assert.equal(out.ok, true, `simulation itself succeeds: ${JSON.stringify(out.refusalReason ?? null)}`);
   assert.equal(snapshot(), before, "simulate persisted NOTHING — no request, no reservation, no lock residue");
   assert.equal((await listResv()).length, 0);
+});
+
+/* LEAD-5 (lane checkpoint 6ff4539; docs/postlaunch/lead5-reconciliation-remediation.md):
+ * a finalized (PREFLIGHT_VERIFIED) request is a PROTECTED unresolved
+ * transition — the build pipeline refuses ANOTHER attempt on the vault
+ * (REQUEST_RECOVERY_REQUIRED) until request-scoped recovery resolves it.
+ * The reservation accounting ("consumed keeps counting until the manifest
+ * advances"; exact-boundary admission) is therefore asserted at the
+ * reservation layer through reserveForSpendBuild — the exact function the
+ * pipeline calls — with raw frozen builds, and the LEAD-5 refusal itself is
+ * asserted. This test runs LAST: its protected request stays unresolved by
+ * design (there is no chain here to reconcile against). */
+test("ADVERSARIAL: finalize CONSUMES; consumed keeps counting until the manifest advances; exact-boundary admission at the reservation layer; LEAD-5 protects the finalized request", async () => {
+  const manifest = await seedManifest([tightEntry()]);
+  const req = await buildSpend(20n);
+  const done = await finalizeWalletRequestV4({ config, requestId: req.requestId, signedSafeJson: devSign(req, agentA) });
+  assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
+  const resv = await listResv();
+  assert.equal(resv.length, 1);
+  assert.equal(resv[0].status, "CONSUMED");
+  assert.equal(resv[0].txId, done.txId, "consumption ties the finalized txid");
+  // LEAD-5: the pipeline refuses another attempt while the finalized request is unresolved (any amount).
+  await assert.rejects(() => buildSpend(20n), (e) => e.code === "REQUEST_RECOVERY_REQUIRED");
+  await assert.rejects(() => buildSpend(1n), (e) => e.code === "REQUEST_RECOVERY_REQUIRED");
+  // Reservation layer (raw frozen builds against the same live state):
+  const entry = manifest.agentRegistry[0];
+  const raw = (kas) => buildV4Transaction({
+    config, contractVersion: manifest.contractVersion, templateInput: { owner: template.owner, vaultId: VAULT_ID }, stateInput: stateToJsonV4(manifest.live.state),
+    action: "agentSpend",
+    params: { payAmountSompi: (kas * KAS).toString(), agentPk: XO(agentA), agents: manifest.agentRegistry.map((e) => ({ ...e.policy })), recipient: XO(recipient), recipients: [...entry.recipients], periodsElapsed: "0" },
+    chain: { predecessorOutpoint: manifest.live.outpoint, predecessorValue: (manifest.live.state.protectedValue + manifest.live.state.feeReserve).toString(), covenantId: manifest.live.covenantId },
+    changeXOnly: XO(agentA)
+  });
+  // consumed still counts: another 20 would make 40 > 30
+  await assert.rejects(() => reserveForSpendBuild(config, { manifest, build: raw(20n), requestId: crypto.randomUUID() }), (e) => e.code === "BUDGET_RESERVED_EXCEEDED" && e.message.includes(req.requestId));
+  // exact boundary: 20 consumed + 10 = 30 <= 30 admits
+  const fillId = crypto.randomUUID();
+  await reserveForSpendBuild(config, { manifest, build: raw(10n), requestId: fillId });
+  assert.equal((await listResv()).filter((r) => r.status === "ACTIVE" && r.requestId === fillId).length, 1, "the boundary fill holds an ACTIVE reservation");
+  // and now the window is exactly full — 1 more KAS refuses, naming BOTH holders
+  await assert.rejects(() => reserveForSpendBuild(config, { manifest, build: raw(1n), requestId: crypto.randomUUID() }), (e) => e.code === "BUDGET_RESERVED_EXCEEDED" && e.message.includes(req.requestId) && e.message.includes(fillId));
 });

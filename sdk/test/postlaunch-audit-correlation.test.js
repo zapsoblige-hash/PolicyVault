@@ -39,6 +39,11 @@ const { makeDevSigner } = require("../src/signer-dev");
 const { readAudit } = require("../src/audit");
 const { loadManifestRecord } = require("../../server/src/intent-records");
 const { computeManifestHashV1 } = require("../../core/intent");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pv-corr-"));
 const config = loadConfig({ dataRoot });
@@ -65,8 +70,9 @@ const REGISTRY = [
 ];
 
 let seedCounter = 0;
-async function seed() {
+async function seed(vaultId = VAULT_ID) {
   seedCounter += 1;
+  const template = { owner: XO(owner), vaultId };
   const outTxId = (0x50 + seedCounter).toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const policies = REGISTRY.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
   const agentRoot = buildAgentTreeV4(policies).root;
@@ -74,7 +80,7 @@ async function seed() {
   const compiled = compileExactStateV4({ config, template, state });
   const stateId = computeStateIdV4({ networkId: config.networkId, template, state });
   return await persistManifestV4(config, {
-    schema: MANIFEST_SCHEMA_V4, contractVersion: CONTRACT_VERSION_V4, networkId: config.networkId, vaultId: VAULT_ID,
+    schema: MANIFEST_SCHEMA_V4, contractVersion: CONTRACT_VERSION_V4, networkId: config.networkId, vaultId,
     label: "correlation test", status: "ACTIVE", template, agentRegistry: REGISTRY,
     live: { state: stateToJsonV4(state), stateId, outpoint: { transactionId: outTxId, index: 0 }, outpointValue: (state.protectedValue + state.feeReserve).toString(), scriptSha256: compiled.scriptSha256, covenantId: "41".repeat(32) },
     creationTxId: "42".repeat(32), latestTransitionTxId: null, lastTransition: null
@@ -98,8 +104,8 @@ function devSignAll(request, kp, secret) {
   const signer = makeDevSigner(config, { secretHex: SEC(secret), expectedAddress: ADDR(kp) });
   return signer.signInputs(request.transaction.unsignedSafeJson, request.transaction.signInputs);
 }
-const spend = () => POST(["wallet", "v4", "requests"], {
-  vaultId: VAULT_ID, action: "agentSpend",
+const spend = (vaultId = VAULT_ID) => POST(["wallet", "v4", "requests"], {
+  vaultId, action: "agentSpend",
   params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) },
   signerAddress: ADDR(agentA)
 });
@@ -166,9 +172,14 @@ test("a deleted manifest record fails closed at finalize (INTENT_MANIFEST_MISSIN
   await expectThrow(POST(["wallet", "v4", "requests", req.requestId, "signature"], { signedSafeJson: signed }), 409, "INTENT_MANIFEST_MISSING");
 });
 
+/* LEAD-5 (lane checkpoint 6ff4539): a finalized request PROTECTS its vault
+ * from another attempt (REQUEST_RECOVERY_REQUIRED); the two finalize tests
+ * therefore use their own vaults instead of the shared one. */
+const VAULT_LEGACY = "3b".repeat(32);
+const VAULT_INTACT = "3c".repeat(32);
 test("backward compatibility: a request predating manifest recording (no manifestHash) finalizes unchanged", async () => {
-  await seed();
-  const built = await spend();
+  await seed(VAULT_LEGACY);
+  const built = await spend(VAULT_LEGACY);
   const req = built.body.request;
   // simulate a pre-upgrade request: strip the stamp from the durable row
   const reqFile = path.join(dataRoot, "requests", `${req.requestId}.json`);
@@ -182,15 +193,17 @@ test("backward compatibility: a request predating manifest recording (no manifes
 });
 
 test("an intact manifest-stamped request finalizes through the gate to PREFLIGHT_VERIFIED", async () => {
-  await seed();
-  const built = await spend();
+  await seed(VAULT_INTACT);
+  const built = await spend(VAULT_INTACT);
   const req = built.body.request;
   const signed = devSignAll(req, agentA, 0x1e);
   const done = await POST(["wallet", "v4", "requests", req.requestId, "signature"], { signedSafeJson: signed });
   assert.equal(done.status, 200);
   assert.equal(done.body.request.state, "PREFLIGHT_VERIFIED");
+  // LEAD-5: the finalized request protects its vault from another attempt.
+  await expectThrow(spend(VAULT_INTACT), undefined, "REQUEST_RECOVERY_REQUIRED");
   // the PREFLIGHT_VERIFIED audit event (SDK writer) still correlates by txId
-  const events = await readAudit(config, { vaultId: VAULT_ID, limit: 50 });
+  const events = await readAudit(config, { vaultId: VAULT_INTACT, limit: 50 });
   assert.ok(events.some((e) => e.result === "PREFLIGHT_VERIFIED" && e.txId === req.txId));
 });
 

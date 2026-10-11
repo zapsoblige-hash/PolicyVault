@@ -162,7 +162,7 @@ form of the mutation.
 | M5 | Delegate key rotation | `delegate` (v0.2/v0.3) | `rotateDelegate` | any change EXPANSION (a new key gains authority) |
 | M6 | Agent added / removed | agent leaf keyed by `agentPk` (v0.4 family) | `ownerSetAgentRoot` | remove REDUCTION · add EXPANSION |
 | M7 | Agent policy edit | leaf `maxPerSpend`, `periodBudget`, `periodLengthDaa`, `approvalThreshold`, `agentMaxFeePerTx` | `ownerSetAgentRoot` | per §5 table |
-| M8 | Agent accounting rewrite | leaf `periodSpent`, `periodStartDaa` | `ownerSetAgentRoot` (root swap CAN rewrite leaf accounting — unlike v0.2/v0.3, where covenant rules preserve accounting) | spent increase REDUCTION · spent decrease (refund/reset) EXPANSION · any `periodStartDaa` change EXPANSION |
+| M8 | Agent accounting rewrite | leaf `periodSpent`, `periodStartDaa` | `ownerSetAgentRoot` (root swap CAN rewrite leaf accounting — unlike v0.2/v0.3, where covenant rules preserve accounting) | spent increase REDUCTION · spent decrease (refund/reset) EXPANSION · any `periodStartDaa` change EXPANSION (hosted exception: a later start with unchanged `periodSpent`, set by the pipeline for a new or changed leaf, is not an expansion — §6.2 step 4) |
 | M9 | Recipient allowlist edit | `recipient1..3`/`recipients` (v0.2), `recipientRoot` (v0.3), leaf `agentRecipientRoot` + registry `recipients` (v0.4) | `migratePolicy` (v0.2) / `ownerSetRecipientRoot` (v0.3) / `ownerSetAgentRoot` (v0.4) | removal REDUCTION · addition EXPANSION · bare root swap EXPANSION (opaque) |
 | M10 | Approval quorum change | `approvalM` (v0.3/v0.4) | `ownerSetApprovers` | increase REDUCTION · decrease EXPANSION |
 | M11 | Approver set change | `approver1..10` (v0.3/v0.4) | `ownerSetApprovers` | removal REDUCTION · addition EXPANSION · replacement EXPANSION |
@@ -224,7 +224,7 @@ Implemented as the pure function
 | leaf `maxPerSpend` | v0.4 family | decrease | increase | `AGENT_PER_SPEND_CAP_LOWERED` / `_RAISED` |
 | leaf `periodBudget` | v0.4 family | decrease | increase | `AGENT_PERIOD_BUDGET_LOWERED` / `_RAISED` |
 | leaf `periodLengthDaa` | v0.4 family | increase | decrease | `AGENT_PERIOD_LENGTHENED` / `AGENT_PERIOD_SHORTENED` |
-| leaf `periodStartDaa` | v0.4 family | never (temporal effect ambiguous — can open a fresh period early) | any change | `AGENT_PERIOD_PHASE_CHANGED` |
+| leaf `periodStartDaa` | v0.4 family | never (temporal effect ambiguous — can open a fresh period early). The hosted pipeline's own later start for a new or changed leaf (§6.2 step 4) is not a requested change and is not classified. | any change | `AGENT_PERIOD_PHASE_CHANGED` |
 | leaf `periodSpent` | v0.4 family | increase (records consumption) | decrease (refunds budget — a fresh lane; the "no policy migration grants a fresh budget" invariant made classifiable) | `AGENT_BUDGET_CONSUMPTION_RECORDED` / `AGENT_BUDGET_REFUNDED` |
 | leaf `approvalThreshold` | v0.4 family | decrease | increase | `AGENT_APPROVAL_THRESHOLD_LOWERED` / `_RAISED` |
 | leaf `agentMaxFeePerTx` | v0.4 family | decrease | increase | `AGENT_FEE_CAP_LOWERED` / `AGENT_FEE_CAP_RAISED` |
@@ -310,6 +310,20 @@ opaque/ambiguous change, and every migration (§8).
    `classifyPolicyDelta`, and only then requests the owner's wallet
    signature. The wallet renders the real bytes (the Phase G-grounded
    trust anchor).
+
+   Narrow exception for v0.4-family agent leaves: for a leaf the
+   approved change adds, replaces or re-policies, the hosted pipeline
+   commits `periodStartDaa = max(approved, DAA score at the build)` —
+   the start may be later than approved, never earlier — and commits
+   `periodSpent` exactly as approved. Moving a start later with the
+   spent amount unchanged never raises the amount the delegate can spend
+   at any time; classification stays on the approved change. A
+   proposal created through the API, SDK or Python client that requests
+   a start later than the network position at the build cannot be
+   executed from the web: the web review refuses to sign it. Execute
+   such a proposal through the API or SDK, or reject the built request
+   and create a new proposal (the build has already consumed the
+   proposal).
 5. **Reconciliation**: the proposal is COMPLETED only by proven chain
    reconciliation (txid verified, predecessor consumed, successor
    observed) — the existing pipeline discipline, unchanged.

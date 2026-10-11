@@ -3,6 +3,7 @@
 const { test, before, after } = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path");
 const f = require("../testutil/rc27f-fixtures"), { dep, fx, d, wr } = f;
+const { withFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
 const { outcomeRpc } = require("../testutil/rc27f-outcome-fixture");
 const { loadConfig } = require("../src/config"), { openPgStore } = require("../src/store");
 const rec = dep("sdk/src/reconcile-v7"), claims = dep("sdk/src/submission-claim"), hd = dep("sdk/src/wallet-requests-v7-hd"), C = fx.Categories;
@@ -113,7 +114,7 @@ for (const scenario of ["latest-delegate", "interleaved-agents", "replaced-agent
 });
 test("RC27F live PG F-6/F-7: independent owner signatures, cancellation and finalization share the root queue", { skip }, async () => {
   const x = await fresh(), other = await x.other(), third = await x.other();
-  const q = await wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1) });
+  const q = await withFixtureNode(x.config, () => wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1) }));
   async function response(config, slot, key) {
     const r = await wr.getOrCreateSlotSigningRequest({ config, requestId: q.id, slot });
     return { responseVersion: "policyvault-org-root-slot-response/1", requestVersion: r.requestVersion, requestId: r.requestId, network: r.network, manifestHash: r.manifestHash, txId: r.txId, root: r.root, slot: r.slot, signerAddress: fx.ADDR(config, key), signatureHex: fx.sign65(config, q.transaction.unsignedSafeJson, q.rootInputIndex, key), sighashType: 1, signedAtMs: Date.now() };

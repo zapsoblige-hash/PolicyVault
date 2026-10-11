@@ -179,15 +179,29 @@ without repeats. `outcome.state` is the highest rung reached (or `"REFUSED"`).
 ### 4.1 Refusal attribution (deliberate)
 
 `authorization.decision = REFUSED` means **PolicyVault never produced a
-verified authorization**: intent derivation failed, the recorded manifest no
-longer verifies, the signer-authority check refused (`AUTHORIZATION_FAILED`),
-or the policy quorum was not met (`INSUFFICIENT_APPROVALS`).
+verified authorization**. For a v0.4-family request
+(`server/src/attestations.js`), the refusal code is decided in this order, and
+the first match wins:
 
-Everything else that goes wrong AFTER a valid authorization — a declined
-wallet signature, an invalid signature, a stale predecessor, a claim conflict,
-a node rejection — exports as `decision: AUTHORIZED` with
-`disposition: FAILED` and the exact state as `failureCode`. Reporting a
-signer's own refusal as "PolicyVault refused" would misattribute it.
+| order | `refusalCode` | when |
+|---|---|---|
+| 1 | `INTENT_DERIVATION_FAILED` | intent derivation failed at build |
+| 2 | `GOVERNANCE_PROPOSAL_TERMINAL` | the request carries the governance refusal marker: the proposal it was admitted under was not consumed by it |
+| 3 | `INTENT_VERIFICATION_FAILED` | the recorded intent manifest no longer verifies |
+| 4 | `GOVERNANCE_PROPOSAL_UNKNOWN` or `GOVERNANCE_PROPOSAL_TERMINAL` | a governed request that the finalize/submit governance gate refuses, and that has no broadcast evidence (§4.2) |
+| 5 | `AUTHORIZATION_FAILED` | the signer-authority check refused |
+| 6 | `INSUFFICIENT_APPROVALS` | the policy quorum was not met |
+
+Everything else that goes wrong AFTER a valid authorization exports as
+`decision: AUTHORIZED` with `disposition: FAILED` and the exact state as
+`failureCode`. That covers a declined wallet signature, an invalid signature, a
+stale predecessor, a claim conflict and a node rejection. Reporting a signer's
+own refusal as "PolicyVault refused" would misattribute it.
+
+The one exception is governance (§4.2). A governed request that the gate
+refuses exports REFUSED even when its state is one of these post-authorization
+failures, because the gate refuses the governance authority it was built
+under.
 
 A REFUSED record therefore **may** carry a `VERIFIED_EXACT` intent verdict: the
 bytes can match their description exactly while authority is refused. The one
@@ -197,6 +211,216 @@ verification while also reporting that the verification passed.
 A REFUSED record carries **no ladder state and no transaction id** — a txid in
 an attestation implies a transaction that exists in the world, and a frozen
 but never-broadcast txid is not that.
+
+### 4.2 Governance refusals and the ladder
+
+**When a request is governed.** A v0.4 request is governed in either case:
+
+- it carries its own `governanceProposalId`;
+- the intent-manifest record it CREATED names a proposal. This is the binding
+  for requests that predate the field. A shared, content-identical record
+  binds only its creator.
+
+**How the decision is made.** The exporter decides a governed request on the
+same durable proposal truth as the finalize/submit gate: the proposal record
+plus its terminal-claim overlay, read through the gate's own helper
+(`governanceRefusalFor`, `server/src/intent-records.js`). It decides after
+intent-manifest verification and before the state refusals, which is the
+gate's precedence. The outcomes are:
+
+- **`GOVERNANCE_PROPOSAL_UNKNOWN`:** the bound proposal is missing, or it
+  belongs to another vault (an integrity alarm).
+- **`GOVERNANCE_PROPOSAL_TERMINAL`:** the bound proposal is not CONSUMED, or
+  another request consumed it.
+- **No record:** an unknown proposal or terminal-claim schema fails the export
+  with the gate's own `422 GOVERNANCE_SCHEMA_UNKNOWN`.
+
+**Broadcast evidence keeps the record.** The gate guards finalize and submit,
+so its refusal describes only a request that has not reached the broadcast
+pipeline. A request has broadcast evidence in either case:
+
+- its state is a broadcast-pipeline state (`SUBMITTING`, `SUBMITTED`,
+  `CHAIN_VERIFIED`, `SUBMISSION_REJECTED`, `RECONCILIATION_REQUIRED`,
+  `TERMINATED_UNKNOWN`);
+- its state carries an accepted signature (`SIGNED`, `FINALIZED`,
+  `PREFLIGHT_VERIFIED`) and a receipt exists for its txId.
+
+With broadcast evidence:
+
+- **A TERMINAL result is dropped.** The record keeps its AUTHORIZED ladder, and
+  a signed row with a receipt keeps its BROADCAST rung. It never becomes a
+  REFUSED record with `txId: null` over a broadcast or chain-verified
+  transaction.
+- **An UNKNOWN result fails the export closed** with the gate's own
+  `409 GOVERNANCE_PROPOSAL_UNKNOWN`. There is no record: never silently
+  AUTHORIZED, and never a REFUSED record that would erase the broadcast.
+
+Without broadcast evidence, a governed request that the gate refuses exports
+REFUSED with the gate's code, whatever its state. That includes these states:
+
+- `BUILT` and `AWAITING_APPROVALS`;
+- a signed pre-broadcast state;
+- the post-authorization failure states (`WALLET_REJECTED`,
+  `SIGNATURE_INVALID`, `PREFLIGHT_FAILED`, `STALE`, `CLAIM_CONFLICT`).
+
+This includes a governed row from RC42 that RC42 authorized but whose proposal
+it did not consume.
+
+A receipt on an unsigned row is not broadcast evidence. An unsigned row can
+hold one only through a content-identical request that shares its txid,
+through a Verify completion of an unsigned request that stopped after its
+receipt and before its relabel (RC45 R1-06 receipt-first order; the K5
+residual in the lead5 record, L-2), or through tampering.
+
+**The refusal marker.** The marker (order 2) is checked before the intent
+manifest and the durable proposal truth, and it presents REFUSED regardless of
+broadcast evidence. RC44 and later finalize and submit
+refuse a marked request. A marked request can therefore sit over a broadcast
+only after an image-only return to RC42, which ignores the marker.
+
+### 4.3 Verify settlements and the ladder (RC45)
+
+RC45's Verify settlement pass (`sdk/src/reconcile-v4.js`) changes a v0.4
+request's label only on positive chain evidence at a depth of 1,000 DAA. The
+exporter is unchanged. The resulting exports are as follows.
+
+**Receipts written by Verify.** A receipt Verify writes for a recorded
+request has this proof:
+
+```
+{ requestId, successorOutpoint | null, value, reconciled: true }
+```
+
+Verify writes it in two cases:
+
+- an exact output of the request's frozen transaction has been observed under
+  its txid at that depth, matched on value, script bytes, script version and
+  covenant binding (the txid commits to every output);
+- Verify finishes a transition the vault manifest already records. The
+  manifest advanced only on a positive observation.
+
+`successorOutpoint` names the covenant successor. For a terminal recover it is
+`null`, so a completed Close & recover exports at most BROADCAST (§10, item 5).
+The same applies to a recover that Verify completes from an owner-pasted
+transaction: its receipt names the consumed outpoint and the recovered value,
+not a successor.
+
+**STALE means superseded or overtaken.**
+
+- **The Verify writer.** Verify writes STALE on a PENDING request whose
+  predecessor outpoint another transaction spent. That transaction must be
+  observed at depth, carry a different txid, and spend exactly that outpoint.
+  The vault's history row `transition_superseded` names the request, its txid,
+  the winning txid and the depth. The attestation does not name the winner.
+- **The finalize and submit writers.** Finalize (on a BUILT request) and
+  submit (on a PREFLIGHT_VERIFIED request) write STALE when the live manifest
+  has moved to another state or outpoint through another transaction. They
+  never do so when a receipt of the request's own transaction names it with
+  its expected output and value: they answer `422 RECONCILIATION_REQUIRED`
+  and write nothing. Verify finishes a request in a signed state (or
+  SUBMISSION_REJECTED) from that receipt; an unsigned one is not finished
+  from its receipt: once the manifest records its advance it keeps its label
+  (lead5 record, L-2); before that, the next Verify at depth completes it by
+  observing its spend.
+- **What the export shows.** A STALE request exports
+  `decision: AUTHORIZED`, `disposition: FAILED`, `failureCode: STALE`. Its only
+  rung is AUTHORIZED and `txId` is `null`, even when the request had been
+  signed.
+- **Governed requests.** STALE is not broadcast evidence, so §4.2 applies.
+- **Final.** A STALE written by Verify is final: its input is spent at depth,
+  and a deeper reorganization is detected by Verify but not repaired.
+- **What RC45 no longer does.** RC45 never writes STALE because a predecessor
+  is absent or a manifest is closed. Earlier releases did, and their rows keep
+  the label.
+
+**Twins: CHAIN_VERIFIED only for signed states.** Receipts are keyed by txId,
+so content-identical requests that share one transaction (the same fuel) share
+one receipt. When Verify completes the winner:
+
+- **A signed twin is completed.** This covers a twin in `SIGNED`, `FINALIZED`,
+  `PREFLIGHT_VERIFIED`, `SUBMITTING`, `SUBMITTED`, `RECONCILIATION_REQUIRED`,
+  `TERMINATED_UNKNOWN` or `SUBMISSION_REJECTED`. Verify writes it
+  `CHAIN_VERIFIED`, and through the shared receipt it exports the same ladder
+  as the winner (the full ladder, or BROADCAST for a recover).
+- **An unsigned twin is left unchanged.** This covers a twin that never
+  carried an accepted signature: `BUILT`, `AWAITING_APPROVALS`, or closed
+  before signing. It keeps the ladder its own label gives it, with no BROADCAST
+  rung despite the shared receipt.
+- **A governed unsigned twin** that the gate refuses keeps its REFUSED record
+  (§4.2). Completing it would present a governance refusal as a settled
+  authorization.
+
+**The winner's request (the primary).** Of the identity-valid recorded
+requests that share the observed txid, Verify's primary is the earliest one in
+a signed state or `SUBMISSION_REJECTED`, else the earliest one. A primary
+outside those states has a label that carries no accepted signature: `BUILT`,
+`AWAITING_APPROVALS`, or a closed state such as `WALLET_REJECTED`, `STALE` or
+`CLAIM_CONFLICT`.
+
+- **Governance-refused: never relabelled.** When the governance gate refuses
+  such a primary (§4.2: `governanceRefusalFor`, on the evidence the exporter
+  uses), Verify advances the vault manifest by the observed txid
+  (`lastTransition` records the action, the txid and both outpoints) and
+  supersedes the losers as for any winner. It does not relabel the request and
+  writes no receipt naming it. Its history row is `reconciled_advanced` with
+  `via: "governance-refused-request-txid"` and the txid. The `ADVANCED` answer
+  names the txid but carries no `requestId`. The request keeps its label and
+  exports REFUSED on every export path (§4.2). The hosted finalize and submit
+  routes still refuse it at the finalize/submit gate (`409`, for example
+  `GOVERNANCE_PROPOSAL_TERMINAL`) and write nothing. An unknown proposal or
+  terminal-claim schema fails the Verify with `422` and nothing written.
+- **Any other primary is completed:** `CHAIN_VERIFIED` with a receipt naming
+  it. This includes an ungoverned unsigned request and a governed one that
+  consumed its proposal.
+
+**The SIGNED rung without PolicyVault-held bytes.** Verify can complete an
+ungoverned request (or a governed one that consumed its proposal) for which
+PolicyVault holds no signed bytes, for example a `BUILT` request whose
+transaction was signed outside PolicyVault. It reaches `CHAIN_VERIFIED`
+although PolicyVault never accepted a signature for it, so its SIGNED rung is
+evidenced by the chain instead:
+
+- the transaction whose id the build fixed is accepted and observed at a depth
+  of at least 1,000 DAA;
+- a Kaspa transaction id commits to every field of the transaction except the
+  signature scripts and the mass commitment (rusty-kaspa v2.0.1
+  `consensus/core/src/hashing/tx.rs`);
+- consensus accepts a transaction only when every input's signature script
+  satisfies the script it spends. So consensus accepted valid signatures for
+  exactly the bytes the build fixed.
+
+The rung says nothing more about the signing key. The chain does not identify
+which key produced the signatures or which script branch they satisfied, only
+that they satisfied the spent scripts.
+`authorization.signerXOnly` remains the signer the request recorded at build.
+The rung is present because `outcome.reached` must be a contiguous prefix of
+the ladder (`core/attest` refuses any other shape as `LADDER_ORDER_INVALID`).
+CHAIN_VERIFIED cannot be reported without SIGNED below it, and leaving out
+CHAIN_VERIFIED would hide a proven chain effect.
+
+**Late landing.** An attestation is a point-in-time export (§3). A label
+short of `CHAIN_VERIFIED` is not final while the request's own transaction can
+still be accepted. Examples:
+
+- `SUBMISSION_REJECTED` after a non-permanent node rejection;
+- `RECONCILIATION_REQUIRED` or `TERMINATED_UNKNOWN`;
+- a signed request that was never submitted;
+- a race loser closed `CLAIM_CONFLICT` before its signed bytes were stored;
+- a historical STALE written on absence.
+
+When Verify later observes that transaction at depth, it attributes it by
+txid, whatever the label. It writes `CHAIN_VERIFIED` with a receipt, and a
+later export shows the full ladder (`SETTLED`), or BROADCAST for a recover.
+The exception is a primary outside the signed states and `SUBMISSION_REJECTED`
+that the governance gate refuses. It keeps its label and its REFUSED record
+(above).
+
+Historical signed rows are an exception. These are rows whose transaction an
+earlier vault reconcile proved: their receipt has no `requestId` and their
+state was left unchanged. They keep the BROADCAST rung that a receipt gives a
+signed row. Verify completes them to `CHAIN_VERIFIED` only when their
+transaction is the vault's last recorded transition; otherwise they keep their
+label.
 
 ---
 
@@ -259,7 +483,8 @@ reports it. Present cases:
 `outcome.chain.outputs` lists **outputs whose presence PolicyVault actually
 proved**, each with the address a reader must query. From the hosted pipeline
 that is exactly the successor outpoint the receipt proves (receipts are written
-only after `proveExpectedEffectV4`); the remaining outputs of the same
+only after chain proof: `proveExpectedEffectV4` on submit, or the Verify
+settlement's observation at depth, §4.3); the remaining outputs of the same
 transaction are described by the referenced intent manifest and are **not**
 claimed as observed.
 

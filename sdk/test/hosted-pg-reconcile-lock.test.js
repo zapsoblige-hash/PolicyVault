@@ -32,6 +32,11 @@ const { claimSubmission } = require("../src/submission-claim");
 const { loadManifestV4 } = require("../src/manifest-v4");
 const { CONTRACT_VERSION_V4_1 } = require("../../core/model/vault-state-v4.js");
 const { ENCODER_PATH } = require("../src/vault-builders-v4");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const PG = {
   host: process.env.POLICYVAULT_TEST_PG_HOST || "127.0.0.1",

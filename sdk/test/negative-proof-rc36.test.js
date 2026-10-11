@@ -14,6 +14,11 @@ const { createHarness } = require("./helpers/v7-kas-mock-harness");
 const { KAS, answers, scriptedRpc, toolchainSkip } = require("./helpers/rc35-recovery-fixtures");
 const K = require("../src/wallet-requests-v7-kas");
 const { findVaultIdentityReservation } = require("../src/vault-identity");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 const SKIP = toolchainSkip("pv-negative-proof-rc36-prereq-");
 function configFor(t) {
   const config = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-negative-proof-rc36-")) });

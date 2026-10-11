@@ -132,6 +132,24 @@ async function requireWalletRequest(config, principal, request, { mutation = fal
   }
   return request;
 }
+/*
+ * RC45 AZ-01: rejecting a /wallet/v7 request (v0.7-kas, v0.7-payment and
+ * v0.7-payment-hd alike) is for the request's signer or an ACTIVE owner slot
+ * of the vault's organizational root. Called after requireWalletRequest's
+ * mutation gate, which already answered 404 to a principal that cannot see
+ * the request and 403 to an approver-only one; any other participant (another
+ * delegate included) gets 403 REQUEST_FORBIDDEN before anything is written.
+ * Machine credentials act as the wallet that minted them. Self-hosted mode is
+ * unchanged.
+ */
+async function requireWalletRequestRejecter(config, principal, request) {
+  if (!config.tenancyEnforced) return;
+  const signer = tenancy.xOnlyOfAddress(config, request.signerAddress);
+  if (signer && signer === principal.xOnlyPubkey) return; // an unresolvable stored signer never grants rejection
+  const loaded = await loadAnyManifestAll(config, request.vaultId).catch(() => null);
+  if (loaded && (await tenancy.anyVaultAccessAllowed(config, loaded, principal, "owner"))) return; // rooted: the root's active owner slots
+  throw forbidden("REQUEST_FORBIDDEN", "only the wallet that signs this request or an active owner of the vault's organizational root may reject it");
+}
 
 const AUTHORITY_MODEL = Object.freeze({
   ON_CHAIN_ORGANIZATIONAL_ROOT: "ON_CHAIN_ORGANIZATIONAL_ROOT",
@@ -226,6 +244,10 @@ const STATUS_BY_CODE = Object.freeze({
   CLAIM_CONFLICT: 409,
   NETWORK_MISMATCH: 409,
   CANNOT_REJECT: 409,
+  PERIOD_START_REQUIRED: 422, // RC45 delegate period-start rule: the synced node's DAA score could not be read, so a new or changed delegate's start was refused rather than guessed
+  PERIOD_START_STALE: 409, // RC45 delegate period-start rule: a new or changed delegate's start aged past its window; the request was left unchanged
+  RECORDED_OUTPUT_SPENT: 409, // RC45 L2-01 D6 build-time liveness guard: a recorded root or v0.7-kas treasury output the synced node does not report unspent; nothing was written (a conflict with recorded chain state, never a validation answer)
+  TREASURY_STATE_UNRESOLVED: 409, // RC45 L2-01 D7: the v0.7-kas treasury is UNRESOLVED after an attributed out-of-band move; hosted actions on it are refused and nothing was written
   /* wallet-requests-v7.js follows the established v4 convention of using
    * the request's CURRENT STATE as the error code when an action is
    * attempted from the wrong state ("request is SIGNED, not AUTHORIZED")
@@ -407,13 +429,22 @@ function presentOrgRootRequestHd(request) {
 
 /* v0.7-kas ROOTED KAS SAFE-PAYMENT VAULT (CANDIDATE) presentation — v0.7 enablement (2026-09-10). Everything an owner,
  * delegate or approver needs to review truthfully: the protected principal and fee reserve, the installed delegate
- * registry (exact policies + recipients), the vault-level approver slots and threshold M, the pinned recovery key. */
-function presentRootedKasVaultSummary(manifest) {
+ * registry (exact policies + recipients), the vault-level approver slots and threshold M, the pinned recovery key.
+ * RC45 L2-01 D7 (C4-05): `stateUnresolved` is { requestId, txId } (the attributed root request and its transaction) when
+ * the treasury is UNRESOLVED (sdk/src/wallet-requests-v7.js treasuryUnresolved), else null. When it is set, the state
+ * fields (status, generation, latestTransitionTxId, agents, approvers, approvalM, live) are the LAST RECORD — the
+ * predecessor that a transaction broadcast outside PolicyVault consumed — never the treasury's current state. The caller
+ * determines it first (treasuryUnresolvedForSummaries); an undetermined state is refused, never presented as null. */
+function presentRootedKasVaultSummary(manifest, stateUnresolved) {
+  if (stateUnresolved === undefined || (stateUnresolved !== null && (typeof stateUnresolved.requestId !== "string" || typeof stateUnresolved.txId !== "string"))) {
+    throw orgRootsError(500, "TREASURY_STATE_UNDETERMINED", `treasury ${manifest && manifest.vaultId}'s UNRESOLVED state was not determined; its record is not presented as current`);
+  }
   const state = manifest.live ? manifest.live.state : null;
   return {
     vaultId: manifest.vaultId,
     label: manifest.label,
     status: manifest.status,
+    stateUnresolved: stateUnresolved === null ? null : { requestId: stateUnresolved.requestId, txId: stateUnresolved.txId },
     orgRootCovenantId: manifest.orgRootCovenantId,
     authorityModel: AUTHORITY_MODEL.ON_CHAIN_ORGANIZATIONAL_ROOT,
     contractVersion: manifest.contractVersion,
@@ -437,6 +468,49 @@ function presentRootedKasVaultSummary(manifest) {
         }
       : null
   };
+}
+/* RC45 L2-01 D7 (C4-05): the UNRESOLVED state of each listed v0.7-kas treasury, from ONE listing of each root's requests
+ * (records only; the predicate stays in the SDK: wr7.treasuryUnresolvedOfRoot). Returns manifest -> { requestId, txId } |
+ * null; a store error propagates (the summary is refused, never served with the state shown as null). */
+async function treasuryUnresolvedForSummaries(config, manifests) {
+  const byRoot = new Map();
+  for (const manifest of manifests) {
+    if (!byRoot.has(manifest.orgRootCovenantId)) byRoot.set(manifest.orgRootCovenantId, await wr7.treasuryUnresolvedOfRoot(config, manifest.orgRootCovenantId));
+  }
+  return (manifest) => byRoot.get(manifest.orgRootCovenantId)(manifest);
+}
+
+/*
+ * RC45 C4-05 (C4-03b item check F-07): POST /org-roots/:id/reconcile serves the SDK's reconcile answer unchanged, except
+ * that `root.treasuryUpgrades` is served in this defined shape. The field is present only when that Verify upgraded at
+ * least one v0.7-kas treasury left UNRESOLVED by a PARTIAL attribution (sdk/src/wallet-requests-v7.js
+ * upgradePartialAttributions, called from reconcile-v7's live branch); otherwise it is absent, never null or empty.
+ * It is a list with one entry per upgraded treasury, each exactly these ten string fields:
+ *   vaultId           the treasury the upgrade wrote
+ *   requestId, txId   the attributed root request A and its transaction, broadcast outside PolicyVault
+ *   from              "PARTIAL"   (A's marker mode before the upgrade)
+ *   mode              "FULL"      (A's marker mode after it)
+ *   treasury          "ADVANCED"  (the treasury state A's marker now records)
+ *   outpoint          "<txId>:<index>", A's treasury output, which the treasury record now follows
+ *   depthDaa          the age, in DAA, of that output's acceptance when it was observed unspent (not the age of any
+ *                     reorganization that made it unspent again)
+ *   requiredDepthDaa  "1000"
+ *   reason            the SDK's sentence stating what was observed and written
+ * An entry reports only what that Verify freshly observed and recorded (that treasury record, A's marker and one event
+ * line); it never states that anything was recovered. An answer whose treasuryUpgrades does not have this shape is
+ * refused (500), never served in part.
+ */
+const TREASURY_UPGRADE_FIELDS = Object.freeze(["vaultId", "requestId", "txId", "from", "mode", "treasury", "outpoint", "depthDaa", "requiredDepthDaa", "reason"]);
+function presentReconcileAnswer(result) {
+  if (!result || !result.root || typeof result.root !== "object" || !Object.prototype.hasOwnProperty.call(result.root, "treasuryUpgrades")) return result;
+  const upgrades = result.root.treasuryUpgrades;
+  const undefinedShape = () => orgRootsError(500, "RECONCILE_ANSWER_SHAPE", "the Verify's treasuryUpgrades do not have the defined shape; the answer is not served (the records it wrote stand; Verify again to read them)");
+  if (!Array.isArray(upgrades) || upgrades.length === 0) throw undefinedShape();
+  const presented = upgrades.map((u) => {
+    if (!u || typeof u !== "object" || !TREASURY_UPGRADE_FIELDS.every((k) => typeof u[k] === "string")) throw undefinedShape();
+    return Object.fromEntries(TREASURY_UPGRADE_FIELDS.map((k) => [k, u[k]]));
+  });
+  return { ...result, root: { ...result.root, treasuryUpgrades: presented } };
 }
 function presentKasWalletRequest(request) {
   if (!request) return null;
@@ -540,7 +614,8 @@ async function dispatchOrgRoots(config, method, segments, query, body, principal
     const vaults = await listRootedVaultsV7(config, { orgRootCovenantId: rootId });
     const hdVaults = await wr7hd.listRootedHdVaultsV7(config, { orgRootCovenantId: rootId });
     const kasVaults = await wr7kas.listRootedKasVaultsV7(config, { orgRootCovenantId: rootId });
-    return { status: 200, body: { vaults: [...vaults.map(presentRootedVaultSummary), ...hdVaults.map(presentRootedHdVaultSummary), ...kasVaults.map(presentRootedKasVaultSummary)] } };
+    const unresolvedOf = await treasuryUnresolvedForSummaries(config, kasVaults); // RC45 L2-01 D7: one listing of this root's requests
+    return { status: 200, body: { vaults: [...vaults.map(presentRootedVaultSummary), ...hdVaults.map(presentRootedHdVaultSummary), ...kasVaults.map((m) => presentRootedKasVaultSummary(m, unresolvedOf(m)))] } };
   }
 
   // POST /org-roots/:rootId/vaults  { profile, label, descriptor,
@@ -614,7 +689,7 @@ async function dispatchOrgRoots(config, method, segments, query, body, principal
   if (method === "POST" && segments.length === 3 && segments[2] === "reconcile") {
     if (config.tenancyEnforced) await loadRootScoped(config, rootId, principal, "owner"); // F-04
     const result = await reconcileOrgRootV7(config, rootId);
-    return { status: 200, body: { reconcile: result } };
+    return { status: 200, body: { reconcile: presentReconcileAnswer(result) } }; // RC45 C4-05: treasuryUpgrades in its defined shape
   }
 
   if (segments.length >= 3 && segments[2] === "requests") {
@@ -757,10 +832,17 @@ async function dispatchWalletV7(config, method, segments, query, body, principal
     const kas = await wr7kas.listRootedKasVaultsV7(config, {});
     const payment = await listRootedVaultsV7(config, {});
     const out = [];
-    for (const [version, list, present] of [["v7kas", kas, presentRootedKasVaultSummary], ["v7", payment, presentRootedVaultSummary]]) {
+    for (const [version, list] of [["v7kas", kas], ["v7", payment]]) {
+      const shown = [];
       for (const manifest of list) {
         if (config.tenancyEnforced && !(await tenancy.anyVaultAccessAllowed(config, { version, manifest }, principal, "read"))) continue;
-        out.push(present(manifest));
+        shown.push(manifest);
+      }
+      if (version === "v7kas") {
+        const unresolvedOf = await treasuryUnresolvedForSummaries(config, shown); // RC45 L2-01 D7: one listing per root of the shown treasuries
+        for (const manifest of shown) out.push(presentRootedKasVaultSummary(manifest, unresolvedOf(manifest)));
+      } else {
+        for (const manifest of shown) out.push(presentRootedVaultSummary(manifest));
       }
     }
     return { status: 200, body: { vaults: out } };
@@ -853,7 +935,8 @@ async function dispatchWalletV7(config, method, segments, query, body, principal
   if (method === "POST" && segments.length === 5 && segments[2] === "requests" && segments[4] === "reject") {
     const existingHd = await wr7hd.loadHdWalletRequest(config, segments[3]);
     const existingKas = existingHd ? null : await wr7kas.loadKasWalletRequest(config, segments[3]);
-    await requireWalletRequest(config, principal, existingHd ?? existingKas ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
+    const rejecting = await requireWalletRequest(config, principal, existingHd ?? existingKas ?? (await wr7.loadV7WalletRequest(config, segments[3])), { mutation: true }); // F-04
+    await requireWalletRequestRejecter(config, principal, rejecting); // RC45 AZ-01: the signer or an active root owner
     if (existingHd) {
       const request = await wr7hd.markHdWalletRejected(config, segments[3]);
       return { status: 200, body: { request } };
@@ -879,5 +962,7 @@ module.exports = {
   presentRootedKasVaultSummary,
   presentKasWalletRequest,
   presentV7WalletRequest,
+  presentReconcileAnswer,
+  TREASURY_UPGRADE_FIELDS,
   mapError
 };

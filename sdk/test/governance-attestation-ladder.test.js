@@ -1,8 +1,8 @@
 "use strict";
 /*
  * GOVERNANCE-ATTESTATION-LADDER-01 — RC44 STORE-PATH PORT (finding FLC-01 of
- * rc44-lr-fixlist-01-confirmation; lane source de1aab2, reviewed by
- * governance-attestation-ladder-independent-01/-02).
+ * the RC44 fix-list confirmation review; ported from the development lane's
+ * ladder change, with its own independent reviews).
  *
  * The RC44 finalize/submit gate (GOVERNANCE-TERMINAL-RACE-01 IR-02) decides
  * a governed v0.4 request on DURABLE proposal truth: the request is bound by
@@ -38,11 +38,11 @@
  * txId, so an UNSIGNED row can hold one only through a content-identical
  * request sharing its txId (the TWIN population: an RC42 defect row whose
  * retry with a new proposal and the same fuel executed) or tampering; the
- * 2c6e336 ladder shows no broadcast for such a row, so it is REFUSED like
+ * pre-port ladder shows no broadcast for such a row, so it is REFUSED like
  * the gate (pinned below from RC42-written twins and from a post-upgrade
  * retry built by the candidate). A request with broadcast evidence went
  * through a gate that admitted it (RC42 has no governance re-check), so:
- *   - a TERMINAL result keeps the exact pre-port (2c6e336) ladder, never a
+ *   - a TERMINAL result keeps the exact pre-port ladder, never a
  *     REFUSED record with txId null over a broadcast or chain-verified
  *     transaction (pinned below from RC42-written SUBMITTED,
  *     CHAIN_VERIFIED + receipt and RECONCILIATION_REQUIRED rows);
@@ -100,10 +100,10 @@ const RC42_WRITER_PINS = Object.freeze({
 const POST_GATE_STATES = Object.freeze(["SUBMITTING", "SUBMITTED", "CHAIN_VERIFIED", "RECONCILIATION_REQUIRED", "SUBMISSION_REJECTED", "TERMINATED_UNKNOWN"]);
 const PRE_BROADCAST_DEFECT_STATES = Object.freeze(["FINALIZED", "PREFLIGHT_VERIFIED"]);
 
-/* The EXACT pre-port (2c6e336) ladder of an AUTHORIZED v0.4 request in a
- * broadcast-pipeline state (server/src/attestations.js, unchanged at
- * 2c6e336). These assertions pass on the unmodified 2c6e336 tree — that is
- * what makes them the 2c6e336 ladder. */
+/* The EXACT pre-port ladder of an AUTHORIZED v0.4 request in a
+ * broadcast-pipeline state (server/src/attestations.js, unchanged before
+ * the port). These assertions pass on the unmodified pre-port tree — that
+ * is what makes them the pre-port ladder. */
 function historyLadder(state, txId, successorIndex) {
   const base = { decision: "AUTHORIZED", refusalCode: null, failureCode: null, txId: null, outputs: 0, successorOutpoint: null };
   switch (state) {
@@ -123,12 +123,12 @@ function historyLadder(state, txId, successorIndex) {
   }
 }
 const REFUSED_TERMINAL_LADDER = Object.freeze({ decision: "REFUSED", refusalCode: "GOVERNANCE_PROPOSAL_TERMINAL", failureCode: null, txId: null, outputs: 0, successorOutpoint: null, state: "REFUSED", disposition: "REFUSED", reached: [] });
-/* The EXACT 2c6e336 ladder of an AUTHORIZED v0.4 request in a signed
+/* The EXACT pre-port ladder of an AUTHORIZED v0.4 request in a signed
  * pre-pipeline state (FINALIZED, PREFLIGHT_VERIFIED — attestations.js
  * SIGNED_STATES) with a receipt for its txId: the SIGNED rung, then the
  * receipt as the BROADCAST rung with the txId; the state is not
  * CHAIN_VERIFIED, so no chain rung and no outputs. Outside the broadcast
- * pipeline, 2c6e336 turns a receipt into a BROADCAST rung only for a row in
+ * pipeline, the pre-port ladder turns a receipt into a BROADCAST rung only for a row in
  * SIGNED_STATES (SIGNED, FINALIZED, PREFLIGHT_VERIFIED): the rung needs the
  * SIGNED rung before it. */
 function reconciledSignedLadder(txId) {
@@ -179,7 +179,7 @@ async function advanceRequest(req, config, requestId, target) {
 /* Persist the receipt the VAULT RECONCILE writes for a claimed transaction
  * proven on chain (sdk/src/reconcile-v4.js reconcileVaultV4, the
  * `persistReceipt` after `advanceFromClaim`; byte-identical at a84e2a9 and
- * 2c6e336): keyed by the txId, proof without requestId, `reconciled: true`,
+ * before the port): keyed by the txId, proof without requestId, `reconciled: true`,
  * and the request row's state is NOT changed. Driven through the GIVEN
  * tree's own persistReceipt. Durable-record synthesis (no node): the chain
  * proof itself is not performed. Returns the successor output index. */
@@ -260,8 +260,8 @@ function sha256File(p) {
 
 /* ======================================================================
  * RC42 WRITER (child process; executes ONLY a84e2a9 modules). The exact
- * scenario of the confirmation probe (rc44-lr-fixlist-01-confirmation
- * probe/phase1-rc42.js): (B) a control governed build consumed normally;
+ * scenario of the RC42 probe of the fix-list confirmation review (its
+ * phase-1 RC42 writer): (B) a control governed build consumed normally;
  * (A) the RC42 defect — a cancel lands between build admission and
  * consumption, the build answers 409 GOVERNANCE_PROPOSAL_TERMINAL but a
  * BUILT request persists with no governanceProposalId and no marker.
@@ -420,7 +420,7 @@ if (process.argv[2] === "rc42-writer") {
 
   const CAND = (p) => require(path.join(__dirname, "..", "..", p));
   const GOV_SOURCE = "policyvault-governance-proposal-record/v1";
-  // The gate's refusals, byte-exact as 2c6e336 throws them (unchanged by the port).
+  // The gate's refusals, byte-exact as the pre-port tree throws them (unchanged by the port).
   const GATE = Object.freeze({
     UNKNOWN: { status: 409, code: "GOVERNANCE_PROPOSAL_UNKNOWN", message: "the governance proposal recorded for this request no longer exists for its vault — integrity alarm, failing closed" },
     TERMINAL: { status: 409, code: "GOVERNANCE_PROPOSAL_TERMINAL", message: "the governance proposal recorded for this request was not consumed by it — refusing to finalize/submit" },
@@ -616,7 +616,7 @@ if (process.argv[2] === "rc42-writer") {
         assert.ok(!att.sources.includes(GOV_SOURCE), "decided before governance, exactly like the gate");
       });
 
-      /* ---------------- the ladder now agrees with the gate (RED on 2c6e336) ---------------- */
+      /* ---------------- the ladder now agrees with the gate (RED before the port) ---------------- */
 
       test("crash before the refusal marker: the ladder refuses on durable proposal truth exactly like the gate", async () => {
         await seed();
@@ -857,7 +857,7 @@ if (process.argv[2] === "rc42-writer") {
         assert.ok(ok.sources.includes(GOV_SOURCE), "the proposal record is read (integrity check) and declared");
       });
 
-      test("a governed request NOT consumed by it (crash before the marker) that nevertheless reached the broadcast pipeline keeps the exact 2c6e336 ladder in every post-gate state; the gate still refuses (unchanged)", async () => {
+      test("a governed request NOT consumed by it (crash before the marker) that nevertheless reached the broadcast pipeline keeps the exact pre-port ladder in every post-gate state; the gate still refuses (unchanged)", async () => {
         const declared = {};
         for (const target of POST_GATE_STATES) {
           await seed();
@@ -878,7 +878,7 @@ if (process.argv[2] === "rc42-writer") {
         assert.deepEqual(declared, Object.fromEntries(POST_GATE_STATES.map((t) => [t, true])));
       });
 
-      test("crash between the CHAIN_VERIFIED state save and the receipt persist (no receipt yet): the state alone is broadcast evidence and the 2c6e336 ladder (BROADCAST, IN_PROGRESS) is kept", async () => {
+      test("crash between the CHAIN_VERIFIED state save and the receipt persist (no receipt yet): the state alone is broadcast evidence and the pre-port ladder (BROADCAST, IN_PROGRESS) is kept", async () => {
         await seed();
         const { marked } = await refusedBuild();
         const unmarked = { ...marked, state: "CHAIN_VERIFIED" };
@@ -907,7 +907,7 @@ if (process.argv[2] === "rc42-writer") {
         }
       });
 
-      test("a persisted receipt for the request's txId on an UNSIGNED row (BUILT) is not broadcast evidence: the row carries no accepted signature and 2c6e336 shows no broadcast for it, so it is REFUSED like the gate (review finding R2-F01)", async () => {
+      test("a persisted receipt for the request's txId on an UNSIGNED row (BUILT) is not broadcast evidence: the row carries no accepted signature and the pre-port ladder shows no broadcast for it, so it is REFUSED like the gate (review finding R2-F01)", async () => {
         await seed();
         const { marked } = await refusedBuild();
         const unmarked = { ...marked };
@@ -927,7 +927,7 @@ if (process.argv[2] === "rc42-writer") {
         assert.ok(sources.includes("policyvault-receipt/v1"), "the receipt was read and is declared");
       });
 
-      test("the VAULT-RECONCILE population: a SIGNED row (FINALIZED, PREFLIGHT_VERIFIED) whose own transaction the vault reconcile proved (receipt without requestId, row state unchanged) keeps the exact 2c6e336 BROADCAST ladder; the gate still refuses (unchanged)", async () => {
+      test("the VAULT-RECONCILE population: a SIGNED row (FINALIZED, PREFLIGHT_VERIFIED) whose own transaction the vault reconcile proved (receipt without requestId, row state unchanged) keeps the exact pre-port BROADCAST ladder; the gate still refuses (unchanged)", async () => {
         const declared = {};
         for (const target of ["FINALIZED", "PREFLIGHT_VERIFIED"]) {
           await seed();
@@ -951,7 +951,7 @@ if (process.argv[2] === "rc42-writer") {
         assert.deepEqual(declared, { FINALIZED: true, PREFLIGHT_VERIFIED: true }, "the proposal record was read (integrity check) and is declared");
       });
 
-      test("a receipt for the request's txId on a row OUTSIDE SIGNED_STATES and the broadcast pipeline (AWAITING_APPROVALS, the failure states, a refusal state) is not broadcast evidence: 2c6e336 presents no broadcast for these states, so the row is REFUSED like the gate", async () => {
+      test("a receipt for the request's txId on a row OUTSIDE SIGNED_STATES and the broadcast pipeline (AWAITING_APPROVALS, the failure states, a refusal state) is not broadcast evidence: the pre-port ladder presents no broadcast for these states, so the row is REFUSED like the gate", async () => {
         for (const target of ["AWAITING_APPROVALS", "WALLET_REJECTED", "SIGNATURE_INVALID", "PREFLIGHT_FAILED", "STALE", "CLAIM_CONFLICT", "AUTHORIZATION_FAILED"]) {
           await seed();
           const { marked } = await refusedBuild();
@@ -1100,7 +1100,7 @@ if (process.argv[2] === "rc42-writer") {
       }
 
       for (const target of POST_GATE_STATES) {
-        test(`RC42 defect row in ${target} (past RC42's gate): the attestation keeps the exact 2c6e336 ladder on the store path, the request route and the vault export; the candidate gate is unchanged (409 TERMINAL)`, async () => {
+        test(`RC42 defect row in ${target} (past RC42's gate): the attestation keeps the exact pre-port ladder on the store path, the request route and the vault export; the candidate gate is unchanged (409 TERMINAL)`, async () => {
           const { c, request } = await loadCase(`DEF_${target}`);
           const expected = historyLadder(target, request.txId, c.successorIndex);
           assert.deepEqual(await gateOf(config, request), GATE.TERMINAL, "the gate's own answer is unchanged");
@@ -1211,7 +1211,7 @@ if (process.argv[2] === "rc42-writer") {
         await assertLadderOnAllSurfaces(retry, c.vaultId, historyLadder("CHAIN_VERIFIED", retry.txId, idx), "the retry");
       });
 
-      test("the VAULT-RECONCILE population from RC42 (R2-F01, hostile case H21): RC42 defect rows that RC42 finalized (FINALIZED, PREFLIGHT_VERIFIED) and whose own transaction the vault reconcile proved keep the exact 2c6e336 BROADCAST ladder; the candidate gate refuses", async () => {
+      test("the VAULT-RECONCILE population from RC42 (R2-F01, hostile case H21): RC42 defect rows that RC42 finalized (FINALIZED, PREFLIGHT_VERIFIED) and whose own transaction the vault reconcile proved keep the exact pre-port BROADCAST ladder; the candidate gate refuses", async () => {
         for (const target of PRE_BROADCAST_DEFECT_STATES) {
           const name = `DEF_${target}_RECONCILED`;
           const { c, request } = await loadCase(name);

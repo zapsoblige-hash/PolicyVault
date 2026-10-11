@@ -31,6 +31,9 @@ const { loadConfig } = require("../src/config");
 const { OWNER_SLOTS_V7, INACTIVE_SLOT_KEY } = require("../../core/model/owner-set-v7");
 const { ENCODER_PATH } = require("../src/vault-builders-v4");
 const wr7 = require("../src/wallet-requests-v7");
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table also carries the seam's walk (registerFixtureNode)
+ * and each root build's supplied fee UTXO (seedFixtureFuel) — the B1 build observes every non-root input live and exact */
 const core = require("../../web/core-bundle.js");
 const orgRootUiMod = require("../../web/org-root-ui.js");
 const setupMod = require("../../web/setup-ui.js");
@@ -101,6 +104,7 @@ function browserModule(cfg) {
 async function setupRootWithSuccessor(cfg) {
   const owner1 = KEY(0x71), owner2 = KEY(0x72), owner3 = KEY(0x73), successor = KEY(0x5c), funder = KEY(0xf0);
   const rpc = mockRpc();
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory
   const req = await wr7.buildRootGenesisRequest({
     config: cfg, label: "succession org",
     owners: [{ slot: 1, publicKey: XO(owner1) }, { slot: 2, publicKey: XO(owner2) }, { slot: 3, publicKey: XO(owner3) }],
@@ -124,11 +128,11 @@ test("UX-10 (real record): the PINNED successor signs a MULTI-OWNER replacement 
 
   // a non-successor (an ACTIVE owner of the old set) cannot even BUILD a succession
   await assert.rejects(
-    () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "succession", params: { newOwnerSet, fuel: fuelUtxoFor(owner1) }, signerAddress: ADDR(owner1) }),
+    () => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "succession", params: { newOwnerSet, fuel: fuelUtxoFor(owner1) }, signerAddress: ADDR(owner1) })),
     (e) => { assert.equal(e.code, "NOT_AN_ACTIVE_SLOT"); return true; }
   );
 
-  const raw = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "succession", params: { newOwnerSet, fuel: fuelUtxoFor(successor) }, signerAddress: ADDR(successor) });
+  const raw = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "succession", params: { newOwnerSet, fuel: seedFixtureFuel(cfg, fuelUtxoFor(successor)) }, signerAddress: ADDR(successor) }));
   assert.equal(raw.state, "AUTHORIZED");
   assert.equal(raw.action, "succession");
   const after = raw.manifest.ownerSet.after;

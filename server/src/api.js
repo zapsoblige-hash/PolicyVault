@@ -15,7 +15,7 @@ const { loadConfig } = require("../../sdk/src/config");
 const { listVaultIds } = require("../../sdk/src/manifest");
 const { loadAnyManifest } = require("../../sdk/src/manifest-v2");
 const { compileExactState } = require("../../sdk/src/contract-compiler");
-const { covenantAddress, connectVerified, getVirtualDaaScore } = require("../../sdk/src/chain");
+const { covenantAddress, connectVerified, getVirtualDaaScore, readCanonicalVirtualDaaScore } = require("../../sdk/src/chain");
 const { sompiToKas } = require("../../sdk/src/amounts");
 const { readAudit, appendAudit } = require("./audit");
 const { API_VERSION, V4_WALLET_REQUEST_SCHEMA_VERSION } = require("./api-version");
@@ -248,13 +248,29 @@ async function presentVaultV4(config, manifest, { virtualDaa } = {}) {
 }
 
 /* Operational status for a v0.4 vault (reuses the v0.2 derivation, which is
- * pure over durable truth: manifest + transition claim + v0.4 requests). */
+ * pure over durable truth: manifest + transition claim + v0.4 requests).
+ * RC45 F8 A6 (plan r2 §5 A6): with no transition claim on the live outpoint,
+ * the first PENDING record on it (the blocking guard's predicate and ON
+ * scope, sdk/src/wallet-recovery-v4.js) is presented as a held claim, so an
+ * RC44-written claimless FINALIZED or an age-released PREFLIGHT_VERIFIED
+ * badges ACTION_REQUIRED_VERIFY (TRANSACTION_PENDING while SUBMITTING or
+ * SUBMITTED) rather than ACTIVE; existing values only. A record on an
+ * ancestor outpoint changes nothing. Read-only. */
 async function operationalForV4(config, manifest) {
   const { deriveOperationalStatus } = require("../../sdk/src/operational-status");
   const { loadTransitionClaim } = require("../../sdk/src/submission-claim");
   const { listVaultRequests } = require("../../sdk/src/wallet-requests-v4");
-  const claim = manifest.live ? await loadTransitionClaim(config, manifest.live.outpoint) : null;
-  return deriveOperationalStatus({ manifest, claim, requests: await listVaultRequests(config, manifest.vaultId) });
+  const requests = await listVaultRequests(config, manifest.vaultId);
+  let claim = manifest.live ? await loadTransitionClaim(config, manifest.live.outpoint) : null;
+  if (manifest.live && !claim) {
+    const { isPendingTransitionV4, onOutpoint } = require("../../sdk/src/wallet-recovery-v4");
+    for (const r of requests) {
+      if (!onOutpoint(r, manifest.live.outpoint) || !(await isPendingTransitionV4(config, r))) continue;
+      claim = { action: r.action ?? null, txId: r.txId ?? null, outpoint: manifest.live.outpoint, createdAt: r.createdAt ?? null };
+      break;
+    }
+  }
+  return deriveOperationalStatus({ manifest, claim, requests });
 }
 
 /*
@@ -400,6 +416,25 @@ async function withSignerLock(signerAddress, fn) {
   await prev;
   try { return await fn(); } finally { release(); if (signerLocks.get(key) === chained) signerLocks.delete(key); }
 }
+/*
+ * RC45 F3 (plan r2 §2.0 BREAK_GLASS_V4, §2.3 and §5 A1; H-13): the owner's
+ * break-glass exits (ownerPause, ownerRecover) are exempt from the open-request
+ * quota, and their v4 rows are not counted, so neither a full quota nor
+ * abandoned break-glass builds can stop the owner's Pause or Close & recover.
+ * BREAK_GLASS_V4 (sdk/src/wallet-requests-v4.js) is pinned to the governance
+ * ACTION_MATRIX breakGlass rows: an action is break-glass here only when both
+ * say so, so a drift between them narrows the exemption, never widens it.
+ */
+function isBreakGlassActionV4(action) {
+  const { BREAK_GLASS_V4 } = require("../../sdk/src/wallet-requests-v4");
+  const entry = ownGet(require("./governance").ACTION_MATRIX, action); // own-property only (F-05)
+  return BREAK_GLASS_V4.includes(action) && entry !== undefined && entry.breakGlass === true;
+}
+function countsTowardOpenRequestQuota(r) {
+  if (r.schema !== "policyvault-wallet-request/v4") return true;
+  const { isBreakGlassV4 } = require("../../sdk/src/wallet-requests-v4");
+  return !(isBreakGlassV4(r) && isBreakGlassActionV4(r.action));
+}
 async function assertOpenRequestQuota(config, { vaultId, signerAddress }) {
   const quota = config.requestProtection.openRequestQuota;
   const { getStore, Categories } = require("../../sdk/src/store");
@@ -408,6 +443,7 @@ async function assertOpenRequestQuota(config, { vaultId, signerAddress }) {
   let walletOpen = 0;
   for (const r of all) {
     if (!r || !OPEN_REQUEST_STATES.has(r.state)) continue;
+    if (!countsTowardOpenRequestQuota(r)) continue; // RC45 F3 A1: v4 break-glass rows are not counted (H-13)
     if (vaultId !== undefined && r.vaultId === vaultId) vaultOpen += 1;
     if (signerAddress !== undefined && r.signerAddress === signerAddress) walletOpen += 1;
   }
@@ -845,6 +881,26 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
 
     // POST /identities  { label?, scopes: [...], orgId? }
     if (method === "POST" && segments.length === 1) {
+      // RC45 R1-11 (OBS-R1-02-A; plan R1 amendment PA-R1-01 r1 §1, C2): an
+      // orgId routes the identity's events to that organization's readers
+      // (events.js eventVisibleTo), so naming one is an organization-owner
+      // action under the existing tenancy rule. Checked only when orgId is
+      // present (neither undefined nor null), BEFORE createIdentity and
+      // before any event, so a refusal writes nothing: a malformed id (the
+      // requireOrgId failure loadOrganization raises first) is 422
+      // ORG_ID_INVALID, as on the organization routes; a missing or foreign
+      // organization is the non-oracle 404 ORG_NOT_FOUND; a member who is
+      // not the owner is 403 ORG_FORBIDDEN. Without orgId: unchanged.
+      if (body?.orgId !== undefined && body?.orgId !== null) {
+        let org;
+        try {
+          org = await require("../../sdk/src/organization").loadOrganization(config, body.orgId);
+        } catch (error) {
+          if (error && error.code === "ORG_ID_INVALID") throw apiError(422, "ORG_ID_INVALID", error.message);
+          throw error;
+        }
+        require("./tenancy").requireOrgAccess(config, org, principal, "owner");
+      }
       const { identity, credential } = await mi.createIdentity(config, {
         creatorXOnly: principal.xOnlyPubkey,
         orgId: body?.orgId,
@@ -899,9 +955,31 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     // POST /identities/:id/revoke — revokes the identity AND every credential it ever minted.
     if (method === "POST" && segments.length === 3 && segments[2] === "revoke") {
       const identity = await mi.revokeIdentity(config, { identityId: segments[1], creatorXOnly: principal.xOnlyPubkey });
+      // RC45 R1-11 (OBS-R1-02-A; PA-R1-01 r1 §2, C1): identity.revoked carries
+      // the stored orgId only when the revoking principal currently owns that
+      // live organization; otherwise it is omitted and the creator-only
+      // identity.* visibility applies, so a pre-fix identity tagged with a
+      // foreign organization cannot inject into that organization's stream.
+      // Decided after revokeIdentity persisted; it never throws. The
+      // organization is loaded only for a stored orgId that passes
+      // sdk/src/organization.js requireOrgId (module-private there; its rule
+      // exactly: a string in lowercase canonical UUID form). A null, empty or
+      // malformed stored orgId, a missing or deleted organization, or a
+      // throwing load or store omits the field. The revocation, its durable
+      // record and the answer are unchanged.
+      let eventOrgId = null;
+      try {
+        const storedOrgId = identity.orgId;
+        if (typeof storedOrgId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(storedOrgId)) {
+          const org = await require("../../sdk/src/organization").loadOrganization(config, storedOrgId);
+          if (require("./tenancy").orgAccessAllowed(config, org, principal, "owner")) eventOrgId = storedOrgId;
+        }
+      } catch {
+        eventOrgId = null;
+      }
       await require("./events").safeEmitPlatformEvent(config, {
         type: "identity.revoked",
-        orgId: identity.orgId,
+        orgId: eventOrgId,
         correlation: { identityId: identity.identityId },
         data: { label: identity.label, creatorXOnly: identity.creatorXOnly }
       });
@@ -1036,7 +1114,8 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (typeof signedSafeJson !== "string" || !signedSafeJson.trim()) {
       throw apiError(400, "BAD_SIGNATURE", "signedSafeJson is required");
     }
-    await requireRequestSigner(config, ctx, await walletRequests.loadRequest(config, requestId)); // rc13 review N-02 (legacy v0.2 family): signer only
+    const pending = await loadLegacyV2Request(config, ctx, requestId); // RC45 R1-01 (C6): authenticate, then 404 for a missing or non-v0.2 record
+    await requireRequestSigner(config, ctx, pending); // rc13 review N-02 (legacy v0.2 family): signer only
     requireSignedSafeJsonShape(signedSafeJson);
     try {
       const request = await walletRequests.attachWalletSignatureV2({ config, requestId, signedSafeJson });
@@ -1049,7 +1128,8 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
 
   // POST /wallet/requests/:id/reject  (user declined in the wallet)
   if (method === "POST" && segments.length === 4 && segments[0] === "wallet" && segments[1] === "requests" && segments[3] === "reject") {
-    await requireRequestAccess(config, ctx, await walletRequests.loadRequest(config, segments[2]));
+    const pending = await loadLegacyV2Request(config, ctx, segments[2]); // RC45 R1-01 (C7): authenticate, then 404 for a missing or non-v0.2 record
+    await requireRequestRejecter(config, ctx, pending); // RC45 R1-01 (C7): the request's signer or the vault owner only
     const request = await walletRequests.markWalletRejected(config, segments[2]);
     if (!request) {
       throw apiError(404, "REQUEST_NOT_FOUND", `no request ${segments[2]}`);
@@ -1210,9 +1290,14 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     const v4Error = (error) => {
       const authz = ["NOT_OWNER", "NOT_AGENT", "AUTHORIZATION_FAILED"].includes(error.code);
       // VAULT_ID_IN_USE: RC33-ID-01 (2026-09-11) global vault-record uniqueness — the identity is held by a record or request of ANY generation (409)
-      const stateCodes = ["STALE", "CLAIM_CONFLICT", "PREFLIGHT_FAILED", "SIGNATURE_INVALID", "INSUFFICIENT_APPROVALS", "WALLET_REJECTED", "VAULT_ID_IN_USE"];
+      // PERIOD_START_STALE: RC45 — a new or changed delegate's budget period start aged past its window before genesis-submit, finalize or submit; nothing was written (409)
+      const stateCodes = ["STALE", "CLAIM_CONFLICT", "PREFLIGHT_FAILED", "SIGNATURE_INVALID", "INSUFFICIENT_APPROVALS", "WALLET_REJECTED", "VAULT_ID_IN_USE", "PERIOD_START_STALE"];
       const status = authz ? 403 : stateCodes.includes(error.code) ? 409 : 422;
-      return apiError(status, error.code || "BUILD_FAILED", error.message);
+      // RC45 F8 A3 (plan r2 §2.1(2), §5 A3): the SDK's error.extra (the
+      // blocking record and the claim on the live outpoint: requestId,
+      // action, state, signerRole, claimTxId) reaches the hosted caller.
+      const extra = error.extra && typeof error.extra === "object" && !Array.isArray(error.extra) ? { ...error.extra } : undefined;
+      return apiError(status, error.code || "BUILD_FAILED", error.message, extra);
     };
 
     /*
@@ -1364,7 +1449,10 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
           const { rpc } = await connectVerified(config);
           let policy, appr, chosenFunding;
           try {
-            const daa = await getVirtualDaaScore(rpc);
+            // RC45: only a canonical virtual DAA score is used (a non-canonical
+            // answer refuses PERIOD_START_REQUIRED); the builder then anchors
+            // the start at max(this read, its own read at the build).
+            const daa = await readCanonicalVirtualDaaScore(rpc);
             policy = normalizeAgentPolicyInputV4(config, agent, daa); // periodStartDaa = daa, periodSpent = 0
             appr = normalizeApproversInputV4(config, approvers ?? {});
             if (Array.isArray(funding) && funding.length) {
@@ -1418,7 +1506,10 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       // Instant hosted-layer suspend gate (agent-role actions only; PURE
       // refusal — nothing durable exists yet, no fees, no chain work).
       await assertAgentNotSuspended({ vaultId, action, agentPk: params && params.agentPk, signerAddress, stage: "build this request" });
-      await assertOpenRequestQuota(config, { vaultId, signerAddress });
+      // RC45 F3 A1 (plan r2 §2.3; H-13): the owner's break-glass skips the
+      // open-request quota. A non-owner signer naming it is still refused by
+      // the builder's own authorization (NOT_OWNER), before any durable write.
+      if (!isBreakGlassActionV4(action)) await assertOpenRequestQuota(config, { vaultId, signerAddress });
       try {
         /*
          * INTENT-STAGE ENFORCEMENT, before any durable request exists (a
@@ -1563,7 +1654,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
           });
         }
         const e = v4Error(error);
-        e.extra = { request: presentRequest(request) };
+        e.extra = { ...e.extra, request: presentRequest(request) }; // RC45 F8 A3: merged, the caller's own request last
         throw e;
       }
     }
@@ -1587,15 +1678,20 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       try {
         const result = await submit4.submitWalletRequestV4({ config, requestId: segments[3] });
         require("./metrics").noteNodeGate(true); // chain proof = the node answered (passive observation)
-        // Submit success in this pipeline IS chain proof (txid verified,
-        // exact successor observed) — hence request.confirmed, and
-        // deliberately no unproven "submitted" success event (spec §4.1).
-        await require("./events").safeEmitPlatformEvent(config, {
-          type: "request.confirmed",
-          vaultId: result.request.vaultId ?? null,
-          correlation: { requestId: result.request.requestId, manifestHash: result.request.manifestHash, txId: result.txId },
-          data: { action: result.request.action, state: result.request.state, terminal: result.request.successorStateId == null }
-        });
+        // A CHAIN_VERIFIED submit IS chain proof (txid verified, exact
+        // successor observed) — hence request.confirmed, and deliberately no
+        // unproven "submitted" success event (spec §4.1). RC45 F3 A4 (plan r2
+        // §2.3, H-50): a contested break-glass submit and every Close &
+        // recover return at SUBMITTED (broadcast, not proven): no
+        // request.confirmed; Verify completes them at depth.
+        if (result.request.state === wr4.RequestState.CHAIN_VERIFIED) {
+          await require("./events").safeEmitPlatformEvent(config, {
+            type: "request.confirmed",
+            vaultId: result.request.vaultId ?? null,
+            correlation: { requestId: result.request.requestId, manifestHash: result.request.manifestHash, txId: result.txId },
+            data: { action: result.request.action, state: result.request.state, terminal: result.request.successorStateId == null }
+          });
+        }
         return { status: 200, body: v4Body({ request: presentRequest(result.request), txId: result.txId, successorIndex: result.expected?.index ?? null }) };
       } catch (error) {
         const request = await wr4.loadRequest(config, segments[3]);
@@ -1608,7 +1704,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
           });
         }
         const e = v4Error(error);
-        e.extra = { request: request ? presentRequest(request) : null };
+        e.extra = { ...e.extra, request: request ? presentRequest(request) : null }; // RC45 F8 A3: merged, the caller's own request last
         throw e;
       }
     }
@@ -1681,9 +1777,10 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       return { status: 200, body: v4Body({ request: presentRequest(out.request), outcome: out.outcome, detail: out.detail, txId: out.request.txId ?? null }) };
     }
 
-    // POST /wallet/v4/requests/:id/reject
+    // POST /wallet/v4/requests/:id/reject — hosted: the request's signer or
+    // the vault owner only (RC45 F3 A2, H-11).
     if (method === "POST" && segments.length === 5 && segments[2] === "requests" && segments[4] === "reject") {
-      await requireRequestMutation(config, ctx, await wr4.loadRequest(config, segments[3]));
+      await requireRequestRejecter(config, ctx, await wr4.loadRequest(config, segments[3]));
       const request = await wr4.markWalletRejected(config, segments[3]);
       if (!request) throw apiError(404, "REQUEST_NOT_FOUND", `no request ${segments[3]}`);
       await require("./events").safeEmitPlatformEvent(config, {
@@ -2670,6 +2767,27 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     if (!loaded) {
       throw apiError(404, "VAULT_NOT_FOUND", `no vault ${vaultId}`);
     }
+    // RC45 F6 (plan r2 §5 A5; CR-L6, CR-L15): the optional owner-supplied
+    // recover evidence `outOfAppTransaction` is read only AFTER the principal
+    // and owner access above (foreign evidence is a 404 before any parse). It
+    // is verified against the chain by the v0.4 reconciler and grants no
+    // authority. A non-string, a string over 64 KiB or a transaction with more
+    // than 64 outputs (RC45 R1-09, RC1-11; before any read; a paste the engine
+    // does not read keeps the reconciler's mismatch path) -> 400 BAD_FORMAT;
+    // any other generation with the field -> 422 UNSUPPORTED_VERSION; neither
+    // reconciles.
+    const outOfAppTransaction = body?.outOfAppTransaction;
+    if (outOfAppTransaction !== undefined) {
+      const { OUT_OF_APP_TRANSACTION_MAX_BYTES, OUT_OF_APP_TRANSACTION_MAX_OUTPUTS, pastedOutputCount } = require("../../sdk/src/reconcile-v4");
+      if (typeof outOfAppTransaction !== "string" || Buffer.byteLength(outOfAppTransaction, "utf8") > OUT_OF_APP_TRANSACTION_MAX_BYTES) {
+        throw apiError(400, "BAD_FORMAT", `outOfAppTransaction must be a Safe JSON string of at most ${OUT_OF_APP_TRANSACTION_MAX_BYTES} bytes`);
+      }
+      const pastedOutputs = pastedOutputCount(config, outOfAppTransaction);
+      if (pastedOutputs !== null && pastedOutputs > OUT_OF_APP_TRANSACTION_MAX_OUTPUTS) {
+        throw apiError(400, "BAD_FORMAT", `outOfAppTransaction carries ${pastedOutputs} outputs; at most ${OUT_OF_APP_TRANSACTION_MAX_OUTPUTS} are accepted`);
+      }
+      if (loaded.version !== "v4") throw apiError(422, "UNSUPPORTED_VERSION", `outOfAppTransaction is only accepted for the v0.4 family (vault version ${loaded.version})`);
+    }
     // Route by the vault's version to the matching exact-proof reconciler. Both
     // reconcilers use only their default gates; no force/override/claim-deletion
     // input exists or is accepted. The v0.4 reconciler serves the v0.4 family
@@ -2679,11 +2797,15 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
     // the server audit hook), so the route — the server's observation
     // point — emits the event from the returned outcome. Notification
     // only; the manifest advanced (or not) on chain proof alone.
+    // RC45 F8 A5 (plan r2 §5 A5, §11 events spec): correlation.requestId
+    // whenever the outcome names one (ADVANCED, CLAIM_PENDING below depth,
+    // REQUEST_RECOVERY_REQUIRED); data stays {outcome, to}, so settled[] is
+    // unpublished.
     const emitReconcileEvent = (result) =>
       require("./events").safeEmitPlatformEvent(config, {
         type: "vault.reconciled",
         vaultId,
-        correlation: { txId: result?.txId },
+        correlation: { requestId: result?.requestId, txId: result?.txId },
         data: { outcome: result?.status, to: result?.to }
       });
     try {
@@ -2695,7 +2817,7 @@ async function dispatchRoute(config, method, segments, query, body, ctx = {}) {
       }
       if (loaded.version === "v4") {
         const { reconcileVaultV4 } = require("../../sdk/src/reconcile-v4");
-        const result = await reconcileVaultV4(config, vaultId);
+        const result = await reconcileVaultV4(config, vaultId, outOfAppTransaction === undefined ? {} : { outOfAppTransaction });
         await emitReconcileEvent(result);
         return { status: 200, body: { reconcile: result, vault: await presentAny(config, vaultId) } };
       }
@@ -2946,6 +3068,57 @@ async function requireRequestMutation(config, ctx, request) {
     throw apiError(403, "REQUEST_FORBIDDEN", "this wallet may review and approve this request; it cannot cancel, sign, or submit it");
   }
   return principal;
+}
+
+/*
+ * RC45 F3 A2 (plan r2 §2.3 reject row, §5 A2; H-11): hosted rejection is
+ * narrowed to the request's signer or the vault owner (template.owner). Any
+ * other participant (an agent on the owner's request or on another agent's)
+ * gets 403 REQUEST_FORBIDDEN before any state can change; a foreign principal
+ * keeps requireRequestMutation's non-oracle 404 and an approver-only principal
+ * its 403. Owner-minted machine credentials act as the owner (CR-I4).
+ * Self-hosted mode is unchanged.
+ */
+async function requireRequestRejecter(config, ctx, request) {
+  const principal = await requireRequestMutation(config, ctx, request);
+  if (!config.tenancyEnforced || !request) return principal;
+  let signerXOnly = null;
+  try {
+    signerXOnly = require("../../sdk/src/address-identity").resolveAddressIdentity(config, request.signerAddress).xOnlyPubkey;
+  } catch {
+    signerXOnly = null; // an unresolvable stored signer never grants rejection (fail closed)
+  }
+  if (signerXOnly && signerXOnly === principal.xOnlyPubkey) return principal;
+  let loadedVault = null;
+  if (typeof request.vaultId === "string") {
+    try {
+      loadedVault = await loadAnyManifest(config, request.vaultId);
+    } catch {
+      loadedVault = null;
+    }
+  }
+  const { vaultRoles } = require("./tenancy");
+  // Same defence-in-depth network equality as requestMutationAllowed.
+  if (loadedVault && loadedVault.manifest && loadedVault.manifest.networkId === principal.networkId &&
+      vaultRoles(loadedVault).owner.has(principal.xOnlyPubkey)) return principal;
+  throw apiError(403, "REQUEST_FORBIDDEN", "only the wallet that signs this request or the vault owner may reject it");
+}
+
+/*
+ * RC45 R1-01 (S-01; plan R1 §2 R1-01, C6/C7): the legacy routes
+ * POST /wallet/requests/:id/reject and /signature serve ONLY v0.2 records.
+ * Every generation shares the REQUEST store category, so, in this order:
+ * authenticate (hosted: 401 unchanged), then load; a missing record or one
+ * whose schema is not exactly policyvault-wallet-request/v2 answers the
+ * non-oracle 404 with nothing written and no node call. The caller then
+ * applies its own gate (requireRequestRejecter / requireRequestSigner).
+ */
+async function loadLegacyV2Request(config, ctx, requestId) {
+  if (config.tenancyEnforced) await requestAuthPrincipal(config, ctx, { required: true });
+  const wr2 = require("../../sdk/src/wallet-requests-v2");
+  const request = await wr2.loadRequest(config, requestId);
+  if (!request || request.schema !== wr2.REQUEST_SCHEMA_V2) throw apiError(404, "REQUEST_NOT_FOUND", "no such request");
+  return request;
 }
 
 /* Scope a wallet-request listing to the authenticated principal (Phase F).

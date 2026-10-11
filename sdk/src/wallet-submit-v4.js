@@ -41,7 +41,7 @@ const { createHash } = require("node:crypto");
 const { CONTRACT_VERSION_V4, stateToJsonV4, normalizeStateV4, computeStateIdV4 } = require("./vault-state-v4");
 const { compileExactStateV4 } = require("./contract-compiler-v4");
 const { covenantAddress, connectVerified, getAddressUtxos } = require("./chain");
-const { loadManifestV4, persistManifestV4, createManifestV4 } = require("./manifest-v4");
+const { loadManifestV4, persistManifestV4, createManifestV4, anchoredLeafPks, assertLeafStartsFresh, assertRegistryFoldsToRoot } = require("./manifest-v4");
 const { buildAgentTreeV4, normalizeAgentPolicyV4 } = require("./agent-merkle-v4");
 const { buildRecipientTree } = require("./recipient-merkle-v3");
 const {
@@ -54,7 +54,7 @@ const {
 const { assertVaultIdentityFree, withVaultIdentityLock, normalizeVaultId } = require("./vault-identity"); // RC33-ID-01 (2026-09-11): global vault-record uniqueness
 const { appendAudit } = require("./audit");
 const { VaultStatus } = require("./manifest");
-const { RequestState, loadRequest, saveRequest } = require("./wallet-requests-v4");
+const { RequestState, loadRequest, saveRequest, isBreakGlassV4, claimOwnTransitionV4, assertLifecycleStartsFreshV4 } = require("./wallet-requests-v4");
 const { releaseReservationForRequest } = require("./budget-reservation");
 const { assertOperationalNetwork, assertGenerationMainnetCreatable } = require("./config");
 
@@ -178,6 +178,21 @@ async function findOutpoint(rpc, address, txId, index) {
 }
 
 /*
+ * RC45 (plan r2 §2.0 rule R, read-then-release; J1-ALL-01): release the
+ * transition claim on `outpoint` only after reading that it names `txId`.
+ * Another attempt's claim is never released and never makes this throw (the
+ * guarded releaseTransitionClaim throws on a foreign txid); a missing claim is
+ * a no-op. The release itself stays the guarded one, so a claim that changed
+ * hands between the read and the release is refused, never removed. Returns
+ * true when this call released the claim.
+ */
+async function releaseOwnTransitionClaimV4(config, { outpoint, txId }) {
+  const claim = await loadTransitionClaim(config, outpoint);
+  if (!claim || claim.txId !== txId) return false;
+  return releaseTransitionClaim(config, { outpoint, txId });
+}
+
+/*
  * SUBMIT a PREFLIGHT_VERIFIED v0.4 request to the live node, prove the exact
  * effect, and advance the manifest + registry atomically. testnet-10 only.
  */
@@ -187,10 +202,25 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
   if (request.schema !== "policyvault-wallet-request/v4") throw fail("not a v0.4 request", "BUILD_FAILED");
   if (request.state !== RequestState.PREFLIGHT_VERIFIED) throw fail(`request ${requestId} is ${request.state}, not PREFLIGHT_VERIFIED`, request.state);
   if (request.kind === "genesis") throw fail("use submitCreateWalletRequestV4 for genesis", "BUILD_FAILED");
-  await require("./wallet-recovery-v4").assertNoProtectedTransitionV4(config, request.vaultId, { excludeRequestId: request.requestId });
+  const recovery = require("./wallet-recovery-v4");
+  // RC45 R1-06 (ST-03, K4): a receipt recording this request's own
+  // transaction as executed answers 422 with no write and no node call,
+  // before the blocking check and the staleness verdict (an executed request
+  // is never STALE).
+  const executed = await recovery.ownReceiptRefusalV4(config, request);
+  if (executed) throw fail(executed.message, executed.refuse);
+  // RC45 F2 (plan r2 §2.1(2)): blocking is scoped to the live outpoint; the
+  // owner's break-glass is never refused on a live vault.
+  const breakGlass = isBreakGlassV4(request);
+  await recovery.assertNoBlockingTransitionV4(config, request.vaultId, { excludeRequestId: request.requestId, breakGlass });
 
   const manifest = await loadManifestV4(config, request.vaultId); // loader enforces registry root-equality
-  if (!manifest || !manifest.live || manifest.live.stateId !== request.predecessorStateId) {
+  // RC45 F2 (plan r2 §2.3): a closed or self-advanced manifest answers 422
+  // with no write; STALE only when the live state differs by stateId or
+  // outpoint (H-35).
+  const disposition = recovery.predecessorDispositionV4(manifest, request);
+  if (disposition?.refuse) throw fail(disposition.message, disposition.refuse);
+  if (disposition) {
     request.state = RequestState.STALE;
     await saveRequest(config, request);
     await releaseReservationForRequest(config, request); // surface 15: a stale request frees its budget headroom
@@ -199,8 +229,16 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
   requireOperationalNetwork(config, request, manifest);
 
   // The transition claim must be held by THIS request+txid (created at G finalize).
+  // RC45 F4 (plan r2 §2.3 submit row, §2.4, O2): a foreign claim refuses an
+  // ordinary submit with no write; a MISSING own claim (a break-glass finalize
+  // stopped between W1 and its claim, or RC44 released it by age) is re-created
+  // below, after the chain read and just before the submission claim.
+  // RC45 F3 (plan r2 §2.3 submit row, H-08): the owner's break-glass with a
+  // foreign claim is CONTESTED instead: it broadcasts beside the delegate's
+  // claim and never seizes, releases or modifies it.
   const claim = await loadTransitionClaim(config, request.predecessorOutpoint);
-  if (!claim || claim.txId !== request.txId) {
+  let foreignClaim = Boolean(claim && claim.txId !== request.txId);
+  if (foreignClaim && !breakGlass) {
     throw fail("no transition claim held by this request — reconcile", "CLAIM_CONFLICT");
   }
 
@@ -213,20 +251,45 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
   try {
     if (serverInfo.networkId !== config.networkId) throw fail(`node network ${serverInfo.networkId} != configured ${config.networkId}`, "NETWORK_MISMATCH");
 
-    // Predecessor must still be the live vault outpoint on chain.
+    // Predecessor must still be the live vault outpoint on chain. RC45 F2
+    // (plan r2 §2.4, CR-M12): absence is not evidence — an unindexed live
+    // outpoint labels nothing and releases nothing; the request, its claims
+    // and its reservation stay exactly as they are.
     const liveRef = await findOutpoint(rpc, predecessor.address, manifest.live.outpoint.transactionId, manifest.live.outpoint.index);
     if (!liveRef) {
-      request.state = RequestState.STALE;
-      await saveRequest(config, request);
-      await releaseReservationForRequest(config, request); // surface 15
-      throw fail("manifest live outpoint not on chain — reconcile first", "STALE");
+      throw fail("manifest live outpoint is not observed on chain — nothing was written; verify the vault state first", "RECONCILIATION_REQUIRED");
     }
+
+    // RC45 delegate period-start rule, before the transaction is rebuilt or a
+    // claim re-created: finalize's check again, at the open node's current
+    // position. A refusal writes nothing: the armed request, its claims and
+    // its reservation stay exactly as they are.
+    await assertLifecycleStartsFreshV4({ request, manifest, readDaa: () => require("./chain").readCanonicalVirtualDaaScore(rpc), stage: "submit" });
 
     const transaction = finalTxToWasm(config, request.finalTransaction);
     const computedTxId = transaction.finalize().toString().toLowerCase();
     if (computedTxId !== request.txId) {
       throw fail(`reconstructed txid ${computedTxId} != frozen txid ${request.txId} — refusing to broadcast`, "TXID_MISMATCH");
     }
+
+    // RC45 F4 (plan r2 §2.3 submit row, CR2-L7): re-create a missing own
+    // claim with finalize's payload for the validated record. Claim-error
+    // rule: the same txid read back is own; a foreign claim taken meanwhile
+    // refuses an ordinary submit 409 with nothing written (RC45 F3: the
+    // owner's break-glass is contested instead); any other error is rethrown.
+    if (!claim) {
+      const held = await claimOwnTransitionV4(config, request, request.txId, recovery.expectedClaim(request, recovery.validateIdentity(config, request).expected));
+      if (!held.own) {
+        if (!breakGlass) throw held.error;
+        foreignClaim = true;
+      }
+    }
+
+    // RC45 F3 (plan r2 §2.3 submit contest row; CR-H2, H-37): decided after
+    // the own claim is held, before any submit write. A contested submit
+    // returns right after the SUBMITTED save (no poll, no manifest write);
+    // only Verify completes it, at depth (sdk/src/reconcile-v4.js).
+    const contested = await recovery.submitContestedV4(config, request, { breakGlass, foreignClaim });
 
     // Submission claim keyed by the exact txid (idempotent).
     await claimSubmission(config, { txId: request.txId, vaultId: request.vaultId, action: request.action });
@@ -270,7 +333,10 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
         request.state = "SUBMISSION_REJECTED";
         request.submissionOutcome = { outcome: "SUBMISSION_REJECTED", reason: message, txId: request.txId, proof: settled.proof };
         await saveRequest(config, request);
-        await releaseTransitionClaim(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
+        // RC45 F3 (plan r2 §2.0 rule R, §2.3 ':273'; J1-ALL-01): read-then-release.
+        // A contested break-glass holds no transition claim; the delegate's claim
+        // is never released by the owner's rejection, and never makes this throw.
+        await releaseOwnTransitionClaimV4(config, { outpoint: request.predecessorOutpoint, txId: request.txId });
         await releaseSubmissionClaim(config, request.txId);
         await appendAudit(config, { vaultId: request.vaultId, action: "submission_rejected_claims_released", actor: "system", txId: request.txId, result: "REJECTED_BY_NODE", oldStateId: request.predecessorStateId, detail: message });
         await releaseReservationForRequest(config, request); // surface 15: mirrors the claim release (definitive rejection only)
@@ -299,6 +365,14 @@ async function submitWalletRequestV4({ config, requestId, rpc: providedRpc, poll
     request.state = RequestState.SUBMITTED;
     await saveRequest(config, request);
     maybeCrash(config, "AFTER_SUBMITTED"); // crash-after-broadcast (ambiguity)
+
+    // RC45 F5 (plan r2 §2.2 reorg rule, CR-H2): every ownerRecover is two-step.
+    // RC45 F3 (plan r2 §2.3 submit contest row): so is every contested
+    // break-glass. It returns here, at SUBMITTED, with no poll and no manifest
+    // write; nothing hosted writes a terminal status at zero depth. Only Verify
+    // completes it (RECOVERED for a recover), once it is observed at depth
+    // SETTLE_DEPTH_DAA (sdk/src/reconcile-v4.js).
+    if (contested) return { request, txId: request.txId, expected };
 
     // Exact chain proof.
     let proof = null;
@@ -542,6 +616,11 @@ async function submitCreateWalletRequestV4Unlocked({ config, requestId, signedSa
     const txId = transaction.finalize().toString().toLowerCase();
     if (txId !== request.txId) throw fail(`reconstructed genesis txid ${txId} != frozen ${request.txId}`, "TXID_MISMATCH");
 
+    // RC45 delegate period-start rule, before the submission claim. A refusal
+    // writes nothing: the request stays BUILT (cancel it and create again; the
+    // new build starts the period at the current network position).
+    await assertGenesisStartsFreshV4(request, () => require("./chain").readCanonicalVirtualDaaScore(rpc));
+
     await claimSubmission(config, { txId, vaultId: request.vaultId, action: "createVault" });
     request.state = RequestState.SUBMITTING;
     request.txId = txId;
@@ -612,6 +691,28 @@ async function submitCreateWalletRequestV4Unlocked({ config, requestId, signedSa
   } finally {
     if (owned) await rpc.disconnect();
   }
+}
+
+/*
+ * RC45 delegate period-start rule at genesis-submit (the rule itself is in
+ * manifest-v4.js). Writes nothing. The stored initial registry must be a list
+ * folding to exactly the initial agent root of the genesis build whose bytes
+ * are broadcast, and that root must be the top-level initial state's
+ * (REGISTRY_ROOT_MISMATCH otherwise; a missing registry is refused, never
+ * skipped; no node is read). A creation has no predecessor leaf, so when it
+ * has delegates readDaa() answers the node's canonical virtual DAA score and a
+ * delegate whose start lags it by more than its window refuses
+ * PERIOD_START_STALE; a creation without delegates reads nothing.
+ */
+async function assertGenesisStartsFreshV4(request, readDaa) {
+  const committedAgentRoot = request.build?.initialState?.agentRoot;
+  assertRegistryFoldsToRoot({ entries: request.initialRegistry, committedAgentRoot, stage: "genesis-submit" });
+  const initialStateRoot = request.initialState?.agentRoot;
+  if (typeof initialStateRoot !== "string" || initialStateRoot.toLowerCase() !== committedAgentRoot.toLowerCase()) {
+    throw fail("genesis-submit: the genesis build's agent root differs from the initial state's agent root — refusing", "REGISTRY_ROOT_MISMATCH");
+  }
+  if (anchoredLeafPks([], request.initialRegistry).length === 0) return;
+  assertLeafStartsFresh({ predecessorEntries: [], nextEntries: request.initialRegistry, currentDaa: await readDaa(), stage: "genesis-submit" });
 }
 
 /* The vault covenant address + exact output value a genesis must create. */
@@ -1226,6 +1327,7 @@ module.exports = {
   isExactMempoolMiss,
   SPEND_SCAN_MAX_BATCHES,
   proveExpectedEffectV4,
+  releaseOwnTransitionClaimV4,
   advanceManifestAndRegistryV4,
   expectedManifestAndRegistryV4,
   finalTxToWasm,

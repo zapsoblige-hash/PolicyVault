@@ -2,6 +2,8 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
 const {getStore,Categories}=require('../src/store');
 const {loadConfig}=require('../src/config');const wr4=require('../src/wallet-requests-v4');const {submitCreateWalletRequestV4}=require('../src/wallet-submit-v4');const {createHarness}=require('./helpers/v7-kas-mock-harness');
+// RC45 R2-13: the v0.4.1 genesis-submit period-start check reads the node DAA from the mock rpc.
+const {withDaa}=require('../testutil/rc45-r2-daa');
 test('creation containment refuses a pre-switch v0.4.1 genesis before claims, request mutation or broadcast',async()=>{
  const beforeFlag=process.env.POLICYVAULT_ALLOW_MAINNET;process.env.POLICYVAULT_ALLOW_MAINNET='true';
  const dataRoot=fs.mkdtempSync(path.join(os.tmpdir(),'pv-v4-creation-containment-'));
@@ -12,7 +14,7 @@ test('creation containment refuses a pre-switch v0.4.1 genesis before claims, re
   const off=loadConfig({...config,mainnetCreationDisabled:['policyvault-0.4.1']});
   await assert.rejects(wr4.buildCreateWalletRequestV4({...args,config:off}),e=>e.code==='GENERATION_NOT_MAINNET_AUTHORIZED');
   const signed=H.signAll(request.transaction.unsignedSafeJson,request.transaction.signInputs.map(s=>[s.index,owner]));let calls=0;
-  const rpc={submitTransaction:async({transaction})=>{calls++;return{transactionId:transaction.finalize().toString()}},getUtxosByAddresses:async()=>({entries:[]}),getBlockDagInfo:async()=>({sink:'aa'.repeat(32)})};
+  const rpc=withDaa({submitTransaction:async({transaction})=>{calls++;return{transactionId:transaction.finalize().toString()}},getUtxosByAddresses:async()=>({entries:[]}),getBlockDagInfo:async()=>({sink:'aa'.repeat(32)})},'545000000');
   await assert.rejects(submitCreateWalletRequestV4({config:off,requestId:request.requestId,signedSafeJson:signed,rpc,pollAttempts:1,pollDelayMs:0}),e=>e.code==='GENERATION_NOT_MAINNET_AUTHORIZED');
   assert.equal(calls,0);assert.deepEqual(await wr4.loadRequest(off,request.requestId),before,'disabled submit preserves the exact unsigned request');
   // Removing containment restores the unchanged submit path; the mock cannot establish chain settlement.

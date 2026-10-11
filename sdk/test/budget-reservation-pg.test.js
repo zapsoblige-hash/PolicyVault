@@ -195,8 +195,14 @@ test("PG: build -> refuse -> reject -> rebuild -> finalize consumes (full lifecy
   assert.equal(rows.rowCount, 1);
   assert.equal(rows.rows[0].status, "CONSUMED");
   assert.equal(rows.rows[0].txid, done.txId);
-  // consumed keeps counting: 20 consumed + 20 > 30
-  await assert.rejects(() => build(20n), (e) => e.code === "BUDGET_RESERVED_EXCEEDED");
+  // LEAD-5 (lane checkpoint 6ff4539): the finalized request is a PROTECTED
+  // unresolved transition — the pipeline refuses another attempt on the vault.
+  await assert.rejects(() => build(20n), (e) => e.code === "REQUEST_RECOVERY_REQUIRED");
+  // consumed keeps counting at the reservation layer: 20 consumed + 20 > 30
+  const { reserveForSpendBuild } = require("../src/budget-reservation");
+  const { loadManifestV4 } = require("../src/manifest-v4");
+  const liveManifest = await loadManifestV4(config, VAULT_ID);
+  await assert.rejects(() => reserveForSpendBuild(config, { manifest: liveManifest, build: first.build, requestId: require("crypto").randomUUID() }), (e) => e.code === "BUDGET_RESERVED_EXCEEDED" && e.message.includes(second.requestId));
   // and the finalize transition claim EXISTS alongside (unchanged arbiter)
   const claims = await store.pool().query(`SELECT key FROM transition_claims WHERE key NOT LIKE 'resv%'`);
   assert.ok(claims.rowCount >= 1, "the finalize-time transition claim is present and untouched");

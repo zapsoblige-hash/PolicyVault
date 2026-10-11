@@ -38,6 +38,7 @@ async function baseFixture() {
 }
 function caseFor(base, config = fx.cloneJsonConfig(base.config, "pv-cp13e-case-")) {
   const rpc = fx.mockRpc();
+  require("./guard-node").registerFixtureNode(config, rpc); // RC45 L2-01 guard inventory: this case's root builds read this case's table
   const x = { ...base, config, rpc };
   rpc.seed(base.root.live.address, fx.utxo(base.root.live.address, base.root.live.outpoint.transactionId, base.root.live.outpoint.index, base.root.live.value, base.root.rootCovenantId));
   x.settle = (q = x.q) => settle(x.config, rpc, q);

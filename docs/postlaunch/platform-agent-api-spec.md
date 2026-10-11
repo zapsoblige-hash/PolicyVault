@@ -63,6 +63,19 @@ correctness). All identity-management routes are tenancy-scoped to the
 creating wallet (a foreign identity is 404, existence hidden, matching
 `tenancy.js`'s discipline).
 
+`orgId` is optional and confers no authority anywhere; it routes the
+identity's events to that organization's readers
+(`webhooks-events-spec.md` §10). Naming an organization therefore requires
+organization ownership (RC45 R1-11): when `orgId` is present (not absent and
+not null), the route applies the existing organization-owner rule
+(`requireOrgAccess(..., "owner")`) before anything is written. An `orgId` that
+is not a lowercase UUID string answers `422 ORG_ID_INVALID`, a missing or
+foreign organization the non-oracle `404 ORG_NOT_FOUND`, and a member who is
+not the owner `403 ORG_FORBIDDEN`; none of them writes an identity, a
+credential or an event. A request without `orgId` is unchanged.
+`identity.revoked` carries the stored `orgId` only when the revoking wallet
+still owns that organization; otherwise the event has no `orgId`.
+
 ### 1.3 Scope enum (`server/src/scopes.js`)
 
 Deny-by-default; derived from the real route map in `api.js`:
@@ -274,6 +287,187 @@ accepted set and bump — never silently reinterpret an old string under
 new semantics). A machine client that pins a schemaVersion it understands
 is guaranteed either that exact behavior or a clean 422, never silent
 drift.
+
+### 5.1 v0.4-family Verify and transition refusals (RC45)
+
+**Verify — `POST /vaults/:id/reconcile`** (scope `vaults:reconcile`; the
+vault owner only). The body may carry one optional field,
+`outOfAppTransaction`: optional owner-supplied recover evidence, verified
+against the chain, grants no authority — the owner's signed recover
+transaction as a Safe JSON string. It is read only after the principal and
+the owner-access check (a foreign vault answers the same 404 before any
+parse or node call); a non-string, a string over 64 KiB or a transaction
+with more than 64 outputs is `400 BAD_FORMAT` (a document that does not
+parse as a transaction is not refused: it settles nothing), and a vault
+outside the v0.4 family with the field is `422 UNSUPPORTED_VERSION`;
+neither reconciles. Verify reads the address of the pasted transaction's
+`outputs[0]` and at most 4 further distinct output addresses; the
+addresses it does not read are counted in `UNKNOWN`'s `unchecked`
+(RC45 R1-09). No other input is read (no
+force, override, age or claim-release option). The answer is
+`{reconcile, vault}`; `reconcile.status` for a v0.4-family vault is one of:
+
+| status | meaning | fields |
+|---|---|---|
+| `CONSISTENT` | the recorded live state is on chain | `settled[]` (what this Verify settled, below; empty when it settled nothing) |
+| `ADVANCED` | Verify settled a transition observed at depth (1,000 DAA) | `to`, `txId`, `requestId` (hosted request; none for an unsigned request the governance gate refuses, which keeps its label), `adopted: true` (an out-of-app pause / unpause), `settled[]` |
+| `TERMINAL` | the vault is closed | `vaultStatus`, `settled[]` |
+| `CLAIM_PENDING` | not settled yet | `depth`, `required` (below depth; with `txId`, `requestId` for a recorded transaction) or `claimTxId` (a live claim) |
+| `REQUEST_RECOVERY_REQUIRED` | signed work may still execute | `requestId`, `pending[]`, `recordedVaultClosed` |
+| `UNKNOWN` | the recorded outpoint is spent and no known spender was seen | `reason`, `unchecked` |
+| `CHAIN_CONTRADICTION` | the chain contradicts the record | `reason` |
+
+Verify writes only on positive chain evidence at depth; `UNKNOWN` and
+`CHAIN_CONTRADICTION` write nothing; a node that cannot be read, or
+an environment failure that R1-04 classifies (a missing binary, a spawn error, a signal or temp-file I/O of the `pv_tx_probe` harness, or any compiler or VM-preflight failure), is `422 RECONCILE_FAILED`, nothing written, except a restore
+earlier in the same pass, which the message names (R1-14); a dynamic-loader
+failure of `pv_tx_probe` is not one (lead5 L-17). A `CONSISTENT` answer can still
+have written (RC45 R1-07):
+
+- Each `settled[]` entry `{requestId, action, state, txId}` carries its
+  resulting `state`: `CHAIN_VERIFIED` (completed by this Verify), `STALE`
+  (superseded) or `SUBMISSION_REJECTED` (an established rejection's leftover
+  claims and reservation released).
+- `CONSISTENT` and `ADVANCED` always carry `settled[]`. `TERMINAL`,
+  `CLAIM_PENDING` and `REQUEST_RECOVERY_REQUIRED` carry it only when it is
+  non-empty. On a closed vault, `REQUEST_RECOVERY_REQUIRED` carries it when
+  Verify first finished requests of the vault's recorded advancement,
+  requests their own completion receipts name, or their signed same-txid
+  twins (each `CHAIN_VERIFIED`) while another request is still pending
+  (RC45 R1-13).
+- A restore of a TERMINATED_UNKNOWN vault is not in `settled[]` and adds no
+  field. The returned `vault` is live again, and the web derives its restore
+  notice from the card's TERMINATED_UNKNOWN status before the Verify.
+
+`CLAIM_RELEASED` is no longer produced for the v0.4 family. Every Close &
+recover submit, and an owner Pause contested by pending delegate work,
+returns at `SUBMITTED`; Verify completes it at depth. Webhook consequences:
+`docs/postlaunch/webhooks-events-spec.md` §4.
+
+**Transition refusals** (`POST /wallet/v4/requests`, `.../signature`,
+`.../submit`): `422 REQUEST_RECOVERY_REQUIRED` when an unresolved (PENDING)
+transition record of another transaction sits on the vault's live outpoint
+(on a closed vault, anywhere), and `409 CLAIM_CONFLICT` when an ordinary
+build meets a transaction claim on the live outpoint (pre-sign) or a
+finalize / submit meets another transaction's claim. A refusal of this
+live-outpoint guard names the blocking record and the claim in the error
+envelope: `{ code, message, requestId, action, state, signerRole, claimTxId }`
+(RC45 A3); the signature and submit routes also carry `request`, the
+caller's own request. The owner's break-glass (`ownerPause`,
+`ownerRecover`) is never refused by pending work on a live vault and does
+not count toward the open-request quota. A closed manifest answers
+`422 VAULT_TERMINAL` (recovered) or `422 RECONCILIATION_REQUIRED`, as does a
+manifest already advanced by the request's own transaction or (at submit) a
+live outpoint the node does not show; none of them writes. A completion
+receipt of the request's own transaction that names the request answers
+`422 RECONCILIATION_REQUIRED` at `.../signature` and `.../submit` before the
+live-outpoint guard, and writes nothing: a request whose own completion
+receipt names it is never `409 STALE` (RC45 R1-06). A signed same-txid twin of
+an executed request is not covered and can still answer `409 STALE` (residual,
+lead5 record L-2). Rejecting a
+request (`.../reject`) is limited to the request's signer or the vault
+owner (`403 REQUEST_FORBIDDEN` otherwise; owner-minted machine credentials
+act as the owner).
+
+### 5.2 Delegate budget period start (RC45)
+
+Applies to the delegate leaves of `policyvault-0.4.1` vaults (and the
+testnet-only `policyvault-0.4`, which shares their builders) and of
+`policyvault-0.7-kas` treasuries. Status: IMPLEMENTED and UNIT-TESTED (SDK,
+API and browser suites on JSON and PostgreSQL; built requests go through the
+real compiler, encoder and VM preflight with TEST-key signatures). Not
+TESTNET-VERIFIED.
+
+**New or changed leaves.** A leaf is new or changed unless its key is
+installed and all nine committed fields (`agentPk`, `maxPerSpend`,
+`periodBudget`, `periodLengthDaa`, `periodStartDaa`, `periodSpent`,
+`approvalThreshold`, `agentMaxFeePerTx`, `agentRecipientRoot`) equal the
+installed leaf. Any change to a delegate, including a recipient-only change,
+restarts that delegate's budget period at the build; `periodSpent` is
+committed as requested. A leaf the request leaves exactly as installed is
+carried unchanged and is not checked. A request with no new or changed leaf
+reads no DAA score (remove a delegate, Pause, Close & recover, Unpause,
+approver changes, top-ups, delegate payments).
+
+**Anchor at build.** The `periodStartDaa` a client sends for a new or
+changed leaf is a lower bound. The build reads the configured node's virtual
+DAA score (network, sync and UTXO index verified; a value that is not a
+canonical integer is refused) and commits `max(sent, anchor)`; every other
+field is committed as sent, and the agent root is computed from the committed
+leaves. A v0.4-family request reports the anchor as
+`review.periodStartAnchorDaa` (a decimal string; absent when no leaf was
+anchored), so a caller's committed start is `max(sent, anchor)`. A
+`policyvault-0.7-kas` creation carries the committed starts in `summary`; a
+root request in `newRegistry` and `vaultOperations[0].params.agents`. A
+governance proposal records the requested start; its execution build anchors
+at execution, so a proposal with any start stays executable after any delay
+window (the stated exception in `governance-spec.md` §6.2 step 4: later than
+approved, never earlier, `periodSpent` unchanged; classification stays on the
+requested change). `POST /wallet/v4/simulate` anchors the same way.
+
+**Later start.** API, SDK and MCP callers may request a later start for a
+new or changed leaf. It is kept as requested and never raises what the
+delegate can spend at any time (the spend bound of lead5 §6 does not increase
+when the start moves later). The window below is measured from it, so a slow
+M-of-N quorum has more time. The web always starts the period at its Build.
+A proposal created through the API, SDK or Python client that requests a
+start later than the network position at the build cannot be executed from
+the web: the build commits the requested start but reports the node's score
+as `review.periodStartAnchorDaa`, and the web review refuses to sign it.
+Execute such a proposal through the API or SDK, or reject the built request
+and create a new proposal (a web attempt has already consumed the proposal at
+its build). The refusal never gives a delegate more.
+
+**Window.** For a period of `L` DAA, `W(L) = max(L − 6,000, 600)` DAA: the
+period minus ten minutes, never less than one minute (1 hour: 30,000 DAA,
+50 min; 1 day: 858,000 DAA, 23 h 50 min). A request is refused when, for any
+new or changed leaf, `current DAA − periodStartDaa > W(L)`.
+
+**Refusals.**
+
+| code | where | effect |
+|---|---|---|
+| `422 PERIOD_START_REQUIRED` | any build of a new or changed leaf (`POST /wallet/v4/create`, `POST /wallet/v4/requests`, `POST /org-roots/:rootId/vaults`, `POST /org-roots/:rootId/requests`; simulate reports it as `refusalReason`) and every check point below, when the node's DAA score cannot be read | no request, reservation, claim or proposal consumption is written. At a v0.4-family build the gates before the read have already run: a released risk review that matched this action is used up (release it again), and audit-log rows may exist |
+| `409 PERIOD_START_STALE` | v0.4-family `.../genesis-submit` (before the submission claim), `.../signature` (finalize) and `.../submit`; a `policyvault-0.7-kas` creation's `POST /wallet/v7/requests/:id/signature`; `POST /org-roots/:rootId/requests/:id/finalize` | nothing written. A v0.4-family request stays `BUILT` (cancel it and build again) or, at submit, `PREFLIGHT_VERIFIED` (it keeps blocking ordinary builds; Pause, Verify about two minutes later and Unpause, or Close & recover). A creation stays `BUILT` and can be withdrawn. A root request stays `AUTHORIZED` with its owner approvals; it can then be withdrawn (`POST /org-roots/:rootId/requests/:id/reject`) although it carries slot signatures. A governed build already consumed its proposal, so a request that ages out before its signature needs a new proposal |
+| `422 REGISTRY_ROOT_MISMATCH` | every build and check point above | the request's stored registry does not fold to the agent root it commits (store damage only); nothing written. At root finalize a missing treasury record is `404 VAULT_NOT_FOUND` |
+
+**Periods shorter than 6,600 DAA.** These are below the 1-hour product
+minimum and reachable only through the API. They are accepted, with a
+600-DAA window. A leaf that passes the last check and is accepted within ten
+minutes of it can confirm with up to `⌊6,599 / L⌋` budgets beyond
+`periodBudget − periodSpent` (L = 6,000: 1; 1,200: 5; 600: 10; 60: 109;
+1: 6,599). Each later ten minutes of acceptance add one budget per `L` DAA,
+as for any period. Each payment stays bounded by `maxPerSpend`, the fee cap,
+the recipients and the approval tier, and the total by the protected value.
+Periods of 6,600 DAA or more confirm with no extra budget when accepted
+within ten minutes of the check.
+
+**What this does not do.** The banking of lead5 §6 is a property of the
+installed covenants and is unchanged:
+
+- leaves already on chain are not repaired; they keep their starts until an
+  owner action changes, rotates or removes them;
+- an idle or carried leaf still banks one budget per elapsed period at
+  consensus, and an unpause still releases the paused backlog;
+- a delegate holding its own key can still submit directly to a Kaspa node,
+  where no hosted check applies;
+- a signed `policyvault-0.7-kas` creation and a finalized root request are
+  not re-checked for their period start at submit, and neither can be
+  withdrawn on that ground. A request built by this release then holds no
+  more than a leaf whose period started at its build and stayed idle; one
+  signed before this release keeps the start it was signed with, which may be
+  `0`. Separately, a finalized root request's Submit first reads every input
+  the request spends (`v0.7-app-surface-contract.md` §2.2.5): when a non-root
+  input is proven spent by another transaction it refuses `409
+  RECORDED_OUTPUT_SPENT` with nothing written and nothing broadcast, and the
+  request can then be withdrawn (`POST /org-roots/:rootId/requests/:id/reject`)
+  in two steps, at least 1,000 DAA apart, once that spend and the input's
+  existence are final; another unresolved input read refuses `409
+  SUBMIT_INPUT_UNRESOLVED`, and an unreadable chain position `422
+  OBSERVATION_ERROR`, also with nothing written;
+- the check is hosted: the browser compares the server's start only with the
+  same server's `/network/status`, and the covenant sees only the agent root,
+  so a dishonest server can still commit a stale start.
 
 ## 6. Programmatic-client origin policy
 

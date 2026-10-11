@@ -16,7 +16,9 @@ const { ownGet } = require("../../core/model/own-get");
  * Every store write those real code paths perform is deliberately NOT
  * called here; this module only READS (manifest, org controls) and
  * invokes PURE/offline functions (the SDK builder does no RPC/store I/O —
- * see vault-builders-v4.js's own header comment).
+ * see vault-builders-v4.js's own header comment). Its one node read is the
+ * real builder's delegate period-start anchor (wr4.anchorPlanStartsV4) when
+ * a new or changed delegate leaf would be committed.
  *
  * ANTI-BLOAT: no policy/financial semantics are reimplemented — every
  * consequential decision (authorization, governance classification, risk
@@ -34,7 +36,7 @@ const { ownGet } = require("../../core/model/own-get");
  * discipline, CLAUDE.md).
  */
 
-const { loadManifestV4 } = require("../../sdk/src/manifest-v4");
+const { loadManifestV4, assertRegistryFoldsToRoot } = require("../../sdk/src/manifest-v4");
 const { resolveV4Abi, stateToJsonV4 } = require("../../sdk/src/vault-state-v4");
 const { buildV4Transaction } = require("../../sdk/src/vault-builders-v4");
 const { resolveAddressIdentity, requiredAddressPrefix } = require("../../sdk/src/address-identity");
@@ -66,8 +68,8 @@ function fail(status, code, message) {
  * real request path uses, over the SAME build.accounting, so there is
  * exactly one implementation to keep correct. Purely a KAS-formatting
  * presenter; no financial arithmetic happens here or there. */
-function reviewFromBuild(config, manifest, build) {
-  return wr4.reviewForBuild(config, manifest, build);
+function reviewFromBuild(config, manifest, build, anchorDaa = null) {
+  return wr4.reviewForBuild(config, manifest, build, anchorDaa === null ? {} : { periodStartAnchorDaa: anchorDaa.toString() });
 }
 
 /*
@@ -171,7 +173,7 @@ async function simulateWalletRequestV4(config, { vaultId, action, params, signer
     }
 
     // ---- plan + authorize (REAL functions; never reimplemented) ----
-    const plan = wr4.planV4(config, manifest, action, safeParams);
+    let plan = wr4.planV4(config, manifest, action, safeParams);
     if (plan.role !== requiredRole) throw fail(422, "BUILD_FAILED", `role map disagreement for ${action} — failing closed`);
     wr4.assertSignerAuthorizedV4(config, { role: requiredRole, signerAddress, template: manifest.template, manifest, action, agentPk: plan.agentPk });
     if (plan.role === "agent" && manifest.status !== "ACTIVE") {
@@ -183,6 +185,18 @@ async function simulateWalletRequestV4(config, { vaultId, action, params, signer
     const hasFuel = safeParams.fuel !== undefined && safeParams.fuel !== null;
     if (!isSpend && !hasFuel) {
       throw fail(422, "BUILD_FAILED", `${action} pins every covenant value, so its network fee must come from an ordinary fuel UTXO — provide params.fuel`);
+    }
+
+    // ---- delegate period-start anchor (the REAL builder's own step) ----
+    // RC45: a new or changed delegate leaf is anchored exactly as the real
+    // build anchors it (wr4.anchorPlanStartsV4: one node DAA read; none for a
+    // registry of unchanged leaves). Its refusals carry the real route's
+    // status (422: PERIOD_START_REQUIRED for an unreadable node).
+    let anchorDaa = null;
+    try {
+      ({ plan, anchorDaa } = await wr4.anchorPlanStartsV4(config, manifest, plan));
+    } catch (error) {
+      throw fail(422, error.code || "BUILD_FAILED", error.message);
     }
 
     // ---- build (REAL SDK builder; pure/offline — no RPC, no store I/O) ----
@@ -205,6 +219,14 @@ async function simulateWalletRequestV4(config, { vaultId, action, params, signer
     if (build.successorScriptSha256 !== null && manifest.live.scriptSha256 && build.predecessorStateId !== manifest.live.stateId) {
       throw fail(409, "STALE", "predecessor drift at build — failing closed");
     }
+    // The real build's registry-to-root integrity check (422 on the route).
+    if (plan.sdkAction === "ownerSetAgentRoot") {
+      try {
+        assertRegistryFoldsToRoot({ entries: plan.newRegistry, committedAgentRoot: build.successorState?.agentRoot, stage: "build" });
+      } catch (error) {
+        throw fail(422, error.code || "BUILD_FAILED", error.message);
+      }
+    }
 
     // ---- intent-manifest derivation + verification (NOT persisted) ----
     const { manifest: intentManifest, verification } = deriveAndVerify({ build });
@@ -215,7 +237,7 @@ async function simulateWalletRequestV4(config, { vaultId, action, params, signer
       ok: true,
       governance: governanceReport,
       risk: riskReport,
-      review: reviewFromBuild(config, manifest, build),
+      review: reviewFromBuild(config, manifest, build, anchorDaa),
       intent: {
         manifestHash: intentManifest.manifestHash,
         verdict: verification.verdict,

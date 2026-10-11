@@ -440,3 +440,239 @@ test("the KAS module refuses to construct without its core modules and is inert 
   assert.equal(kasMod.PROFILE, KAS);
   assert.ok(kasMod.KAS_REFUSAL_CODES.includes("GENERATION_NOT_MAINNET_AUTHORIZED"));
 });
+
+/* RC45 R2-06: the server refuses a v0.7-kas treasury creation's signature and a delegate-rule change's finalize with
+ * 409 PERIOD_START_STALE (the new or changed delegate's period start aged past its window) and every such build or
+ * check with 422 PERIOD_START_REQUIRED (the network position could not be read); the KAS treasury surface names both
+ * in its closed refusal vocabulary. RED on b89f0f7: neither is listed. */
+test("RC45 R2-06: the KAS treasury refusal vocabulary names PERIOD_START_STALE and PERIOD_START_REQUIRED [RED on b89f0f7]", () => {
+  assert.ok(kasMod.KAS_REFUSAL_CODES.includes("PERIOD_START_STALE"), "PERIOD_START_STALE is a KAS refusal code");
+  assert.ok(kasMod.KAS_REFUSAL_CODES.includes("PERIOD_START_REQUIRED"), "PERIOD_START_REQUIRED is a KAS refusal code");
+});
+
+/* ==================== RC45 R2-08: v0.7-kas delegate period starts in the treasury forms ====================
+ * The server starts the budget period of every new or changed delegate of a KAS treasury at the network position when
+ * the change is built and refuses a change whose new or changed start has aged past its window. The browser therefore
+ * never invents a period start: no "0" fallback for a new or an installed row (agentRowFrom, validateAgentRows); a new
+ * row drafted without a network position carries an EMPTY start that only the delegates-step validation accepts (Build
+ * sets it from a fresh read before the final validation); an installed row needs its exact start and spent amount; an
+ * installed row's delegate key is locked; the genesis cross-check accepts the server's start iff it is at or above
+ * max(reviewed start, daaBefore - 600) (no upper bound), adopts it and compares everything else exactly; and the
+ * delegate-rule summaries state what each delegate could pay at once if confirmed now and when its next budget arrives.
+ * Realistic network positions (about 5.45e8) except where a leg reads the production-byte fixtures (starts 5000,
+ * 1,000-DAA periods). The vectors below are written inline (no vector file under web/). */
+const R2_D = 545000000n;
+const R2_DAY = 864000n;
+const R2_PK_A = "cb144659ef300200912762786a173663150592d78f4408390c47e9956d9a6c31";
+const R2_PK_B = "5ab4689e400a4a160cf01cd44730845a54768df8547dcdf073d964f109f18c30";
+const R2_PK_N1 = "eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619";
+const R2_RECIPIENT = "1195a8046dcbb8e17034bca630065e7a0982e4e36f6f7e5a8d4554e4846fcd99";
+const R2_RECIPIENT_ROOT = "125252f3e043c314d06f8989ed81d9d716552e2d1ebf73b35c826c5ee3cc89d4";
+const r2Leaf = (agentPk, periodStartDaa, over = {}) => ({ agentPk, maxPerSpend: "500000000", periodBudget: "2000000000", periodLengthDaa: "864000", periodStartDaa: String(periodStartDaa), periodSpent: "0", approvalThreshold: "200000000", agentMaxFeePerTx: "10000000", agentRecipientRoot: R2_RECIPIENT_ROOT, recipients: [R2_RECIPIENT], ...over });
+const R2_V_A = r2Leaf(R2_PK_A, 540680000, { periodSpent: "300000000" }); // installed, lagging five periods
+const R2_V_B = r2Leaf(R2_PK_B, 544999000);
+const R2_VAULT = { ...VAULT, agents: [R2_V_A, R2_V_B] };
+const R2_RELOAD = /reload before changing delegate rules/;
+/* A filled new delegate row (KAS amounts, the treasury form's shape) with the given start. */
+const r2NewRow = (periodStartDaa) => ({ existing: false, agentKey: R2_PK_N1, maxPerSpendKas: "5", periodBudgetKas: "20", periodLengthDaa: "", period: { preset: "1d", customValue: "", customUnit: "day" }, periodStartDaa, periodSpent: "0", approvalThresholdKas: "2", agentMaxFeePerTxKas: "0.1", recipients: [{ address: R2_RECIPIENT }] });
+const r2RowErrors = (v) => JSON.stringify(v.errors instanceof Map ? Object.fromEntries([...v.errors].map(([k, e]) => [k, e])) : v.errors);
+const r2Text = (html) => String(html ?? "").replace(/<[^>]*>/g, " ").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+const r2NumSrc = (n) => `(?<![0-9])${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "[,\\u00a0\\u202f\\u2009 ]?")}(?![0-9])`;
+
+test("RC45 R2-08: agentRowFrom — a new delegate row drafted without a digit-string network position (null, undefined or a malformed value) gets an EMPTY period start: no throw, never \"0\" [RED on b89f0f7]", () => {
+  const { km } = mods();
+  for (const daa of [null, undefined, "0x207c0000", "", "12.5"]) {
+    const row = km.agentRowFrom(null, daa);
+    assert.equal(row.existing, false);
+    assert.equal(row.periodStartDaa, "", `a new row drafted with network position ${JSON.stringify(daa)} carries an empty start`);
+  }
+  assert.equal(km.kasDraftDefaults("kaspa:qx", null).agents[0].periodStartDaa, "", "the treasury wizard opens with an empty new-row start when the snapshot is missing");
+  const { rootUI } = mods();
+  const added = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: { agents: [], contractVersion: KAS }, currentDaa: null });
+  assert.equal(added.agents[0].periodStartDaa, "", "Change delegate rules adds a new row with an empty start when the snapshot is missing");
+});
+
+test("RC45 R2-08: agentRowFrom — a new delegate row drafted with a digit-string network position takes it as its start", () => {
+  const { km } = mods();
+  assert.equal(km.agentRowFrom(null, R2_D.toString()).periodStartDaa, R2_D.toString());
+});
+
+test("RC45 R2-08: agentRowFrom — an installed delegate row without a digit-string period start or spent amount refuses with the reload message (never \"0\") [RED on b89f0f7]", () => {
+  const { km } = mods();
+  const msg = /installed delegate rules of this treasury could not be loaded exactly/;
+  for (const [label, over] of [["start missing", { periodStartDaa: undefined }], ["spent missing", { periodSpent: undefined }], ["start malformed", { periodStartDaa: "0x1" }], ["spent malformed", { periodSpent: "-1" }], ["start null", { periodStartDaa: null }]]) {
+    assert.throws(() => km.agentRowFrom({ ...R2_V_A, ...over }, R2_D.toString()), msg, `installed row, ${label}: refused`);
+  }
+});
+
+test("RC45 R2-08: an installed delegate row carries installedKey = its installed delegate key (vaultOpDraftFrom and agentRowFrom) [RED on b89f0f7]", () => {
+  const { km, rootUI } = mods();
+  assert.equal(km.agentRowFrom(R2_V_A, R2_D.toString()).installedKey, R2_PK_A);
+  const draft = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: R2_VAULT, currentDaa: R2_D.toString() });
+  assert.deepEqual(draft.agents.map((r) => r.installedKey), [R2_PK_A, R2_PK_B]);
+  assert.deepEqual(draft.agents.map((r) => r.periodStartDaa), [R2_V_A.periodStartDaa, R2_V_B.periodStartDaa], "installed starts are carried exactly");
+  assert.deepEqual(draft.agents.map((r) => r.periodSpent), [R2_V_A.periodSpent, R2_V_B.periodSpent], "installed spent amounts are carried exactly");
+});
+
+test("RC45 R2-08: Change delegate rules (final validation) — an installed row whose period start or spent amount is missing is a row error asking to reload, never treated as \"0\" [RED on b89f0f7]", async () => {
+  const { rootUI } = mods();
+  for (const field of ["periodStartDaa", "periodSpent"]) {
+    const draft = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: R2_VAULT, currentDaa: R2_D.toString() });
+    delete draft.agents[0][field];
+    const v = await rootUI.validateVaultOpDraft({ op: "ownerSetAgentRoot", draft, vault: R2_VAULT });
+    assert.equal(v.ok, false, `${field} missing: refused (today it would be committed as "0")`);
+    assert.match(r2RowErrors(v), R2_RELOAD, `${field} missing: the row error asks to reload`);
+  }
+});
+
+test("RC45 R2-08: treasury wizard (delegates step) — an installed row missing its period start or spent amount is a row error in step validation too [RED on b89f0f7]", async () => {
+  const { km } = mods();
+  for (const field of ["periodStartDaa", "periodSpent"]) {
+    const d = km.kasDraftDefaults("kaspa:q" + G.funderXOnly, R2_D.toString());
+    const row = { ...r2NewRow(R2_D.toString()), existing: true, installedKey: R2_PK_N1, periodSpent: "0" };
+    delete row[field];
+    d.agents = [row];
+    const v = await km.validateKasDraft(d, { step: "delegates" });
+    assert.ok(v.errors.has("agentRows"), `${field} missing on an installed row: a row error`);
+    assert.match(r2RowErrors(v), R2_RELOAD);
+  }
+});
+
+test("RC45 R2-08: treasury wizard (delegates step) — a NEW row whose start is still empty passes step validation (Build sets the start before the final validation) [RED on b89f0f7]", async () => {
+  const { km } = mods();
+  const d = km.kasDraftDefaults("kaspa:q" + G.funderXOnly, null);
+  d.agents = [r2NewRow("")];
+  const v = await km.validateKasDraft(d, { step: "delegates" });
+  assert.equal(v.errors.size, 0, `an empty new-row start is accepted at the delegates step: ${r2RowErrors(v)}`);
+});
+
+test("RC45 R2-08: the final validation (wizard Build and Change delegate rules) refuses a new row whose start is empty or missing — never \"0\" [RED on b89f0f7]", async () => {
+  const { km, rootUI } = mods();
+  for (const start of ["", undefined]) {
+    const d = km.kasDraftDefaults("kaspa:q" + G.funderXOnly, null);
+    Object.assign(d, { depositKas: "100", feeReserveKas: "5", recoveryAddress: "kaspa:q" + G.summary.recoveryPk });
+    const row = r2NewRow(start);
+    if (start === undefined) delete row.periodStartDaa;
+    d.agents = [row];
+    const v = await km.validateKasDraft(d, { connectedAddress: "kaspa:q" + G.funderXOnly });
+    assert.equal(v.ok, false, `wizard final validation, start ${JSON.stringify(start)}: refused`);
+    assert.ok(v.errors.has("agentRows"), "a row error");
+    const draft = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: R2_VAULT, currentDaa: R2_D.toString() });
+    draft.agents.push(row);
+    const c = await rootUI.validateVaultOpDraft({ op: "ownerSetAgentRoot", draft, vault: R2_VAULT });
+    assert.equal(c.ok, false, `Change delegate rules, new-row start ${JSON.stringify(start)}: refused`);
+  }
+});
+
+test("RC45 R2-08: key lock — Change delegate rules refuses an installed row whose delegate key was replaced (a different wallet is a removal plus a new delegate) [RED on b89f0f7]", async () => {
+  const { rootUI } = mods();
+  const draft = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: R2_VAULT, currentDaa: R2_D.toString() });
+  draft.agents[0] = { ...draft.agents[0], agentKey: R2_PK_N1 };
+  const v = await rootUI.validateVaultOpDraft({ op: "ownerSetAgentRoot", draft, vault: R2_VAULT });
+  assert.equal(v.ok, false, "a key typed into an installed row is refused (it would inherit the installed start and spent amount)");
+  assert.ok(v.errors.has("agentRows") && v.errors.get("agentRows")[0], "the installed row carries the error");
+});
+
+test("RC45 R2-08: an unchanged installed rule set still validates and folds to the installed agent root (installed rows carried exactly)", async () => {
+  const { rootUI } = mods();
+  const draft = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: R2_VAULT, currentDaa: R2_D.toString() });
+  const v = await rootUI.validateVaultOpDraft({ op: "ownerSetAgentRoot", draft, vault: R2_VAULT });
+  assert.equal(v.ok, true, r2RowErrors(v));
+  assert.equal(v.agentRoot, core.agentMerkle.buildAgentTreeV4([R2_V_A, R2_V_B].map(({ recipients, ...p }) => { void recipients; return p; })).root);
+  assert.deepEqual(v.vaultOperation.params.agents.map((a) => [a.periodStartDaa, a.periodSpent]), [[R2_V_A.periodStartDaa, R2_V_A.periodSpent], [R2_V_B.periodStartDaa, R2_V_B.periodSpent]]);
+});
+
+test("RC45 R2-08: the Change delegate rules form shows an installed row's delegate key read-only (installed label, hidden installedKey) while a new row keeps an editable key [RED on b89f0f7]", () => {
+  const { rootUI } = mods();
+  const draft = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: R2_VAULT, currentDaa: R2_D.toString() });
+  draft.agents.push(r2NewRow(R2_D.toString()));
+  const html = rootUI.renderVaultOpFormHtml({ op: "ownerSetAgentRoot", vault: R2_VAULT, orgRoot: ROOT, draft, errors: new Map(), connectedAddress: "kaspa:qown1", currentDaa: R2_D.toString() });
+  const t = r2Text(html);
+  assert.ok(t.includes("Delegate wallet (installed — to use a different wallet, remove this delegate and add a new one)"), "the installed label is shown");
+  for (const [i, pk] of [[0, R2_PK_A], [1, R2_PK_B]]) {
+    const keyTags = html.match(new RegExp(`<input[^>]*name="agent-${i}-installedKey"[^>]*>`, "g")) || [];
+    assert.ok(keyTags.length === 1 && /type="hidden"/.test(keyTags[0]) && keyTags[0].includes(`value="${pk}"`), `row ${i}: one hidden installedKey carrying the installed key (${keyTags.join(" ")})`);
+    for (const tag of html.match(new RegExp(`<input[^>]*name="agent-${i}-agentKey"[^>]*>`, "g")) || []) {
+      assert.match(tag, /type="hidden"|readonly|disabled/, `row ${i}: the installed key is not editable (${tag})`);
+    }
+  }
+  const fresh = (html.match(/<input[^>]*name="agent-2-agentKey"[^>]*>/g) || []);
+  assert.ok(fresh.length && fresh.every((tag) => !/readonly|disabled|type="hidden"/.test(tag)), "a new row's key field stays editable");
+});
+
+test("RC45 R2-08: the Change delegate rules form tells the owners, per delegate, that approvals and finalize must complete within the delegate's window after Build [RED on b89f0f7]", () => {
+  const { rootUI } = mods();
+  const draft = rootUI.vaultOpDraftFrom({ op: "ownerSetAgentRoot", vault: R2_VAULT, currentDaa: R2_D.toString() });
+  const t = r2Text(rootUI.renderVaultOpFormHtml({ op: "ownerSetAgentRoot", vault: R2_VAULT, orgRoot: ROOT, draft, errors: new Map(), connectedAddress: "kaspa:qown1", currentDaa: R2_D.toString() }));
+  assert.ok(t.includes("Owner approvals and finalize must complete within"), `the finalize window is stated on the form; it shows: ${t.slice(0, 400)}`);
+});
+
+/* Genesis cross-check: the server's summary with its delegate start S_server against the rules reviewed at Build
+ * (start S_reviewed); every other field of the production-byte genesis summary is unchanged, and each side's agent root
+ * is the root of its own delegate tuple. */
+function r2GenesisPair(serverStart, reviewedStart, over = {}) {
+  const agent = (start) => ({ ...G.summary.agents[0], periodLengthDaa: R2_DAY.toString(), periodStartDaa: String(start), ...over });
+  const rootOf = (a) => { const { recipients, ...p } = a; void recipients; return core.agentMerkle.buildAgentTreeV4([p]).root; };
+  const server = agent(serverStart), reviewed = agent(reviewedStart);
+  const summary = { ...G.summary, agents: [server], initialState: { ...G.summary.initialState, agentRoot: rootOf(server) } };
+  const norm = { ...normFromSummary(G.summary), agents: [{ ...reviewed }], agentRoot: rootOf(reviewed) };
+  return { summary, norm };
+}
+
+test("RC45 R2-08: genesis cross-check — a server start above the reviewed Build read is adopted (the agent root recomputed locally) and the summary matches [RED on b89f0f7]", () => {
+  const { km } = mods();
+  const { summary, norm } = r2GenesisPair(R2_D + 40n, R2_D);
+  const res = km.genesisCrossCheck({ summary, norm, daaBefore: R2_D.toString() });
+  assert.equal(res.ok, true, res.mismatches.join("; "));
+});
+
+test("RC45 R2-08: genesis cross-check — a server start exactly at daaBefore - 600 is accepted when the reviewed start is lower [RED on b89f0f7]", () => {
+  const { km } = mods();
+  const { summary, norm } = r2GenesisPair(R2_D - 600n, R2_D - 5000n);
+  const res = km.genesisCrossCheck({ summary, norm, daaBefore: R2_D.toString() });
+  assert.equal(res.ok, true, res.mismatches.join("; "));
+});
+
+test("RC45 R2-08: genesis cross-check — a server start 10,000 DAA above daaBefore has no upper bound (accepted) [RED on b89f0f7]", () => {
+  const { km } = mods();
+  const { summary, norm } = r2GenesisPair(R2_D + 10000n, R2_D);
+  const res = km.genesisCrossCheck({ summary, norm, daaBefore: R2_D.toString() });
+  assert.equal(res.ok, true, res.mismatches.join("; "));
+});
+
+test("RC45 R2-08: genesis cross-check — a server start 601 below daaBefore, or below the reviewed start, is a mismatch; an adopted start never excuses another field; a summary whose root was not recomputed for the anchored start is a mismatch; without daaBefore the comparison stays exact", () => {
+  const { km } = mods();
+  const below = r2GenesisPair(R2_D - 601n, R2_D - 5000n);
+  assert.equal(km.genesisCrossCheck({ ...below, daaBefore: R2_D.toString() }).ok, false, "601 below daaBefore");
+  const belowReviewed = r2GenesisPair(R2_D - 300n, R2_D);
+  assert.equal(km.genesisCrossCheck({ ...belowReviewed, daaBefore: R2_D.toString() }).ok, false, "below the reviewed start");
+  const capChanged = r2GenesisPair(R2_D + 40n, R2_D);
+  capChanged.summary.agents = [{ ...capChanged.summary.agents[0], maxPerSpend: "1" }];
+  assert.equal(km.genesisCrossCheck({ ...capChanged, daaBefore: R2_D.toString() }).ok, false, "a changed cap is still a mismatch");
+  const staleRoot = r2GenesisPair(R2_D + 40n, R2_D);
+  staleRoot.summary.initialState = { ...staleRoot.summary.initialState, agentRoot: staleRoot.norm.agentRoot };
+  assert.equal(km.genesisCrossCheck({ ...staleRoot, daaBefore: R2_D.toString() }).ok, false, "the server's root must be the root of its own (anchored) delegate tuple");
+  const exact = r2GenesisPair(R2_D + 40n, R2_D);
+  assert.equal(km.genesisCrossCheck(exact).ok, false, "without daaBefore (the signing-time re-check) the start is compared exactly");
+});
+
+/* The delegate-rule change of the production-byte fixtures installs one delegate (start 5000, period 1,000 DAA, budget
+ * 20 KAS, nothing spent). At network position 8500 it could pay four periods' budgets at once (80 KAS); its next budget
+ * arrives at 9000. At 4000 (before its start) it could pay one budget (20 KAS); the next arrives at 6000. */
+test("RC45 R2-08: the delegate-rule change summary (request detail and kasVaultOperationSummary) states per delegate what it could pay at once if confirmed now and when its next budget arrives; earlier unused periods are flagged [RED on b89f0f7]", () => {
+  const { rootUI, km } = mods();
+  const fx = fixture("vault_owner_set_agent_root");
+  const request = { id: "q-r2", action: "authorize", state: "AUTHORIZED", slots: [], vaultOperations: [{ vaultId: VAULT.vaultId, action: "ownerSetAgentRoot" }], manifest: fx.manifest, redeemScripts: fx.redeemScripts };
+  const lagging = r2Text(rootUI.renderRequestDetailHtml(request, { orgRoot: ROOT, viewerXOnly: OWNER, currentDaa: "8500" }));
+  assert.match(lagging, new RegExp(`If confirmed now \\(network position ${r2NumSrc(8500)}\\): can pay out up to 80 KAS at once`), `the immediate amount at 8500; it shows: ${lagging.slice(0, 900)}`);
+  assert.match(lagging, new RegExp(`its next budget of 20 KAS becomes available at network position ${r2NumSrc(9000)}`));
+  assert.ok(lagging.includes("then 20 KAS per period"));
+  assert.ok(lagging.includes("The treasury total stays capped by its protected principal"));
+  assert.ok(lagging.includes("includes 3 earlier, unused periods — the covenant lets them be spent at once"), "K - 1 = 3 earlier periods are flagged");
+  const direct = km.kasVaultOperationSummary(request, { currentDaa: "8500" });
+  assert.ok(direct.lines.some((l) => /can pay out up to 80 KAS at once/.test(l)), "kasVaultOperationSummary carries the line");
+  const ahead = r2Text(rootUI.renderRequestDetailHtml(request, { orgRoot: ROOT, viewerXOnly: OWNER, currentDaa: "4000" }));
+  assert.match(ahead, /can pay out up to 20 KAS at once/);
+  assert.match(ahead, new RegExp(`its next budget of 20 KAS becomes available at network position ${r2NumSrc(6000)}`));
+  assert.ok(!ahead.includes("earlier, unused periods"), "nothing banked before the start");
+});

@@ -47,6 +47,9 @@ const { ENCODER_PATH } = require("../src/vault-builders-v4");
 const { ROOT_STATE_LEN_V7 } = require("../../core/model/vault-state-v7-root");
 
 const wr7 = require("../src/wallet-requests-v7");
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table also carries the seam's walk (registerFixtureNode)
+ * and each root build's supplied fee UTXO (seedFixtureFuel) — the B1 build observes every non-root input live and exact */
 const { reconcileOrgRootV7 } = require("../src/reconcile-v7");
 const { covenantAddress, loadKaspa } = require("../src/chain");
 
@@ -170,6 +173,7 @@ function fuelUtxoFor(fuelKey, amount = 50n * KAS) {
 /* Drive a genesis request (root or rooted vault) to CHAIN_VERIFIED against
  * a mock RPC seeded with exactly its own expected output. */
 async function driveGenesis(cfg, request, funderKey, rpc) {
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory: root builds on this config read this mock table
   const signed = signAll(request.transaction.unsignedSafeJson, request.transaction.signInputs.map((s) => [s.index, funderKey]));
   const finalized = await wr7.submitOrgRootRequestSignature({ config: cfg, requestId: request.id, signedSafeJson: signed });
   assert.equal(finalized.state, "SIGNED");
@@ -273,7 +277,7 @@ test("rooted vault genesis pins the root; full owner-quorum lifecycle: root acti
   assert.equal(vaultManifest.orgRootCovenantId, rootCovenantId);
 
   /* ---- ROOT ACTION without a vault op: an AUTHORIZE heartbeat ---- */
-  const heartbeatReq = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, signerAddress: ADDR(c.owner1) });
+  const heartbeatReq = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, signerAddress: ADDR(c.owner1) }));
   assert.equal(heartbeatReq.kind, "rootAction");
   assert.equal(heartbeatReq.requiredApprovals, "2");
   assert.equal(heartbeatReq.slots.length, 3);
@@ -314,17 +318,17 @@ test("rooted vault genesis pins the root; full owner-quorum lifecycle: root acti
   assert.equal(heartbeatAgain.state, "CHAIN_VERIFIED");
 
   /* ---- a SECOND root-authorized request cannot be BUILT while one is pending ---- */
-  const pendingProbe = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, signerAddress: ADDR(c.owner1) });
+  const pendingProbe = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, signerAddress: ADDR(c.owner1) }));
   assert.ok(pendingProbe.id, "a second heartbeat may be built once the first reached CHAIN_VERIFIED and cleared pendingRequestId");
   await wr7.rejectOrgRootRequest({ config: cfg, requestId: pendingProbe.id, reason: "probe only" }); // clear pendingRequestId before continuing
 
   /* ---- ROOT ACTION WITH a vault operation: ownerTopUpReserve under AUTHORIZE ---- */
-  const topUpReq = await wr7.buildRootActionRequest({
+  const topUpReq = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({
     config: cfg, rootCovenantId, action: "authorize",
-    params: { fuel: fuelUtxoFor(c.fuelKey) },
+    params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) },
     vaultOperations: [{ vaultId, action: "ownerTopUpReserve", params: { topUpReserveAmountSompi: (KAS / 2n).toString() } }],
     signerAddress: ADDR(c.owner2)
-  });
+  }));
   assert.equal(topUpReq.vaultOperations.length, 1);
   assert.equal(topUpReq.vaultOperations[0].action, "ownerTopUpReserve");
   assert.equal(topUpReq.actionClass, "AUTHORITY-NEUTRAL");
@@ -349,12 +353,12 @@ test("rooted vault genesis pins the root; full owner-quorum lifecycle: root acti
   assert.equal(vaultAfterTopUp.generation, 1);
 
   /* ---- EMERGENCY quorum: ownerEmergencyPause under FREEZE (K=1), ONE signature ---- */
-  const freezeReq = await wr7.buildRootActionRequest({
+  const freezeReq = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({
     config: cfg, rootCovenantId, action: "freeze",
-    params: { fuel: fuelUtxoFor(c.fuelKey) },
+    params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) },
     vaultOperations: [{ vaultId, action: "ownerEmergencyPause", params: {} }],
     signerAddress: ADDR(c.owner3)
-  });
+  }));
   assert.equal(freezeReq.requiredApprovals, "1");
   assert.equal(freezeReq.actionClass, "AUTHORITY-REDUCING");
   assert.deepEqual(freezeReq.warnings, ["LANDS_FROZEN"], "freeze itself carries no DANGEROUS_* label, but it DOES land the root frozen");
@@ -500,7 +504,7 @@ test("reconcile: CONSISTENT when live, ADVANCED only on proven successor, UNKNOW
    * BUILD by manually creating the transition claim a real submit would
    * have made, then reconcile with the live outpoint STILL present (no
    * successor broadcast at all): CLAIM_PENDING, never advanced. */
-  const heartbeat = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, signerAddress: ADDR(c.owner1) });
+  const heartbeat = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, signerAddress: ADDR(c.owner1) }));
   const { claimTransition } = require("../src/submission-claim");
   const rootNow = await wr7.loadOrgRoot(cfg, rootCovenantId);
   await claimTransition(cfg, { outpoint: rootNow.live.outpoint, action: "authorize", txId: heartbeat.txId, vaultId: rootCovenantId, stateId: null, expected: { kind: "orgRootRequest", requestId: heartbeat.id } });
@@ -565,12 +569,12 @@ test("R7-02: ownerSetAgentRoot carries and binds the new policy set; a bare newA
 
   /* a bare root (the pre-rc27 shape) is refused before any build — the owners approve RULES */
   await assert.rejects(
-    () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [{ vaultId, action: "ownerSetAgentRoot", params: { newAgentRoot: "99".repeat(32) } }], signerAddress: ADDR(c.owner1) }),
+    () => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, vaultOperations: [{ vaultId, action: "ownerSetAgentRoot", params: { newAgentRoot: "99".repeat(32) } }], signerAddress: ADDR(c.owner1) })),
     (e) => { assert.equal(e.code, "AGENT_SET_REQUIRED"); return true; }
   );
   /* a malformed set (an entry without recipients) is refused as a set, not built */
   await assert.rejects(
-    () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(c.fuelKey) }, vaultOperations: [{ vaultId, action: "ownerSetAgentRoot", params: { agents: [{ ...c.policy }] } }], signerAddress: ADDR(c.owner1) }),
+    () => withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) }, vaultOperations: [{ vaultId, action: "ownerSetAgentRoot", params: { agents: [{ ...c.policy }] } }], signerAddress: ADDR(c.owner1) })),
     (e) => { assert.ok(e.code && e.code !== "BUILD_FAILED", `code ${e.code}: ${e.message}`); assert.match(e.message, /recipients|policy set/); return true; }
   );
 
@@ -579,12 +583,12 @@ test("R7-02: ownerSetAgentRoot carries and binds the new policy set; a bare newA
     { ...c.policy, tokenMaxPerSpend: "100", recipients: [...c.rTree.recipients] },
     { ...c.policy, agentPk: XO(newAgentKey), recipients: [...c.rTree.recipients] }
   ];
-  const setReq = await wr7.buildRootActionRequest({
+  const setReq = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({
     config: cfg, rootCovenantId, action: "authorize",
-    params: { fuel: fuelUtxoFor(c.fuelKey) },
+    params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(c.fuelKey)) },
     vaultOperations: [{ vaultId, action: "ownerSetAgentRoot", params: { agents: newEntries } }],
     signerAddress: ADDR(c.owner1)
-  });
+  }));
   assert.equal(setReq.vaultOperations[0].action, "ownerSetAgentRoot");
   assert.equal(setReq.newRegistry.length, 2, "the validated registry entries travel on the request");
   assert.deepEqual(setReq.newRegistry.map((e) => e.agentPk).sort(), [XO(c.agentKey), XO(newAgentKey)].sort());

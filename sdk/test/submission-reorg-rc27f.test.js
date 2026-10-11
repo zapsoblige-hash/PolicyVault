@@ -25,7 +25,10 @@ async function prepared(kind, variant) {
   if (variant === "wrong-rejection-id") request.submissionAttempt.error = `Rejected transaction ${fx.H(0xe2)}: test consensus refusal`;
   if (kind === "root") await wr.saveOrgRootRequest(x.config, request);
   else await fx.getStore(x.config).write(fx.Categories.REQUEST, request.requestId, request);
-  const [start, sink] = hashes, mid = fx.H(0xd1), ancestor = fx.H(0xd2);
+  /* R3N-B1a inventory (TEST BUG; contract-03 §8 "window fixtures keyed on the submit-time sink"): the removed anchor this
+   * window models is the request's RECORDED submit start — the submit-time sink on C3, the sink's 20th selected parent
+   * (A_s) with R3N-B1 — so the window is keyed on request.submitStartHash, not on the submit-time sink hashes[0] */
+  const sink = hashes[1], start = request.submitStartHash, mid = fx.H(0xd1), ancestor = fx.H(0xd2);
   let mempoolReads = 0;
   x.rpc.getVirtualChainFromBlock = async ({ startHash }) => {
     const initial = startHash === start;

@@ -43,6 +43,11 @@ const assets = require("../../core/assets");
 const { compileKcc20Program } = require("../src/token-program-kcc20");
 const { buildRecipientTree } = require("../src/recipient-merkle-v3");
 const { createHarness } = require("./helpers/v7-kas-mock-harness");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa, withDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const probe = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-vid-probe-")) });
 const available = fs.existsSync(probe.silvercPath) && fs.existsSync(ENCODER_PATH) && fs.existsSync(path.join(probe.repoRoot, "tests/vm/target/debug/pv_tx_probe"));
@@ -320,7 +325,8 @@ test("10 (matrix): EVERY generation with a caller-selectable identity refuses an
 async function v4Setup(t) {
   const cfg = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-v4-id-")) });
   t.after(() => fs.rmSync(cfg.dataRoot, { recursive: true, force: true }));
-  const Hh = createHarness(cfg), owner = Hh.KEY(0x21), rpc = Hh.mockRpc(), store = getStore(cfg);
+  // RC45 R2-13: the v0.4.1 genesis-submit period-start check reads the node DAA from this rpc.
+  const Hh = createHarness(cfg), owner = Hh.KEY(0x21), rpc = withDaa(Hh.mockRpc(), "5000"), store = getStore(cfg);
   const build = (vaultId = crypto.randomBytes(32).toString("hex")) => wr4.buildCreateWalletRequestV4({ config: cfg, contractVersion: "policyvault-0.4.1", templateInput: { owner: Hh.XO(owner), vaultId }, initialAgents: [], initialState: { protectedValue: "1000000000", feeReserve: "100000000", approvers: [], approvalM: "0" }, signerAddress: Hh.ADDR(owner), funding: [Hh.fuelUtxoFor(owner, 5000n * KAS)] });
   const signed = (r) => Hh.signAll(r.transaction.unsignedSafeJson, r.transaction.signInputs.map((s) => [s.index, owner]));
   const seed = (r) => { const { vaultAddress, vaultValue } = submit4.genesisTargetV4(cfg, r); rpc.seed(vaultAddress, Hh.utxo(vaultAddress, r.build.txId, r.vaultOutputIndex, vaultValue, r.covenantId)); };

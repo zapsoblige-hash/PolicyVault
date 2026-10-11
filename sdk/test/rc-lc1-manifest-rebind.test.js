@@ -46,6 +46,7 @@ const { compileExactStateV4 } = require("../src/contract-compiler-v4");
 const { MANIFEST_SCHEMA_V4, persistManifestV4 } = require("../src/manifest-v4");
 const { makeDevSigner } = require("../src/signer-dev");
 const { getStore, Categories } = require("../src/store");
+const { transitionClaimKey } = require("../src/submission-claim");
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pv-rclc1-"));
 const config = loadConfig({ dataRoot });
@@ -206,16 +207,29 @@ test("RC-LC-1: two LIVE identical builds coexist (C05 contract) sharing one reco
   assert.equal((await manifestRecord(p1.manifestHash)).requestId, p1.requestId, "creator provenance");
   const d1 = await POST(["wallet", "v4", "requests", p1.requestId, "signature"], { signedSafeJson: signOwner(p1) });
   assert.equal(d1.body.request.state, "PREFLIGHT_VERIFIED");
-  // The duplicate passes the CONTENT gate but the transition-claim
-  // arbiter (first-finalize-wins) refuses it fail-closed — the designed
-  // broadcast-exclusivity layer, untouched by this remediation.
-  await expectThrow(
-    POST(["wallet", "v4", "requests", p2.requestId, "signature"], { signedSafeJson: signOwner(p2) }),
-    undefined,
-    "CLAIM_CONFLICT"
-  );
+  // The duplicate passes the CONTENT gate. RC45 F2 (plan r2 §2.1(2) CR-L14,
+  // §8 T2 "twins never refuse each other"; a changed-by-design pin §8.1 does
+  // not list): the finalized sibling is a same-txid TWIN — the SAME
+  // transaction — so the blocking guard never refuses the duplicate. Broadcast
+  // exclusivity stays with the ONE transition claim: the duplicate never takes
+  // a second claim and names no second transaction (never two different
+  // broadcastable packages). The duplicate's own finalize outcome (the
+  // same-txid claim read back as its own) is F4's claim-error rule (T4).
+  const claimKey = transitionClaimKey((await store().read(Categories.REQUEST, p1.requestId)).predecessorOutpoint);
+  const claimBefore = await store().read(Categories.TRANSITION_CLAIM, claimKey);
+  assert.equal(claimBefore.txId, p1.txId, "the first finalization holds the one claim");
+  // Exact outcome (writer amendment after the RED check; same pin as T4's
+  // twin leg): the twin's finalize succeeds, its same-txid claim reading
+  // back as its own.
+  let d2;
+  await assert.doesNotReject(async () => { d2 = await POST(["wallet", "v4", "requests", p2.requestId, "signature"], { signedSafeJson: signOwner(p2) }); }, "a same-txid twin's finalize is never refused");
+  assert.equal(d2.body.request.state, "PREFLIGHT_VERIFIED", "a same-txid twin finalizes: never refused by the blocking guard");
+  assert.deepEqual(await store().read(Categories.TRANSITION_CLAIM, claimKey), claimBefore, "no second claim: the twins share the one claim for the one transaction");
   const p2After = await store().read(Categories.REQUEST, p2.requestId);
-  assert.equal(p2After.state, "CLAIM_CONFLICT", "the losing duplicate is closed fail-closed");
+  assert.equal(p2After.state, "PREFLIGHT_VERIFIED", "the twin is stored PREFLIGHT_VERIFIED");
+  assert.ok(p2After.finalTransaction, "with its signed bytes");
+  assert.equal(p2After.txId, p1.txId, "the duplicate names the same transaction (no second package)");
+  assert.equal((await store().read(Categories.REQUEST, p1.requestId)).state, "PREFLIGHT_VERIFIED", "the first finalization stands");
 });
 
 /* Anti-repoint tamper property (the hostile-manifest 106 class): a

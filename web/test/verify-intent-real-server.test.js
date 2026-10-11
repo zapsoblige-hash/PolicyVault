@@ -39,6 +39,11 @@ const { normalizeStateV4, computeStateIdV4, stateToJsonV4, CONTRACT_VERSION_V4_1
 const { sompiToKas } = require("../../core/model/amounts.js");
 const { compileExactStateV4 } = require("../../sdk/src/contract-compiler-v4");
 const { MANIFEST_SCHEMA_V4, persistManifestV4 } = require("../../sdk/src/manifest-v4");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../../sdk/testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const core = require("../core-bundle.js");
 const { createVerifyIntent } = require("../verify-intent.js");

@@ -1,6 +1,6 @@
 {
  "schema": "policyvault-authorization-boundary-inventory/1",
- "purpose": "Mechanical authorization-boundary inventory of every hosted API route family (rc11 internal security review F-04, owner addendum \u00a7E GATE 2). Verified by sdk/test/authorization-boundary-inventory.test.js: every route family literal in server/src/scopes.js and server/src/api.js must appear here; machine scopes must match requiredScopesFor; every non-public route must name an auth gate present in its file; every tenant-owned route must name a tenancy resolver and (for mutations) a mutation gate, plus a hostile-evidence test that exercises its path with a foreign principal; `void principal`-style discards are lint failures unless listed under documentedExceptions.",
+ "purpose": "Mechanical authorization-boundary inventory of every hosted API route family (rc11 internal security review F-04, owner addendum \u00a7E GATE 2). Verified by sdk/test/authorization-boundary-inventory.test.js: every route family literal in server/src/scopes.js and server/src/api.js must appear here; machine scopes must match requiredScopesFor; every non-public route must name an auth gate that its own handler block or family prelude calls, comments stripped (RC45 R1-02); every tenant-owned route must name a tenancy resolver and (for mutations) a mutation gate bound the same way (a parameterized gate only where it is called with { mutation: true }), plus a hostile-evidence test that contains a request path matching its full route pattern, exact version segment included, with a foreign principal; `void principal`-style discards are lint failures unless listed under documentedExceptions.",
  "principalTypes": {
   "none": "public route; no principal",
   "optional": "principal resolved when presented; route serves no tenant-owned object",
@@ -224,10 +224,11 @@
    "principalType": "session-only",
    "authGate": "requestAuthPrincipal",
    "file": "server/src/api.js",
-   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
-   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly) + requireOrgAccess(owner) when orgId is present",
+   "mutationGate": "requireOrgAccess(owner) when orgId is present, before createIdentity and any event (a malformed orgId is 422 ORG_ID_INVALID, a missing or foreign organization the non-oracle 404 ORG_NOT_FOUND, a member who is not the owner 403 ORG_FORBIDDEN; nothing written) + createIdentity (creatorXOnly is the session wallet's xOnlyPubkey)",
    "machineScope": null,
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js",
+   "note": "RC45 R1-02 (S-02): row corrected to the code; the mutation gate is the one machine-identity function this route calls (createIdentity), not all three | RC45 R1-11 (OBS-R1-02-A; PA-R1-01 r1): an orgId routes the identity's events to that organization's readers, so naming one requires the organization owner; absent or null orgId is unchanged; the tag confers no authority; hostile evidence for the gate: sdk/test/rc45-r1-11-identity-org-scope.test.js"
   },
   {
    "method": "GET",
@@ -261,9 +262,10 @@
    "authGate": "requestAuthPrincipal",
    "file": "server/src/api.js",
    "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
-   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "mutationGate": "mintCredential (creatorXOnly; a foreign identity is the non-oracle 404 MACHINE_IDENTITY_NOT_FOUND)",
    "machineScope": null,
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js",
+   "note": "RC45 R1-02 (S-02): row corrected to the code; the mutation gate is the one machine-identity function this route calls (mintCredential), not all three"
   },
   {
    "method": "POST",
@@ -273,9 +275,10 @@
    "authGate": "requestAuthPrincipal",
    "file": "server/src/api.js",
    "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
-   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "mutationGate": "revokeCredential (creatorXOnly; a foreign identity is the non-oracle 404 MACHINE_IDENTITY_NOT_FOUND)",
    "machineScope": null,
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js",
+   "note": "RC45 R1-02 (S-02): row corrected to the code; the mutation gate is the one machine-identity function this route calls (revokeCredential), not all three"
   },
   {
    "method": "POST",
@@ -285,9 +288,10 @@
    "authGate": "requestAuthPrincipal",
    "file": "server/src/api.js",
    "tenancyResolver": "listIdentitiesForCreator / getIdentityScoped (creatorXOnly)",
-   "mutationGate": "mintCredential / revokeCredential / revokeIdentity (creatorXOnly)",
+   "mutationGate": "revokeIdentity (creatorXOnly; a foreign identity is the non-oracle 404 MACHINE_IDENTITY_NOT_FOUND); after it persisted, identity.revoked carries the stored orgId only when orgAccessAllowed(owner) holds for the revoker on that live organization (otherwise omitted: creator-only visibility; the check never throws)",
    "machineScope": null,
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js",
+   "note": "RC45 R1-02 (S-02): row corrected to the code; the mutation gate is the one machine-identity function this route calls (revokeIdentity), not all three | RC45 R1-11 (OBS-R1-02-A; PA-R1-01 r1 C1): the event rule only; the revocation stays creator-scoped; hostile evidence for the event rule: sdk/test/rc45-r1-11-identity-org-scope.test.js"
   },
   {
    "method": "GET",
@@ -388,7 +392,7 @@
     "vaults:reconcile"
    ],
    "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
-   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500)"
+   "note": "caller-supplied vault id: loadVaultOrNull (an id of another generation answers the same 404, never 500). RC45 F6/F8 A5 (H-51): the body may carry outOfAppTransaction, optional owner-supplied recover evidence, verified against the chain, grants no authority; it is read only after the principal and requireVaultAccess(owner) (foreign evidence answers the same 404 before any parse or node call), a non-string, a string over 64 KiB or a transaction with more than 64 outputs (RC45 R1-09) is 400 BAD_FORMAT and a vault outside the v0.4 family with the field is 422 UNSUPPORTED_VERSION, neither reconciles; hostile evidence for the field: sdk/test/rc45-t8-recover-evidence-route.test.js"
   },
   {
    "method": "GET",
@@ -499,27 +503,28 @@
    "principalType": "session-or-machine",
    "authGate": "requireRequestSigner",
    "file": "server/src/api.js",
-   "tenancyResolver": "requestAccessAllowed",
-   "mutationGate": "requireRequestSigner (the request's signer only) + requireSignedSafeJsonShape",
+   "tenancyResolver": "loadLegacyV2Request (v0.2 records only) + requestAccessAllowed",
+   "mutationGate": "loadLegacyV2Request (hosted: authentication, 401; then a missing record or one whose schema is not exactly policyvault-wallet-request/v2 is the non-oracle 404 REQUEST_NOT_FOUND with nothing written and no node call) + requireRequestSigner (the request's signer only) + requireSignedSafeJsonShape",
    "machineScope": [
     "request:sign"
    ],
-   "hostileEvidence": "sdk/test/hosted-build-authority.test.js",
-   "note": "rc13 review N-02: a participant that is not the request's signer (an agent on the owner's request, the owner on its agent's) gets 403 NOT_THE_SIGNER before any state can change; malformed payloads are a closed 400 BAD_SIGNATURE"
+   "hostileEvidence": "sdk/test/rc45-r1-01-legacy-request-routes.test.js",
+   "note": "RC45 R1-01 (S-01, C6; row corrected to the code by R1-02): in this order, a missing signedSafeJson is the closed 400 BAD_SIGNATURE; then authentication (hosted: 401 for an unauthenticated caller); then a missing or non-v0.2 record answers 404 REQUEST_NOT_FOUND before the signer gate, so no non-v0.2 record (a v0.4 or v0.7-kas genesis or transition among them) reaches the v0.2 signing and broadcast pipeline; then the signer gate. sdk/src/wallet-requests-v2.js attachWalletSignatureV2 also refuses a non-v0.2 record (defence in depth). rc13 review N-02: a participant that is not the request's signer (an agent on the owner's request, the owner on its agent's) gets 403 NOT_THE_SIGNER before any state can change; malformed payloads are a closed 400 BAD_SIGNATURE"
   },
   {
    "method": "POST",
    "path": "/wallet/requests/:id/reject",
    "resourceClass": "request",
    "principalType": "session-or-machine",
-   "authGate": "requireRequestMutation",
+   "authGate": "requireRequestRejecter",
    "file": "server/src/api.js",
-   "tenancyResolver": "requestAccessAllowed",
-   "mutationGate": "requestMutationAllowed",
+   "tenancyResolver": "loadLegacyV2Request (v0.2 records only) + requestAccessAllowed",
+   "mutationGate": "loadLegacyV2Request (hosted: authentication, 401; then a missing record or one whose schema is not exactly policyvault-wallet-request/v2 is the non-oracle 404 REQUEST_NOT_FOUND with nothing written and no node call) + requireRequestRejecter (requestMutationAllowed, then the request's signer or the vault owner only)",
    "machineScope": [
     "request:reject"
    ],
-   "hostileEvidence": "sdk/test/hosted-phase-f-hostile.test.js"
+   "hostileEvidence": "sdk/test/rc45-r1-01-legacy-request-routes.test.js",
+   "note": "RC45 R1-01 (S-01, C7; row corrected to the code by R1-02): in this order, authentication (hosted: 401 for an unauthenticated caller on v0.2, v0.4 and missing ids alike); then a missing or non-v0.2 record answers 404 REQUEST_NOT_FOUND with nothing written, so the owner's v0.4 Pause, Close & recover or removeAgent and an agent spend can no longer be cancelled through this route; then requireRequestRejecter: the request's signer or the vault owner only, any other participant (the v0.2 delegate on the owner's request, AZ-03) 403 REQUEST_FORBIDDEN, a foreign principal the non-oracle 404; then markWalletRejected, which itself returns null for a non-v0.2 record (defence in depth). Hostile evidence: the legacy reject legs of the named suite (owner, agent, approver-only, FOREIGN and UNAUTHENTICATED principals against v0.2, v0.4 and missing ids)"
   },
   {
    "method": "GET",
@@ -625,7 +630,7 @@
    "machineScope": [
     "read:requests"
    ],
-   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+   "hostileEvidence": "sdk/test/hosted-phase-f-hostile.test.js"
   },
   {
    "method": "POST",
@@ -647,14 +652,15 @@
    "path": "/wallet/v4/requests/:id/approvals",
    "resourceClass": "request",
    "principalType": "session-or-machine",
-   "authGate": "requireRequestMutation",
+   "authGate": "requireRequestAccess",
    "file": "server/src/api.js",
    "tenancyResolver": "requestAccessAllowed",
-   "mutationGate": "requestMutationAllowed",
+   "mutationGate": "collectApprovalV4: the approver signature is verified against the approval package (a 65-byte SIG_HASH_ALL signature over the frozen covenant input, in the approver's fixed slot); for an invalid one nothing is written to the approvals or the request state (the build-derived, empty approval package may be materialized first)",
    "machineScope": [
     "request:sign"
    ],
-   "hostileEvidence": "sdk/test/external-approver-discovery.test.js"
+   "hostileEvidence": "sdk/test/external-approver-discovery.test.js",
+   "note": "RC45 R1-02 (S-02): row corrected to the code. The route calls requireRequestAccess (read access: a covenant participant of the vault or the request's signer; a foreign principal gets the non-oracle 404), not requireRequestMutation, because approver-only principals must reach it. The approver's authority is its approval signature alone: approverAddress names the slot and only a valid signature by that configured approver over the frozen covenant input is accepted. The route's code is unchanged"
   },
   {
    "method": "POST",
@@ -690,14 +696,15 @@
    "path": "/wallet/v4/requests/:id/reject",
    "resourceClass": "request",
    "principalType": "session-or-machine",
-   "authGate": "requireRequestMutation",
+   "authGate": "requireRequestRejecter",
    "file": "server/src/api.js",
    "tenancyResolver": "requestAccessAllowed",
-   "mutationGate": "requestMutationAllowed",
+   "mutationGate": "requestMutationAllowed + requireRequestRejecter (the request's signer or the vault owner only)",
    "machineScope": [
     "request:reject"
    ],
-   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
+   "hostileEvidence": "sdk/test/rc45-r1-01-legacy-request-routes.test.js",
+   "note": "RC45 F3 A2 (H-11): hosted rejection is narrowed to the request's signer or the vault owner (template.owner); any other participant (an agent on the owner's request or on another agent's) gets 403 REQUEST_FORBIDDEN with nothing changed; a foreign principal keeps the non-oracle 404 and an approver-only principal the 403 of requestMutationAllowed; owner-minted machine credentials act as the owner (CR-I4). Hostile evidence: the v0.4 reject legs of the named suite (RC45 R1-01: a FOREIGN principal 404, an UNAUTHENTICATED caller 401, an agent on the owner's requests and an approver-only principal 403 REQUEST_FORBIDDEN, the signer or the owner 200, nothing written on any refusal), the A2 legs of sdk/test/rc45-t8-api-routes.test.js (another agent 403 REQUEST_FORBIDDEN, a foreign principal 404; its request paths are spelled in sdk/testutil/rc45-f3-kit.js) and sdk/test/rc45-t3-owner-breakglass.test.js (an agent on the owner's request 403)"
   },
   {
    "method": "POST",
@@ -806,11 +813,11 @@
    "authGate": "requestAuthPrincipal",
    "file": "server/src/wallet-token-surface.js",
    "tenancyResolver": "requireRequestAccess",
-   "mutationGate": "requireRequestAccess(mutation)",
+   "mutationGate": "requireRequestAccess(mutation) + requireTokenRequestRejecter (the request's signer or the vault owner only; any other participant 403 REQUEST_FORBIDDEN)",
    "machineScope": [
     "request:reject"
    ],
-   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+   "hostileEvidence": "sdk/test/rc45-r2-az-reject-scope.test.js"
   },
   {
    "method": "POST",
@@ -866,7 +873,7 @@
    "machineScope": [
     "read:requests"
    ],
-   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+   "hostileEvidence": "sdk/test/rc45-r1-02-gate1-evidence.test.js"
   },
   {
    "method": "POST",
@@ -880,7 +887,7 @@
    "machineScope": [
     "request:sign"
    ],
-   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+   "hostileEvidence": "sdk/test/rc45-r1-02-gate1-evidence.test.js"
   },
   {
    "method": "POST",
@@ -894,7 +901,7 @@
    "machineScope": [
     "request:submit"
    ],
-   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+   "hostileEvidence": "sdk/test/rc45-r1-02-gate1-evidence.test.js"
   },
   {
    "method": "POST",
@@ -904,11 +911,11 @@
    "authGate": "requestAuthPrincipal",
    "file": "server/src/wallet-token-surface.js",
    "tenancyResolver": "requireRequestAccess",
-   "mutationGate": "requireRequestAccess(mutation)",
+   "mutationGate": "requireRequestAccess(mutation) + requireTokenRequestRejecter (the request's signer or the vault owner only; any other participant 403 REQUEST_FORBIDDEN)",
    "machineScope": [
     "request:reject"
    ],
-   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+   "hostileEvidence": "sdk/test/rc45-r2-az-reject-scope.test.js"
   },
   {
    "method": "POST",
@@ -1002,11 +1009,11 @@
    "authGate": "requestAuthPrincipal",
    "file": "server/src/org-roots.js",
    "tenancyResolver": "requireWalletRequest",
-   "mutationGate": "requireWalletRequest(mutation)",
+   "mutationGate": "requireWalletRequest(mutation) + requireWalletRequestRejecter (the request's signer or an active owner slot of the vault's organizational root only; any other participant, another agent included, 403 REQUEST_FORBIDDEN)",
    "machineScope": [
     "write:org-roots"
    ],
-   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+   "hostileEvidence": "sdk/test/rc45-r2-az-reject-scope.test.js"
   },
   {
    "method": "POST",
@@ -1016,11 +1023,12 @@
    "authGate": "requestAuthPrincipal",
    "file": "server/src/org-roots.js",
    "tenancyResolver": "requireWalletRequest",
-   "mutationGate": "requireWalletRequest + approver-only (SIGNER_NOT_PRINCIPAL / NOT_AN_APPROVER via tenancy.rootedVaultRoles; v0.7-kas vault-level approval tier, 2026-09-10)",
+   "mutationGate": "approver-only (hosted: approverAddress must be the signed-in wallet, 403 SIGNER_NOT_PRINCIPAL, and one of the vault's approver slots via tenancy.rootedVaultRoles, 403 NOT_AN_APPROVER) + collectApprovalKas (the approver's 65-byte SIG_HASH_ALL signature over the frozen covenant input, in its fixed slot; v0.7-kas vault-level approval tier)",
    "machineScope": [
     "write:org-roots"
    ],
-   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js"
+   "hostileEvidence": "sdk/test/hosted-foreign-tenant-matrix.test.js",
+   "note": "RC45 R1-02 (S-02, K7): row corrected to the code. requireWalletRequest is this route's visibility resolver (the non-oracle 404 for strangers) and is called without { mutation: true } by design, so approvers reach the route; its mutation gate is the approver-only check and collectApprovalKas"
   },
   {
    "method": "GET",
@@ -1307,20 +1315,6 @@
   },
   {
    "method": "GET",
-   "path": "/risk/evaluations",
-   "resourceClass": "vault",
-   "principalType": "session-or-machine",
-   "authGate": "requestAuthPrincipal",
-   "file": "server/src/api.js",
-   "tenancyResolver": "vaultAccessAllowed(read) | orgAccessAllowed(read) filter",
-   "mutationGate": "n/a",
-   "machineScope": [
-    "read:risk"
-   ],
-   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
-  },
-  {
-   "method": "GET",
    "path": "/risk/evaluations/:id",
    "resourceClass": "vault",
    "principalType": "session-or-machine",
@@ -1471,7 +1465,7 @@
    "machineScope": [
     "organizations:manage"
    ],
-   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+   "hostileEvidence": "sdk/test/rc45-r1-02-gate1-evidence.test.js"
   },
   {
    "method": "POST",
@@ -1485,7 +1479,7 @@
    "machineScope": [
     "organizations:manage"
    ],
-   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+   "hostileEvidence": "sdk/test/rc45-r1-02-gate1-evidence.test.js"
   },
   {
    "method": "POST",
@@ -1527,7 +1521,7 @@
    "machineScope": [
     "organizations:manage"
    ],
-   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
   },
   {
    "method": "GET",
@@ -1569,7 +1563,7 @@
    "machineScope": [
     "read:organizations"
    ],
-   "hostileEvidence": "sdk/test/hosted-tenancy.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-server-tenancy.test.js"
   },
   {
    "method": "GET",
@@ -1611,7 +1605,7 @@
    "machineScope": [
     "webhooks:manage"
    ],
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-webhooks-events.test.js"
   },
   {
    "method": "GET",
@@ -1625,7 +1619,7 @@
    "machineScope": [
     "webhooks:manage"
    ],
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-webhooks-events.test.js"
   },
   {
    "method": "GET",
@@ -1639,7 +1633,7 @@
    "machineScope": [
     "webhooks:manage"
    ],
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-webhooks-events.test.js"
   },
   {
    "method": "POST",
@@ -1667,7 +1661,7 @@
    "machineScope": [
     "webhooks:manage"
    ],
-   "hostileEvidence": "sdk/test/postlaunch-machine-identity-server.test.js"
+   "hostileEvidence": "sdk/test/postlaunch-webhooks-events.test.js"
   },
   {
    "method": "GET",

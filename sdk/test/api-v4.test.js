@@ -41,8 +41,20 @@ const other = KEY(0x29);
 const approvers = [KEY(20), KEY(21), KEY(22)];
 const unrelated = KEY(0x77);
 
-const VAULT_ID = "22".repeat(32);
-const template = { owner: XO(owner), vaultId: VAULT_ID };
+/* LEAD-5 (lane checkpoint 6ff4539; docs/postlaunch/lead5-reconciliation-remediation.md):
+ * a finalized (PREFLIGHT_VERIFIED) request is a PROTECTED unresolved
+ * transition — the pipeline refuses ANOTHER build/finalize attempt on that
+ * vault with REQUEST_RECOVERY_REQUIRED until request-scoped recovery resolves
+ * it. Every seed therefore opens a FRESH vault (the last byte increments; the
+ * first vault is the historical 22…22); the assertions are unchanged. */
+let vaultCounter = 0;
+let VAULT_ID = "22".repeat(32);
+let template = { owner: XO(owner), vaultId: VAULT_ID };
+function rotateVault() {
+  VAULT_ID = "22".repeat(31) + (0x22 + vaultCounter).toString(16).padStart(2, "0");
+  vaultCounter += 1;
+  template = { owner: XO(owner), vaultId: VAULT_ID };
+}
 
 function agentEntry(kp, recipients, over = {}) {
   return {
@@ -56,6 +68,7 @@ const REGISTRY = [agentEntry(agentA, [recipient, other]), agentEntry(agentB, [ot
 
 let seedCounter = 0;
 async function seed(registry = REGISTRY, over = {}) {
+  rotateVault();
   seedCounter += 1;
   const outTxId = seedCounter.toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const policies = registry.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
@@ -108,6 +121,8 @@ test("G12: HTTP agentSpend -> authz -> BUILD -> sign -> FINALIZE -> production c
   assert.equal(done.status, 200);
   assert.equal(done.body.request.state, "PREFLIGHT_VERIFIED");
   assert.equal(done.body.request.txId, req.txId);
+  // LEAD-5 over HTTP: the finalized request PROTECTS the vault — 422 REQUEST_RECOVERY_REQUIRED.
+  await expectThrow(POST(["wallet", "v4", "requests"], { vaultId: VAULT_ID, action: "agentSpend", params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) }, signerAddress: ADDR(agentA) }), 422, "REQUEST_RECOVERY_REQUIRED");
 });
 
 test("G12: GET /vaults/:id presents the v0.4 vault (fee reserve + agent registry)", async () => {

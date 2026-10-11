@@ -18,7 +18,9 @@ const { ownGet } = require("../../core/model/own-get");
  * preflight. No consensus arithmetic is recreated here.
  *
  * Durable request state machine (data/requests/<id>.json):
- *   BUILT -> [AWAITING_APPROVALS ->] SIGNED -> FINALIZED -> PREFLIGHT_VERIFIED
+ *   BUILT -> [AWAITING_APPROVALS ->] PREFLIGHT_VERIFIED
+ * (RC45 F4: finalize's first request write is PREFLIGHT_VERIFIED with the
+ * signed bytes; SIGNED and FINALIZED are historical labels no v4 writer emits.)
  * Fail-closed states: WALLET_REJECTED, SIGNATURE_INVALID, PREFLIGHT_FAILED,
  *   STALE, CLAIM_CONFLICT, AUTHORIZATION_FAILED / NOT_OWNER / NOT_AGENT,
  *   INSUFFICIENT_APPROVALS, BUILD_FAILED.
@@ -49,9 +51,9 @@ const {
 } = require("./vault-builders-v4");
 const { frozenToWasmTransaction } = require("./frozen-tx-v3");
 const { submitApprovalV4, isCompleteV4, missingSlotsV4, collectedCountV4 } = require("./approval-package-v4");
-const { loadManifestV4, persistManifestV4, MANIFEST_SCHEMA_V4, registryEntryToJson } = require("./manifest-v4");
+const { loadManifestV4, persistManifestV4, MANIFEST_SCHEMA_V4, registryEntryToJson, anchoredLeafPks, anchorRegistryStarts, assertLeafStartsFresh, assertRegistryFoldsToRoot } = require("./manifest-v4");
 const { resolveAddressIdentity, addressForXOnlyPubkey } = require("./address-identity");
-const { claimTransition, claimSubmission, persistReceipt } = require("./submission-claim");
+const { claimTransition, claimSubmission, loadTransitionClaim, persistReceipt } = require("./submission-claim");
 const { reserveForSpendBuild, consumeReservationForRequest, releaseReservationForRequest } = require("./budget-reservation");
 const { sompiToKas } = require("./amounts");
 const { appendAudit } = require("./audit");
@@ -100,6 +102,16 @@ const ROLE_BY_ACTION = Object.freeze({
   rotateAgent: "owner",
   rePolicyAgent: "owner"
 });
+
+/* RC45 F2 (plan r2 §2.0 BREAK_GLASS_V4): the owner's authority-reducing exits —
+ * exactly the actions marked breakGlass in server/src/governance.js
+ * ACTION_MATRIX (ownerPause freeze, ownerRecover terminal recovery; never
+ * governance-gated). A request is break-glass only when it is the owner's own
+ * request for one of them; anything else fails closed to ordinary handling. */
+const BREAK_GLASS_V4 = Object.freeze(["ownerPause", "ownerRecover"]);
+function isBreakGlassV4(r) {
+  return BREAK_GLASS_V4.includes(r?.action) && r.sdkAction === r.action && r.signerRole === "owner";
+}
 
 function fail(message, code) {
   const error = new Error(`wallet-requests-v4: ${message}`);
@@ -387,11 +399,56 @@ function normalizeFuel(fuel) {
 }
 
 /*
+ * RC45 delegate period-start rule, anchor at build (the rule itself is in
+ * manifest-v4.js). Applied by the builder AFTER every gate and never inside
+ * planV4: governance derives the approved after-state through planV4 from the
+ * requested params, so a stored proposal of any origin keeps matching its
+ * execution. A leaf of the new registry that is not byte-identical to its
+ * predecessor leaf commits periodStartDaa = max(requested, D), D being the
+ * configured synced node's canonical virtual DAA score (an unreadable node
+ * refuses PERIOD_START_REQUIRED); every other field, periodSpent included, is
+ * committed as requested and the agent root is re-derived from the committed
+ * leaves. A later start never grants more than was requested or approved. A
+ * registry without such a leaf (removeAgent, an unchanged re-policy) reads no
+ * DAA. Returns the plan to build and the DAA it was anchored at (null when
+ * nothing was anchored). The dry run (server/src/simulate.js) calls it too.
+ */
+async function anchorPlanStartsV4(config, manifest, plan) {
+  if (plan.sdkAction !== "ownerSetAgentRoot" || !Array.isArray(plan.newRegistry)) return { plan, anchorDaa: null };
+  const predecessorEntries = manifest.agentRegistry.map((e) => registryEntryToJson(e));
+  if (anchoredLeafPks(predecessorEntries, plan.newRegistry).length === 0) return { plan, anchorDaa: null };
+  const anchorDaa = await require("./chain").readAnchorDaa(config);
+  const anchored = anchorRegistryStarts({ predecessorEntries, nextEntries: plan.newRegistry, anchorDaa });
+  return { plan: { ...plan, newRegistry: anchored.entries, sdkParams: { ...plan.sdkParams, newAgentRoot: anchored.root } }, anchorDaa };
+}
+
+/*
+ * RC45 delegate period-start rule, check before the point of no return of a
+ * lifecycle request (finalize and submit). Writes nothing. An ownerSetAgentRoot
+ * record's stored registry must first be a list folding to exactly the
+ * successor agent root its frozen build commits (REGISTRY_ROOT_MISMATCH
+ * otherwise; a missing registry is refused, never skipped; no node is read).
+ * Then, only when that registry holds a leaf that is not byte-identical to its
+ * predecessor leaf in `manifest`, readDaa() answers the node's canonical
+ * virtual DAA score and such a leaf whose start lags it by more than its
+ * window refuses PERIOD_START_STALE. Requests of other SDK actions set no
+ * delegate leaf and read nothing.
+ */
+async function assertLifecycleStartsFreshV4({ request, manifest, readDaa, stage }) {
+  if (request.sdkAction !== "ownerSetAgentRoot") return;
+  assertRegistryFoldsToRoot({ entries: request.newRegistry, committedAgentRoot: request.build?.successorState?.agentRoot, stage });
+  const predecessorEntries = manifest.agentRegistry.map((e) => registryEntryToJson(e));
+  if (anchoredLeafPks(predecessorEntries, request.newRegistry).length === 0) return;
+  assertLeafStartsFresh({ predecessorEntries, nextEntries: request.newRegistry, currentDaa: await readDaa(), stage });
+}
+
+/*
  * BUILD stage (OFFLINE). Authorizes the signer, reconstructs the agent /
  * recipient trees from the durable registry (root-equality already enforced
  * by the manifest loader), builds + freezes the v0.4 transaction through the
  * SDK, and persists a durable BUILT request with the unsigned Safe JSON and
- * canonical review. No key, no broadcast.
+ * canonical review. No key, no broadcast. The one node read is the delegate
+ * period-start anchor of a new or changed delegate leaf (anchorPlanStartsV4).
  */
 async function buildWalletRequestV4({ config, vaultId, action, params = {}, signerAddress }) {
   // Gate R (2026-08-22): operational networks are testnet-10 and dual-flag-
@@ -401,7 +458,6 @@ async function buildWalletRequestV4({ config, vaultId, action, params = {}, sign
   } catch (e) {
     throw fail(e.message, "BUILD_FAILED");
   }
-  await require("./wallet-recovery-v4").assertNoProtectedTransitionV4(config, vaultId);
   const manifest = await loadManifestV4(config, vaultId);
   if (!manifest) throw fail(`no v0.4 manifest for vault ${vaultId}`, "BUILD_FAILED");
   const abi = resolveV4Abi(manifest.contractVersion); // accepts the v0.4 family; fails closed otherwise
@@ -409,16 +465,36 @@ async function buildWalletRequestV4({ config, vaultId, action, params = {}, sign
   // permanently read-only: EVERY write action is refused here, before any
   // durable request/claim/manifest mutation can occur. The browser hides the
   // controls, but this server-side rejection is the independent backstop.
+  // RC40: unresolved PROTECTED history on a closed vault takes priority over
+  // the terminal refusal — protected admission authorizes no second recovery
+  // (pinned by v4-foreign-recovery-rc40; RC45 F2: a closed vault keeps the
+  // vault-wide scan for every action). A separate statement on purpose:
+  // the terminal refusal below stays the exact line the permanent
+  // production-guard-sabotage suite (S1) anchors on.
+  if (!manifest.live) await require("./wallet-recovery-v4").assertNoBlockingTransitionV4(config, vaultId);
   if (!manifest.live) throw fail(`vault is ${manifest.status} (closed) — it is read-only history and accepts no further operations`, "VAULT_TERMINAL");
 
   const requiredRole = ownGet(ROLE_BY_ACTION, action); // own-property only (F-05)
   if (!requiredRole) throw fail(`unknown action ${action} — failing closed`, "BUILD_FAILED");
 
-  const plan = planV4(config, manifest, action, params);
+  let plan = planV4(config, manifest, action, params);
   if (plan.role !== requiredRole) throw fail(`role map disagreement for ${action} — failing closed`, "BUILD_FAILED");
 
   // AUTHORIZE before construction.
   assertSignerAuthorizedV4(config, { role: requiredRole, signerAddress, template: manifest.template, manifest, action, agentPk: plan.agentPk });
+
+  // LEAD-5 (RC38; widened at lane checkpoint 6ff4539): an unresolved PROTECTED
+  // transition refuses ANOTHER build. Checked AFTER the read-only network /
+  // manifest / action / authorization checks (LEAD5-PRECEDENCE-01): an
+  // unauthorized signer or an unknown action is refused on its own terms and
+  // learns nothing about the vault's transition state; the guard still
+  // precedes every durable write (nothing above this line persists).
+  // RC45 F2 (plan r2 §2.1(2)): scoped to the live outpoint. The owner's
+  // break-glass is never refused on a live vault; any other build is refused
+  // by a PENDING record on the live outpoint (422) and, pre-sign, by any claim
+  // on it (409 CLAIM_CONFLICT).
+  const breakGlass = isBreakGlassV4({ action, sdkAction: plan.sdkAction, signerRole: plan.role });
+  await require("./wallet-recovery-v4").assertNoBlockingTransitionV4(config, vaultId, { breakGlass, claimCheck: !breakGlass });
 
   // Delegate/agent actions need an ACTIVE vault; owner ops may target PAUSED.
   if (plan.role === "agent" && manifest.status !== VaultStatus.ACTIVE) {
@@ -433,6 +509,12 @@ async function buildWalletRequestV4({ config, vaultId, action, params = {}, sign
   if (!isSpend && !fuel) {
     throw fail(`${action} pins every covenant value, so its network fee must come from an ordinary fuel UTXO — provide params.fuel`, "BUILD_FAILED");
   }
+
+  // RC45 delegate period-start rule: anchor every new or changed delegate leaf
+  // here, after every gate and before anything durable is written.
+  const anchoredPlan = await anchorPlanStartsV4(config, manifest, plan);
+  plan = anchoredPlan.plan;
+  const anchorReview = anchoredPlan.anchorDaa === null ? {} : { periodStartAnchorDaa: anchoredPlan.anchorDaa.toString() };
 
   const chain = {
     predecessorOutpoint: manifest.live.outpoint,
@@ -461,6 +543,13 @@ async function buildWalletRequestV4({ config, vaultId, action, params = {}, sign
   // Stale check: the compiled predecessor script must match the manifest.
   if (build.successorScriptSha256 !== null && manifest.live.scriptSha256 && build.predecessorStateId !== manifest.live.stateId) {
     throw fail("predecessor drift at build — failing closed", "STALE");
+  }
+
+  // Registry-to-root integrity: the registry this request stores must fold to
+  // exactly the agent root its frozen transaction commits (REGISTRY_ROOT_MISMATCH
+  // otherwise; nothing is written).
+  if (plan.sdkAction === "ownerSetAgentRoot") {
+    assertRegistryFoldsToRoot({ entries: plan.newRegistry, committedAgentRoot: build.successorState?.agentRoot, stage: "build" });
   }
 
   // Unsigned Safe JSON for the wallet (bridge the frozen build to the
@@ -519,7 +608,7 @@ async function buildWalletRequestV4({ config, vaultId, action, params = {}, sign
     newRegistry: plan.newRegistry ?? null,
     build, // the frozen SDK build (JSON-safe); finalize re-loads it
     approvalPackage: null,
-    review: reviewForBuild(config, manifest, build),
+    review: reviewForBuild(config, manifest, build, anchorReview),
     transaction: { unsignedSafeJson, signInputs, covenantInputIndex: 0 },
     txId: build.txId,
     reservationKey: reservation ? reservation.key : null,
@@ -631,6 +720,55 @@ async function failRequestClosed(config, request, state, errorMessage) {
   await releaseReservationForRequest(config, request);
 }
 
+/*
+ * RC45 F4 (plan r2 §2.4(1)-(2), CR-L11, CR2-M1): finalize decides on the record
+ * it loaded, and each durable step first re-reads the stored record. Unless it
+ * is still BUILT with the load-time canonical fingerprint (a reject, a sibling
+ * finalize or a Verify settlement moved it meanwhile), finalize fails closed
+ * with no further write: the not-BUILT refusal, or REQUEST_FINGERPRINT_MISMATCH.
+ * Returns the stored record.
+ */
+async function rereadBuiltRequestV4(config, requestId, loadedFingerprint) {
+  const current = await loadRequest(config, requestId);
+  if (!current) throw fail(`no request ${requestId}`, "BUILD_FAILED");
+  if (current.state !== RequestState.BUILT) throw fail(`request ${requestId} is ${current.state}, not BUILT`, current.state);
+  if (require("./wallet-recovery-v4").canonicalRecordFingerprint(current) !== loadedFingerprint) {
+    throw fail(`request ${requestId} changed while it was being finalized; nothing was written`, "REQUEST_FINGERPRINT_MISMATCH");
+  }
+  return current;
+}
+
+/* Every finalize close (a verdict, or the ordinary CLAIM_CONFLICT) writes only
+ * an unchanged BUILT record, never the load-time snapshot over a sibling's
+ * PREFLIGHT_VERIFIED; otherwise it throws with no write. The one await between
+ * this re-read and the write is the documented L-9 residual. */
+async function closeBuiltRequestV4(config, requestId, loadedFingerprint, state, errorMessage) {
+  await failRequestClosed(config, await rereadBuiltRequestV4(config, requestId, loadedFingerprint), state, errorMessage);
+}
+
+/*
+ * RC45 F4 (plan r2 §2.0 claim-error rule, §2.4(4), CR-H1): take the transition
+ * claim on the request's predecessor for `txId`. After a claimTransition error
+ * the claim is read back: the same txid is this transaction's own (a crashed or
+ * concurrent attempt of the same signed transaction, or a same-txid twin), a
+ * foreign txid is a conflict returned to the caller; anything else (absent, a
+ * store or a read error) is rethrown, and nothing more is written here.
+ * Returns {own: true} or {own: false, claim, error} (error.code CLAIM_CONFLICT).
+ */
+async function claimOwnTransitionV4(config, request, txId, expected) {
+  try {
+    await claimTransition(config, { outpoint: request.predecessorOutpoint, action: request.action, txId, vaultId: request.vaultId, stateId: request.predecessorStateId, expected });
+    return { own: true };
+  } catch (error) {
+    const claim = await loadTransitionClaim(config, request.predecessorOutpoint);
+    if (!claim) throw error;
+    if (claim.txId === txId) return { own: true };
+    const conflict = error?.code === "CLAIM_CONFLICT" ? error
+      : fail(`outpoint ${request.predecessorOutpoint.transactionId}:${request.predecessorOutpoint.index} is already claimed by ${claim.action} tx ${claim.txId}`, "CLAIM_CONFLICT");
+    return { own: false, claim, error: conflict };
+  }
+}
+
 /* F-04: the shared production-VM preflight runner (sdk/src/vm-preflight.js) —
  * every input (covenant AND fuel) must execute on the real engine before the
  * request may become PREFLIGHT_VERIFIED. */
@@ -645,7 +783,19 @@ const { preflightAllInputs } = require("./vm-preflight");
  * agent registry to the manifest atomically with the preflight-verified
  * state advance is DEFERRED to H — in G the manifest live outpoint does not
  * advance (nothing was broadcast); the request records the preflight-proven
- * successor.
+ * successor. The one node read is the period-start freshness check of a new
+ * or changed delegate leaf (assertLifecycleStartsFreshV4).
+ *
+ * RC45 F4 (plan r2 §2.4, §4 finalize rows; RV-L5-01, CR-H1, CR2-M1): the whole
+ * verdict is decided while the record is BUILT, with no write (a VM harness
+ * throw leaves it BUILT); FINALIZED is never written. Every verdict close
+ * writes only an unchanged BUILT record. The first request write (W1) is
+ * PREFLIGHT_VERIFIED with the signed bytes. Ordinary order: W2 transition
+ * claim -> W1 -> W3 submission claim -> W4 reservation consume -> audit, so a
+ * PREFLIGHT_VERIFIED ordinary record always holds its own claim; the owner's
+ * break-glass writes W1 first and then claims (absent -> claim, same txid ->
+ * own, foreign -> contested: no claim, the delegate's claim untouched).
+ * Nothing relabels the record after W1.
  */
 async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   const request = await loadRequest(config, requestId);
@@ -656,10 +806,26 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
     throw fail(`request ${requestId} is ${request.state}, not BUILT`, request.state);
   }
 
-  await require("./wallet-recovery-v4").assertNoProtectedTransitionV4(config, request.vaultId, { excludeRequestId: requestId });
+  const recovery = require("./wallet-recovery-v4");
+  // RC45 F4 (plan r2 §2.4(1), CR2-M1): every later re-read and close compares
+  // the stored record with this load-time fingerprint.
+  const loadedFingerprint = recovery.canonicalRecordFingerprint(request);
+  const close = (state, errorMessage) => closeBuiltRequestV4(config, requestId, loadedFingerprint, state, errorMessage);
+  const breakGlass = isBreakGlassV4(request);
+  // RC45 R1-06 (ST-03, K4): a receipt recording this request's own
+  // transaction as executed answers 422 with no write, before the blocking
+  // check and the staleness verdict (an executed request is never STALE).
+  const executed = await recovery.ownReceiptRefusalV4(config, request);
+  if (executed) throw fail(executed.message, executed.refuse);
+  await recovery.assertNoBlockingTransitionV4(config, request.vaultId, { excludeRequestId: requestId, breakGlass });
   const manifest = await loadManifestV4(config, request.vaultId);
-  if (!manifest || !manifest.live || manifest.live.stateId !== request.predecessorStateId) {
-    await failRequestClosed(config, request, RequestState.STALE);
+  // RC45 F2 (plan r2 §2.3): a closed or self-advanced manifest answers 422
+  // with no write; STALE only when the live state differs by stateId or
+  // outpoint (H-35).
+  const disposition = recovery.predecessorDispositionV4(manifest, request);
+  if (disposition?.refuse) throw fail(disposition.message, disposition.refuse);
+  if (disposition) {
+    await close(RequestState.STALE);
     throw fail("vault advanced since this request was built — rebuild required", "STALE");
   }
 
@@ -667,9 +833,15 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   try {
     assertSignerAuthorizedV4(config, { role: request.signerRole, signerAddress: request.signerAddress, template: manifest.template, manifest, action: request.action, agentPk: request.agentPk });
   } catch (e) {
-    await failRequestClosed(config, request, RequestState.AUTHORIZATION_FAILED, e.message);
+    await close(RequestState.AUTHORIZATION_FAILED, e.message);
     throw e;
   }
+
+  // RC45 delegate period-start rule, before the signature is parsed or any
+  // claim taken: registry-to-root integrity, then the freshness of every new
+  // or changed delegate's start at the configured node's current position.
+  // A refusal writes nothing: the request stays BUILT.
+  await assertLifecycleStartsFreshV4({ request, manifest, readDaa: () => require("./chain").readAnchorDaa(config), stage: "finalize" });
 
   // Parse the signed Safe JSON, assert immutability, extract signatures.
   const unsigned = JSON.parse(request.transaction.unsignedSafeJson);
@@ -677,20 +849,20 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   try {
     signed = JSON.parse(signedSafeJson);
   } catch {
-    await failRequestClosed(config, request, RequestState.SIGNATURE_INVALID);
+    await close(RequestState.SIGNATURE_INVALID);
     throw fail("signed Safe JSON is not valid JSON", "SIGNATURE_INVALID");
   }
   assertPackageImmutable(unsigned, signed);
 
   const covenantSig = signed.inputs?.[0]?.signatureScript;
   if (!covenantSig) {
-    await failRequestClosed(config, request, RequestState.WALLET_REJECTED);
+    await close(RequestState.WALLET_REJECTED);
     throw fail("wallet did not sign the covenant input", "WALLET_REJECTED");
   }
   const hasFuel = request.build.hasFuelInput === true;
   const fuelSig = hasFuel ? signed.inputs?.[1]?.signatureScript : undefined;
   if (hasFuel && !fuelSig) {
-    await failRequestClosed(config, request, RequestState.WALLET_REJECTED);
+    await close(RequestState.WALLET_REJECTED);
     throw fail("wallet did not sign the fuel input", "WALLET_REJECTED");
   }
 
@@ -698,7 +870,7 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   let approvalPackage = null;
   if (request.aboveThreshold) {
     if (!request.approvalPackage || !isCompleteV4(request.approvalPackage)) {
-      await failRequestClosed(config, request, RequestState.INSUFFICIENT_APPROVALS);
+      await close(RequestState.INSUFFICIENT_APPROVALS);
       throw fail("insufficient approvals for this above-threshold spend", "INSUFFICIENT_APPROVALS");
     }
     approvalPackage = request.approvalPackage;
@@ -714,13 +886,9 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
       approvalPackage
     });
   } catch (e) {
-    await failRequestClosed(config, request, e.code === "FEE_DRIFT" ? RequestState.PREFLIGHT_FAILED : RequestState.SIGNATURE_INVALID, e.message);
+    await close(e.code === "FEE_DRIFT" ? RequestState.PREFLIGHT_FAILED : RequestState.SIGNATURE_INVALID, e.message);
     throw fail(`finalize failed: ${e.message}`, e.code || "SIGNATURE_INVALID");
   }
-
-  request.state = RequestState.FINALIZED;
-  request.txId = finalized.txId;
-  await saveRequest(config, request);
 
   // Network hard gate (again) before preflight: the config must still be an
   // operational network and the request must be stamped with EXACTLY it.
@@ -734,15 +902,17 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
     preflightNetworkError = `request network ${request.networkId} != configured ${config.networkId}`;
   }
   if (preflightNetworkError) {
-    await failRequestClosed(config, request, RequestState.PREFLIGHT_FAILED);
+    await close(RequestState.PREFLIGHT_FAILED);
     throw fail(`network drift at preflight — ${preflightNetworkError}`, "PREFLIGHT_FAILED");
   }
 
-  // PRODUCTION COVENANT VM PREFLIGHT (no broadcast).
+  // PRODUCTION COVENANT VM PREFLIGHT (no broadcast). A harness throw (the
+  // engine could not run) propagates with nothing written: still BUILT.
   const verdict = preflightAllInputs(finalized.finalTransaction); // F-04: covenant input AND fuel input
   if (verdict.valid !== true) {
-    await failRequestClosed(config, request, RequestState.PREFLIGHT_FAILED, `VM preflight rejected: ${verdict.reason ?? "unknown"}`);
-    throw fail(request.error, "PREFLIGHT_FAILED");
+    const rejected = `VM preflight rejected: ${verdict.reason ?? "unknown"}`;
+    await close(RequestState.PREFLIGHT_FAILED, rejected);
+    throw fail(rejected, "PREFLIGHT_FAILED");
   }
 
   // Durable transition + submission claims (broadcast is Checkpoint H).
@@ -762,12 +932,35 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
         action: request.sdkAction,
         contractVersion: request.contractVersion
       };
-  try {
-    await claimTransition(config, { outpoint: request.predecessorOutpoint, action: request.action, txId: finalized.txId, vaultId: request.vaultId, stateId: request.predecessorStateId, expected });
-  } catch (e) {
-    await failRequestClosed(config, request, RequestState.CLAIM_CONFLICT, e.message);
-    throw e;
+
+  // RC45 F4 (plan r2 §2.4(2)-(4), CR-L11): re-read before the first durable
+  // write. An ordinary finalize claims first (option (i)); a foreign claim read
+  // back means it lost the race and it is closed CLAIM_CONFLICT while BUILT,
+  // before bytes (its build txId kept, never a finalTransaction). It re-reads
+  // again before W1: a record that moved meanwhile gets no W1 and keeps only
+  // its own claim (L-16).
+  await rereadBuiltRequestV4(config, requestId, loadedFingerprint);
+  if (!breakGlass) {
+    const held = await claimOwnTransitionV4(config, request, finalized.txId, expected);
+    if (!held.own) {
+      await close(RequestState.CLAIM_CONFLICT, held.error.message);
+      throw held.error;
+    }
+    await rereadBuiltRequestV4(config, requestId, loadedFingerprint);
   }
+
+  // W1: the first request write carries the signed bytes.
+  request.state = RequestState.PREFLIGHT_VERIFIED;
+  request.txId = finalized.txId;
+  request.finalTransaction = finalized.finalTransaction;
+  await saveRequest(config, request);
+
+  // Break-glass W2 after W1: absent -> claim, same txid -> own, foreign ->
+  // contested (no claim; the delegate's claim is never seized or released).
+  // A store or read error is rethrown with the record left PREFLIGHT_VERIFIED;
+  // submit re-creates the missing own claim.
+  if (breakGlass) await claimOwnTransitionV4(config, request, finalized.txId, expected);
+
   await claimSubmission(config, { txId: finalized.txId, vaultId: request.vaultId, action: request.action });
 
   // Surface 15: mark the reservation CONSUMED by this finalized txid. The
@@ -775,10 +968,6 @@ async function finalizeWalletRequestV4({ config, requestId, signedSafeJson }) {
   // reservation keeps counting against its period window until the
   // manifest actually advances (the spend is in flight on this state).
   await consumeReservationForRequest(config, request, { txId: finalized.txId });
-
-  request.state = RequestState.PREFLIGHT_VERIFIED;
-  request.finalTransaction = finalized.finalTransaction;
-  await saveRequest(config, request);
 
   await appendAudit(config, {
     vaultId: request.vaultId,
@@ -824,7 +1013,16 @@ async function buildCreateWalletRequestV4Unlocked({ config, templateInput, initi
   assertSignerAuthorizedV4(config, { role: "owner", signerAddress, template, manifest: { agentRegistry: [] }, action: "createVault" });
   await assertVaultIdentityFree(config, template.vaultId); // RC33-ID-01: an identity held by ANY generation's record or ANY request is refused before anything is built or written
 
-  const registry = initialAgents.map((a) => normalizeNewAgentEntry(a));
+  let registry = initialAgents.map((a) => normalizeNewAgentEntry(a));
+  // RC45 delegate period-start rule (anchorPlanStartsV4): a creation has no
+  // predecessor leaf, so every delegate commits periodStartDaa = max(requested,
+  // D), D being the configured synced node's canonical virtual DAA score read
+  // after every check above; a creation without delegates reads no DAA.
+  let anchorDaa = null;
+  if (registry.length > 0) {
+    anchorDaa = await require("./chain").readAnchorDaa(config);
+    registry = anchorRegistryStarts({ predecessorEntries: [], nextEntries: registry, anchorDaa }).entries;
+  }
   const policies = registry.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
   const agentRoot = buildAgentTreeV4(policies).root;
 
@@ -850,6 +1048,15 @@ async function buildCreateWalletRequestV4Unlocked({ config, templateInput, initi
     });
   } catch (e) {
     throw fail(`genesis build failed: ${e.message}`, e.code || "BUILD_FAILED");
+  }
+
+  // Registry-to-root integrity: the stored initial registry must fold to the
+  // agent root of the genesis build whose bytes are broadcast, and that root
+  // must be the top-level initial state's (REGISTRY_ROOT_MISMATCH otherwise;
+  // nothing is written).
+  assertRegistryFoldsToRoot({ entries: registry, committedAgentRoot: genesis.initialState?.agentRoot, stage: "create" });
+  if (String(genesis.initialState.agentRoot).toLowerCase() !== String(stateToJsonV4(state).agentRoot).toLowerCase()) {
+    throw fail("create: the genesis build's agent root differs from the initial state's agent root — refusing", "REGISTRY_ROOT_MISMATCH");
   }
 
   const { loadKaspa } = require("./chain");
@@ -904,6 +1111,7 @@ async function buildCreateWalletRequestV4Unlocked({ config, templateInput, initi
           : {}),
         approvalPolicy: approverCount > 0 ? `${state.approvalM.toString()} of ${approverCount} approvers` : "none (agent-only)",
         agents: registry.map((e) => ({ agentPk: e.agentPk, maxPerSpendKas: sompiToKas(BigInt(e.maxPerSpend)), recipients: e.recipients })),
+        ...(anchorDaa === null ? {} : { periodStartAnchorDaa: anchorDaa.toString() }),
         covenantId: genesis.covenantId,
         technical: {
           ...(single ? { periodLengthDaa: String(single.periodLengthDaa), periodStartDaa: String(single.periodStartDaa) } : {}),
@@ -930,6 +1138,9 @@ async function markWalletRejected(config, requestId) {
 module.exports = {
   RequestState,
   ROLE_BY_ACTION,
+  BREAK_GLASS_V4,
+  isBreakGlassV4,
+  claimOwnTransitionV4,
   REQUEST_SCHEMA_V4,
   buildWalletRequestV4,
   buildCreateWalletRequestV4,
@@ -943,6 +1154,8 @@ module.exports = {
   listWalletRequestsV4,
   assertSignerAuthorizedV4,
   planV4,
+  anchorPlanStartsV4,
+  assertLifecycleStartsFreshV4,
   nextRegistry,
   reviewForBuild
 };

@@ -8,7 +8,8 @@
  * serialization, local sha256 commitment, fee descriptor) live in
  * core/model/frozen-tx-v3.js and are re-exported here unchanged. This
  * file keeps ONLY the impure members, verbatim from the pre-split
- * implementation:
+ * implementation except for RC45 R1-04's harness-failure marker
+ * (harnessStep):
  *
  *   - describeFrozenTx / verifyApprovalSignature — the AUTHORITATIVE
  *     consensus computations (txId, per-input SIG_HASH_ALL sighash,
@@ -40,13 +41,39 @@ const {
 
 const TX_PROBE_PATH = path.join(__dirname, "..", "..", "tests/vm/target/debug/pv_tx_probe");
 
+/* RC45 R1-04 (plan R1 ST-01, C10): a failure of the pv_tx_probe harness itself
+ * says nothing about the frozen transaction and is marked `harnessFailure`: the
+ * binary missing (ENOENT, before or at the spawn), a spawn error, termination
+ * by a signal, or a temp-file I/O error (create, write, the probe's read,
+ * unlink). A probe rejection (the probe ran and refused its input) or an
+ * invalid output shape stays unmarked. The marker changes no error code and no
+ * other caller's behaviour (a spawn error or a signal now names itself in the
+ * message); wallet-recovery-v4.js validateIdentity carries it into
+ * environmentStep. A non-Error or non-extensible throw is carried in a new
+ * Error with the same message, so it is still marked. */
+function harnessStep(step) {
+  try {
+    return step();
+  } catch (error) {
+    const marked = error instanceof Error && Object.isExtensible(error) ? error : new Error(String(error?.message ?? error));
+    marked.harnessFailure = true;
+    throw marked;
+  }
+}
+
 function runTxProbe(args, { allowInvalid = false } = {}) {
   if (!fs.existsSync(TX_PROBE_PATH)) {
-    fail(`pv_tx_probe not built: ${TX_PROBE_PATH} (cd tests/vm && cargo build --bin pv_tx_probe)`);
+    harnessStep(() => fail(`pv_tx_probe not built: ${TX_PROBE_PATH} (cd tests/vm && cargo build --bin pv_tx_probe)`));
   }
   const result = spawnSync(TX_PROBE_PATH, args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  if (result.error) harnessStep(() => fail(`pv_tx_probe failed: ${result.error.message}`));
+  if (result.signal) harnessStep(() => fail(`pv_tx_probe failed: terminated by ${result.signal}`));
   if (result.status !== 0) {
-    fail(`pv_tx_probe failed: ${result.stderr?.trim() ?? result.status}`);
+    // The probe's own read of its input file failed (pv_tx_probe.rs parse_frozen:
+    // "cannot read <path>: <error>"); the file holds only the JSON written here.
+    const stderr = result.stderr?.trim();
+    if (stderr?.startsWith(`pv_tx_probe: cannot read ${args[1]}: `)) harnessStep(() => fail(`pv_tx_probe failed: ${stderr}`));
+    fail(`pv_tx_probe failed: ${stderr ?? result.status}`);
   }
   let parsed;
   try {
@@ -62,11 +89,12 @@ function runTxProbe(args, { allowInvalid = false } = {}) {
 
 function withFrozenFile(frozen, callback) {
   const p = path.join(os.tmpdir(), `pv3-frozen-${process.pid}-${crypto.randomUUID()}.json`);
-  fs.writeFileSync(p, canonicalFrozenTxJson(frozen), { mode: 0o600 });
+  const json = canonicalFrozenTxJson(frozen); // a record-shape throw stays unmarked
+  harnessStep(() => fs.writeFileSync(p, json, { mode: 0o600 }));
   try {
     return callback(p);
   } finally {
-    fs.unlinkSync(p);
+    harnessStep(() => fs.unlinkSync(p));
   }
 }
 

@@ -71,6 +71,7 @@ const {
   registryEntryToJson,
   liveValueOfStateKas
 } = require("./manifest-v7-kas");
+const { anchoredLeafPks, anchorRegistryStarts, assertLeafStartsFresh, assertRegistryFoldsToRoot } = require("./manifest-v4");
 const { VaultStatus } = require("./manifest");
 
 const V7_KAS_WALLET_REQUEST_SCHEMA = "policyvault-wallet-request/v7-kas";
@@ -214,8 +215,10 @@ async function assertKasGenesisComplete(config, vault) {
   const root = await wr7.loadOrgRoot(config, vault.orgRootCovenantId);
   if (candidates.some((q) => DELEGATE_PENDING_STATES.has(q.state)) || !root?.vaults?.includes(vault.vaultId)) throwFail("KAS genesis has unfinished durable records — submit or reconcile the genesis request first", "RECONCILIATION_REQUIRED");
 }
-/* The vault must have no unfinished delegate request and no pending / reserving root request naming it. */
+/* The vault must not be UNRESOLVED (RC45 L2-01 D7, checked first: 409 TREASURY_STATE_UNRESOLVED, nothing written), and
+ * must have no unfinished delegate request and no pending / reserving root request naming it. */
 async function assertKasVaultAvailable(config, vault, exceptRequestId = null) {
+  await wr7.assertTreasuryNotUnresolved(config, vault);
   for (const q of await kasProfile.unfinishedDelegateRequests(config, vault)) {
     if (q.requestId !== exceptRequestId) throwFail(`vault has unfinished delegate request ${q.requestId} — reconcile that request first`, "VAULT_PENDING_REQUEST");
   }
@@ -252,7 +255,7 @@ async function buildKasVaultGenesisRequestUnlocked({ config, rootCovenantId, lab
   const recoveryPk = resolveAddressIdentity(config, recoveryAddress).xOnlyPubkey;
   let registry;
   try { registry = normalizeRegistry(agents); } catch (e) { throw fail(`the initial delegate policy set is malformed: ${e.message}`, e.code || "AGENT_SET_INVALID"); }
-  const initialRegistry = registry.entries.map((e) => registryEntryToJson(e));
+  let initialRegistry = registry.entries.map((e) => registryEntryToJson(e));
   if (!Array.isArray(approvers)) throwFail("approvers must be an array of x-only approver keys (may be empty)", "BUILD_FAILED");
   const approverKeys = approvers.map((a, i) => normalizeHex(a, 32, `approvers[${i}]`));
   const approvalMText = String(approvalM ?? 0);
@@ -272,7 +275,19 @@ async function buildKasVaultGenesisRequestUnlocked({ config, rootCovenantId, lab
     rootSuffixLen: root.rootPins ? root.rootPins.rootSuffixLen : root.template.rootSuffixLen,
     recoveryPk
   };
-  const initialState = { protectedValue: protectedValue.toString(), feeReserve: feeReserve.toString(), paused: "0", agentRoot: registry.tree.root, approvers: approverKeys, approvalM: approvalMText, policyNonce: "0" };
+  /* RC45 delegate period-start rule (anchor at build; the rule is in manifest-v4.js): a creation has no predecessor
+   * leaf, so every delegate commits periodStartDaa = max(requested, D), D being the configured synced node's canonical
+   * virtual DAA score, read after every check above and also when the funding is supplied (an unreadable node refuses
+   * PERIOD_START_REQUIRED before anything is written). Every other field, periodSpent included, is committed as
+   * requested; the stored registry, the reviewed summary and its digest, and the genesis agent root all carry the
+   * committed starts. A creation without delegates reads no DAA. */
+  let agentRoot = registry.tree.root;
+  if (initialRegistry.length > 0) {
+    const anchored = anchorRegistryStarts({ predecessorEntries: [], nextEntries: initialRegistry, anchorDaa: await require("./chain").readAnchorDaa(config) });
+    initialRegistry = anchored.entries;
+    agentRoot = anchored.root;
+  }
+  const initialState = { protectedValue: protectedValue.toString(), feeReserve: feeReserve.toString(), paused: "0", agentRoot, approvers: approverKeys, approvalM: approvalMText, policyNonce: "0" };
   const fundingInputs = await wr7.resolveFunding(config, { funding }, signerAddress, protectedValue + feeReserve + 1_000_000n);
 
   let genesis;
@@ -282,6 +297,9 @@ async function buildKasVaultGenesisRequestUnlocked({ config, rootCovenantId, lab
   } catch (e) {
     throw fail(`v0.7-kas genesis build failed: ${e.message}`, e.code || "BUILD_FAILED");
   }
+  /* Registry-to-root integrity: the stored initial registry must fold to exactly the agent root of the genesis build
+   * whose bytes are signed and broadcast (REGISTRY_ROOT_MISMATCH otherwise; nothing is written). */
+  assertRegistryFoldsToRoot({ entries: initialRegistry, committedAgentRoot: genesis.initialState?.agentRoot, stage: "genesis" });
 
   const wtx = frozenToWasmTransaction(config, genesis.frozen);
   wtx.finalize();
@@ -350,6 +368,7 @@ async function buildKasWalletRequestUnlocked({ config, vaultId, action, params =
   if (!manifest.live) throwFail(`vault is ${manifest.status} (closed) — read-only history`, "VAULT_TERMINAL");
   await assertKasGenesisComplete(config, manifest);
   if (!KAS_ACTIONS.has(action)) throwFail(`unknown v0.7-kas wallet action ${JSON.stringify(action)} — failing closed (owner operations are root requests)`, "UNKNOWN_ACTION");
+  await wr7.assertTreasuryNotUnresolved(config, manifest); // RC45 L2-01 D7: ahead of VAULT_PAUSED (the recorded status describes a predecessor that moved on chain)
   if (manifest.status !== VaultStatus.ACTIVE) throwFail(`vault status is ${manifest.status} — a delegate spend needs ACTIVE (a paused vault refuses every delegate spend in-covenant)`, "VAULT_PAUSED");
   await assertKasVaultAvailable(config, manifest);
 
@@ -521,6 +540,20 @@ async function withKasGenesisIdentityLock(config, requestId, work) {
   try { vaultId = peek && peek.kind === "kasGenesis" ? normalizeVaultId(peek.vaultId) : null; } catch { vaultId = null; }
   return vaultId === null ? work() : withVaultIdentityLock(vaultId, work);
 }
+/*
+ * RC45 delegate period-start rule at the creation's signature (the rule itself is in manifest-v4.js). Writes nothing.
+ * The stored initial registry must be a list folding to exactly the initial agent root of the genesis build whose bytes
+ * are signed and broadcast (REGISTRY_ROOT_MISMATCH otherwise; a missing registry is refused, never skipped; no node is
+ * read). A creation has no predecessor leaf, so when it has delegates the configured synced node's canonical virtual DAA
+ * score is read (an unreadable node refuses PERIOD_START_REQUIRED) and a delegate whose start lags it by more than its
+ * window refuses PERIOD_START_STALE; a creation without delegates reads nothing. A creation that is already SIGNED is not
+ * checked again at submit: it can no longer be withdrawn.
+ */
+async function assertKasGenesisStartsFresh(config, request) {
+  assertRegistryFoldsToRoot({ entries: request.initialRegistry, committedAgentRoot: request.build?.initialState?.agentRoot, stage: "signature" });
+  if (anchoredLeafPks([], request.initialRegistry).length === 0) return;
+  assertLeafStartsFresh({ predecessorEntries: [], nextEntries: request.initialRegistry, currentDaa: await require("./chain").readAnchorDaa(config), stage: "signature" });
+}
 async function finalizeKasWalletRequest(args) {
   return withKasRequestLock(args.config, args.requestId, () => withKasGenesisIdentityLock(args.config, args.requestId, () => finalizeKasWalletRequestUnlocked(args)));
 }
@@ -543,6 +576,10 @@ async function finalizeKasWalletRequestUnlocked({ config, requestId, signedSafeJ
   /* RC33-ID-01: a genesis whose identity became occupied (any generation's record, any OTHER request) is refused BEFORE its
    * signature is accepted — the request stays BUILT, nothing is stored. */
   if (request.kind === "kasGenesis") await assertVaultIdentityFree(config, request.vaultId, { exceptRequestId: request.requestId, exceptTxId: request.txId, phase: "commit" });
+  /* RC45 delegate period-start rule: the funder's signature is the last step at which a creation can still be withdrawn
+   * (a SIGNED creation never is), so its delegates' starts are checked here, before the signature is parsed or stored.
+   * A refusal writes nothing: the request stays BUILT and can be withdrawn and built again. */
+  if (request.kind === "kasGenesis") await assertKasGenesisStartsFresh(config, request);
   const unsigned = JSON.parse(request.transaction.unsignedSafeJson);
   let signed;
   try {
@@ -1006,6 +1043,9 @@ async function reconcileKasVault(config, rpc, vaultId, { stalePendingMinimumMs =
     }
   }
   if (claim && claim.expected?.kind === "orgRootRequest") return withCompletion({ status: "CLAIM_PENDING", vaultId, claimTxId: claim.txId, reason: "a root-authorized operation consumed this vault outpoint — reconcile the organizational root to complete it" });
+  /* RC45 L2-01 D7: the recorded outpoint is gone because the treasury is UNRESOLVED — say so (record-only; never written) */
+  const unresolved = await wr7.treasuryUnresolved(config, current);
+  if (unresolved) return withCompletion({ status: "UNKNOWN", vaultId, reason: `treasury state UNRESOLVED: its expected output was spent outside PolicyVault after an out-of-band change to its delegate rules (root request ${unresolved.requestId}, transaction ${unresolved.txId}); hosted actions on this treasury stay closed, and a later Verify restores them only if it finds that expected output unspent again` });
   return withCompletion({ status: "UNKNOWN", vaultId, reason: claim ? "claim present but the expected effect is not provable" : "live outpoint gone, no claim" });
 }
 

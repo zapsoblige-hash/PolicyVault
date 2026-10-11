@@ -12,6 +12,7 @@ async function fixture(name) {
   for (const [c, values] of Object.entries(saved.records)) for (const [k, v] of Object.entries(values)) await store.write(c, k, v);
   for (const e of saved.audit) await store.appendAudit(e);
   const rpc = fx.mockRpc(); for (const [a, entries] of Object.entries(saved.rpc)) for (const e of entries) rpc.seed(a, e);
+  require("../testutil/guard-node").registerFixtureNode(config, rpc); // RC45 L2-01 guard inventory: root builds on this config read this mock table
   const o = { ...saved.ids, fuelKey: fx.KEY(config, 0x64), agentKey: fx.KEY(config, 0x62), owner1: fx.KEY(config, 0x71), owner2: fx.KEY(config, 0x72), recipientKey: fx.KEY(config, 0x63), rTree: dep("sdk/src/recipient-merkle-v3").buildRecipientTree([fx.XO(config, fx.KEY(config, 0x63))]) };
   return { config, saved, o, rpc };
 }

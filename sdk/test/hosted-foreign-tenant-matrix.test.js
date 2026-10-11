@@ -46,12 +46,20 @@ const { loadConfig } = require("../src/config");
 const { openPgStore } = require("../src/store");
 const { ENCODER_PATH } = require("../src/vault-builders-v4");
 const wr7 = require("../src/wallet-requests-v7");
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table also carries the seam's walk (registerFixtureNode)
+ * and each root build's supplied fee UTXO (seedFixtureFuel) — the B1 build observes every non-root input live and exact */
 const wr5 = require("../src/wallet-requests-v5");
 const wr7kas = require("../src/wallet-requests-v7-kas"); // v0.7 enablement (2026-09-10): the rooted-KAS family
 const assets = require("../../core/assets");
 const { compileKcc20Program } = require("../src/token-program-kcc20");
 const { buildRecipientTree } = require("../src/recipient-merkle-v3");
 const { covenantAddress } = require("../src/chain");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const PG = {
   host: process.env.POLICYVAULT_TEST_PG_HOST || "127.0.0.1",
@@ -174,6 +182,7 @@ before(async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   port = server.address().port;
   rpc = mockRpc();
+  registerFixtureNode(config, rpc); // RC45 L2-01 guard inventory: root builds on this server read this mock table
 
   ref = compileKcc20Program({ config, state: assets.kcc20.ZERO_STATE, familyBound: 2 });
   descriptor = {
@@ -253,7 +262,7 @@ async function signInCookie(w) {
 }
 const cookies = {};
 const asW = async (w) => (cookies[w.xonly] ??= await signInCookie(w));
-const rootActionBody = (signer) => ({ action: "authorize", params: { fuel: fuelUtxoFor(FUEL) }, signerAddress: signer.address });
+const rootActionBody = (signer) => ({ action: "authorize", params: { fuel: seedFixtureFuel(config, fuelUtxoFor(FUEL), { rpc }) }, signerAddress: signer.address });
 const rootGenesisBody = (signer) => ({ label: "B root", owners: [{ slot: 1, address: signer.address }], ownerM: 1, emergencyK: 1, recoveryM: 1, recoveryDelayDaa: "600", successionDelayDaa: "600", successorAddress: null, rootValueKas: "2", rootMaxFeePerTxKas: "0.01", signerAddress: signer.address, funding: [fuelUtxoFor(signer)] });
 const rootedVaultBody = (signer) => ({ profile: "policyvault-0.7-payment", label: "second treasury", descriptor, templateIndex: 0, agents: [policyFor(AG7)], recoveryAddress: A.address, depositKas: "0", feeReserveKas: "5", signerAddress: signer.address, funding: [fuelUtxoFor(signer)] });
 function depositBody(vaultId, signer) {
@@ -324,26 +333,26 @@ test("ROOT-LOCK GRIEFING (audit L3): a foreign or non-owner caller can neither b
   const pending = async () => (await wr7.loadOrgRoot(config, rootId)).pendingRequestId;
   assert.equal(await pending(), null);
   // L3a: foreign B names the OWNER as signer (the exact griefing shape) -> 404, no lock
-  let r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cB });
+  let r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cB }));
   assert.equal(r.status, 404, JSON.stringify(r.json)); assert.equal(code(r), "ROOT_NOT_FOUND"); assert.equal(await pending(), null, "L3b: no lock left by the foreign caller");
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(B), cookie: cB });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(B), cookie: cB }));
   assert.equal(r.status, 404); assert.equal(await pending(), null);
   // the pinned successor may only initiate a succession
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cS });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cS }));
   assert.equal(r.status, 403); assert.equal(code(r), "SIGNER_NOT_PRINCIPAL"); assert.equal(await pending(), null);
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(S), cookie: cS });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(S), cookie: cS }));
   assert.equal(r.status, 403, JSON.stringify(r.json)); assert.equal(code(r), "NOT_AN_ACTIVE_SLOT"); assert.equal(await pending(), null);
   // an owner cannot initiate in another owner's name
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A2), cookie: cA });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A2), cookie: cA }));
   assert.equal(r.status, 403); assert.equal(code(r), "SIGNER_NOT_PRINCIPAL"); assert.equal(await pending(), null);
   // the owner's OWN action builds (same-tenant accepted)
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA }));
   assert.equal(r.status, 201, JSON.stringify(r.json));
   const unsignedId = r.json.request.id;
   r = await req("POST", `/org-roots/${rootId}/requests/${unsignedId}/reject`, { body: { reason: "unsigned withdrawal control" }, cookie: cA2 });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(await pending(), null, "co-owner may withdraw an unsigned request");
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA }));
   assert.equal(r.status, 201, JSON.stringify(r.json));
   const reqId = r.json.request.id;
   assert.equal(await pending(), reqId);
@@ -393,7 +402,7 @@ test("ROOT-LOCK GRIEFING (audit L3): a foreign or non-owner caller can neither b
   assert.equal(r.status, 409, JSON.stringify(r.json)); assert.equal(code(r), "CANNOT_REJECT");
   assert.equal(await pending(), reqId);
   assert.deepEqual(await wr7.loadOrgRootRequest(config, reqId), stored, "refused withdrawal cannot alter the signed request");
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA }));
   assert.equal(r.status, 409, JSON.stringify(r.json)); assert.equal(code(r), "ROOT_PENDING_REQUEST");
   assert.equal(await pending(), reqId);
 });
@@ -653,6 +662,22 @@ test("/wallet/v5 on a LIVE controller: foreign build 404; agent-in-owner's-name 
   assert.equal(r.status, 200);
 });
 
+/* RC45 R2-11: rejecting a v0.5 / v0.6 request is the request's signer or the controller owner only — the controller's
+ * registered agent is refused before any state change (the owner's withdrawal below still succeeds). */
+test("/wallet/v5 on a LIVE controller (reject scope): the controller's registered agent rejecting the owner's BUILT ownerPause is refused 403 REQUEST_FORBIDDEN and the request stays BUILT, unchanged; the owner then withdraws it (200) [RED on b89f0f7]", { skip }, async () => {
+  const cA = await asW(A), cAG = await asW(AG5);
+  let r = await req("POST", "/wallet/v5/requests", { body: v5PauseBody(A), cookie: cA });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  const id = r.json.request.requestId;
+  const before = await wr5.loadWalletRequestV5(config, id);
+  r = await req("POST", `/wallet/v5/requests/${id}/reject`, { cookie: cAG });
+  assert.equal(r.status, 403, `the controller's agent cannot withdraw the owner's request: ${JSON.stringify(r.json)}`); assert.equal(code(r), "REQUEST_FORBIDDEN");
+  assert.deepEqual(await wr5.loadWalletRequestV5(config, id), before, "the refused withdrawal changed nothing");
+  r = await req("POST", `/wallet/v5/requests/${id}/reject`, { cookie: cA });
+  assert.equal(r.status, 200);
+  assert.equal((await wr5.loadWalletRequestV5(config, id)).state, "WALLET_REJECTED");
+});
+
 test("/wallet/v6 shares the surface: unauthenticated 401, foreign create-in-A's-name 403, foreign build on an unknown vault 404 (no oracle)", { skip }, async () => {
   let r = await req("POST", "/wallet/v6/create", { body: { ...v5CreateBody(A), initialSwapPolicies: [] } });
   assert.equal(r.status, 401);
@@ -772,7 +797,7 @@ test("rc13 review N-02 (all families): a participant that is NOT the request's s
   r = await req("POST", `/wallet/v7/requests/${id7}/signature`, { body: { signedSafeJson: '{"inputs":[{}]}' }, cookie: cAG7 });
   assert.equal(r.status, 403, JSON.stringify(r.json)); assert.equal(code(r), "NOT_THE_SIGNER");
   assert.equal((await wr7.loadV7WalletRequest(config, id7)).state, "BUILT");
-  r = await req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA });
+  r = await withFixtureNode(config, rpc, () => req("POST", `/org-roots/${rootId}/requests`, { body: rootActionBody(A), cookie: cA }));
   assert.equal(r.status, 201, JSON.stringify(r.json));
   const rid = r.json.request.id;
   r = await req("POST", `/org-roots/${rootId}/requests/${rid}/signature`, { body: { signedSafeJson: '{"inputs":[{}]}' }, cookie: cA2 });

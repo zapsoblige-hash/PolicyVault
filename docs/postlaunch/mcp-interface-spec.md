@@ -250,6 +250,16 @@ reads its roots and builds root-carried owner operations; a read-only credential
 `403 SCOPE_FORBIDDEN`. The package version that first delivers these mappings on npm is the one the registry reports (the
 published 1.5.0 contains none of them); source checkouts and unpublished tarballs never count as delivery.
 
+**Delegate budget period start (RC45).** `periodStartDaa` in a delegate entry (`agent` / `newAgents` of
+`policyvault_create_request` and `policyvault_simulate_request`; `agents` of an `ownerSetAgentRoot` vault operation of
+`policyvault_create_org_root_request`) is a lower bound, not the committed value. For a new or changed delegate the server
+commits the later of that value and its node's DAA score at the build: a caller may ask for a later start (it is kept), never
+an earlier one. A v0.4-family request reports the anchor as `review.periodStartAnchorDaa`; a root request carries the
+committed starts in `newRegistry`. A server that cannot read its node's DAA score refuses `422 PERIOD_START_REQUIRED`; a
+request whose new or changed start has aged past its window is refused `409 PERIOD_START_STALE` at finalize or submit,
+steps outside this adapter. Both reach the caller as `REFUSED` with the API's error verbatim under `data` (§6). The rule,
+its window and its limits are in `platform-agent-api-spec.md` §5.2.
+
 ## 5. Request mapping
 
 Path parameters are pattern-validated then URI-encoded (no traversal);

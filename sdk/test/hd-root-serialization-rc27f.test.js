@@ -14,6 +14,7 @@ before(async () => {
 });
 function fixture() {
   const x = { ...base, config: fx.cloneJsonConfig(base.config, "pv-rc27f-hd-"), rpc: fx.mockRpc() };
+  require("../testutil/guard-node").chainWalk(x.rpc, x.config, { daa: fx.FIXTURE_DAA }); // R3N-B1a inventory: the B1 submit's DAA, sink and 20-hop walk reads
   const out = x.q.build.frozen.outputs[x.q.build.vaultOutputIndex], a = fx.spkAddress(x.config, out.scriptPublicKey);
   x.rpc.seed(a, fx.utxo(a, x.q.txId, x.q.build.vaultOutputIndex, out.value, x.q.build.covenantId));
   x.submit = () => hd.submitHdWalletRequest({ config: x.config, requestId: x.q.requestId, rpc: x.rpc }); return x;

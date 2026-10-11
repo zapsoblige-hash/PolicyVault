@@ -23,11 +23,13 @@ function wallet(config, byte) {
   return { secretHex, priv, xonly: priv.toPublicKey().toXOnlyPublicKey().toString().toLowerCase(), address: priv.toPublicKey().toAddress(config.networkId).toString() };
 }
 function localNode(config, request) {
-  const table = new Map(); let submits = 0, reads = 0;
+  // RC45 F5 (plan r2 §8.1 fixture :30, :42): a per-case blockDaaScore for the seeded UTXOs and a virtualDaaScore, so a
+  // Verify can judge depth (depth = virtualDaaScore - blockDaaScore; default depth 89,999,999 >= D = 1,000).
+  const table = new Map(); let submits = 0, reads = 0, blockDaaScore = "1";
   const kaspa = require(config.rustyKaspaModule);
   const address = (script) => kaspa.addressFromScriptPublicKey({ version: script.version, script: script.scriptHex }, config.networkId).toString();
   function seed(address, outpoint, amount, script, covenantId = null) {
-    table.set(address, [...(table.get(address) ?? []), { address, outpoint: clone(outpoint), amount: String(amount), scriptPublicKey: { version: script.version, script: script.scriptHex }, covenantId, blockDaaScore: "1", isCoinbase: false }]);
+    table.set(address, [...(table.get(address) ?? []), { address, outpoint: clone(outpoint), amount: String(amount), scriptPublicKey: { version: script.version, script: script.scriptHex }, covenantId, blockDaaScore, isCoinbase: false }]);
   }
   function funding() {
     table.clear();
@@ -39,7 +41,7 @@ function localNode(config, request) {
   }
   const rpc = {
     async getUtxosByAddresses({ addresses }) { reads++; return { entries: addresses.flatMap((a) => clone(table.get(a) ?? [])) }; },
-    async getBlockDagInfo() { reads++; return { sink: ANCHOR }; },
+    async getBlockDagInfo() { reads++; return { sink: ANCHOR, virtualDaaScore: "90000000" }; },
     async getMempoolEntry() { reads++; throw Error("TEST unavailable mempool history"); },
     async getVirtualChainFromBlock() { reads++; throw Error("TEST unavailable historical acceptance"); },
     async submitTransaction({ transaction }) {
@@ -53,7 +55,7 @@ function localNode(config, request) {
     async disconnect() {}
   };
   funding();
-  return { rpc, funding, settle, empty: () => table.clear(), submits: () => submits, reads: () => reads };
+  return { rpc, funding, settle, empty: () => table.clear(), submits: () => submits, reads: () => reads, setBlockDaaScore: (value) => { blockDaaScore = String(value); } };
 }
 async function snapshot(config) {
   const store=getStore(config), data={};
@@ -132,14 +134,20 @@ function injectAfter(config,boundary) {
   };
   return {hit:()=>hit,restore:()=>{for(const [method,fn]of Object.entries(originals))store[method]=fn;}};
 }
-async function assertProtected(x,base) {
-  const r=await x.request();assert.equal(r.state,"RECONCILIATION_REQUIRED");
+/* RC45 F7 (plan r2 §8.1 fixture :135-144 "assertPreserved"; §2.6 steps 4-5, H-45): was assertProtected — the record
+ * relabelled RECONCILIATION_REQUIRED with a protection journal and its submission and transition claims re-created.
+ * Request-scoped recovery now leaves an unresolved record byte-identical: no relabel, no journal, no claim re-created.
+ * `expected` is the stored record the case started from (default: base.request as installed from base.snapshot). */
+async function assertPreserved(x,base,expected=base.request) {
+  const r=await x.request();
+  assert.deepEqual(clone(r),clone(expected),"the unresolved record is byte-identical (was: relabelled RECONCILIATION_REQUIRED)");
+  assert.equal(r.transitionRecovery,undefined,"no protection journal is written");
   assert.deepEqual(r.finalTransaction,base.request.finalTransaction);assert.deepEqual(r.build,base.request.build);
   assert.equal(r.submitStartHash,undefined,"missing original evidence is not invented");
   assert.deepEqual(await x.manifest(),base.before);
   const s=x.store(), claim=await s.read(Categories.SUBMISSION_CLAIM,r.txId), transition=await s.read(Categories.TRANSITION_CLAIM,transitionClaimKey(r.predecessorOutpoint));
-  assert.equal(claim.txId,r.txId);assert.equal(claim.vaultId,r.vaultId);assert.equal(claim.action,r.action);
-  assert.equal(transition.txId,r.txId);assert.equal(transition.vaultId,r.vaultId);assert.equal(transition.action,r.action);
+  assert.equal(claim,null,"no submission claim is re-created (was: re-created for this txid)");
+  assert.equal(transition,null,"no transition claim is re-created (was: re-created for this txid)");
   assert.equal(await s.read(Categories.RECEIPT,r.txId),null);assert.equal(x.submits(),0);
 }
 async function assertComplete(x,base) {
@@ -152,4 +160,4 @@ async function assertComplete(x,base) {
   const audits=(await s.readAudit({vaultId:r.vaultId,txId:r.txId,limit:1000})).filter(e=>e.result==="CHAIN_VERIFIED");assert.equal(audits.length,1,"one completion audit across retries");
   assert.equal(await s.read(Categories.SUBMISSION_CLAIM,r.txId),null);assert.equal(await s.read(Categories.TRANSITION_CLAIM,transitionClaimKey(r.predecessorOutpoint)),null);assert.equal(x.submits(),0);
 }
-module.exports={baseFixture,jsonCase,caseFor,install,snapshot,injectAfter,assertProtected,assertComplete,freshConfig,clone,wallet,wr4,submit4,vs4,getStore,Categories,loadConfig,loadManifestV4,transitionClaimKey,KAS};
+module.exports={baseFixture,jsonCase,caseFor,install,snapshot,injectAfter,assertPreserved,assertComplete,freshConfig,clone,wallet,wr4,submit4,vs4,getStore,Categories,loadConfig,loadManifestV4,transitionClaimKey,KAS};

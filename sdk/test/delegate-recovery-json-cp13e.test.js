@@ -2,6 +2,7 @@
 const { test, before } = require("node:test");
 const assert = require("node:assert/strict");
 const { fx, baseFixture, caseFor, signedSpend, assertComplete, boundaries } = require("../testutil/cp13e-delegate-fixture");
+const { withFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
 const { wr7, Categories } = fx;
 const { persistManifestV7 } = require("../src/manifest-v7");
 const skip = fx.toolchainAvailable() ? undefined : "REQUIREMENT_NOT_AVAILABLE: real v7 compiler/VM";
@@ -28,7 +29,7 @@ for (const [stage, [method, predicate]] of Object.entries(boundaries)) test(`CP1
     const v = await x.vault();
     assert.ok(v.generation === base.before.generation || v.generation === base.before.generation + 1);
     assert.equal(v.live.tokenPosition.state.amount, v.generation === base.before.generation ? "100000" : "99950");
-    await assert.rejects(wr7.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause" }], params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) } }), (e) => e.code === "VAULT_PENDING_REQUEST");
+    await assert.rejects(withFixtureNode(x.config, () => wr7.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", signerAddress: fx.ADDR(x.config, x.o.owner1), vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause" }], params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) } })), (e) => e.code === "VAULT_PENDING_REQUEST");
     fault.restore();
   }
   x.config = fx.reloadJsonConfig(x.config); await Promise.all([x.submit(), x.reconcile(), x.submit()]); await assertComplete(x);

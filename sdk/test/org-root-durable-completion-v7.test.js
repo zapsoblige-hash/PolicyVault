@@ -39,6 +39,11 @@ const { compileKcc20Program } = require("../src/token-program-kcc20");
 const { buildRecipientTree } = require("../src/recipient-merkle-v3");
 const { ENCODER_PATH } = require("../src/vault-builders-v4");
 const wr7 = require("../src/wallet-requests-v7");
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel, spendFixtureFuel } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table answers a virtual DAA and carries the seam's
+ * 20-hop walk (registerFixtureNode; the B1 build and submit read them), each root build's supplied fee UTXO is on the
+ * table before the build reads it, and the transaction's settlement (settle(), or the root-only leg's explicit seeding)
+ * spends it. */
 const { reconcileOrgRootV7 } = require("../src/reconcile-v7");
 const { loadManifestV7 } = require("../src/manifest-v7");
 const { loadTransitionClaim } = require("../src/submission-claim");
@@ -102,6 +107,7 @@ async function driveGenesis(cfg, request, funderKey, rpc) {
 
 /* one organization + one rooted vault with ONE agent; returns everything a setAgentRoot needs */
 async function organization(cfg, rpc) {
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory: root builds on this config read this mock table
   const owner1 = KEY(cfg, 0x71), owner2 = KEY(cfg, 0x72), owner3 = KEY(cfg, 0x73), funder = KEY(cfg, 0xf0), fuelKey = KEY(cfg, 0x64), agentKey = KEY(cfg, 0x62), recipientKey = KEY(cfg, 0x63);
   const ref = compileKcc20Program({ config: cfg, state: assets.kcc20.ZERO_STATE, familyBound: 2 });
   const descriptor = { schema: "policyvault-asset-descriptor/1", assetId: H(0x11), displayName: "Org Token", tokenStandard: "kcc20/1", tokenCovenantId: H(0x54), acceptedTransferTemplates: [{ templateVmHashBlake2b256: ref.templateVmHashBlake2b256, prefixLen: ref.geometry.prefixLen, suffixLen: ref.geometry.suffixLen, stateLayout: "kcc20-state/1" }], decimalsDisplay: 2, issuerPowers: { mint: false, burn: false, freeze: false, blacklist: false, redemptionControl: false, upgradeMigration: false, controllerRotation: false, emergencyControl: false } };
@@ -118,7 +124,7 @@ async function organization(cfg, rpc) {
 async function signedSetAgentRoot(cfg, o) {
   const newAgentKey = KEY(cfg, 0x66);
   const entries = [{ ...o.policy, tokenMaxPerSpend: "100", recipients: [...o.rTree.recipients] }, { ...o.policy, agentPk: XO(cfg, newAgentKey), recipients: [...o.rTree.recipients] }];
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(cfg, o.fuelKey) }, vaultOperations: [{ vaultId: o.vaultId, action: "ownerSetAgentRoot", params: { agents: entries } }], signerAddress: ADDR(cfg, o.owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(cfg, o.fuelKey)) }, vaultOperations: [{ vaultId: o.vaultId, action: "ownerSetAgentRoot", params: { agents: entries } }], signerAddress: ADDR(cfg, o.owner1) }));
   for (const [slot, key] of [[1, o.owner1], [2, o.owner2]]) {
     const s = sign65(cfg, req.transaction.unsignedSafeJson, req.rootInputIndex, key);
     const r = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: req.id, slot });
@@ -132,8 +138,10 @@ async function signedSetAgentRoot(cfg, o) {
   return finalized;
 }
 
-/* seed the chain with the finalized transaction's successor outputs (root + vault) */
+/* seed the chain with the finalized transaction's successor outputs (root + vault); R3N-B1a inventory: a fee UTXO the
+ * seam seeded for it is spent with it */
 function settle(cfg, rpc, finalized) {
+  spendFixtureFuel(cfg, finalized.build.frozen, { rpc });
   const outputs = finalized.build.frozen.outputs;
   const rootOutIdx = outputs.findIndex((o) => o.covenant && o.covenant.covenantId === finalized.rootCovenantId);
   const rootAddr = spkAddress(cfg, outputs[rootOutIdx].scriptPublicKey);
@@ -175,9 +183,11 @@ test("R7-02 durable completion (a): DEFERRED settlement — reconciliation compl
   const cfg = freshConfig(); const rpc = mockRpc();
   const o = await organization(cfg, rpc);
   const fin = await signedSetAgentRoot(cfg, o);
-  const pred = await spendPredecessors(cfg, rpc, o);
-  /* submit: the successor is NOT observable yet (nothing seeded) -> RECONCILIATION_REQUIRED, nothing advanced */
+  /* submit: the successor is NOT observable yet (nothing seeded) -> RECONCILIATION_REQUIRED, nothing advanced.
+   * R3N-B1a inventory (TEST BUG): the predecessors are spent when the transaction settles (below), not before its first
+   * broadcast — a node reports X's spend of the root output and X's outputs in one UTXO-index update. */
   await assert.rejects(() => wr7.submitOrgRootRequest({ config: cfg, requestId: fin.id, rpc, pollAttempts: 1, pollDelayMs: 1 }), (e) => e.code === "RECONCILIATION_REQUIRED");
+  const pred = await spendPredecessors(cfg, rpc, o);
   assert.equal((await wr7.loadOrgRootRequest(cfg, fin.id)).state, "RECONCILIATION_REQUIRED");
   assert.equal((await loadManifestV7(cfg, o.vaultId)).agentRegistry.length, 1, "old registry retained while uncertain");
   assert.ok(await loadTransitionClaim(cfg, pred.rootOutpoint), "predecessor root claim held while uncertain");
@@ -227,7 +237,7 @@ test("R7-02 durable completion (c): a VAULT persistence failure after chain proo
 test("R7-02 durable completion (b): a root-only action (no vault operation) still completes on the deferred path with the actual predecessor claim released", { skip: SKIP }, async () => {
   const cfg = freshConfig(); const rpc = mockRpc();
   const o = await organization(cfg, rpc);
-  const req = await wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(cfg, o.fuelKey) }, signerAddress: ADDR(cfg, o.owner1) });
+  const req = await withFixtureNode(cfg, () => wr7.buildRootActionRequest({ config: cfg, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(cfg, fuelUtxoFor(cfg, o.fuelKey)) }, signerAddress: ADDR(cfg, o.owner1) }));
   for (const [slot, key] of [[1, o.owner1], [2, o.owner2]]) {
     const s = sign65(cfg, req.transaction.unsignedSafeJson, req.rootInputIndex, key);
     const r = await wr7.getOrCreateSlotSigningRequest({ config: cfg, requestId: req.id, slot });
@@ -239,12 +249,15 @@ test("R7-02 durable completion (b): a root-only action (no vault operation) stil
   const fin = await wr7.finalizeOrgRootRequest({ config: cfg, requestId: req.id, fuelSignatureScriptHex: fuelSig });
   const root0 = await wr7.loadOrgRoot(cfg, o.rootCovenantId);
   const predOutpoint = root0.live.outpoint;
-  rpc.clear(root0.live.address);
+  /* R3N-B1a inventory (TEST BUG): the root predecessor is spent when the transaction settles, not before its first
+   * broadcast (a node reports X's spend of it and X's outputs in one UTXO-index update) */
   await assert.rejects(() => wr7.submitOrgRootRequest({ config: cfg, requestId: fin.id, rpc, pollAttempts: 1, pollDelayMs: 1 }), (e) => e.code === "RECONCILIATION_REQUIRED");
+  rpc.clear(root0.live.address);
   const outputs = fin.build.frozen.outputs;
   const rootOutIdx = outputs.findIndex((x) => x.covenant && x.covenant.covenantId === o.rootCovenantId);
   const rootAddr = spkAddress(cfg, outputs[rootOutIdx].scriptPublicKey);
   rpc.seed(rootAddr, utxo(rootAddr, fin.txId, rootOutIdx, outputs[rootOutIdx].value, o.rootCovenantId));
+  spendFixtureFuel(cfg, fin.build.frozen, { rpc }); // R3N-B1a inventory: the settled transaction spends its seeded fee UTXO
   const r1 = await reconcileOrgRootV7(cfg, o.rootCovenantId, { rpc });
   assert.equal(r1.root.status, "ADVANCED");
   assert.equal((await wr7.loadOrgRootRequest(cfg, fin.id)).state, "CHAIN_VERIFIED");

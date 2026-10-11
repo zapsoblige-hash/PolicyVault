@@ -3,6 +3,7 @@ const { test } = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path");
 const source = process.env.POLICYVAULT_RC27F_SOURCE || path.resolve(__dirname, "../..");
 const dep = (p) => require(path.join(source, p));
+const { registerFixtureNode, withFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
 const d = dep("sdk/testutil/cp13e-delegate-fixture"), { fx } = d, wr = fx.wr7;
 const rec = dep("sdk/src/reconcile-v7");
 const fixtures = path.resolve(__dirname, "fixtures/legacy-df68a1f");
@@ -13,12 +14,13 @@ async function fixture(name) {
   for (const [c, values] of Object.entries(saved.records)) for (const [k, v] of Object.entries(values)) await store.write(c, k, v);
   for (const e of saved.audit) await store.appendAudit(e);
   const rpc = fx.mockRpc(); for (const [a, entries] of Object.entries(saved.rpc)) for (const e of entries) rpc.seed(a, e);
+  registerFixtureNode(config, rpc); // RC45 L2-01 guard inventory
   const o = { ...saved.ids, fuelKey: fx.KEY(config, 0x64), agentKey: fx.KEY(config, 0x62), owner1: fx.KEY(config, 0x71), owner2: fx.KEY(config, 0x72), owner3: fx.KEY(config, 0x73), recipientKey: fx.KEY(config, 0x63),
     rTree: dep("sdk/src/recipient-merkle-v3").buildRecipientTree([fx.XO(config, fx.KEY(config, 0x63))]) };
   return { config, saved, o, rpc };
 }
 const codeOf = async (fn) => { try { return { ok: true, value: await fn() }; } catch (e) { return { ok: false, code: e.code, message: String(e.message) }; } };
-const ownerOp = (config, o, action) => wr.buildRootActionRequest({ config, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(config, o.fuelKey) }, vaultOperations: [{ vaultId: o.vaultId, action, params: {} }], signerAddress: fx.ADDR(config, o.owner1) });
+const ownerOp = (config, o, action) => withFixtureNode(config, () => wr.buildRootActionRequest({ config, rootCovenantId: o.rootCovenantId, action: "authorize", params: { fuel: fx.liveFuelFor(config, o.fuelKey) }, vaultOperations: [{ vaultId: o.vaultId, action, params: {} }], signerAddress: fx.ADDR(config, o.owner1) }));
 const agentSpend = (config, o) => wr.buildV7WalletRequest({ config, vaultId: o.vaultId, action: "tokenAgentSpend", signerAddress: fx.ADDR(config, o.agentKey), params: { spendAmount: "1", periodsElapsed: "0", agents: [], recipient: fx.XO(config, o.recipientKey), recipients: [...o.rTree.recipients], recipientCarryKasSompi: "0", tokenPosition: null } });
 
 // RC28 live-stack follow-up: public submission must obey the same legacy

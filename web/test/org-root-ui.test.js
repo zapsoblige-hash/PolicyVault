@@ -1085,3 +1085,157 @@ test("F-6: the root detail names the request that holds the reservation, the vau
   assert.match(APP_V4, /rootUI\.fetchRootedVaults\(rootId\)/, "app-v4.js loads the vault summaries for the panels");
   assert.match(APP_V4, /querySelectorAll\("\[data-vieworequest\]"\)/, "every 'open that request' control is wired");
 });
+
+/* ==================== RC45 R2-08: delegate-rule change requests of a KAS treasury (finalize deadline and gating) ====================
+ * The server refuses to finalize a v0.7-kas delegate-rule change (ownerSetAgentRoot) once some leaf of its stored
+ * registry that is not byte-identical, in its nine committed fields, to the treasury's installed leaf with the same key
+ * has D - periodStartDaa > W(periodLengthDaa), W(L) = max(L - 6000, 600); such a never-attempted request with owner
+ * slot signatures may then be withdrawn. The web computes the same predicate only from the treasury's INSTALLED rows
+ * (loaded and passed in) and the current network position: it shows the finalize deadline (the earliest S + W(L) over
+ * those leaves), hides Approve / Finalize and offers the withdrawal only when the predicate holds or the server's own
+ * finalize answered 409 PERIOD_START_STALE, and with the installed rows not loaded shows the deadline as unknown and
+ * never judges on its own (never over all leaves).
+ *
+ * SHARED VECTORS — written inline, verbatim, here and in the sdk suite of the server's root finalize and stale
+ * withdrawal (stale = the server's finalize refusal / withdrawal predicate at D). */
+const PK_A = "cb144659ef300200912762786a173663150592d78f4408390c47e9956d9a6c31"; // installed, lagging (TEST key 0x62)
+const PK_B = "5ab4689e400a4a160cf01cd44730845a54768df8547dcdf073d964f109f18c30"; // installed (TEST key 0x66)
+const PK_N1 = "eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619"; // new (TEST key 0x41)
+const PK_N2 = "24653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c"; // new (TEST key 0x42)
+const RECIPIENT = "1195a8046dcbb8e17034bca630065e7a0982e4e36f6f7e5a8d4554e4846fcd99"; // TEST key 0x63
+const RECIPIENT_ROOT = "125252f3e043c314d06f8989ed81d9d716552e2d1ebf73b35c826c5ee3cc89d4";
+const leaf = (agentPk, periodStartDaa, over = {}) => ({ agentPk, maxPerSpend: "500000000", periodBudget: "2000000000", periodLengthDaa: "864000", periodStartDaa: String(periodStartDaa), periodSpent: "0", approvalThreshold: "200000000", agentMaxFeePerTx: "10000000", agentRecipientRoot: RECIPIENT_ROOT, recipients: [RECIPIENT], ...over });
+const V_A = leaf(PK_A, 540680000, { periodSpent: "300000000" });
+const V_B = leaf(PK_B, 544999000);
+const INSTALLED_V = [V_A, V_B];
+const VECTORS = [
+  { name: "new daily delegate at exactly W", newRegistry: [V_A, V_B, leaf(PK_N1, 545000000)], D: 545858000, stale: false },
+  { name: "new daily delegate at W + 1", newRegistry: [V_A, V_B, leaf(PK_N1, 545000000)], D: 545858001, stale: true },
+  { name: "the CARRIED lagging delegate is not judged; the new delegate is fresh", newRegistry: [V_A, V_B, leaf(PK_N1, 545000000)], D: 545001000, stale: false },
+  { name: "installed delegate's period shortened to one hour, at W + 1", newRegistry: [leaf(PK_A, 545000000, { periodSpent: "300000000", periodLengthDaa: "36000" }), V_B], D: 545030001, stale: true },
+  { name: "two new delegates, daily fresh and hourly at W + 1", newRegistry: [V_A, V_B, leaf(PK_N1, 545000000), leaf(PK_N2, 545000000, { periodLengthDaa: "36000" })], D: 545030001, stale: true },
+  { name: "1,200-DAA period at exactly the 600-DAA floor", newRegistry: [V_A, V_B, leaf(PK_N1, 545000000, { periodLengthDaa: "1200" })], D: 545000600, stale: false },
+  { name: "1,200-DAA period at 601", newRegistry: [V_A, V_B, leaf(PK_N1, 545000000, { periodLengthDaa: "1200" })], D: 545000601, stale: true },
+  { name: "a later requested start keeps the window open", newRegistry: [V_A, V_B, leaf(PK_N1, 545100000)], D: 545958000, stale: false }
+];
+const R2_KAS = "policyvault-0.7-kas";
+const R2_ROOT = { rootCovenantId: "52".repeat(32), networkId: "testnet-10", state: { frozen: 0, ownerM: "2", emergencyK: "1", recoveryM: "2" }, slots: [{ slot: 1, publicKey: K(0x71), address: "kaspa:qown1" }, { slot: 2, publicKey: K(0x72), address: "kaspa:qown2" }, { slot: 3, publicKey: K(0x73), address: "kaspa:qown3" }], template: {}, vaults: ["44".repeat(32)], pendingRequestId: "q-r2-08", live: { outpoint: { transactionId: "bb".repeat(32), index: 0 } } };
+/* A never-attempted, AUTHORIZED KAS delegate-rule change with owner slots 1 and 2 signed (quorum 2 of 3), as the server presents it.
+ * The manifest is the production-byte KAS delegate-rule change (so the request is recognizable as a v0.7-kas ownerSetAgentRoot by
+ * its manifest as well as by vaultOperations[0]); the gating under test reads only the stored registry (newRegistry), the
+ * treasury's installed rows and the network position, which carry the shared vectors' realistic values. */
+const R2_KAS_SET = JSON.parse(fs.readFileSync(path.join(REPO, "core/explain/test/fixtures/v7-kas-manifests.json"), "utf8")).manifests.find((x) => x.name === "vault_owner_set_agent_root");
+const r2Request = (newRegistry, over = {}) => ({
+  id: "q-r2-08", rootCovenantId: R2_ROOT.rootCovenantId, kind: "rootAction", action: "authorize", state: "AUTHORIZED", requiredApprovals: "2", signaturesPresent: 2,
+  slots: [{ slot: 1, publicKey: K(0x71), status: "SIGNED" }, { slot: 2, publicKey: K(0x72), status: "SIGNED" }, { slot: 3, publicKey: K(0x73), status: "PENDING" }],
+  vaultOperations: [{ vaultId: "44".repeat(32), profile: R2_KAS, action: "ownerSetAgentRoot", params: { agents: newRegistry } }], newRegistry,
+  manifest: R2_KAS_SET.manifest, redeemScripts: R2_KAS_SET.redeemScripts, rootInputIndex: R2_KAS_SET.rootInputIndex,
+  transaction: { unsignedSafeJson: R2_KAS_SET.unsignedSafeJson, frozenCanonicalJson: R2_KAS_SET.frozenCanonicalJson, signInputs: R2_KAS_SET.signInputs }, ...over
+});
+const r2Text = (html) => String(html ?? "").replace(/<[^>]*>/g, " ").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+const r2NumSrc = (n) => `(?<![0-9])${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "[,\\u00a0\\u202f\\u2009 ]?")}(?![0-9])`;
+const R2_DEADLINE = "Must be finalized before network position";
+const R2_UNKNOWN = "The finalize deadline is unknown: this treasury's installed delegate rules could not be loaded. PolicyVault checks it when the request is finalized.";
+const r2Detail = (m, request, opts) => m.renderRequestDetailHtml(request, { orgRoot: R2_ROOT, viewerXOnly: K(0x73), ...opts });
+
+for (const v of VECTORS) {
+  test(v.stale
+    ? `RC45 R2-08: shared vector "${v.name}" (D = ${v.D}) — with the installed rows loaded, withdrawEligibility offers the stale withdrawal (the server's finalize refusal and withdrawal predicate) [RED on b89f0f7]`
+    : `RC45 R2-08: shared vector "${v.name}" (D = ${v.D}) — with the installed rows loaded, withdrawEligibility keeps collecting (a fresh request with owner signatures is not withdrawn)`, () => {
+    const { m } = opsMod();
+    const e = m.withdrawEligibility(r2Request(v.newRegistry), { currentDaa: String(v.D), installedAgents: INSTALLED_V });
+    assert.equal(e.kind, v.stale ? "withdraw" : "collect", e.reason);
+    if (v.stale) assert.match(e.reason, /delegate budget period start has aged out, so PolicyVault will not finalize it/);
+  });
+}
+
+test("RC45 R2-08: after the server's own finalize answered 409 PERIOD_START_STALE, withdrawEligibility offers the stale withdrawal even with the installed rows not loaded or the network position unknown [RED on b89f0f7]", () => {
+  const { m } = opsMod();
+  for (const opts of [{ serverRefusedStale: true }, { serverRefusedStale: true, currentDaa: null, installedAgents: null }, { serverRefusedStale: true, currentDaa: "545001000", installedAgents: INSTALLED_V }]) {
+    assert.equal(m.withdrawEligibility(r2Request(VECTORS[2].newRegistry), opts).kind, "withdraw", JSON.stringify(Object.keys(opts)));
+  }
+});
+
+test("RC45 R2-08: without the installed rows (or without a network position) the web never offers the stale withdrawal on its own judgement — a fresh request with a CARRIED lagging delegate, and even a stale vector, keep collecting; another profile or operation is never judged", () => {
+  const { m } = opsMod();
+  for (const v of [VECTORS[2], VECTORS[1]]) {
+    assert.equal(m.withdrawEligibility(r2Request(v.newRegistry), { currentDaa: String(v.D), installedAgents: null }).kind, "collect", `${v.name}: rows not loaded`);
+    assert.equal(m.withdrawEligibility(r2Request(v.newRegistry), { currentDaa: null, installedAgents: INSTALLED_V }).kind, "collect", `${v.name}: network position unknown`);
+    assert.equal(m.withdrawEligibility(r2Request(v.newRegistry)).kind, "collect", `${v.name}: no options (root page reservation guidance)`);
+  }
+  const payment = r2Request(VECTORS[1].newRegistry, { vaultOperations: [{ vaultId: "44".repeat(32), profile: "policyvault-0.7-payment", action: "ownerSetAgentRoot" }] });
+  assert.equal(m.withdrawEligibility(payment, { currentDaa: String(VECTORS[1].D), installedAgents: INSTALLED_V }).kind, "collect", "a payment-profile request is not judged");
+  const pause = r2Request(VECTORS[1].newRegistry, { vaultOperations: [{ vaultId: "44".repeat(32), profile: R2_KAS, action: "ownerPause" }] });
+  assert.equal(m.withdrawEligibility(pause, { currentDaa: String(VECTORS[1].D), installedAgents: INSTALLED_V }).kind, "collect", "a non-delegate-rule operation is not judged");
+  assert.equal(m.reservationGuidance({ request: r2Request(VECTORS[1].newRegistry), orgRoot: R2_ROOT }).eligibility.kind, "collect", "the root page's guidance (no installed rows) keeps today's result");
+});
+
+test("RC45 R2-08: the request detail with the installed rows loaded shows the finalize deadline — the earliest S + W(L) over the new or changed leaves only (the CARRIED lagging delegate is excluded) [RED on b89f0f7]", () => {
+  const { m } = opsMod();
+  const t = r2Text(r2Detail(m, r2Request(VECTORS[2].newRegistry), { currentDaa: "545001000", installedAgents: INSTALLED_V }));
+  assert.match(t, new RegExp(`${R2_DEADLINE} ${r2NumSrc(545858000)}`), `the deadline of the new daily delegate (545,000,000 + 858,000); it shows: ${t.slice(0, 900)}`);
+  assert.doesNotMatch(t, new RegExp(r2NumSrc(541538000)), "the CARRIED lagging delegate never sets the deadline");
+  assert.ok(t.includes("After that PolicyVault will not finalize it; it can only be withdrawn and built again."));
+});
+
+test("RC45 R2-08: finalize deadline vectors — each of the nine committed fields changed on an installed delegate makes it a new or changed leaf; a new key is included; the earliest of several wins [RED on b89f0f7]", () => {
+  const { m } = opsMod();
+  const deadlineOf = (newRegistry) => {
+    const t = r2Text(r2Detail(m, r2Request(newRegistry), { currentDaa: "545001000", installedAgents: INSTALLED_V }));
+    const hit = new RegExp(`${R2_DEADLINE} ([0-9][0-9,\\u00a0\\u202f\\u2009 ]*[0-9])`).exec(t);
+    return hit ? hit[1].replace(/[^0-9]/g, "") : null;
+  };
+  const daily = String(540680000 + 858000);
+  const cases = [
+    ["maxPerSpend", { maxPerSpend: "400000000" }, daily],
+    ["periodBudget", { periodBudget: "3000000000" }, daily],
+    ["periodLengthDaa", { periodLengthDaa: "36000" }, String(540680000 + 30000)],
+    ["periodStartDaa", { periodStartDaa: "545000000" }, String(545000000 + 858000)],
+    ["periodSpent", { periodSpent: "0" }, daily],
+    ["approvalThreshold", { approvalThreshold: "100000000" }, daily],
+    ["agentMaxFeePerTx", { agentMaxFeePerTx: "20000000" }, daily],
+    ["agentRecipientRoot", { agentRecipientRoot: "77".repeat(32), recipients: ["77".repeat(32)] }, daily]
+  ];
+  for (const [field, over, expected] of cases) assert.equal(deadlineOf([{ ...V_A, ...over }, V_B]), expected, `${field} changed: the installed delegate counts as changed`);
+  assert.equal(deadlineOf([{ ...V_A, agentPk: PK_N1 }, V_B]), daily, "agentPk: a key absent from the installed set is a new leaf");
+  assert.equal(deadlineOf(VECTORS[4].newRegistry), String(545000000 + 30000), "the earliest deadline of several (the hourly delegate)");
+  assert.equal(deadlineOf([V_A, V_B]), null, "no new or changed leaf: no deadline");
+});
+
+test("RC45 R2-08: with the installed rows NOT loaded the request detail shows the finalize deadline as unknown — never computed over all leaves [RED on b89f0f7]", () => {
+  const { m } = opsMod();
+  const t = r2Text(r2Detail(m, r2Request(VECTORS[2].newRegistry), { currentDaa: "545001000", installedAgents: null }));
+  assert.ok(t.includes(R2_UNKNOWN), `the unknown deadline is stated; it shows: ${t.slice(0, 900)}`);
+  assert.doesNotMatch(t, new RegExp(r2NumSrc(541538000)), "never the all-leaves deadline (the CARRIED lagging delegate)");
+  assert.ok(!t.includes(R2_DEADLINE), "no deadline is asserted");
+});
+
+test("RC45 R2-08: the request detail with the installed rows loaded hides Finalize and offers the stale withdrawal exactly when the shared vector is stale [RED on b89f0f7]", () => {
+  const { m } = opsMod();
+  const stale = r2Detail(m, r2Request(VECTORS[1].newRegistry), { currentDaa: String(VECTORS[1].D), installedAgents: INSTALLED_V });
+  assert.doesNotMatch(stale, /data-rootfinalize=/, "a stale request is never offered for finalize");
+  assert.match(stale, /data-rootreject="q-r2-08"/, "the stale withdrawal is offered");
+  assert.match(stale, /data-reservation-next="withdraw"/);
+});
+
+test("RC45 R2-08: the request detail keeps Finalize and offers no withdrawal for a fresh vector with the rows loaded, and for a fresh request with a CARRIED lagging delegate when the rows are not loaded", () => {
+  const { m } = opsMod();
+  for (const [label, v, installedAgents] of [["rows loaded, at exactly W", VECTORS[0], INSTALLED_V], ["rows not loaded, CARRIED lagging", VECTORS[2], null]]) {
+    const html = r2Detail(m, r2Request(v.newRegistry), { currentDaa: String(v.D), installedAgents });
+    assert.match(html, /data-rootfinalize="q-r2-08"/, `${label}: Finalize is shown`);
+    assert.doesNotMatch(html, /data-rootreject=/, `${label}: no withdrawal`);
+  }
+});
+
+test("RC45 R2-08: a finalized (SIGNED) delegate-rule change whose start aged after finalize shows, in the Submit area, the amount payable at once and that a finalized request cannot be withdrawn; Submit stays available [RED on b89f0f7]", () => {
+  const { m } = opsMod();
+  const D = 545000000 + 864000 + 5000; // the new delegate (start 545,000,000, daily, 20 KAS) is two periods in: 40 KAS at once
+  const signed = r2Request(VECTORS[1].newRegistry, { state: "SIGNED" });
+  for (const installedAgents of [INSTALLED_V, null]) {
+    const html = r2Detail(m, signed, { currentDaa: String(D), installedAgents });
+    const t = r2Text(html);
+    assert.ok(t.includes("Its period start aged after it was finalized; a finalized request cannot be withdrawn."), `the aged-start warning (rows ${installedAgents ? "loaded" : "not loaded"}); it shows: ${t.slice(0, 900)}`);
+    assert.match(t, /40 KAS/, "the immediate amount of the new delegate");
+    assert.match(html, /<button data-rootsubmit="q-r2-08" class="primary">/, "Submit stays available");
+  }
+});

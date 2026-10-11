@@ -31,6 +31,7 @@ const { compileExactStateV4 } = require("../src/contract-compiler-v4");
 const { MANIFEST_SCHEMA_V4, persistManifestV4 } = require("../src/manifest-v4");
 const { makeDevSigner } = require("../src/signer-dev");
 const wr4 = require("../src/wallet-requests-v4");
+const { transitionClaimKey } = require("../src/submission-claim");
 
 const PG = {
   host: process.env.POLICYVAULT_TEST_PG_HOST || "127.0.0.1",
@@ -165,10 +166,25 @@ test("PG parity: two LIVE identical builds share one record; content gate passes
   assert.equal(rec.requestId, r1.requestId, "creator provenance intact over PG");
   const f2 = await signAndFinalize(r2, agent, 0x1e);
   assert.equal(f2.state, "PREFLIGHT_VERIFIED", "the sharing request finalizes on CONTENT over PG");
-  // broadcast exclusivity stays with the transition-claim arbiter:
-  // the duplicate's finalize refuses fail-closed (designed layer,
-  // untouched by this remediation)
-  await assert.rejects(signAndFinalize(r1, agent, 0x1e), (e) => e.code === "CLAIM_CONFLICT");
+  // RC45 F2 (plan r2 §2.1(2) CR-L14, §8 T2 "twins never refuse each other";
+  // a changed-by-design pin §8.1 does not list): the finalized sibling is a
+  // same-txid TWIN, so the blocking guard never refuses the duplicate;
+  // exclusivity stays with the ONE claim (no second claim, the same
+  // transaction). The duplicate's own finalize outcome is F4's claim-error
+  // rule (T4).
+  const claimKey = transitionClaimKey(r2.predecessorOutpoint);
+  const claimBefore = await getStore(config).read(Categories.TRANSITION_CLAIM, claimKey);
+  assert.equal(claimBefore.txId, r2.txId, "the first finalization holds the one claim");
+  // Exact outcome (writer amendment after the RED check; same pin as T4's
+  // twin leg): the twin's finalize succeeds, its same-txid claim reading
+  // back as its own.
+  let f1;
+  await assert.doesNotReject(async () => { f1 = await signAndFinalize(r1, agent, 0x1e); }, "a same-txid twin's finalize is never refused over PG");
+  assert.equal(f1.state, "PREFLIGHT_VERIFIED", "a same-txid twin finalizes over PG: never refused by the blocking guard");
+  assert.ok((await getStore(config).read(Categories.REQUEST, r1.requestId)).finalTransaction, "with its signed bytes");
+  assert.deepEqual(await getStore(config).read(Categories.TRANSITION_CLAIM, claimKey), claimBefore, "no second claim over PG");
+  assert.equal((await getStore(config).read(Categories.REQUEST, r1.requestId)).txId, r2.txId, "the duplicate names the same transaction");
+  assert.equal((await getStore(config).read(Categories.REQUEST, r2.requestId)).state, "PREFLIGHT_VERIFIED", "the first finalization stands");
 });
 
 test("PG parity: idempotent replay of the same request reuses its own record", { skip }, async () => {

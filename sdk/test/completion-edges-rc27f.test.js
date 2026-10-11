@@ -30,6 +30,7 @@ for (const kind of ["delegate", "deposit"]) test(`RC27F F-2/F-3: ${kind} receipt
 });
 test("RC27F F-3: unchanged signed deposit remains valid after a completed owner policy operation", async () => {
   const x = f.depositCase(depositBase), bytes = JSON.stringify(x.q.finalTransaction);
+  await fx.seedVaultLive(x.config, x.rpc, x.o); // R3N-B1a inventory: the case's node carries the vault output the owner operation spends (D6b reads it)
   const owner = await fx.signedSetAgentRoot(x.config, x.o);
   await fx.spendPredecessors(x.config, x.rpc, x.o); fx.settle(x.config, x.rpc, owner);
   await wr.submitOrgRootRequest({ config: x.config, requestId: owner.id, rpc: x.rpc });

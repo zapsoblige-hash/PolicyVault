@@ -167,7 +167,23 @@ async function reconcileRoot(config, rpc, rootRecord, { stalePendingMinimumMs, a
      * discovered and completed first; the in-memory root is re-read afterwards (its pending pointer may have changed). */
     const completion = await completeDiscoveredRootActions(config, root, liveRef, rpc);
     if (completion.some((c) => c.replayed)) root = (await loadOrgRoot(config, root.rootCovenantId)) ?? root;
-    const withCompletion = (result) => (completion.length ? { ...result, completion } : result);
+    /* RC45 C4-03b (writer decision 'PARTIAL upgrade'): only with claim release allowed and only when discovery replayed
+     * nothing in this Verify (the Verify that completes a PARTIAL attribution never upgrades it), a treasury left
+     * UNRESOLVED by a PARTIAL attribution follows its attributed successor output when a fresh bracketed read observes
+     * that output exact and unspent at depth; records first (no candidate: no node read, nothing written); otherwise
+     * nothing is written and the answer is unchanged. The root record is never written by it. */
+    const upgrade = allowClaimRelease && !completion.some((c) => c.replayed) ? await require("./wallet-requests-v7").upgradePartialAttributions(config, rpc, root) : null;
+    /* RC45 L2-01 D4 (ii): the settlement hook, only with claim release allowed. It acts (node reads, writes) only when the
+     * live outpoint's transaction is a CHAIN_VERIFIED request of this root carrying a bound attribution marker AND the
+     * records still hold a settlement candidate; otherwise it reads nothing from the node and writes nothing. It never
+     * throws: its failures are added as `unsettled` beside this branch's own answer, whose status is kept. */
+    const hook = allowClaimRelease ? await require("./wallet-requests-v7").attributionSettlementHook(config, rpc, root) : null;
+    if (hook && hook.settled.length) root = (await loadOrgRoot(config, root.rootCovenantId)) ?? root;
+    const withCompletion = (result) => {
+      let out = completion.length ? { ...result, completion } : result;
+      if (upgrade && upgrade.upgraded.length) out = { ...out, treasuryUpgrades: upgrade.upgraded };
+      return hook ? { ...out, ...hook.fields } : out;
+    };
     if (!claim && root.pendingRequestId) {
       const pending = await loadOrgRootRequest(config, root.pendingRequestId);
       if (pending?.submissionAttempt && pending.manifest?.root?.outpoint?.transactionId === root.live.outpoint.transactionId) {
@@ -176,7 +192,13 @@ async function reconcileRoot(config, rpc, rootRecord, { stalePendingMinimumMs, a
       }
     }
     if (!claim) {
-      if (completion.some((c) => c.replayed)) return withCompletion({ status: "ADVANCED", rootCovenantId: root.rootCovenantId, txId: root.live.outpoint.transactionId, reason: "durable completion replayed for the transition that produced the live outpoint" });
+      if (completion.some((c) => c.replayed)) {
+        /* RC45 L2-01 (addendum a item 5): a replayed request carrying a bound attribution marker answers with the
+         * attribution fields keyed on that marker, never the generic replay answer */
+        const attributed = await require("./wallet-requests-v7").attributedReplayAnswer(config, root.rootCovenantId, completion, hook);
+        if (attributed) return withCompletion(attributed);
+        return withCompletion({ status: "ADVANCED", rootCovenantId: root.rootCovenantId, txId: root.live.outpoint.transactionId, reason: "durable completion replayed for the transition that produced the live outpoint" });
+      }
       return withCompletion({ status: "CONSISTENT", rootCovenantId: root.rootCovenantId });
     }
     if (claim.expected?.kind === "orgRootRequest") {
@@ -215,6 +237,14 @@ async function reconcileRoot(config, rpc, rootRecord, { stalePendingMinimumMs, a
     }
   }
 
+  /* RC45 L2-01 D1: the claim path found no proof. With claim release allowed, a root move broadcast outside PolicyVault is
+   * attributed to the request it was built from, when exactly that is proven at depth (sdk/src/wallet-requests-v7.js
+   * attributeOutOfBandRootTransition, under this root's lock). Records first: without a request recorded on the root's
+   * recorded outpoint it answers null, reads nothing from the node, and the UNKNOWN below is returned unchanged. */
+  if (allowClaimRelease) {
+    const attributed = await require("./wallet-requests-v7").attributeOutOfBandRootTransition(config, rpc, root);
+    if (attributed) return attributed;
+  }
   return { status: "UNKNOWN", rootCovenantId: root.rootCovenantId, reason: claim ? "claim present but the expected effect is not provable (or a divergent successor exists)" : "live outpoint gone, no claim" };
 }
 

@@ -180,6 +180,17 @@
    * served without the module keeps the plain summary (fails closed to
    * less explanation, never to a wrong one). */
   const refusalExplain = () => (window.PolicyVaultRefusalExplain && typeof window.PolicyVaultRefusalExplain.renderRefusalHtml === "function" ? window.PolicyVaultRefusalExplain : null);
+  /* RC45 R3N-B1: the STRUCTURED detail a refusal carries (the server spreads it into the error body: submitRead,
+   * withdrawal, earliestDaa / latestDaa, feeInput), or null. It selects an explanation variant; it never replaces the
+   * code or the message. */
+  function refusalExtraOf(e) {
+    if (!e) return null;
+    if (e.extra && typeof e.extra === "object" && !Array.isArray(e.extra)) return e.extra;
+    const body = e.payload && e.payload.error && typeof e.payload.error === "object" && !Array.isArray(e.payload.error) ? e.payload.error : null;
+    if (!body) return null;
+    const rest = Object.fromEntries(Object.entries(body).filter(([k]) => k !== "code" && k !== "message"));
+    return Object.keys(rest).length ? rest : null;
+  }
   function noteRefusal(prefix, e) {
     const code = (e && e.code) || "";
     const message = (e && e.message) || String(e || "refused");
@@ -188,7 +199,7 @@
     const mod = refusalExplain();
     const el = $("v4-notice");
     if (!mod || !el) return;
-    try { el.innerHTML = mod.renderRefusalHtml({ summary, code, message }); }
+    try { el.innerHTML = mod.renderRefusalHtml({ summary, code, message, extra: refusalExtraOf(e) }); }
     catch { /* the plain summary already stands; an explanation defect must never hide a refusal */ }
   }
 
@@ -216,6 +227,71 @@
     if (!mod || !el || typeof mod.renderOutcomeHtml !== "function") return;
     try { el.innerHTML = mod.renderOutcomeHtml({ summary, state, txId, detail }); }
     catch { /* the plain summary already stands */ }
+  }
+
+  /* ---- v0.4-FAMILY TRANSITION LINES (RC45 F8; plan r2 §5 WEB-1, CR2-M5) ----
+   * Appended ONLY by the v0.4 transition caller (completeRequestFlow) after
+   * the shared outcome / refusal rendering, which stays unchanged: the
+   * closure warning on SUBMITTED, the armed-request line on
+   * PREFLIGHT_VERIFIED / FINALIZED, and "Pause and Close & recover stay
+   * available" on CLAIM_CONFLICT. The closed text lives in
+   * web/refusal-explain.js and is keyed there on the request's own
+   * contractVersion and kind as well, so a genesis or another generation
+   * never shows it. A page without the module shows the plain rendering. */
+  function noteV04TransitionLines(request, which) {
+    const mod = refusalExplain();
+    const el = $("v4-notice");
+    if (!mod || !el || typeof mod.renderV04TransitionLinesHtml !== "function") return;
+    try { el.insertAdjacentHTML("beforeend", mod.renderV04TransitionLinesHtml(request, which)); }
+    catch { /* the outcome or refusal already stands */ }
+  }
+
+  /* ---- VERIFY STATE (RC45 F8 WEB-1 / WEB-3, R1-07; plan r2 §5) ----
+   * Every Verify answer is rendered through the closed Verify status map in
+   * web/refusal-explain.js (good / warn / bad; an answer it does not know is
+   * bad with its token, never success; without the module nothing is success
+   * either). R1-07 (C8): a restore is derived here, never from a response
+   * field: the card on screen (state.vaultsById) was TERMINATED_UNKNOWN before
+   * this Verify and the route's `vault` document is live after it. On the
+   * owner's UNKNOWN answer the page offers the recover-evidence paste (WEB-3):
+   * the owner's signed recover transaction (Safe JSON) is posted as
+   * {outOfAppTransaction} to the same Verify route; it grants no authority. */
+  async function verifyVaultState(vaultId, body) {
+    try {
+      const prior = state.vaultsById && state.vaultsById[vaultId], r = await postJSON(`/vaults/${vaultId}/reconcile`, body);
+      noteVerify(vaultId, r.reconcile, { restored: Boolean(prior && prior.status === "TERMINATED_UNKNOWN" && r.vault && !isTerminalVault(r.vault)) });
+      render();
+    } catch (e) {
+      note(`Verify state failed: ${e.message}`, "bad");
+    }
+  }
+  function noteVerify(vaultId, result, context) {
+    const mod = refusalExplain();
+    const view = mod && typeof mod.verifyStatus === "function" ? mod.verifyStatus(result, context) : null;
+    const status = result && typeof result.status === "string" ? result.status : "no status";
+    note(`Verify state: ${status}`, view ? view.level : "warn");
+    const el = $("v4-notice");
+    if (!view || !el) return;
+    try { el.innerHTML = mod.renderVerifyHtml(result, context); }
+    catch { return; /* the plain summary already stands */ }
+    if (view.status === "UNKNOWN") offerRecoverEvidence(el, vaultId);
+  }
+  function offerRecoverEvidence(el, vaultId) {
+    const vault = state.vaultsById && state.vaultsById[vaultId];
+    if (!vault || !state.xonly || state.xonly !== vault.owner || !["policyvault-0.4", "policyvault-0.4.1"].includes(vault.contractVersion)) return;
+    const form = document.createElement("form");
+    form.setAttribute("data-recover-evidence", vaultId);
+    form.innerHTML =
+      `<div class="kv-line" style="margin-top:0.6rem">Closed this vault outside PolicyVault? Paste the signed transaction (Safe JSON). Keep one output of it unspent until Verify shows RECOVERED.</div>` +
+      `<textarea rows="5" spellcheck="false" autocomplete="off" aria-label="Signed recover transaction (Safe JSON)" style="width:100%;margin-top:0.4rem"></textarea>` +
+      `<div class="actions"><button type="submit" class="primary">Verify with this transaction</button></div>`;
+    const pasted = form.querySelector("textarea");
+    form.onsubmit = (ev) => {
+      ev.preventDefault();
+      if (!pasted.value.trim()) { pasted.focus(); return; }
+      verifyVaultState(vaultId, { outOfAppTransaction: pasted.value });
+    };
+    el.appendChild(form);
   }
 
   /* ---- Governance ceremony / risk hold / org-controls UI modules ----
@@ -430,9 +506,10 @@
     feeKas: "Network fee", feeSompi: "Network fee (sompi)", fundingMode: "Fee paid from", protectedBeforeKas: "Deposit before", protectedAfterKas: "Deposit after",
     reserveBeforeKas: "Fee reserve before", reserveAfterKas: "Fee reserve after", reserveConsumedKas: "Taken from the fee reserve", externalFuelKas: "Paid from your wallet",
     recoveredKas: "Returned to the owner", terminal: "Result", approvalsRequired: "Approvals required", policyNonceBefore: "Policy version before", policyNonceAfter: "Policy version after",
-    predecessorStateId: "State id before", successorStateId: "State id after", successorAgentRoot: "Agent registry after", predecessorOutpoint: "Vault output being spent", computeBudget: "Compute budget"
+    predecessorStateId: "State id before", successorStateId: "State id after", successorAgentRoot: "Agent registry after", predecessorOutpoint: "Vault output being spent", computeBudget: "Compute budget",
+    periodStartAnchorDaa: "Budget period anchor (network position)"
   });
-  const REVIEW_TECHNICAL_KEYS = new Set(["vaultId", "covenantId", "recipient", "feeSompi", "policyNonceBefore", "policyNonceAfter", "predecessorStateId", "successorStateId", "successorAgentRoot", "predecessorOutpoint", "computeBudget"]);
+  const REVIEW_TECHNICAL_KEYS = new Set(["vaultId", "covenantId", "recipient", "feeSompi", "policyNonceBefore", "policyNonceAfter", "predecessorStateId", "successorStateId", "successorAgentRoot", "predecessorOutpoint", "computeBudget", "periodStartAnchorDaa"]);
   const reviewLabel = (k) => (Object.prototype.hasOwnProperty.call(REVIEW_LABELS, k) ? REVIEW_LABELS[k] : k);
   const reviewValue = (k, v) => {
     if (k === "fundingMode") return v === "RESERVE-FUNDED" ? "the vault's fee reserve" : v === "FUEL-FUNDED" ? "your wallet (fuel input)" : String(v);
@@ -525,16 +602,126 @@
       const done = await postJSON(`/wallet/v4/requests/${request.requestId}/signature`, { signedSafeJson: signed });
       if (done.request.state !== "PREFLIGHT_VERIFIED") {
         noteOutcome(action, done.request.state, null, done.request.error);
+        noteV04TransitionLines(done.request, { state: done.request.state });
         render();
         return;
       }
       note(`${action}: preflight OK — broadcasting to ${networkLabel()}…`, "warn");
       const sub = await postJSON(`/wallet/v4/requests/${request.requestId}/submit`, {});
       noteOutcome(action, sub.request.state, sub.txId, sub.request.error);
+      noteV04TransitionLines(sub.request, { state: sub.request.state });
       render();
     } catch (e) {
       noteRefusal(`${action} failed`, e);
+      noteV04TransitionLines(request, { code: e && e.code });
     }
+  }
+
+  /* ---- DELEGATE BUDGET PERIOD START (RC45) ----
+   * PolicyVault starts the budget period of every new or changed delegate at
+   * the network position when its transaction is built (never earlier than
+   * the start requested) and reports that position with the build. This
+   * browser reads the network position BEFORE it posts such a build (digits
+   * only; one retry after a short pause, then it refuses without posting, so
+   * nothing is built and no proposal or released risk review is used up) and
+   * accepts the server's start only at or above max(the start this browser
+   * requested, that read - WEB_ANCHOR_SLACK_DAA). A later start only delays the
+   * delegate's next budget, so there is no blocking upper bound (more than
+   * ANCHOR_AHEAD_ADVISORY_DAA above the read only adds an advisory line), and
+   * no read taken after the build ever decides a review. The accepted start is
+   * adopted into a COPY of this browser's params for verification only: the
+   * params sent to the server are never changed (a governed execution compares
+   * them with the approved proposal). The browser's only network-position
+   * source is this same server; the covenant sees only the agent root. */
+  const WEB_ANCHOR_SLACK_DAA = 600n;
+  const ANCHOR_AHEAD_ADVISORY_DAA = 6000n;
+  const NETWORK_READ_RETRY_MS = 1000;
+  const LEAF_LIFECYCLE_ACTIONS = new Set(["addAgent", "rotateAgent", "rePolicyAgent"]);
+  const LEAF_PROPOSAL_ACTIONS = new Set([...LEAF_LIFECYCLE_ACTIONS, "ownerSetAgentRoot"]);
+  const isDigitString = (v) => typeof v === "string" && /^[0-9]+$/.test(v);
+  const NETWORK_POSITION_UNREAD = "PolicyVault could not read the current network position, so it did not build the transaction — it never assumes a budget period start. Nothing was built or sent; check the network banner and try again.";
+  const KAS_NETWORK_POSITION_UNREAD = "PolicyVault could not read the current network position, so it will not build delegate rules — it never assumes a period start. Check the network banner and try again.";
+  async function readNetworkPositionBeforeBuild() {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, NETWORK_READ_RETRY_MS));
+      try {
+        const status = await getJSON("/network/status");
+        if (status && isDigitString(status.virtualDaaScore)) return BigInt(status.virtualDaaScore);
+      } catch { /* one retry, then the caller refuses before posting */ }
+    }
+    return null;
+  }
+  /* A blocked review: never a signing action (walletSign refuses it too). A
+   * page served without the verification layer shows the line as a banner. */
+  const periodStartRefusal = (line) => ({ ok: false, verdict: "REFUSED", refusalCodes: ["SERVER_CLAIM_INVALID"], lines: ["!! DO NOT SIGN !!", line, "Nothing was signed and nothing was sent."] });
+  const periodStartRefusalHtml = (refusal) => (refusal && !verifyGate() ? `<div class="opbanner bad" style="margin-top:0.8rem"><b>DO NOT SIGN</b> ${esc(refusal.lines[1])}</div>` : "");
+  const anchoredTooEarly = (anchor, daaBefore) => `DO NOT SIGN — the server anchored this delegate's budget period at network position ${anchor}, earlier than this browser's read ${daaBefore} allows; refusing.`;
+  /* The "if confirmed now" line for a delegate whose budget period starts at S
+   * (B per period of L DAA, σ already spent), at network position D: it holds
+   * K = (S >= D ? 1 : floor((D - 1 - S) / L) + 1) budgets, so it can pay out
+   * max(0, K*B - σ) at once, and its next budget becomes available at S + K*L
+   * (S + L for a start not yet reached). Integer DAA and sompi only. */
+  function periodStartLineHtml({ start, spent, budget, length, daa, ahead }) {
+    let S, sigma, B, L;
+    try { S = BigInt(start); sigma = BigInt(spent); B = BigInt(budget); L = BigInt(length); } catch { return ""; }
+    if (L <= 0n) return "";
+    const budgets = S >= daa ? 1n : (daa - 1n - S) / L + 1n;
+    const total = budgets * B - sigma;
+    const next = S + budgets * L;
+    const core = window.PolicyVaultCore;
+    let until = `${next - daa} DAA from now`;
+    try { if (core && core.durationDaa) until = `${core.durationDaa.describeDaa((next - daa).toString(), { largestUnit: "week" }).text} from now`; } catch { /* the exact DAA distance stands */ }
+    return `<div class="opbanner" style="margin-top:0.8rem" data-period-start-line="1">Budget period starts at network position <span class="mono">${S}</span> (anchored when this transaction was built). ` +
+      `If confirmed now, this agent can spend up to ${esc(sompiToKasDisplay(total > 0n ? total : 0n))} at once; its next budget of ${esc(sompiToKasDisplay(B))} becomes available at network position <span class="mono">${next}</span> (${esc(until)}); then ${esc(sompiToKasDisplay(B))} per period.` +
+      (ahead ? `<div class="hint" style="margin-top:0.3rem">PolicyVault's node is ahead of this browser's last read; a later start only delays this agent's next budget.</div>` : "") +
+      `</div>`;
+  }
+  /* addAgent / rotateAgent / rePolicyAgent: bind the server's anchored start of
+   * the new or changed leaf (review.periodStartAnchorDaa). No anchor means no
+   * leaf was anchored: the params are verified exactly as sent. */
+  function bindLifecycleStart({ clientParams, review, daaBefore }) {
+    const anchorRaw = review ? review.periodStartAnchorDaa : undefined;
+    if (anchorRaw === undefined || anchorRaw === null) return { verifyParams: clientParams, refusal: null, html: "" };
+    const agent = clientParams && clientParams.agent;
+    const clientRaw = agent ? String(agent.periodStartDaa) : "";
+    if (!isDigitString(anchorRaw) || !isDigitString(clientRaw)) {
+      return { verifyParams: clientParams, refusal: periodStartRefusal("DO NOT SIGN — the server's anchored budget period start for this delegate, or the start this browser requested, is not an exact network position; refusing."), html: "" };
+    }
+    const anchor = BigInt(anchorRaw), clientStart = BigInt(clientRaw);
+    if (anchor < clientStart) {
+      return { verifyParams: clientParams, refusal: periodStartRefusal(`DO NOT SIGN — the server anchored this delegate's budget period at network position ${anchor}, earlier than the start this browser requested (${clientStart}); refusing.`), html: "" };
+    }
+    if (anchor < daaBefore - WEB_ANCHOR_SLACK_DAA) return { verifyParams: clientParams, refusal: periodStartRefusal(anchoredTooEarly(anchor, daaBefore)), html: "" };
+    const verifyParams = { ...clientParams, agent: { ...agent, periodStartDaa: anchor.toString() } };
+    const html = periodStartLineHtml({ start: anchor, spent: agent.periodSpent ?? "0", budget: agent.periodBudget, length: agent.periodLengthDaa, daa: daaBefore, ahead: anchor - daaBefore > ANCHOR_AHEAD_ADVISORY_DAA });
+    return { verifyParams, refusal: null, html };
+  }
+  /* Friendly create (no start of its own is sent): the single agent's start
+   * shown by the server, and every committed initial-registry start, must be
+   * at or above the pre-build read - WEB_ANCHOR_SLACK_DAA. */
+  function bindCreateStart({ request, daaBefore }) {
+    const review = (request && request.review) || {};
+    const registry = request && Array.isArray(request.initialRegistry) ? request.initialRegistry : [];
+    const starts = [review.technical ? review.technical.periodStartDaa : undefined, ...registry.map((e) => (e ? e.periodStartDaa : undefined))].map((v) => String(v));
+    if (!starts.every(isDigitString)) {
+      return { refusal: periodStartRefusal("DO NOT SIGN — the server's budget period start for this agent is not an exact network position; refusing."), html: "" };
+    }
+    const lowest = starts.map((v) => BigInt(v)).reduce((a, b) => (b < a ? b : a));
+    if (lowest < daaBefore - WEB_ANCHOR_SLACK_DAA) return { refusal: periodStartRefusal(anchoredTooEarly(lowest, daaBefore)), html: "" };
+    const agent = registry.length === 1 ? registry[0] : null;
+    const html = agent ? periodStartLineHtml({ start: agent.periodStartDaa, spent: agent.periodSpent, budget: agent.periodBudget, length: agent.periodLengthDaa, daa: daaBefore, ahead: lowest - daaBefore > ANCHOR_AHEAD_ADVISORY_DAA }) : "";
+    return { refusal: null, html };
+  }
+  /* The governance ceremony of a proposal that sets a delegate leaf states
+   * when that delegate's budget period will start (under the proposal, before
+   * its actions). */
+  function withPeriodStartNote(html, action) {
+    if (!LEAF_PROPOSAL_ACTIONS.has(action)) return html;
+    const noteHtml =
+      `<div class="hint" style="margin-top:0.7rem" data-period-start-note="1">Budget period start: for an agent this change adds, replaces or re-policies, PolicyVault starts the budget period at the network position when the approved change is built for signing — never earlier than the start shown above — so a long approval or delay window cannot hand that agent several periods' budgets at once. ` +
+      `Agents this change does not touch keep their current period, and an idle agent can still spend every unused period's budget at once: a limitation of the installed covenant that this release does not change.</div>`;
+    const at = html.lastIndexOf(`<div class="modal-actions">`);
+    return at < 0 ? html + noteHtml : html.slice(0, at) + noteHtml + html.slice(at);
   }
 
   /* BUILD -> (approvals workflow | review -> sign) — DRIVEN BY THE SERVER'S
@@ -552,18 +739,25 @@
   async function runFlow(vaultId, action, params, confirmLabel, extra) {
     try {
       note("Preparing transaction…", "warn");
+      // A new or changed delegate leaf: read the network position BEFORE the
+      // build is posted (see DELEGATE BUDGET PERIOD START above).
+      const setsLeaf = LEAF_LIFECYCLE_ACTIONS.has(action);
+      const daaBefore = setsLeaf ? await readNetworkPositionBeforeBuild() : null;
+      if (setsLeaf && daaBefore === null) { note(NETWORK_POSITION_UNREAD, "bad"); return; }
       const { request } = await postJSON("/wallet/v4/requests", { vaultId, action, params, signerAddress: state.address, ...(extra || {}) });
       note("");
       // BROWSER-LOCAL VERIFICATION of the freshly built request against the
       // CLIENT'S OWN action context (the params this browser just built from
-      // the user's inputs — never the server's echo). `fuel` is the UTXO the
-      // client itself selected; it is bound to the transaction too.
+      // the user's inputs — never the server's echo), with only the server's
+      // accepted delegate period start adopted. `fuel` is the UTXO the client
+      // itself selected; it is bound to the transaction too.
       const { fuel, ...clientParams } = params || {};
-      const verification = verifyForSigning({
+      const start = setsLeaf ? bindLifecycleStart({ clientParams, review: request.review, daaBefore }) : { verifyParams: clientParams, refusal: null, html: "" };
+      const verification = start.refusal || verifyForSigning({
         request,
         vaultId,
         clientAction: action,
-        clientParams,
+        clientParams: start.verifyParams,
         clientFuel: fuel,
         role: action === "agentSpend" ? "agent" : "owner"
       });
@@ -573,7 +767,7 @@
         reviewModal(request.review, null, "Close", `Awaiting approvals — ${p.collected} of ${p.required}`, verification);
         return;
       }
-      reviewModal(request.review, () => completeRequestFlow(request, action, verification), confirmLabel, undefined, verification);
+      reviewModal(request.review, start.refusal ? null : () => completeRequestFlow(request, action, verification), confirmLabel, undefined, verification, { extraHtml: start.html + periodStartRefusalHtml(start.refusal) });
     } catch (e) {
       // GOVERNANCE_PROPOSAL_REQUIRED (409) / RISK_REVIEW_REQUIRED (409) /
       // RISK_DENIED (403): the server refused at the INTENT stage — the
@@ -622,7 +816,7 @@
       const effectiveVaultId = vaultId || (p.proposal && p.proposal.vaultId);
       const effectiveAction = action || (p.proposal && p.proposal.action);
       const cstate = gov.ceremonyState(p, { xOnly: state.xonly });
-      m.innerHTML = gov.renderProposalHtml(p, cstate);
+      m.innerHTML = withPeriodStartNote(gov.renderProposalHtml(p, cstate), effectiveAction);
       m.style.display = "flex";
       wireClose();
       const approveBtn = m.querySelector("[data-gov-approve]");
@@ -1226,8 +1420,16 @@
         return;
       }
       let built;
+      note("Building the exact transaction…", "warn");
+      // The agent's budget period starts at the build: read the network
+      // position BEFORE the build is posted (see DELEGATE BUDGET PERIOD START).
+      const daaBefore = await readNetworkPositionBeforeBuild();
+      if (daaBefore === null) {
+        s.busy = false;
+        note(NETWORK_POSITION_UNREAD, "bad");
+        return; // nothing was built; the draft stays exactly as entered
+      }
       try {
-        note("Building the exact transaction…", "warn");
         built = await postJSON("/wallet/v4/create", body);
       } catch (err) {
         s.busy = false;
@@ -1238,9 +1440,11 @@
       const request = built.request;
       // BROWSER-LOCAL GENESIS VERIFICATION against the client's own form
       // context (client-generated vaultId, typed deposit/reserve, resolved
-      // approver identities, the connected owner identity).
-      const verification = verifyForSigning({ request, createContext: context, role: "owner" });
-      s.built = { request, verification, context };
+      // approver identities, the connected owner identity), after the
+      // server's agent period start is bound to the pre-build read.
+      const start = bindCreateStart({ request, daaBefore });
+      const verification = start.refusal || verifyForSigning({ request, createContext: context, role: "owner" });
+      s.built = { request, verification, context, startHtml: start.html + periodStartRefusalHtml(start.refusal), startRefused: !!start.refusal };
       s.busy = false;
       note("");
       rerenderCreate();
@@ -1260,8 +1464,8 @@
     const { request, verification } = built;
     const su = setupUi();
     const funding = su ? fundingBreakdownHtml(su, request, built.context) : "";
-    reviewModal(request.review, () => signAndSubmitVaultGenesis(built), "Approve in wallet", "Review — exactly what your wallet will sign", verification, {
-      extraHtml: funding,
+    reviewModal(request.review, built.startRefused ? null : () => signAndSubmitVaultGenesis(built), "Approve in wallet", "Review — exactly what your wallet will sign", verification, {
+      extraHtml: (built.startHtml || "") + funding,
       cancelLabel: "Back to edit",
       onCancel: async () => {
         const s = vaultSetup();
@@ -1532,7 +1736,13 @@
         `<button class="warn" data-recover="${esc(vault.vaultId)}">Close &amp; recover</button>` +
         docsHintIcon("owner-recovery", "Owner recovery: a terminal, owner-signed break-glass operation to withdraw the vault's funds, independent of any hosted workflow.") +
         `</div>`
-      : "";
+      : // RC45 F8 WEB-2 (plan r2 §5): an owner's TERMINATED_UNKNOWN card keeps
+        // the existing Verify control, its only entry point back from the last
+        // recorded state; a RECOVERED card stays read-only history.
+        isOwner && vault.status === "TERMINATED_UNKNOWN"
+        ? `<div class="actions"><button data-verify="${esc(vault.vaultId)}">Verify state</button>` +
+          `<span class="hint" style="display:inline">Re-checks this vault against the chain from its last recorded state.</span></div>`
+        : "";
     // Live value fields render ONLY while live state exists. A closed vault
     // shows its terminal status without fabricating historical numbers (the
     // durable history lives in Details / Activity), and never a misleading
@@ -2112,8 +2322,16 @@
    * the module is unavailable, never invents one. */
   function noteRootRefusal(prefix, e, rootUI) {
     const code = rootUI && typeof rootUI.displayCodeFor === "function" ? rootUI.displayCodeFor(e) : (e && e.code) || "";
-    noteRefusal(prefix, Object.assign(new Error((e && e.message) || String(e || "refused")), { code }));
+    noteRefusal(prefix, Object.assign(new Error((e && e.message) || String(e || "refused")), { code, extra: refusalExtraOf(e) }));
   }
+
+  /* RC45 L2-01 / R3N-B1 served withdrawal texts (contract revision 2 §1 D8; addendum v2b revision 3 §4 T-B1). The
+   * owner's sentence (criterion 5 of the owner's direction) and the withdrawal text S, verbatim. */
+  const OWNER_WITHDRAWAL_SENTENCE = "Withdrawal does not revoke signatures or prevent an otherwise valid out-of-app broadcast.";
+  const WITHDRAWAL_TEXT_S = "Withdrawing marks this request withdrawn in PolicyVault and releases the root's reservation. It does not revoke the owner signatures already given: anyone holding them and the fee-input signature can still broadcast this exact transaction outside PolicyVault while the outputs it spends are unspent. Withdrawing broadcasts nothing.";
+  const INPUT_SPENT_WITHDRAWAL_TEXT = OWNER_WITHDRAWAL_SENTENCE + " PolicyVault withdraws this finalized request only because an output it spends was spent by another transaction, and that spend is final at 1,000 DAA. This request's transaction can therefore no longer be accepted unless the network reverses more than 1,000 DAA of its history; if that happened and the transaction were broadcast outside PolicyVault, PolicyVault would not recognize it as this request. Withdrawing marks this request withdrawn in PolicyVault and releases the root's reservation. It broadcasts nothing.";
+  const WITHDRAW_SPENT_STEP1_CONFIRM = "Start withdrawing this finalized request (first of two steps)?\n\nThis step records only a chain anchor and withdraws nothing; the request keeps its reservation. At the second step, at least 1,000 DAA later, PolicyVault observes everything again and withdraws it only then, and only on this basis:\n\n" + INPUT_SPENT_WITHDRAWAL_TEXT;
+  const WITHDRAW_SPENT_STEP2_CONFIRM = "Withdraw this finalized request (second step)?\n\nPolicyVault observes everything again and withdraws it only if the spend of its input is final at 1,000 DAA; otherwise it records a new anchor or refuses, and nothing else is written.\n\n" + INPUT_SPENT_WITHDRAWAL_TEXT;
 
   /* The in-progress organizational-root setup (owner UX directive
    * 2026-09-05): Owners → Approval rules → Emergency access → Funding →
@@ -2625,6 +2843,13 @@
         if (submitBtn) submitBtn.disabled = true;
         try {
           readVaultOpDraft(f, op, draft, rootUI, vault);
+          // RC45: a new delegate's budget period starts at the network position read at Build, before the final
+          // validation and the build (the modal-open snapshot is never used; installed rows carry their own).
+          if (isKas && info.form === "kasAgents" && (draft.agents || []).some((r) => r && !r.existing)) {
+            const daaBefore = await readNetworkPositionBeforeBuild();
+            if (daaBefore === null) { busy = false; paint(); note(KAS_NETWORK_POSITION_UNREAD, "bad"); return; }
+            for (const r of draft.agents) if (r && !r.existing) r.periodStartDaa = daaBefore.toString();
+          }
           const v = await rootUI.validateVaultOpDraft({ op, draft, vault, currentDaa });
           errors = v.errors;
           if (!v.ok) { busy = false; paint(); note("Fix the highlighted fields, then continue.", "bad"); return; }
@@ -2771,6 +2996,16 @@
       const myIdx = state.xonly ? slots.findIndex((k) => String(k).toLowerCase() === String(state.xonly).toLowerCase()) : -1;
       const iApproved = myIdx >= 0 && Array.isArray(p.approvedSlots) ? !!p.approvedSlots[myIdx] : false;
       const isGenesis = request.kind === "kasGenesis";
+      /* RC45: a creation signed earlier (resumed through "Open this creation") is not re-checked at submit and cannot be
+       * withdrawn; its delegate period starts were fixed when it was signed. Read the network position now and state, per
+       * delegate and in warning style, what submitting it would let that delegate pay at once. Submit stays available. */
+      let periodStartHtml = "";
+      if (isGenesis && request.state === "SIGNED") {
+        let daa = null;
+        try { const status = await getJSON("/network/status"); daa = status && isDigitString(status.virtualDaaScore) ? status.virtualDaaScore : null; } catch { daa = null; }
+        if (!current()) return;
+        periodStartHtml = km.renderResumedCreationPeriodStartHtml({ request, currentDaa: daa });
+      }
       const reviewHtml = isGenesis
         ? `<div class="opbanner warn" role="status">Treasury creation request ${esc(short(request.requestId))} — state ${esc(request.state)}. ${request.state === "CHAIN_VERIFIED" ? "The treasury exists on-chain (proven)." : request.state === "BUILT" ? "This unsigned draft can be withdrawn. Create a fresh treasury only after withdrawing it and reviewing its rules again." : request.state === "SIGNED" ? "The saved signed transaction is ready to submit. This action uses the same request and does not ask for another signature." : "The outcome is not confirmed. Verify this creation using its original request; do not build or sign a replacement."}</div>`
         : km.renderSpendReviewHtml(request);
@@ -2784,6 +3019,7 @@
         `<h3 id="v4-kasreq-title" style="margin-top:0">${isGenesis ? "Treasury creation" : "Delegate payment"} — ${esc(vault.label || short(vault.vaultId))}</h3>` +
         km.renderKasRequestCardHtml(vault, request, { viewerXOnly: state.xonly }).replace(/<button[^>]*data-(kasview|kasapprove|kasagentsign|kassubmit|kascancel)[^>]*>[^<]*<\/button>/g, "") +
         reviewHtml +
+        periodStartHtml +
         `<div class="modal-actions">` +
         (canCancel ? `<button type="button" class="warn" id="v4-kasreq-cancel">Withdraw</button>` : "") +
         `<span class="setup-nav-spacer"></span><button type="button" id="v4-kasreq-close">Close</button>` +
@@ -2936,6 +3172,15 @@
         try {
           read(f);
           note("Checking the treasury rules…", "warn");
+          // RC45: every new delegate's budget period starts at the network position read here, at Build, before the final
+          // validation and the build (never the modal-open snapshot); the read is kept for the genesis cross-check.
+          let daaBefore = null;
+          if ((w.draft.agents || []).some((r) => r && !r.existing)) {
+            daaBefore = await readNetworkPositionBeforeBuild();
+            if (!current()) return;
+            if (daaBefore === null) { w.busy = false; note(KAS_NETWORK_POSITION_UNREAD, "bad"); return; }
+            for (const r of w.draft.agents) if (r && !r.existing) r.periodStartDaa = daaBefore.toString();
+          }
           const v = await km.validateKasDraft(w.draft, { connectedAddress: state.address });
           if (!current()) return;
           w.errors = v.errors;
@@ -2953,8 +3198,10 @@
             return;
           }
           const norm = { ...v.norm, rootPins: reviewedRootPins };
-          const crossCheck = km.genesisCrossCheck({ summary: request.summary, norm });
-          w.built = { request, norm, form: v.form, crossCheck };
+          // The server's delegate starts are bound to the Build read (no read after the build) and adopted once, here;
+          // the adopted rules are what the signing-time re-check compares exactly.
+          const crossCheck = km.genesisCrossCheck({ summary: request.summary, norm, daaBefore: daaBefore === null ? undefined : daaBefore.toString() });
+          w.built = { request, norm: crossCheck.norm || norm, form: v.form, crossCheck, daaBefore: daaBefore === null ? null : daaBefore.toString() };
           w.busy = false;
           note("");
           openKasBuildReview();
@@ -2969,7 +3216,7 @@
       m.innerHTML =
         `<div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="v4-kas-review-title">` +
         `<h3 id="v4-kas-review-title" style="margin-top:0">${canSign ? "Review the treasury — exactly what your wallet will sign" : "DO NOT SIGN — the built treasury does not match the reviewed rules"}</h3>` +
-        km.renderKasGenesisReviewHtml({ norm, summary: request.summary, crossCheck, connectedAddress: state.address }) +
+        km.renderKasGenesisReviewHtml({ norm, summary: request.summary, crossCheck, connectedAddress: state.address, currentDaa: built.daaBefore }) +
         `<div class="modal-actions"><button type="button" id="v4-kas-review-back">Back to edit</button><span class="setup-nav-spacer"></span>` +
         (canSign ? `<button type="button" class="primary" id="v4-kas-confirm">Approve in wallet</button>` : `<button type="button" class="primary" id="v4-kas-review-back2">Close — do not sign</button>`) +
         `</div></div>`;
@@ -3028,7 +3275,8 @@
       const period = { ...(old.period || {}), preset: g("period", ""), customValue: g("periodValue", ""), customUnit: g("periodUnit", "day") };
       if (period.existingDaa === undefined && old.periodLengthDaa) period.existingDaa = old.periodLengthDaa;
       const recipients = [...row.querySelectorAll(`[data-rows="agent-${i}-recipient"] .addr-row`)].map((r) => ({ address: r.querySelector(`[name="agent-${i}-recipient"]`)?.value ?? "" }));
-      return { existing: g("existing", "0") === "1", agentKey: g("agentKey", ""), maxPerSpendKas: g("maxPerSpendKas", ""), periodBudgetKas: g("periodBudgetKas", ""), periodLengthDaa: old.periodLengthDaa || "", period, periodStartDaa: g("periodStartDaa", "0"), periodSpent: g("periodSpent", "0"), approvalThresholdKas: g("approvalThresholdKas", ""), agentMaxFeePerTxKas: g("agentMaxFeePerTxKas", ""), recipients };
+      // RC45: never a "0" period start or spent amount; an installed row's key lock (installedKey) comes from the draft.
+      return { existing: g("existing", "0") === "1", installedKey: old.installedKey || "", agentKey: g("agentKey", ""), maxPerSpendKas: g("maxPerSpendKas", ""), periodBudgetKas: g("periodBudgetKas", ""), periodLengthDaa: old.periodLengthDaa || "", period, periodStartDaa: g("periodStartDaa", old.periodStartDaa ?? ""), periodSpent: g("periodSpent", old.periodSpent ?? ""), approvalThresholdKas: g("approvalThresholdKas", ""), agentMaxFeePerTxKas: g("agentMaxFeePerTxKas", ""), recipients };
     });
     return d;
   }
@@ -3234,6 +3482,13 @@
   }
   async function openOrgRootRequestModal(rootUI, orgRoot, requestId, preloaded) {
     const m = $("v4-modal");
+    /* RC45: this request's finalize was answered 409 PERIOD_START_STALE (kept for this open modal only). */
+    let serverRefusedStale = false;
+    /* RC45 R3N-B1 (R4), kept for this open modal only: its Submit was answered 409 RECORDED_OUTPUT_SPENT with withdrawal
+     * TWO_STEP (serverRefusedSpent, spentRole), or 409 SUBMIT_INPUT_UNRESOLVED (submitRefusal = the finding); its
+     * withdrawal was answered CANNOT_REJECT (withdrawRefusal = the finding); C4-06c: its Verify state answered SUBMIT_TO_RECORD naming it
+     * (verifySubmitToRecord). The latest answer decides; every offer is re-derived from the request (and, for a REFUSED request, the root) re-read on each repaint; the server re-decides every action. */
+    let serverRefusedSpent = false, spentRole = null, submitRefusal = null, withdrawRefusal = null, verifySubmitToRecord = false;
     async function repaint() {
       let request = preloaded;
       preloaded = null;
@@ -3241,15 +3496,31 @@
         try { ({ request } = await rootUI.fetchRequest(orgRoot.rootCovenantId, requestId)); }
         catch (err) { note(`Could not load request: ${err.code || ""} ${err.message}`, "bad"); m.style.display = "none"; return; }
       }
-      let currentDaa = null;
-      try { currentDaa = (await getJSON("/network/status")).virtualDaaScore ?? null; } catch { currentDaa = null; }
+      /* R3N-B1 (R3/R4): a REFUSED request is offered "Finish withdrawal" only when the root, re-read now, still names it. C4-06c (clarification 02
+       * item 3): an unreadable root claims nothing — the modal says the reservation could not be confirmed and offers Verify state */
+      const rootRead = request.state === "REFUSED" ? await rootUI.fetchOrgRoot(orgRoot.rootCovenantId).then((r) => (r && r.orgRoot && typeof r.orgRoot === "object" ? r.orgRoot : null)).catch(() => null) : orgRoot;
+      const rootUnreadable = rootRead === null;
+      const rootView = rootUnreadable ? { ...orgRoot, pendingRequestId: null } : rootRead;
+      /* RC45: for a KAS treasury delegate-rule change, the treasury's INSTALLED rows are loaded next to the network
+       * position (through the existing rooted-vault listing) so the finalize deadline and the stale withdrawal follow the
+       * server's own predicate. Rows that are not exactly one KAS summary with canonical rows count as not loaded: the
+       * deadline is then unknown and nothing is hidden on this page's own judgement. */
+      const kasRuleChange = rootUI.isKasDelegateRuleChange(request);
+      const [daaRes, vaultsRes] = await Promise.all([
+        getJSON("/network/status").then((r) => r.virtualDaaScore ?? null).catch(() => null),
+        kasRuleChange ? rootUI.fetchRootedVaults(orgRoot.rootCovenantId).then((r) => (r ? r.vaults : null)).catch(() => null) : Promise.resolve(null)
+      ]);
+      const currentDaa = daaRes;
+      const { installedAgents, installedKeys } = kasRuleChange ? rootUI.installedKasRows(vaultsRes, request.vaultOperations[0].vaultId) : { installedAgents: null, installedKeys: null };
+      const periodStart = { currentDaa, installedAgents, installedKeys, serverRefusedStale, serverRefusedSpent, spentRole, submitRefusal, withdrawRefusal, verifySubmitToRecord, rootUnreadable };
+      const periodStartStale = rootUI.withdrawEligibility(request, periodStart).periodStartStale === true;
       const s = session();
       const mySlot = (request.slots || []).find((sl) => sl.publicKey && state.xonly && sl.publicKey.toLowerCase() === state.xonly.toLowerCase());
       m.innerHTML =
         `<div class="modal-card setup-card" role="dialog" aria-modal="true">` +
-        rootUI.renderRequestDetailHtml(request, { orgRoot, viewerXOnly: state.xonly, viewerAddress: state.address, currentDaa }) +
-        (mySlot && mySlot.status === "PENDING" && request.state === "AUTHORIZED" // rc16 review N-02: approvals only while AUTHORIZED
-          ? `<div class="actions"><button id="v4-orgroot-signmyslot" class="primary" data-slot="${esc(mySlot.slot)}">Approve in wallet (your owner slot ${esc(mySlot.slot)})</button></div>`
+        rootUI.renderRequestDetailHtml(request, { orgRoot: rootView, viewerXOnly: state.xonly, viewerAddress: state.address, ...periodStart }) +
+        (mySlot && mySlot.status === "PENDING" && request.state === "AUTHORIZED" && !periodStartStale // rc16 review N-02: approvals only while AUTHORIZED; RC45: never for a request the server will not finalize
+          ? `<div class="actions"><button id="v4-orgroot-signmyslot" class="primary" data-slot="${esc(mySlot.slot)}">Approve in wallet (your owner slot ${esc(mySlot.slot)})</button>${kasRuleChange ? rootUI.finalizeDeadlineHtml(request, periodStart) : ""}</div>`
           : "") +
         (request.action === "succession" && request.state === "AUTHORIZED" && successionSignerOf(request, orgRoot) && state.xonly && successionSignerOf(request, orgRoot) === String(state.xonly).toLowerCase() // UX-10: the PINNED successor resumes the durable request
           ? `<div class="actions"><button id="v4-orgroot-signsuccession" class="primary">Approve in wallet (designated successor)</button><div class="f-help">This is the same succession request you started; approving it again does not create a second one.</div></div>`
@@ -3300,28 +3571,65 @@
           note("Waiting for your wallet — approve the network-fee input signature…", "warn");
           const res = await rootUI.finalizeRequest(orgRoot.rootCovenantId, requestId, request, { adapter: s.adapter, network: s.network, expectedSignerAddress: state.address, connectedXOnly: state.xonly });
           note(`Finalized — ${res.request.state}. Not yet broadcast: use Submit to send it to ${networkLabel()}.`, "good");
-        } catch (err) { noteRootRefusal("Finalize did not complete — nothing was sent", err, rootUI); }
+        } catch (err) {
+          if (err && err.code === "PERIOD_START_STALE") serverRefusedStale = true; // RC45: the server will not finalize it — offer the stale withdrawal
+          noteRootRefusal("Finalize did not complete — nothing was sent", err, rootUI);
+        }
         repaint();
       };
       const subBtn = m.querySelector("[data-rootsubmit]");
       if (subBtn) subBtn.onclick = async () => {
         subBtn.disabled = true;
+        submitRefusal = null; withdrawRefusal = null; verifySubmitToRecord = false; serverRefusedSpent = false; spentRole = null; // C4-06c: this Submit's answer decides the next offer (Submit stays offered; the server decides)
         try {
           const res = await rootUI.submitRequest(orgRoot.rootCovenantId, requestId, request);
           noteOutcome(rootUI.actionLabel(request.action || request.kind), res.request.state, res.txId, res.request.error);
-        } catch (err) { noteRootRefusal("Submit failed — outcome uncertain; use Verify state on the root before submitting again", err, rootUI); }
+        } catch (err) {
+          /* R3N-B1 (S2 rows 3-6): the Submit read refused BEFORE any write — nothing was recorded or broadcast. Only these
+           * two codes carrying the server's submitRead say so; every other failure keeps the uncertain-outcome text. */
+          const extra = refusalExtraOf(err);
+          const read = extra && extra.submitRead && typeof extra.submitRead === "object" ? extra.submitRead : null;
+          if (err && read && (err.code === "RECORDED_OUTPUT_SPENT" || err.code === "SUBMIT_INPUT_UNRESOLVED")) {
+            if (err.code === "RECORDED_OUTPUT_SPENT" && read.withdrawal === "TWO_STEP") { serverRefusedSpent = true; spentRole = typeof read.role === "string" ? read.role : null; }
+            else submitRefusal = typeof read.finding === "string" ? read.finding : null;
+            noteRootRefusal("Submit refused — nothing was recorded or sent", err, rootUI);
+          } else noteRootRefusal("Submit failed — outcome uncertain; use Verify state on the root before submitting again", err, rootUI);
+        }
         repaint();
       };
-      /* F-6: withdrawal is offered only for an unsigned, never-attempted request (org-root-ui withdrawEligibility); the
-       * server re-decides (CANNOT_REJECT otherwise). A failed, refused or unknown result is shown as such and the request
-       * stays open — success is claimed only from the server's own REFUSED answer. */
+      /* F-6: withdrawal is offered only for an unsigned, never-attempted request, or (RC45) a KAS delegate-rule change the
+       * server will not finalize (org-root-ui withdrawEligibility); the server re-decides (CANNOT_REJECT otherwise). A
+       * failed, refused or unknown result is shown as such and the request stays open — success is claimed only from the
+       * server's own REFUSED answer. */
       const rejBtn = m.querySelector("[data-rootreject]");
       if (rejBtn) rejBtn.onclick = async () => {
-        if (!window.confirm("Withdraw this request?\n\nIt is unsigned and was never sent: withdrawing releases only this request's reservation of the root (and of the vault it names). Nothing is broadcast; the root is unchanged.")) return;
-        rejBtn.disabled = true;
+        /* R3N-B1: "Finish withdrawal" (a REFUSED request the root still names) and the two-step input-spent withdrawal
+         * have their own confirmations; the stale and unsigned withdrawals keep theirs */
+        const finishing = rejBtn.hasAttribute("data-rootfinish");
+        const spentStep = rejBtn.getAttribute("data-rootspent");
+        const inputSpentAnchored = spentStep === "step2";
+        const confirmed = finishing
+          ? window.confirm("Finish withdrawal?\n\nThis request is already withdrawn; finishing only releases the root's reservation that still names it. Nothing is broadcast; the root is unchanged.")
+          : spentStep
+            ? window.confirm(inputSpentAnchored ? WITHDRAW_SPENT_STEP2_CONFIRM : WITHDRAW_SPENT_STEP1_CONFIRM)
+            : window.confirm(periodStartStale
+              ? "Withdraw this request?\n\nIts delegate budget period start has aged out, so PolicyVault will not finalize it. " + WITHDRAWAL_TEXT_S + " " + OWNER_WITHDRAWAL_SENTENCE + " The root is unchanged."
+              : "Withdraw this request?\n\nIt is unsigned and was never sent: withdrawing releases only this request's reservation of the root (and of the vault it names). Nothing is broadcast; the root is unchanged.");
+        if (!confirmed) return;
+        rejBtn.disabled = true; withdrawRefusal = null; submitRefusal = null; verifySubmitToRecord = false; // C4-06c: this withdrawal's answer decides the next offer
         let outcome = null;
         try { outcome = await rootUI.rejectRequest(orgRoot.rootCovenantId, requestId, "withdrawn by an owner"); }
-        catch (err) { noteRootRefusal("Withdraw did not complete — the request and its reservation are kept", err, rootUI); repaint(); return; }
+        catch (err) {
+          /* R3N-B1: a pending step (409 WITHDRAWAL_DEPTH_PENDING) wrote at most its chain anchor; the request is re-read and
+           * offers the next step with its DAA window. A CANNOT_REJECT finding decides the next offer (INPUTS_LIVE /
+           * OWN_OUTPUT: submit it). Nothing is retried automatically. */
+          if (err && err.code === "WITHDRAWAL_DEPTH_PENDING") {
+            noteRootRefusal("Withdrawal pending — not withdrawn yet; the request and its reservation are kept", err, rootUI);
+            const el = $("v4-notice"); if (el) el.className = "panel warn";
+            repaint(); return;
+          }
+          if (err && err.code === "CANNOT_REJECT") { const extra = refusalExtraOf(err); withdrawRefusal = extra && extra.withdrawal && typeof extra.withdrawal.finding === "string" ? extra.withdrawal.finding : null; }
+          noteRootRefusal("Withdraw did not complete — the request and its reservation are kept", err, rootUI); repaint(); return; }
         const st = outcome && outcome.request ? outcome.request.state : null;
         if (st === "REFUSED") { note("Request withdrawn: its reservation is released; the root is unchanged.", "good"); m.style.display = "none"; render(); return; }
         note(`Withdraw returned an unexpected result (${st || "no request state"}) — treated as NOT withdrawn; reload to see the durable state.`, "bad");
@@ -3330,10 +3638,10 @@
       /* F-6: an attempted / uncertain request's ONLY path is outcome recovery — the same root reconciliation as Verify state. */
       const recBtn = m.querySelector("[data-rootreconcile-request]");
       if (recBtn) recBtn.onclick = async () => {
-        recBtn.disabled = true;
+        recBtn.disabled = true; verifySubmitToRecord = false;
         try {
           const res = await rootUI.reconcileRoot(orgRoot.rootCovenantId);
-          const d = rootUI.describeReconcileOutcome(res);
+          const d = rootUI.describeReconcileOutcome(res); const att = res && res.reconcile && res.reconcile.root && res.reconcile.root.status === "UNKNOWN" ? res.reconcile.root.attribution : null; verifySubmitToRecord = !!(att && typeof att === "object" && att.outcome === "SUBMIT_TO_RECORD" && att.requestId === requestId); // C4-06c: Submit, then Verify state
           note(d.text, d.level);
         } catch (err) { noteRootRefusal("Verify state failed — the outcome stays unknown", err, rootUI); }
         repaint();
@@ -3716,9 +4024,8 @@
       if (!window.confirm("Remove this agent?\n\nThe agent loses the ability to pay from this vault once the change is confirmed on-chain. Its remaining budget disappears with it. You review and sign the transaction in your wallet.")) return;
       const p = await withFuel({ agentPk: b.getAttribute("data-remove") }); if (p) runFlow(vid(b), "removeAgent", p, "Approve in wallet");
     }));
-    root.querySelectorAll("[data-verify]").forEach((b) => (b.onclick = async () => {
-      try { const r = await postJSON(`/vaults/${vid(b)}/reconcile`, {}); note(`Verify state: ${r.reconcile.status}`, "good"); render(); } catch (e) { note(`Verify state failed: ${e.message}`, "bad"); }
-    }));
+    // RC45 F8 WEB-1 / WEB-3: every Verify answer renders through the closed map (verifyVaultState).
+    root.querySelectorAll("[data-verify]").forEach((b) => (b.onclick = () => verifyVaultState(vid(b), {})));
     // Add agent / change an agent's rules / rotate an agent's key: the SAME
     // agent-policy form the vault setup uses (no prompt chains, no
     // comma-delimited lists, no DAA entry). An existing agent's exact
@@ -3857,6 +4164,7 @@
           const n = full.normalized;
           const agentPkResolved = mode === "repolicy" ? existing.agentPk : n.agentXOnly;
           const { virtualDaaScore } = await getJSON("/network/status");
+          if (!isDigitString(virtualDaaScore)) { note(NETWORK_POSITION_UNREAD, "bad"); return; } // never a start of "undefined"
           const agent = {
             agentPk: agentPkResolved,
             maxPerSpend: su.kasToSompi(n.maxPerSpendKas),

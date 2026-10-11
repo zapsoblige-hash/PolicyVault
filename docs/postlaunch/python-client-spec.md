@@ -220,6 +220,24 @@ score; modelling it as a closed schema would mean encoding KAS→sompi, period,
 and approver normalisation rules the server owns. It is documented as such
 rather than half-modelled.
 
+**Delegate budget period start (RC45).** `AgentPolicyInput.period_start_daa`
+(and a `periodStartDaa` in a `create_vault` mapping) is a lower bound, not
+the committed value. For a new or changed delegate the server commits the
+later of that value and its node's DAA score at the build, and reports the
+anchor as `review.periodStartAnchorDaa` on the request that `build_request`
+and `create_vault` return; an action proposed with `create_proposal` is
+anchored when the approved change is built. A requested later start is kept;
+a proposal that requests one cannot be executed from the web (the web review
+refuses to sign it), so execute it through the API or SDK, or reject the
+built request and create a new proposal.
+A server that cannot read its node's DAA score refuses
+`422 PERIOD_START_REQUIRED` (`UnprocessableError`). `finalize_request`,
+`submit_request` and `genesis_submit` refuse a request whose new or changed
+start has aged past its window with `409 PERIOD_START_STALE`
+(`ConflictError`), writing nothing. As for every policy value, the client
+checks only the field's shape (§3.2). The rule, its window and its limits are
+in `platform-agent-api-spec.md` §5.2.
+
 ## 7. Test evidence
 
 Run from `python/`:

@@ -57,8 +57,24 @@ async function seedVault(vaultId) {
 }
 
 const fuel = () => ({ outpoint: { transactionId: "44".repeat(32), index: 0 }, amount: (100n * KAS).toString(), scriptPublicKeyHex: `20${XO(owner)}ac` });
+/*
+ * RC45 F3 (plan rc45-simplified-plan-r2 §2.3 A1, §8.1 hosted-quota, CR-M9):
+ * the owner's break-glass (ownerPause, ownerRecover) is exempt from this quota
+ * and its BUILT rows are not counted (H-13), so the suite is RE-BASED on an
+ * ORDINARY owner action (ownerTopUp; was ownerPause at :60-61) — every quota
+ * assertion kept — and each re-based test also pins the exemption
+ * (expectBreakGlassBuilt, RED on C1).
+ */
 const build = (vaultId) =>
-  handle(config, "POST", ["wallet", "v4", "requests"], {}, { vaultId, action: "ownerPause", params: { fuel: fuel() }, signerAddress: ADDR(owner) });
+  handle(config, "POST", ["wallet", "v4", "requests"], {}, { vaultId, action: "ownerTopUp", params: { topUpAmountSompi: KAS.toString(), fuel: fuel() }, signerAddress: ADDR(owner) });
+const buildBreakGlass = (vaultId, action, signer = owner) =>
+  handle(config, "POST", ["wallet", "v4", "requests"], {}, { vaultId, action, params: { fuel: fuel() }, signerAddress: ADDR(signer) });
+async function expectBreakGlassBuilt(vaultId, action) {
+  const r = await buildBreakGlass(vaultId, action).catch((e) => ({ status: e.status, code: e.code, message: e.message }));
+  assert.equal(r.status, 201, `RC45 A1: the owner's ${action} is exempt from the open-request quota (${r.code}: ${r.message})`);
+  assert.equal(r.body.request.state, "BUILT");
+  return r;
+}
 
 async function expectQuota(promise) {
   try {
@@ -85,6 +101,8 @@ test("§Q1 per-vault quota: the third open request on one vault refuses; nothing
   await expectQuota(build(VAULT_A));
   const after = (await getStore(config).listValues(Categories.REQUEST)).length;
   assert.equal(after, before, "a quota refusal creates no durable record");
+  // RC45 F3 (§8.1 :85): the owner's Pause is exempt at the full per-vault quota.
+  await expectBreakGlassBuilt(VAULT_A, "ownerPause");
 });
 
 test("§Q2 explicit cancellation frees per-vault quota", async () => {
@@ -101,7 +119,10 @@ test("§Q3 per-wallet quota: the same signer is capped across vaults", async () 
   // vault B itself is under its per-vault cap.
   const b1 = await build(VAULT_B);
   assert.equal(b1.status, 201);
+  openRequests.push(b1.body.request.requestId);
   await expectQuota(build(VAULT_B));
+  // RC45 F3 (§8.1 :104): the owner's Close & recover is exempt at the full per-wallet quota.
+  await expectBreakGlassBuilt(VAULT_B, "ownerRecover");
 });
 
 test("§Q4 the v2 build route enforces the same quota (guard sits before any build work)", async () => {
@@ -114,6 +135,8 @@ test("§Q4 the v2 build route enforces the same quota (guard sits before any bui
   } catch (e) {
     assert.equal(e.code, "QUOTA_EXCEEDED", e.message);
   }
+  // RC45 F3 (§8.1 :115): the same capped wallet still builds its v4 break-glass Pause.
+  await expectBreakGlassBuilt(VAULT_A, "ownerPause");
 });
 
 test("§Q5 synthetic open records count toward quota (state-based, family-agnostic)", async () => {
@@ -129,6 +152,8 @@ test("§Q5 synthetic open records count toward quota (state-based, family-agnost
   // VAULT_B now holds 1 (real, §Q3) + 2 synthetic = 3 ≥ perVault 2 → refuse
   // regardless of which wallet asks.
   await expectQuota(build(VAULT_B));
+  // RC45 F3 (§8.1 :131): with the vault (and the wallet) capped, the owner's Pause is still exempt.
+  await expectBreakGlassBuilt(VAULT_B, "ownerPause");
   // Terminal states never count: flip one synthetic to a closed state.
   await getStore(config).write(Categories.REQUEST, "synthetic-1", {
     requestId: "synthetic-1", vaultId: VAULT_B, state: "WALLET_REJECTED", signerAddress: otherSigner
@@ -147,4 +172,28 @@ test("§Q6 defaults are generous and validated", () => {
   assert.equal(d.requestProtection.openRequestQuota.perWallet, 64);
   assert.throws(() => loadConfig({ dataRoot, maxOpenRequestsPerVault: 0 }), /must be an integer/);
   assert.throws(() => loadConfig({ dataRoot, maxOpenRequestsPerWallet: "lots" }), /must be an integer/);
+});
+
+test("§Q7 RC45 F3 (T8 j, H-13): BUILT break-glass rows are not counted; the exemption covers only ownerPause / ownerRecover; an agent sending ownerPause is never built", async () => {
+  // Free the owner wallet (its ordinary open requests from §Q1-§Q3).
+  for (const id of openRequests) {
+    const r = await handle(config, "POST", ["wallet", "v4", "requests", id, "reject"], {}, {});
+    assert.equal(r.body.request.state, "WALLET_REJECTED");
+  }
+  const VAULT_C = "cd".repeat(32);
+  await seedVault(VAULT_C);
+  await expectBreakGlassBuilt(VAULT_C, "ownerPause");
+  await expectBreakGlassBuilt(VAULT_C, "ownerRecover");
+  // Two BUILT break-glass rows on VAULT_C (per-vault limit 2): ordinary builds still fit (sabotage j).
+  const o1 = await build(VAULT_C).catch((e) => ({ status: e.status, code: e.code, message: e.message }));
+  assert.equal(o1.status, 201, `break-glass rows are not counted: the first ordinary build fits (${o1.code}: ${o1.message})`);
+  const o2 = await build(VAULT_C);
+  assert.equal(o2.status, 201, "the second ordinary build fits");
+  await expectQuota(build(VAULT_C)); // ordinary actions stay counted and refused
+  await expectBreakGlassBuilt(VAULT_C, "ownerPause"); // break-glass stays exempt at the full per-vault quota
+  // An agent naming the break-glass action is refused (NOT_OWNER in the builder, B3, or the quota) and never built.
+  const before = (await getStore(config).listValues(Categories.REQUEST)).length;
+  const agentTry = await buildBreakGlass(VAULT_C, "ownerPause", agentA).then((r) => ({ status: r.status }), (e) => ({ status: e.status, code: e.code, message: e.message }));
+  assert.ok(agentTry.code === "NOT_OWNER" || agentTry.code === "QUOTA_EXCEEDED", `an agent's ownerPause is refused (${agentTry.status} ${agentTry.code}: ${agentTry.message})`);
+  assert.equal((await getStore(config).listValues(Categories.REQUEST)).length, before, "nothing durable for the agent's attempt");
 });

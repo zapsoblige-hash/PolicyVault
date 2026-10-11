@@ -48,6 +48,11 @@ const KAS = 100000000n;
 const OWNER = 1, AGENT = 0x1e, APPR_A = 0x51, APPR_B = 0x52, RECIP = 0x28, UNRELATED = 0x66;
 const VAULT_A = "77".repeat(32); // approval-flow vault (2-of-2)
 const VAULT_B = "78".repeat(32); // below-threshold control vault (2-of-2 too)
+// PRE-EXISTING-SUITE-FAIL-05: the reject test needs an approval vault
+// with no unresolved transition; VAULT_A carries the finalized-but-unsubmitted
+// request of the preceding flow, which (since 6ff4539, the LEAD-5 widening of the
+// protected states) correctly refuses new builds.
+const VAULT_C = "79".repeat(32); // approval vault for the reject test (2-of-2)
 
 async function seedVault(vaultId, outpointTx) {
   const registry = [{ agentPk: XO(AGENT), maxPerSpend: (20n * KAS).toString(), periodBudget: (50n * KAS).toString(), periodLengthDaa: "864000", periodStartDaa: "541000000", periodSpent: "0", approvalThreshold: (5n * KAS).toString(), agentMaxFeePerTx: (1n * KAS).toString(), recipients: [XO(RECIP)] }];
@@ -91,6 +96,7 @@ let server;
 before(async () => {
   await seedVault(VAULT_A, "45".repeat(32));
   await seedVault(VAULT_B, "46".repeat(32));
+  await seedVault(VAULT_C, "47".repeat(32));
   server = createServer(config);
   await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
 });
@@ -321,16 +327,22 @@ test("API: the below-threshold agent-only flow is unchanged (control vault)", as
   assert.equal(fin.j.request.state, "PREFLIGHT_VERIFIED");
 });
 
-test("API: rejecting a pending approval request is explicit and leaves the vault untouched", async () => {
-  const manifestPath = path.join(config.dataRoot, "vaults", VAULT_A, "manifest.json");
-  const before = fs.readFileSync(manifestPath);
+test("API: a vault holding the finalized, unsubmitted approval request refuses a new build until request-scoped recovery", async () => {
   const r = await post("/wallet/v4/requests", { vaultId: VAULT_A, action: "agentSpend", params: { agentPk: XO(AGENT), recipient: XO(RECIP), payAmountSompi: (7n * KAS).toString() }, signerAddress: ADDR(AGENT) });
+  assert.equal(r.status, 422, JSON.stringify(r.j).slice(0, 200));
+  assert.equal(r.j.error.code, "REQUEST_RECOVERY_REQUIRED");
+});
+
+test("API: rejecting a pending approval request is explicit and leaves the vault untouched", async () => {
+  const manifestPath = path.join(config.dataRoot, "vaults", VAULT_C, "manifest.json");
+  const before = fs.readFileSync(manifestPath);
+  const r = await post("/wallet/v4/requests", { vaultId: VAULT_C, action: "agentSpend", params: { agentPk: XO(AGENT), recipient: XO(RECIP), payAmountSompi: (7n * KAS).toString() }, signerAddress: ADDR(AGENT) });
   assert.equal(r.status, 201);
   assert.equal(r.j.request.state, "AWAITING_APPROVALS");
   const rej = await post(`/wallet/v4/requests/${r.j.request.requestId}/reject`, {});
   assert.equal(rej.status, 200);
   assert.equal(rej.j.request.state, "WALLET_REJECTED");
-  const open = (await get(`/wallet/v4/requests?open=1&vaultId=${VAULT_A}`)).j.requests.map((q) => q.requestId);
+  const open = (await get(`/wallet/v4/requests?open=1&vaultId=${VAULT_C}`)).j.requests.map((q) => q.requestId);
   assert.ok(!open.includes(r.j.request.requestId), "rejected request leaves the open list");
   assert.deepEqual(fs.readFileSync(manifestPath), before, "vault manifest byte-identical — nothing stranded");
 });

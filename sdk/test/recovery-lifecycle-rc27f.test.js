@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path"), fs = require("node:fs");
 const source = process.env.POLICYVAULT_RC27F_SOURCE || path.resolve(__dirname, "../..");
 const dep = (p) => require(path.join(source, p));
+const { withFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
 const d = dep("sdk/testutil/cp13e-delegate-fixture");
 const { fx, caseFor, boundaries, assertComplete } = d;
 const { wr7: wr, Categories: C, getStore } = fx;
@@ -53,7 +54,8 @@ test("RC27F F-6: signed owner requests cannot be withdrawn or release their rese
 });
 test("RC27F F-6: unsigned cancellation replays a failed pointer clear; another request's pointer survives", async () => {
   const x = caseFor(base);
-  const q = await wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1), vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] });
+  await fx.seedVaultLive(x.config, x.rpc, x.o); // R3N-B1a inventory: the case's node carries the vault output the owner operation spends (D6b reads it)
+  const q = await withFixtureNode(x.config, () => wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1), vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] }));
   await assert.rejects(d.signedSpend(x.config, x.o), { code: "VAULT_PENDING_REQUEST" });
   const fault = fx.inject(x.config, "write", (c, k, v) => c === C.ORG_ROOT && v.pendingRequestId == null);
   await assert.rejects(wr.rejectOrgRootRequest({ config: x.config, requestId: q.id })); fault.restore();
@@ -115,12 +117,12 @@ test("RC27F F-7: an actual saved SIGNED/SUBMISSION_REJECTED root rewind recovers
     x.config = fx.reloadJsonConfig(x.config); await org(x);
     assert.equal((await wr.loadOrgRootRequest(x.config, q.id)).state, "CHAIN_VERIFIED");
     assert.equal((await wr.loadOrgRootRequest(x.config, stranger.id)).state, "SIGNED");
-    const next = await wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1) });
+    const next = await withFixtureNode(x.config, () => wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1) }));
     assert.equal(next.state, "AUTHORIZED", "another request's bound receipt does not make the historical same-tx draft a reservation");
     await wr.rejectOrgRootRequest({ config: x.config, requestId: next.id });
     await assert.rejects(wr.submitOrgRootRequest({ config: x.config, requestId: stranger.id, rpc: x.rpc }));
     assert.equal((await wr.loadOrgRootRequest(x.config, stranger.id)).state, "SIGNED", "refusing an unsubmitted stranger must not invent an unresolved submission");
-    const afterRefusal = await wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1) });
+    const afterRefusal = await withFixtureNode(x.config, () => wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1) }));
     assert.equal(afterRefusal.state, "AUTHORIZED");
     await wr.rejectOrgRootRequest({ config: x.config, requestId: afterRefusal.id });
     assert.equal((await fx.loadReceipt(x.config, q.txId)).proof.requestId, q.id);
@@ -129,8 +131,10 @@ test("RC27F F-7: an actual saved SIGNED/SUBMISSION_REJECTED root rewind recovers
   }
 });
 test("RC27F F-6: request persistence followed by failed reservation-pointer write cannot create an orphan bypass", async () => {
-  const x = caseFor(base), fault = fx.inject(x.config, "write", (c, k, v) => c === C.ORG_ROOT && v.pendingRequestId != null);
-  const build = () => wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.fuelUtxoFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1), vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] });
+  const x = caseFor(base);
+  await fx.seedVaultLive(x.config, x.rpc, x.o); // R3N-B1a inventory: the case's node carries the vault output the owner operation spends (D6b reads it)
+  const fault = fx.inject(x.config, "write", (c, k, v) => c === C.ORG_ROOT && v.pendingRequestId != null);
+  const build = () => withFixtureNode(x.config, () => wr.buildRootActionRequest({ config: x.config, rootCovenantId: x.o.rootCovenantId, action: "authorize", params: { fuel: fx.liveFuelFor(x.config, x.o.fuelKey) }, signerAddress: fx.ADDR(x.config, x.o.owner1), vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] }));
   await assert.rejects(build()); fault.restore(); x.config = fx.reloadJsonConfig(x.config);
   await assert.rejects(build(), { code: "ROOT_PENDING_REQUEST" });
   await assert.rejects(d.signedSpend(x.config, x.o), { code: "VAULT_PENDING_REQUEST" });

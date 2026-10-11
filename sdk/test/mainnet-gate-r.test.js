@@ -80,8 +80,20 @@ const agentA = KEY(0x1e);
 const recipient = KEY(0x28);
 const other = KEY(0x29);
 
-const VAULT_ID = "5a".repeat(32);
-const template = { owner: XO(owner), vaultId: VAULT_ID };
+/* LEAD-5 (lane checkpoint 6ff4539; docs/postlaunch/lead5-reconciliation-remediation.md):
+ * a finalized (PREFLIGHT_VERIFIED) request is a PROTECTED unresolved
+ * transition — the pipeline refuses ANOTHER build/finalize attempt on that
+ * vault with REQUEST_RECOVERY_REQUIRED until request-scoped recovery resolves
+ * it. Every seed therefore opens a FRESH vault (the last byte increments; the
+ * first vault is the historical 5a…5a); the assertions are unchanged. */
+let vaultCounter = 0;
+let VAULT_ID = "5a".repeat(32);
+let template = { owner: XO(owner), vaultId: VAULT_ID };
+function rotateVault() {
+  VAULT_ID = "5a".repeat(31) + (0x5a + vaultCounter).toString(16).padStart(2, "0");
+  vaultCounter += 1;
+  template = { owner: XO(owner), vaultId: VAULT_ID };
+}
 
 function agentEntry(kp, recipients) {
   return {
@@ -95,6 +107,7 @@ const REGISTRY = [agentEntry(agentA, [recipient, other])];
 
 let seedCounter = 0;
 async function seedManifest(config) {
+  rotateVault();
   seedCounter += 1;
   const outTxId = seedCounter.toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const policies = REGISTRY.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
@@ -206,6 +219,12 @@ test("§R3 v0.4.1 agentSpend BUILD -> sign -> FINALIZE -> production covenant VM
   const done = await finalizeWalletRequestV4({ config: mainnetConfig, requestId: req.requestId, signedSafeJson: signed });
   assert.equal(done.state, RequestState.PREFLIGHT_VERIFIED);
   assert.equal(done.txId, req.txId);
+  // LEAD-5 holds on mainnet too: the finalized request PROTECTS the vault.
+  await assert.rejects(async () => buildWalletRequestV4({
+    config: mainnetConfig, vaultId: VAULT_ID, action: "agentSpend",
+    params: { payAmountSompi: (4n * KAS).toString(), agentPk: XO(agentA), recipient: XO(recipient) },
+    signerAddress: MADDR(agentA)
+  }), (e) => e.code === "REQUEST_RECOVERY_REQUIRED");
 });
 
 test("§R3 the create builder's network gate is OPEN on mainnet (fails later, on input validation — not on network)", async () => {

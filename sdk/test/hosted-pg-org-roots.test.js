@@ -33,6 +33,9 @@ const wr7 = require("../src/wallet-requests-v7");
 const { reconcileOrgRootV7 } = require("../src/reconcile-v7");
 const { loadManifestV7 } = require("../src/manifest-v7");
 const { covenantAddress, loadKaspa } = require("../src/chain");
+const { withFixtureNode, chainWalk, seedFixtureFuel, FIXTURE_DAA } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table also carries the seam's walk (registerFixtureNode)
+ * and each root build's supplied fee UTXO (seedFixtureFuel) — the B1 build observes every non-root input live and exact */
 
 const PG = {
   host: process.env.POLICYVAULT_TEST_PG_HOST || "127.0.0.1",
@@ -203,6 +206,7 @@ test("root action (M-of-N, with ONE vault operation) over PG: manifest hash / ve
   const config = await freshPgConfig();
   const owner1 = KEY(0x81), owner2 = KEY(0x82), owner3 = KEY(0x83), funder = KEY(0xf1), fuelKey = KEY(0x91);
   const rpc = mockRpc();
+  chainWalk(rpc, config, { daa: FIXTURE_DAA }); // R3N-B1a inventory: the B1 build's DAA, sink and 20-hop walk reads
 
   const rootReq = await wr7.buildRootGenesisRequest({
     config, label: "pg org 2",
@@ -217,7 +221,7 @@ test("root action (M-of-N, with ONE vault operation) over PG: manifest hash / ve
   const rootSubmitted = await wr7.submitOrgRootRequest({ config, requestId: rootReq.id, rpc });
   const rootCovenantId = rootSubmitted.rootCovenantId;
 
-  const heartbeatReq = await wr7.buildRootActionRequest({ config, rootCovenantId, action: "authorize", params: { fuel: fuelUtxoFor(config.networkId, fuelKey) }, signerAddress: ADDR(owner1, config.networkId) });
+  const heartbeatReq = await withFixtureNode(config, rpc, () => wr7.buildRootActionRequest({ config, rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(config, fuelUtxoFor(config.networkId, fuelKey), { rpc }) }, signerAddress: ADDR(owner1, config.networkId) }));
   assert.match(heartbeatReq.manifestHash, /^[0-9a-f]{64}$/);
 
   const env1 = await wr7.getOrCreateSlotSigningRequest({ config, requestId: heartbeatReq.id, slot: 1 });

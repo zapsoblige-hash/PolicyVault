@@ -26,6 +26,11 @@ const { loadManifestV7Kas, listRootedKasVaultsV7 } = require("../src/manifest-v7
 const { reconcileOrgRootV7, reconcileVault } = require("../src/reconcile-v7");
 const { getStore, Categories } = require("../src/store");
 const { createHarness } = require("./helpers/v7-kas-mock-harness");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const probe = loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv7kas-rb-probe-")) });
 const available = fs.existsSync(probe.silvercPath) && fs.existsSync(ENCODER_PATH) && fs.existsSync(path.join(probe.repoRoot, "tests/vm/target/debug/pv_tx_probe"));

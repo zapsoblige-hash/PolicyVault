@@ -960,13 +960,16 @@ async function attachWalletSignatureV2({ config, requestId, signedSafeJson }) {
   if (!request || request.requestId !== requestId) {
     throw fail(`no request ${requestId}`, "BUILD_FAILED");
   }
+  /* RC45 R1-01 (defence in depth, C6): every generation shares the REQUEST category; only a v0.2 record may enter this
+   * signing / finalize / broadcast pipeline. Any other schema is refused here, before any write or node call. */
+  if (request.schema !== REQUEST_SCHEMA) throw fail("not a v0.2 request", "BUILD_FAILED");
   if (request.kind === "genesis") {
     /* RC33-ID-01 review finding F1 (2026-09-11): the signature and the submission of a genesis are serialized PER VAULT IDENTITY inside the existing root / signer / request lock (lock order unchanged: root / signer / request first, identity inside), so the commit-phase identity check and the signature store / claim / broadcast that follow it form ONE critical section — a pre-correction pair of drafts naming one identity can never double-sign or double-broadcast under concurrency. A request whose identity cannot be normalized falls through to the unlocked body, which refuses it exactly as before. The request is re-loaded INSIDE the lock so a concurrent signature of the same request cannot proceed on stale state. */
     let vaultId = null;
     try { vaultId = normalizeVaultId(request.vaultId); } catch { vaultId = null; }
     const run = async () => {
       const fresh = await loadRequest(config, requestId);
-      if (!fresh || fresh.requestId !== requestId || fresh.kind !== "genesis") throw fail("genesis request identity changed", "REQUEST_ID_MISMATCH");
+      if (!fresh || fresh.requestId !== requestId || fresh.schema !== REQUEST_SCHEMA || fresh.kind !== "genesis") throw fail("genesis request identity changed", "REQUEST_ID_MISMATCH");
       if (GENESIS_RECOVERY_STATES.has(fresh.state)) return reconcileCreateWalletRequestV2Unlocked({ config, requestId });
       if (!fresh || fresh.state !== RequestState.BUILT) throw fail(`request ${requestId} is ${fresh ? fresh.state : "missing"}, not BUILT`, fresh ? fresh.state : "BUILD_FAILED");
       return attachCreateSignatureV2({ config, request: fresh, signedSafeJson });
@@ -1249,7 +1252,10 @@ async function advanceManifest(config, manifest, request, expected) {
 
 async function markWalletRejected(config, requestId) {
   const request = await loadRequest(config, requestId);
-  if (request && request.state === RequestState.BUILT) {
+  /* RC45 R1-01 (defence in depth): a record of any other schema sharing the REQUEST category is not this module's to
+   * reject; it answers as missing (null) with nothing written. */
+  if (!request || request.schema !== REQUEST_SCHEMA) return null;
+  if (request.state === RequestState.BUILT) {
     request.state = RequestState.WALLET_REJECTED;
     await saveRequest(config, request);
   }
@@ -1257,6 +1263,7 @@ async function markWalletRejected(config, requestId) {
 }
 
 module.exports = {
+  REQUEST_SCHEMA_V2: REQUEST_SCHEMA,
   RequestState,
   ROLE_BY_ACTION,
   buildWalletRequestV2,

@@ -182,7 +182,7 @@ async function loadManifestRecord(config, manifestHash) {
 
 /*
  * GOVERNANCE-TERMINAL-RACE-01 IR-02 / GOVERNANCE-ATTESTATION-LADDER-01
- * (store-path port of lane de1aab2): the durable governance truth for a
+ * (store-path port of the lane change): the durable governance truth for a
  * request, shared by the finalize/submit gate and the attestation ladder
  * so both decide on exactly the same evidence. Returns null when no
  * proposal binds the request, or when the bound proposal records THIS

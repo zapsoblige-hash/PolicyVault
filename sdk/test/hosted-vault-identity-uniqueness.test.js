@@ -30,6 +30,11 @@ const assets = require("../../core/assets");
 const { compileKcc20Program } = require("../src/token-program-kcc20");
 const { buildRecipientTree } = require("../src/recipient-merkle-v3");
 const { covenantAddress } = require("../src/chain");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const PG = {
   host: process.env.POLICYVAULT_TEST_PG_HOST || "127.0.0.1",

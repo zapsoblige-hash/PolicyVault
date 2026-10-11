@@ -1,16 +1,16 @@
-# PolicyVault Public Release Manifest — 1.10.10
+# PolicyVault Public Release Manifest — 1.10.11
 
-Local fullscale-rc44 schema-011 repair candidate; deployment and publication are not inferred. Ordinary public parent: `a8f281e7e149d0b4dcb487c17caa90499612f5a6` (v1.10.8).
+Local fullscale-rc45 reconciliation and delegate period-start remediation candidate; deployment and publication are not inferred. Ordinary public parent: `787de096bbdbd6c485f012f5d1b7b5ecbcb8ea4f` (v1.10.10).
 
-Image: `sha256:8208ba6fb3e01907a125881f45787fbe63df28997f977f145d1c51f06a4966a1`. Build: `df5b8de`. Runtime/export source: `df5b8deafadb2dbfb3c65f6156f57a3b52543184`.
+Image: `sha256:32d45a3096b29eefc0dd97f2fc1e582ee00cb32236bbd7293c6626fd8bd4652d`. Build: `1fa26b33`. Runtime/export source: `1fa26b337aaf2767c75268ff8ed7f67ee83d07a3`.
 
-Source checks: 66/66 selected Node-only repair checks pass with zero failures; 3 attestation-ladder suites that need PostgreSQL or an RC42 extraction are skipped by design in this Node-only run and are covered by the ladder's separately reviewed JSON and PostgreSQL runs; the 2 changed PostgreSQL-bearing suites pass 100/100 on PostgreSQL 16.4 in a separate pre-release run on the four-fix source, after which the only runtime change is the read-only attestation ladder, which adds no SQL statement and was not re-run on PostgreSQL.
+Source checks: 799/799 selected Node-only checks from 62 changed suites pass with zero failures and no skipped test in a fresh run from the candidate source. The candidate's complete SDK, API, browser and MCP suites ran on the JSON store and on PostgreSQL (318 suites in both modes, 8613 passing checks, no failing check) from an extraction verified identical to that source. The hosted build-authority suite ran only as its node-free subset, so its four cases that need a live node are not claimed by these suite runs (the changelog's live evidence states where they ran), and two other suites that need a live testnet node (a live-chain attestation vector, whose offline check passed, and an organization-root genesis recovery, none of whose cases ran) timed out without a node, so their node-dependent cases are not claimed; the second part of the hierarchical-delegation hostile suite (the testnet-only `policyvault-0.7-payment-hd` generation), which needs a Rust toolchain, ran in neither mode and is not claimed.
 
-Public verification: Fresh selected repair checks from the exported tree: 66/66 pass with zero failures or skipped tests; 3 attestation-ladder suites that need PostgreSQL or an RC42 extraction are skipped by design. Exact result SHA256 `ab9155b096f81ea3113812e8d33f79133f0d8ea460d5fad2bd8ae1d55229dabf`. Historical evidence applies only to explicitly unchanged bytes; this is not a fresh full SDK/PostgreSQL, VM or financial-cycle claim.
+Public verification: Fresh selected checks from the exported tree: 799/799 pass with zero failures and no skipped test. Exact result SHA256 `a89f8ab7fbe78ed54c2bd3bf3f33b830ce737f72afc51d4f242e571df923cb1c`. Historical evidence applies only to explicitly unchanged bytes; this is not a fresh full SDK/PostgreSQL, VM or financial-cycle claim.
 
 Unchanged MCP 1.6.2: `128403f81d4af7b73ae86a31a750d39ec21c28f518d214f4e678807c3dff0c14`. Existing public presentation transforms and privacy exclusions are preserved. License and notices remain Apache-2.0, byte-identical to the published baseline and MCP package.
 
-Files: 1159; source-identical: 1149; presentation-modified: 8; public-only documents: 2.
+Files: 1242; source-identical: 1232; presentation-modified: 8; public-only documents: 2.
 
 Presentation modifications:
 - `README.md`

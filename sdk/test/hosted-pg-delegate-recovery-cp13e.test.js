@@ -7,6 +7,7 @@ const { fx, baseFixture, caseFor, assertComplete, boundaries } = require("../tes
 const { loadConfig } = require("../src/config");
 const { openPgStore } = require("../src/store");
 const { reconcileVault } = require("../src/reconcile-v7");
+const { registerFixtureNode } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a reopened case (new files root) keeps reading its own mock table
 const { wr7, Categories } = fx;
 const PG = { host: process.env.POLICYVAULT_TEST_PG_HOST || "127.0.0.1", port: Number(process.env.POLICYVAULT_TEST_PG_PORT || 0), user: process.env.POLICYVAULT_TEST_PG_USER, database: process.env.POLICYVAULT_TEST_PG_DATABASE };
 const skip = !(PG.port && PG.user && PG.database) ? "set POLICYVAULT_TEST_PG_{PORT,USER,DATABASE}" : !fx.toolchainAvailable() ? "REQUIREMENT_NOT_AVAILABLE: real v7 compiler/VM" : undefined;
@@ -43,7 +44,7 @@ async function assertRows(x) {
 for (const [stage, [method, predicate]] of Object.entries(boundaries)) test(`CP13E live PG persistent ${stage}: fresh pools retain failure/guard then repair every record once`, { skip }, async () => {
   const x = await freshCase(); await x.timeout(); x.settle();
   for (let attempt = 0; attempt < 2; attempt++) {
-    x.config = await reopen(x.db);
+    x.config = await reopen(x.db); registerFixtureNode(x.config, x.rpc);
     const fault = fx.inject(x.config, method, (...args) => predicate(x, ...args), { times: Infinity, message: "PERSISTENT_PG_CP13E_" + stage });
     const r = await x.reconcile(); assert.equal(r.status, "UNKNOWN", JSON.stringify(r)); assert.ok(fault.count() > 0);
     const independent = await reopen(x.db);
@@ -54,9 +55,9 @@ for (const [stage, [method, predicate]] of Object.entries(boundaries)) test(`CP1
     assert.deepEqual(await wr7.loadOrgRoot(independent, x.o.rootCovenantId), x.root);
     fault.restore();
   }
-  x.config = await reopen(x.db); const other = await reopen(x.db);
+  x.config = await reopen(x.db); registerFixtureNode(x.config, x.rpc); const other = await reopen(x.db);
   await Promise.all([x.submit(), reconcileVault(other, x.rpc, x.o.vaultId), wr7.submitV7WalletRequest({ config: other, requestId: x.q.requestId, rpc: x.rpc })]);
-  x.config = await reopen(x.db); await assertRows(x);
+  x.config = await reopen(x.db); registerFixtureNode(x.config, x.rpc); await assertRows(x);
 });
 test("CP13E live PG: missing-pointer legacy recovery and same-request history after actual ownerPause", { skip }, async () => {
   const x = await freshCase(); await x.timeout();
@@ -68,7 +69,7 @@ test("CP13E live PG: missing-pointer legacy recovery and same-request history af
   const claim = await require("../src/submission-claim").loadTransitionClaim(x.config, q.predecessorOutpoint);
   claim.expected = { kind: "v7Successor", txId: q.txId };
   await fx.getStore(x.config).write(Categories.TRANSITION_CLAIM, fx.transitionClaimKey(q.predecessorOutpoint), claim);
-  x.config = await reopen(x.db); assert.equal((await x.reconcile()).status, "UNKNOWN"); x.settle();
+  x.config = await reopen(x.db); registerFixtureNode(x.config, x.rpc); assert.equal((await x.reconcile()).status, "UNKNOWN"); x.settle();
   assert.equal((await x.reconcile()).status, "ADVANCED"); await assertRows(x);
   const second = await fx.signedRootAction(x.config, x.o, { vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause", params: {} }] });
   await fx.spendPredecessors(x.config, x.rpc, x.o); fx.settle(x.config, x.rpc, second);
@@ -76,7 +77,7 @@ test("CP13E live PG: missing-pointer legacy recovery and same-request history af
   const vault = await x.vault(), root = await wr7.loadOrgRoot(x.config, x.o.rootCovenantId);
   const old = await x.request(); old.state = "RECONCILIATION_REQUIRED"; await wr7.saveV7WalletRequest(x.config, old);
   await fx.getStore(x.config).remove(Categories.RECEIPT, old.txId);
-  x.config = await reopen(x.db); assert.equal((await x.reconcile()).status, "ADVANCED");
+  x.config = await reopen(x.db); registerFixtureNode(x.config, x.rpc); assert.equal((await x.reconcile()).status, "ADVANCED");
   assert.equal((await x.submit()).state, "CHAIN_VERIFIED");
   assert.deepEqual(await x.vault(), vault); assert.deepEqual(await wr7.loadOrgRoot(x.config, x.o.rootCovenantId), root);
   assert.equal((await fx.auditLinesFor(x.config, old.txId)).length, 1); assert.equal(x.rpc.submits(), 2);
@@ -99,12 +100,12 @@ test("CP13E live PG: independent finalizer pools cannot rewind completion; a sav
   assert.equal(results.find((r) => r.status === "rejected").reason.code, "SIGNED");
   const oldSigned = await x.request(); x.settle(); await x.submit(); await assertRows(x);
   await wr7.saveV7WalletRequest(other, oldSigned);
-  x.config = await reopen(x.db); assert.equal((await x.reconcile()).status, "ADVANCED"); await assertRows(x);
+  x.config = await reopen(x.db); registerFixtureNode(x.config, x.rpc); assert.equal((await x.reconcile()).status, "ADVANCED"); await assertRows(x);
   const next = await fx.signedRootAction(x.config, x.o, { vaultOperations: [{ vaultId: x.o.vaultId, action: "ownerPause" }] });
   await fx.spendPredecessors(x.config, x.rpc, x.o); fx.settle(x.config, x.rpc, next);
   await wr7.submitOrgRootRequest({ config: x.config, requestId: next.id, rpc: x.rpc });
   const current = await x.vault(); await wr7.saveV7WalletRequest(other, oldSigned);
-  x.config = await reopen(x.db); assert.equal((await x.reconcile()).status, "ADVANCED");
+  x.config = await reopen(x.db); registerFixtureNode(x.config, x.rpc); assert.equal((await x.reconcile()).status, "ADVANCED");
   assert.equal((await x.request()).state, "CHAIN_VERIFIED"); assert.deepEqual(await x.vault(), current);
   assert.equal((await fx.auditLinesFor(x.config, q.txId)).length, 1); assert.equal(x.rpc.submits(), 2);
 });

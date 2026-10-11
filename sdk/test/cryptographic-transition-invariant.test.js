@@ -155,6 +155,12 @@ function mockRpc() {
   };
 }
 const utxo = (address, txId, index, amountSompi, covenantId) => ({ address, outpoint: { transactionId: txId, index }, amount: BigInt(amountSompi), covenantId: covenantId ?? null });
+/* RC45 L2-01 guard inventory (mock seeding): each live root's mock table, read by a root build's node check */
+const ROOT_NODES = new Map();
+const { withFixtureNode, chainWalk, seedFixtureFuel, FIXTURE_DAA } = require("../testutil/guard-node");
+/* RC45 R3N-B1a inventory (mock capabilities only): each live root's table also carries the seam's walk (the B1 build's
+ * DAA, sink and 20-hop walk reads) and the root build's supplied fee UTXO (the B1 build observes every non-root input
+ * live and exact) */
 
 /* genesis a LIVE root on a mock chain (the org-roots API test's exact driver) */
 async function liveRoot(label, funder, owners) {
@@ -166,6 +172,8 @@ async function liveRoot(label, funder, owners) {
   rpc.seed(addr, utxo(addr, finalized.txId, finalized.build.rootOutputIndex, finalized.build.accounting.kas.rootValue, finalized.rootCovenantId));
   const submitted = await wr7.submitOrgRootRequest({ config, requestId: req.id, rpc });
   assert.equal(submitted.state, "CHAIN_VERIFIED");
+  chainWalk(rpc, config, { daa: FIXTURE_DAA });
+  ROOT_NODES.set(submitted.rootCovenantId, rpc);
   return req.rootCovenantId;
 }
 
@@ -175,8 +183,8 @@ test("org-root M-of-N slot evidence: wrong slot, outsider key, replay from anoth
   const { normalizeRootStateV7 } = require("../../core/model/vault-state-v7-root");
   const rootA = await liveRoot("A", funder, [o1, o2, o3]);
   const rootB = await liveRoot("B", funder, [o1, o2, o3]);
-  const actA = await wr7.buildRootActionRequest({ config, rootCovenantId: rootA, action: "authorize", params: { fuel: fundingUtxoFor(fuel) }, signerAddress: ADDR(o1) });
-  const actB = await wr7.buildRootActionRequest({ config, rootCovenantId: rootB, action: "authorize", params: { fuel: fundingUtxoFor(fuel) }, signerAddress: ADDR(o1) });
+  const actA = await withFixtureNode(config, ROOT_NODES.get(rootA), () => wr7.buildRootActionRequest({ config, rootCovenantId: rootA, action: "authorize", params: { fuel: seedFixtureFuel(config, fundingUtxoFor(fuel), { rpc: ROOT_NODES.get(rootA) }) }, signerAddress: ADDR(o1) }));
+  const actB = await withFixtureNode(config, ROOT_NODES.get(rootB), () => wr7.buildRootActionRequest({ config, rootCovenantId: rootB, action: "authorize", params: { fuel: seedFixtureFuel(config, fundingUtxoFor(fuel), { rpc: ROOT_NODES.get(rootB) }) }, signerAddress: ADDR(o1) }));
   const ownerSet = normalizeRootStateV7((await wr7.loadOrgRoot(config, rootA)).state);
   const sign65 = (req, key) => kaspa.createInputSignature(kaspa.Transaction.deserializeFromSafeJSON(req.transaction.unsignedSafeJson), req.rootInputIndex, key).slice(2);
   const respond = (env, req, key, over = {}) => ({ responseVersion: "policyvault-org-root-slot-response/1", requestVersion: env.requestVersion, requestId: env.requestId, network: env.network, manifestHash: env.manifestHash, txId: env.txId, root: env.root, slot: env.slot, signerAddress: ADDR(key), signatureHex: sign65(req, key), sighashType: 1, signedAtMs: Date.now(), ...over });

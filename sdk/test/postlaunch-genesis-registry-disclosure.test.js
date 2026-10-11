@@ -34,6 +34,11 @@ const os = require("os");
 const { handle, loadConfig } = require("../../server/src/api");
 const { buildAgentTreeV4 } = require("../src/agent-merkle-v4");
 const { buildRecipientTree } = require("../src/recipient-merkle-v3");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pv-genesis-disclosure-"));
 const config = loadConfig({ dataRoot });

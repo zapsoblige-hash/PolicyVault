@@ -28,6 +28,9 @@ const { loadConfig } = require("../src/config");
 const { getStore, Categories } = require("../src/store");
 const { covenantAddress } = require("../src/chain");
 const wr7 = require("../src/wallet-requests-v7");
+const { registerFixtureNode, withFixtureNode, seedFixtureFuel } = require("../testutil/guard-node"); // RC45 L2-01 guard inventory: a root build reads the fixture's mock table
+/* RC45 R3N-B1a inventory (mock capabilities only): the registered table also carries the seam's walk (registerFixtureNode)
+ * and each root build's supplied fee UTXO (seedFixtureFuel) — the B1 build observes every non-root input live and exact */
 const { reconcileOrgRootV7 } = require("../src/reconcile-v7");
 const { loadManifestV7 } = require("../src/manifest-v7");
 const { readAudit } = require("../src/audit");
@@ -37,12 +40,18 @@ const { toolchainSkip, mainnetConfig, tokenFixture, tokenPolicyFor, answers, scr
 const SKIP = toolchainSkip("pv-rec02-probe-");
 const ROOT_V = "policyvault-0.7-root";
 const { negativeRpc } = require("./helpers/negative-proof-fixtures");
+/* RC45 R2-13 seam: a build or check of a new or changed delegate leaf reads the
+ * node's DAA through chain.readAnchorDaa. 0 is at or below every delegate start
+ * this file commits, so max(start, DAA) keeps each fixture's start unchanged. */
+const { useAnchorDaa } = require("../testutil/rc45-r2-daa");
+useAnchorDaa(0n);
 
 async function setup(t, cfgOverride = null) {
   const cfg = cfgOverride ?? loadConfig({ dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "pv-rec02-")) });
   const H = createHarness(cfg);
   const c = H.ctx();
   const rpc = H.mockRpc();
+  registerFixtureNode(cfg, rpc); // RC45 L2-01 guard inventory
   t.after(() => fs.rmSync(cfg.dataRoot, { recursive: true, force: true }));
   const store = getStore(cfg);
   const buildRoot = (label = "rec02 root") => wr7.buildRootGenesisRequest({
@@ -327,7 +336,7 @@ test("legacy F4 (rooted-vault genesis, v0.7-payment): a rooted-vault genesis acc
 test("RC36 root recovery: spent genesis completes only through actual bound transition history; altered receipt preserves the advanced root and claim", { skip: SKIP }, async (t) => {
   const x = await setup(t), r = await x.signedRoot(), s = await x.lostResponse(r);
   await x.submit(r, s.rpc);
-  const q = await wr7.buildRootActionRequest({ config: x.cfg, rootCovenantId: r.rootCovenantId, action: "authorize", params: { fuel: x.H.fuelUtxoFor(x.c.fuelKey) }, signerAddress: x.H.ADDR(x.c.owner1) });
+  const q = await withFixtureNode(x.cfg, () => wr7.buildRootActionRequest({ config: x.cfg, rootCovenantId: r.rootCovenantId, action: "authorize", params: { fuel: seedFixtureFuel(x.cfg, x.H.fuelUtxoFor(x.c.fuelKey)) }, signerAddress: x.H.ADDR(x.c.owner1) }));
   await x.H.slotSign(x.cfg, q, 1, x.c.owner1); await x.H.slotSign(x.cfg, q, 2, x.c.owner2);
   const after = await wr7.loadOrgRootRequest(x.cfg, q.id);
   const fuelSignatureScriptHex = x.H.kaspa.createInputSignature(x.H.kaspa.Transaction.deserializeFromSafeJSON(q.transaction.unsignedSafeJson), after.build.frozen.inputs.length - 1, x.c.fuelKey);

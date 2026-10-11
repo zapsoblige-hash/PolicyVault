@@ -1,32 +1,41 @@
 "use strict";
 
-/* Request-scoped, observation-only recovery of retained v0.4.1 transitions.
+/* Request-scoped, observation-only recovery of retained v0.4-family transitions.
  * No signing, rebuilding, broadcast, new historical anchor, or negative inference.
- * A durable journal precedes advancement; a receipt and audit precede own-claim
- * cleanup; CHAIN_VERIFIED is the last write. The supported deployment has one
- * shared writer. This process lock is not a distributed submitter lock.
+ * RC45 F7 (plan r2 §2.6): it decides before it writes. A journal-free record
+ * that is not PENDING answers its own label with zero writes and node calls; a
+ * journal-free PENDING record is finished from a recorded advancement (no node
+ * call) or settled by the Verify settlement pass under the same lock; no
+ * journal is written and no claim is re-created. Journaled RC42/RC44 history
+ * keeps its journal path (claims are no longer re-created; its observation
+ * settles only at depth D). CHAIN_VERIFIED is the last write. The supported
+ * deployment has one shared writer. This process lock is not a distributed
+ * submitter lock.
  */
 const { createHash } = require("node:crypto");
 const { canonicalJsonStringify } = require("../../core/intent/canonical");
 const { getStore, Categories } = require("./store");
 const { assertOperationalNetwork, assertGenerationMainnetOperable } = require("./config");
-const { loadRequest, saveRequest, listVaultRequests, ROLE_BY_ACTION } = require("./wallet-requests-v4");
+const { loadRequest, saveRequest, listVaultRequests, ROLE_BY_ACTION, RequestState } = require("./wallet-requests-v4");
 const { withVaultIdentityLock } = require("./vault-identity");
 const { loadManifestV4, normalizeManifestV4 } = require("./manifest-v4");
-const { CONTRACT_VERSION_V4_1, computeStateIdV4, normalizeStateV4 } = require("./vault-state-v4");
+const { VaultStatus } = require("./manifest");
+const { CONTRACT_VERSION_V4, CONTRACT_VERSION_V4_1, computeStateIdV4, normalizeStateV4, normalizeTemplateV4 } = require("./vault-state-v4");
 const { canonicalFrozenTxJson, normalizeFrozenTxV3, describeFrozenTx } = require("./frozen-tx-v3");
 const { preflightAllInputs } = require("./vm-preflight");
 const { frozenScriptAddress } = require("./genesis-recovery");
-const { connectVerified, getAddressUtxos } = require("./chain");
+const { connectVerified, getAddressUtxos, getVirtualDaaScore, canonicalDaaScore } = require("./chain");
 const { recordedNegativeIsEstablished } = require("./submission-classification");
 const { transitionClaimKey } = require("./submission-claim");
 const { reservationKey, RESERVATION_SCHEMA } = require("./budget-reservation");
 const { appendAudit, readAudit } = require("./audit");
 const submit = require("./wallet-submit-v4");
+// Lazy import keeps this module's load order independent of the Verify pass.
+const reconcile = () => require("./reconcile-v4");
 
 const RECOVERY_SCHEMA = "policyvault-transition-recovery/v1";
 const HEX64 = /^[0-9a-f]{64}$/;
-const RECOVERABLE = new Set(["SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED", "SUBMISSION_REJECTED", "NOT_BROADCAST", "CHAIN_VERIFIED"]);
+const RECOVERABLE = new Set(["PREFLIGHT_VERIFIED", "SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED", "SUBMISSION_REJECTED", "NOT_BROADCAST", "CHAIN_VERIFIED"]);
 const plain = (x) => JSON.parse(JSON.stringify(x, (_k, v) => typeof v === "bigint" ? String(v) : v));
 function canonicalRecordFingerprint(record) {
   return createHash("sha256").update(canonicalJsonStringify(plain(record))).digest("hex");
@@ -35,55 +44,210 @@ const equal = (a, b) => canonicalRecordFingerprint(a) === canonicalRecordFingerp
 function fail(message, code = "TRANSITION_RECOVERY_REFUSED") {
   const error = new Error(`wallet-recovery-v4: ${message}`); error.code = code; throw error;
 }
-function isTransitionV41(r) {
-  return r?.schema === "policyvault-wallet-request/v4" && r.contractVersion === CONTRACT_VERSION_V4_1 &&
+function isTransitionV4(r) {
+  return r?.schema === "policyvault-wallet-request/v4" && [CONTRACT_VERSION_V4, CONTRACT_VERSION_V4_1].includes(r.contractVersion) &&
     (r.kind === undefined || r.kind === "transition") && Object.hasOwn(ROLE_BY_ACTION, r.action) &&
     r.sdkAction === (["addAgent", "removeAgent", "rotateAgent", "rePolicyAgent"].includes(r.action) ? "ownerSetAgentRoot" : r.action);
 }
 /* Ordinary vault reconciliation may neither infer rejection from a live
  * predecessor nor replace an unresolved historical transition with UNKNOWN.
  * The guard also covers pre-migration negative labels with no sound proof.
+ * RC45 F2 (plan r2 §2.0): the per-record predicate PENDING(r), extracted
+ * unchanged from the RC38/LEAD-5 vault-wide scan.
  */
+async function isPendingTransitionV4(config, r) {
+  // Protection covers the v4 request schema, including legacy or malformed
+  // version labels. Recovery support is validated separately; an unsupported
+  // record must never become permission to discard unresolved evidence.
+  if (r?.schema !== "policyvault-wallet-request/v4" || r.kind === "genesis") return false;
+  if (r.transitionRecovery) {
+    const j = r.transitionRecovery;
+    try { assertJournal(r, j, immutableBinding(r)); } catch { return true; }
+    if (j.schema !== RECOVERY_SCHEMA || j.phase !== "COMPLETE" || r.state !== "CHAIN_VERIFIED" ||
+        j.requestBinding !== immutableBinding(r) || !HEX64.test(j.expectedFingerprint ?? "") ||
+        !HEX64.test(j.expectedManifestFingerprint ?? "")) return true;
+    const receipt = await getStore(config).read(Categories.RECEIPT, r.txId);
+    const terminal = r.sdkAction === "ownerRecover";
+    const expected = {kind: terminal ? "recover" : "successor", index: terminal ? 0 : r.build?.frozen?.outputs?.findIndex((o) => o.covenant != null),
+      valueSompi: terminal ? r.build?.accounting?.terminalPayout : r.build?.accounting?.successorTotal};
+    if (!receiptMatches(receipt, r, expected, j.requestBinding)) return true;
+    if (await getStore(config).read(Categories.SUBMISSION_CLAIM, r.txId) ||
+        await getStore(config).read(Categories.TRANSITION_CLAIM, transitionClaimKey(r.predecessorOutpoint))) return true;
+    const events = await readAudit(config, {vaultId: r.vaultId, txId: r.txId, limit: 1000});
+    if (!events.some((e) => e.action === "transition_recovery_completed" && e.requestId === r.requestId &&
+        e.requestBinding === j.requestBinding && e.result === "CHAIN_VERIFIED")) return true;
+  }
+  // Older submission saved CHAIN_VERIFIED before its receipt. That label
+  // cannot bypass request recovery when completion was interrupted.
+  if (r.state === "CHAIN_VERIFIED" && !r.transitionRecovery) {
+    if (!HEX64.test(r.txId ?? "")) return true;
+    const receipt = await getStore(config).read(Categories.RECEIPT, r.txId);
+    if (receipt?.schema !== "policyvault-receipt/v1" || receipt.txId !== r.txId || receipt.vaultId !== r.vaultId || receipt.action !== r.action) return true;
+  }
+  // Inspected historical transition writers did not emit NOT_BROADCAST;
+  // an unexpected bare label is still protected, never trusted as proof.
+  // Finalization creates claims before submission. Retained signed bytes
+  // can still land out of band; generic reconciliation may not unlock them.
+  if (["SIGNED", "FINALIZED", "PREFLIGHT_VERIFIED", "SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED", "NOT_BROADCAST"].includes(r.state)) return true;
+  return r.state === "SUBMISSION_REJECTED" && !recordedNegativeIsEstablished(r);
+}
+// Self-exclusion is only for an ordinary unmarked build/finalize/submit.
+// A malformed lifecycle label must never hide its own protection journal,
+// and a record without a request id never matches an absent caller id.
+function selfExcluded(r, excludeRequestId) {
+  return excludeRequestId !== undefined && r?.requestId === excludeRequestId && !r.transitionRecovery &&
+    ["BUILT", "AWAITING_APPROVALS", "SIGNED", "FINALIZED", "PREFLIGHT_VERIFIED"].includes(r.state);
+}
 async function findProtectedTransitionV4(config, vaultId, { excludeRequestId } = {}) {
   for (const r of await listVaultRequests(config, vaultId)) {
-    if (r?.schema !== "policyvault-wallet-request/v4" || r.contractVersion !== CONTRACT_VERSION_V4_1 || r.kind === "genesis") continue;
-    // Self-exclusion is only for an ordinary unmarked build/finalize/submit.
-    // A malformed lifecycle label must never hide its own protection journal.
-    if (r.requestId === excludeRequestId && !r.transitionRecovery &&
-        ["BUILT", "AWAITING_APPROVALS", "SIGNED", "FINALIZED", "PREFLIGHT_VERIFIED"].includes(r.state)) continue;
-    if (r.transitionRecovery) {
-      const j = r.transitionRecovery;
-      try { assertJournal(r, j, immutableBinding(r)); } catch { return r; }
-      if (j.schema !== RECOVERY_SCHEMA || j.phase !== "COMPLETE" || r.state !== "CHAIN_VERIFIED" ||
-          j.requestBinding !== immutableBinding(r) || !HEX64.test(j.expectedFingerprint ?? "") ||
-          !HEX64.test(j.expectedManifestFingerprint ?? "")) return r;
-      const receipt = await getStore(config).read(Categories.RECEIPT, r.txId);
-      const terminal = r.sdkAction === "ownerRecover";
-      const expected = {kind: terminal ? "recover" : "successor", index: terminal ? 0 : r.build?.frozen?.outputs?.findIndex((o) => o.covenant != null),
-        valueSompi: terminal ? r.build?.accounting?.terminalPayout : r.build?.accounting?.successorTotal};
-      if (!receiptMatches(receipt, r, expected, j.requestBinding)) return r;
-      if (await getStore(config).read(Categories.SUBMISSION_CLAIM, r.txId) ||
-          await getStore(config).read(Categories.TRANSITION_CLAIM, transitionClaimKey(r.predecessorOutpoint))) return r;
-      const events = await readAudit(config, {vaultId: r.vaultId, txId: r.txId, limit: 1000});
-      if (!events.some((e) => e.action === "transition_recovery_completed" && e.requestId === r.requestId &&
-          e.requestBinding === j.requestBinding && e.result === "CHAIN_VERIFIED")) return r;
-    }
-    // Older submission saved CHAIN_VERIFIED before its receipt. That label
-    // cannot bypass request recovery when completion was interrupted.
-    if (r.state === "CHAIN_VERIFIED" && !r.transitionRecovery) {
-      if (!HEX64.test(r.txId ?? "")) return r;
-      const receipt = await getStore(config).read(Categories.RECEIPT, r.txId);
-      if (receipt?.schema !== "policyvault-receipt/v1" || receipt.txId !== r.txId || receipt.vaultId !== r.vaultId || receipt.action !== r.action) return r;
-    }
-    // Inspected historical transition writers did not emit NOT_BROADCAST;
-    // an unexpected bare label is still protected, never trusted as proof.
-    if (["SUBMITTING", "SUBMITTED", "RECONCILIATION_REQUIRED", "NOT_BROADCAST"].includes(r.state)) return r;
-    if (r.state === "SUBMISSION_REJECTED" && !recordedNegativeIsEstablished(r)) return r;
+    if (selfExcluded(r, excludeRequestId)) continue;
+    if (await isPendingTransitionV4(config, r)) return r;
   }
   return null;
 }
-async function assertNoProtectedTransitionV4(config, vaultId, options) {
-  if (await findProtectedTransitionV4(config, vaultId, options)) fail("vault has an unresolved transition; request-scoped recovery is required", "REQUEST_RECOVERY_REQUIRED");
+/* ON(r, o) is a blocking-only predicate (plan r2 §2.0, CR-L10): a missing or
+ * malformed predecessor outpoint counts as ON the live outpoint, never as
+ * elsewhere. Writes and contest membership need exact identity instead. */
+function onOutpoint(r, outpoint) {
+  const p = r?.predecessorOutpoint;
+  if (!p || typeof p !== "object" || Array.isArray(p) || Object.keys(p).sort().join() !== "index,transactionId" ||
+      typeof p.transactionId !== "string" || !HEX64.test(p.transactionId) || !Number.isSafeInteger(p.index) || p.index < 0) return true;
+  return p.transactionId === outpoint.transactionId && p.index === Number(outpoint.index);
+}
+/* RC45 F2 (plan r2 §2.1(2)-(3)): blocking is scoped to the live outpoint,
+ * never released or narrowed by age, absence or options.
+ *   - closed vault (no live state): the first vault-wide PENDING record
+ *     refuses every action, break-glass included (RC40: protected admission
+ *     authorizes no second recovery);
+ *   - live vault, owner break-glass (ownerPause / ownerRecover): never refused;
+ *   - otherwise: the first PENDING record ON the live outpoint whose txid
+ *     differs from the caller's (a same-txid twin is the same transaction and
+ *     never refuses it, CR-L14); a record elsewhere cannot compete, because
+ *     every build spends the live outpoint (H-23/24);
+ *   - claimCheck (ordinary builds): after the PENDING check, any transition
+ *     claim on the live outpoint refuses pre-sign (H-04/15/21, CR2-I8).
+ * The caller's txid is that of its own listed record (excludeRequestId); a
+ * build has none, so every PENDING record on the live outpoint refuses it.
+ * Read-only: returns null or {pending, record, claim}.
+ */
+async function findBlockingTransitionV4(config, vaultId, { excludeRequestId, breakGlass = false, claimCheck = false } = {}) {
+  const manifest = await loadManifestV4(config, vaultId);
+  const live = manifest?.live ?? null;
+  if (live && breakGlass === true) return null;
+  const requests = await listVaultRequests(config, vaultId);
+  if (!live) {
+    for (const r of requests) {
+      if (selfExcluded(r, excludeRequestId)) continue;
+      if (await isPendingTransitionV4(config, r)) return {pending: true, record: r, claim: null};
+    }
+    return null;
+  }
+  const own = excludeRequestId === undefined ? null : requests.find((r) => r?.requestId === excludeRequestId);
+  const ownTxId = HEX64.test(own?.txId ?? "") ? own.txId : null;
+  const claim = await getStore(config).read(Categories.TRANSITION_CLAIM, transitionClaimKey(live.outpoint));
+  for (const r of requests) {
+    if (own && r === own) continue;
+    if (ownTxId !== null && r?.txId === ownTxId) continue;
+    if (!onOutpoint(r, live.outpoint)) continue;
+    if (await isPendingTransitionV4(config, r)) return {pending: true, record: r, claim};
+  }
+  if (claimCheck === true && claim) {
+    const holder = HEX64.test(claim.txId ?? "") ? requests.find((r) => r?.txId === claim.txId) ?? null : null;
+    return {pending: false, record: holder, claim};
+  }
+  return null;
+}
+/* 422 REQUEST_RECOVERY_REQUIRED for a PENDING record, 409 CLAIM_CONFLICT for
+ * a pre-sign claim; error.extra names the blocking record and the claim on
+ * the live outpoint (plan r2 §2.1(2)). Nothing is written. */
+async function assertNoBlockingTransitionV4(config, vaultId, options) {
+  const blocking = await findBlockingTransitionV4(config, vaultId, options);
+  if (!blocking) return;
+  const {pending, record, claim} = blocking;
+  const error = new Error(pending
+    ? `wallet-recovery-v4: vault has an unresolved transition (request ${record.requestId ?? "unknown"}, ${record.state ?? "unknown"}); request-scoped recovery is required`
+    : `wallet-recovery-v4: the live outpoint is already claimed by transaction ${claim.txId ?? "unknown"}; no new request is built until that claim resolves`);
+  error.code = pending ? "REQUEST_RECOVERY_REQUIRED" : "CLAIM_CONFLICT";
+  // A claim without a listed holder is named by the claim's own action only.
+  const named = record ?? {action: claim?.action};
+  error.extra = {requestId: named.requestId ?? null, action: named.action ?? null, state: named.state ?? null,
+    signerRole: named.signerRole ?? null, claimTxId: claim?.txId ?? null};
+  throw error;
+}
+/* RC45 F3 (plan r2 §2.3 submit contest row; CR-H2, H-08, H-37): a submit is
+ * CONTESTED, returning right after its SUBMITTED save so that only Verify
+ * completes it at depth, when
+ *   - it is an ownerRecover (every recover, break-glass or not: nothing hosted
+ *     writes a terminal status at zero depth), or
+ *   - it is the owner's break-glass (`breakGlass`) and the claim on its
+ *     predecessor P names another txid (`foreignClaim`), or another-txid
+ *     request exactly on P is PENDING or not owner-signed (a BUILT, rejected or
+ *     closed delegate request counts: the delegate can still sign its bytes).
+ * Contest membership needs exact outpoint equality (CR-L10), never ON's
+ * missing-or-malformed rule; a same-txid twin is the same transaction. An
+ * ordinary submit is never contested. Read-only. */
+async function submitContestedV4(config, request, { breakGlass = false, foreignClaim = false } = {}) {
+  if (request.sdkAction === "ownerRecover") return true;
+  if (breakGlass !== true) return false;
+  if (foreignClaim === true) return true;
+  for (const r of await listVaultRequests(config, request.vaultId)) {
+    if (!r || r.requestId === request.requestId || r.txId === request.txId) continue;
+    if (!equal(r.predecessorOutpoint ?? null, request.predecessorOutpoint)) continue;
+    if (r.signerRole !== "owner" || await isPendingTransitionV4(config, r)) return true;
+  }
+  return false;
+}
+/* RC45 F2 (plan r2 §2.3 staleness row; H-35, CR-M5, CR2-L16, CR-L14): the
+ * finalize/submit verdict on the current manifest. A closed manifest is never
+ * a STALE label: 422 with no write (VAULT_TERMINAL when RECOVERED, otherwise
+ * RECONCILIATION_REQUIRED). A live manifest that differs by stateId OR outpoint
+ * (the stateId recurs after pause/unpause) makes the request STALE, unless the
+ * manifest was advanced by this request's own transaction (then 422, no write).
+ * Pure: returns null, {stale: true} or {refuse: code, message}. */
+function predecessorDispositionV4(manifest, request) {
+  if (!manifest?.live) {
+    if (manifest?.status === VaultStatus.RECOVERED) {
+      return {refuse: "VAULT_TERMINAL", message: `vault is ${manifest.status} (closed) — it is read-only history and accepts no further operations; nothing was written`};
+    }
+    return {refuse: "RECONCILIATION_REQUIRED", message: `${manifest ? `vault is ${manifest.status} with` : "the vault has"} no recorded live state; nothing was written — verify the vault state`};
+  }
+  if (manifest.live.stateId === request.predecessorStateId && equal(manifest.live.outpoint, request.predecessorOutpoint ?? null)) return null;
+  if (HEX64.test(request.txId ?? "") && manifest.latestTransitionTxId === request.txId) {
+    return {refuse: "RECONCILIATION_REQUIRED", message: "the vault was already advanced by this request's own transaction; nothing was written — verify the vault state"};
+  }
+  return {stale: true};
+}
+/* RC45 R1-06 (ST-03; K4): the finalize/submit receipt guard, run before the
+ * live-outpoint blocking check and predecessorDispositionV4. A receipt for
+ * request.txId that receiptMatches THIS request (proof.requestId, the expected
+ * outpoint and value) records its transaction as executed, so the request is
+ * never labelled STALE: 422 RECONCILIATION_REQUIRED with no write, whatever
+ * the staleness verdict, and Verify finishes it. Read-only, no node call; the
+ * expected outpoint and value come from the record as validateIdentity derives
+ * them, without a compile. Returns null or {refuse, message}. */
+async function ownReceiptRefusalV4(config, request) {
+  if (!HEX64.test(request?.txId ?? "") || typeof request.requestId !== "string") return null;
+  const receipt = await getStore(config).read(Categories.RECEIPT, request.txId);
+  if (receipt?.proof?.requestId !== request.requestId) return null;
+  const expected = recordedEffect(request);
+  if (!expected || !ownReceiptMatches(receipt, request, expected)) return null;
+  return {refuse: "RECONCILIATION_REQUIRED", message: "a completion receipt records this request's own transaction as executed; nothing was written — verify the vault state"};
+}
+/* The expected effect's outpoint index and value as the record fixes them
+ * (validateIdentity's derivation, no compile); null when the record does not
+ * carry them. */
+function recordedEffect(r) {
+  try {
+    if (r.sdkAction === "ownerRecover") {
+      const valueSompi = r.build.accounting.terminalPayout;
+      return typeof valueSompi === "string" ? {kind: "recover", index: 0, valueSompi} : null;
+    }
+    const index = normalizeFrozenTxV3(r.build.frozen).outputs.findIndex((o) => o.covenant !== null);
+    const s = r.build.successorState;
+    return index < 0 ? null : {kind: "successor", index, valueSompi: String(BigInt(s.protectedValue) + BigInt(s.feeReserve))};
+  } catch {
+    return null;
+  }
 }
 /* Bind all original fields, including signatures and build metadata. Only
  * the lifecycle label and this module's journal may change during recovery.
@@ -107,8 +271,39 @@ function assertJournal(r, journal, binding) {
 }
 
 function validateOriginal(config, r) {
-  if (!isTransitionV41(r) || !RECOVERABLE.has(r.state)) fail("request is not a recoverable v0.4.1 transition");
-  assertOperationalNetwork(config); assertGenerationMainnetOperable(config, r.contractVersion);
+  if (!isTransitionV4(r) || !RECOVERABLE.has(r.state)) fail("request is not a recoverable v0.4-family transition");
+  if (r.state === "PREFLIGHT_VERIFIED" && !r.finalTransaction) fail("preflight recovery requires the retained signed transaction");
+  return validateIdentity(config, r);
+}
+/* RC45 F5 (plan r2 §2.0 validateIdentity errors; CR-M2, CR2-L3): errors are
+ * classified by call site. Only assertOperationalNetwork, the compiler
+ * invocation, the VM preflight harness (vm-preflight.js runPreflight) and
+ * (RC45 R1-04, ST-01, C10) the pv_tx_probe harness failures of describeFrozenTx
+ * are environment errors, marked `environmentError`: the Verify settlement
+ * answers them with 422 and writes nothing. Of describeFrozenTx's throws only
+ * those frozen-tx-v3.js marks `harnessFailure` qualify (`isEnvironment`); a
+ * probe rejection or an invalid output shape stays a record error. Every other
+ * throw is record-dependent and excludes only that record. The marker changes
+ * no other caller's behaviour; a non-Error or non-extensible throw (e.g. a
+ * string from WASM) is carried in a new Error with the same message, so it is
+ * still marked. */
+function environmentStep(step, isEnvironment = () => true) {
+  try {
+    return step();
+  } catch (error) {
+    if (!isEnvironment(error)) throw error;
+    const marked = error instanceof Error && Object.isExtensible(error) ? error : new Error(String(error?.message ?? error));
+    marked.environmentError = true;
+    throw marked;
+  }
+}
+/* RC45 F4 (plan r2 §2.0 validateIdentity): validateOriginal without its state
+ * gate. The record's immutable identity is bound to its frozen transaction and
+ * its expected effect is derived; retained signed bytes are optional and are
+ * checked when present. Throws on any mismatch; never reads the store or chain. */
+function validateIdentity(config, r) {
+  if (!isTransitionV4(r)) fail("request is not a v0.4-family transition");
+  environmentStep(() => assertOperationalNetwork(config)); assertGenerationMainnetOperable(config, r.contractVersion);
   const b = r.build;
   if (r.networkId !== config.networkId || b?.networkId !== r.networkId || b?.contractVersion !== r.contractVersion ||
       b?.kind !== "transition" || b.action !== r.sdkAction || b.role !== r.signerRole ||
@@ -119,8 +314,15 @@ function validateOriginal(config, r) {
   const frozen = normalizeFrozenTxV3(b.frozen);
   if (canonicalFrozenTxJson(frozen) !== canonicalFrozenTxJson(JSON.parse(b.frozenCanonicalJson)) ||
       !equal(frozen.inputs[0].previousOutpoint, r.predecessorOutpoint) ||
-      String(frozen.inputs[0].utxo.covenantId) !== r.covenantId || describeFrozenTx(frozen).txId !== r.txId) fail("original frozen transaction differs");
-  const predecessor = submit.successorAddressAndScript(config, b.template, b.stateJson, r.contractVersion);
+      String(frozen.inputs[0].utxo.covenantId) !== r.covenantId ||
+      environmentStep(() => describeFrozenTx(frozen), (error) => error?.harnessFailure === true).txId !== r.txId) fail("original frozen transaction differs");
+  // The state and template are normalized first, so their record-shape throws
+  // stay record errors; only the compiler invocation itself is marked.
+  const compile = (stateJson) => {
+    normalizeStateV4(stateJson); normalizeTemplateV4(b.template);
+    return environmentStep(() => submit.successorAddressAndScript(config, b.template, stateJson, r.contractVersion));
+  };
+  const predecessor = compile(b.stateJson);
   if (computeStateIdV4({networkId: r.networkId, template: b.template, state: normalizeStateV4(b.stateJson), contractVersion: r.contractVersion}) !== r.predecessorStateId ||
       predecessor.address !== frozenScriptAddress(config, frozen.inputs[0].utxo.scriptPublicKey)) fail("original predecessor is not bound to its frozen script");
   let expected;
@@ -130,7 +332,7 @@ function validateOriginal(config, r) {
         frozenScriptAddress(config, frozen.outputs[0].scriptPublicKey) !== r.signerAddress) fail("terminal payout differs");
   } else {
     const index = frozen.outputs.findIndex((o) => o.covenant !== null);
-    const successor = submit.successorAddressAndScript(config, b.template, b.successorState, r.contractVersion);
+    const successor = compile(b.successorState);
     expected = {kind: "successor", txId: r.txId, index,
       valueSompi: String(BigInt(b.successorState.protectedValue) + BigInt(b.successorState.feeReserve)),
       covenantId: r.covenantId, address: successor.address, scriptSha256: successor.scriptSha256, stateId: r.successorStateId};
@@ -146,7 +348,7 @@ function validateOriginal(config, r) {
     const unsigned = plain(r.finalTransaction);
     for (const input of unsigned.inputs ?? []) delete input.signatureScript;
     if (canonicalFrozenTxJson(unsigned) !== canonicalFrozenTxJson(frozen)) fail("retained signed transaction changed immutable fields");
-    if (!preflightAllInputs(r.finalTransaction).valid) fail("retained transaction signatures or covenant execution are invalid");
+    if (!environmentStep(() => preflightAllInputs(r.finalTransaction)).valid) fail("retained transaction signatures or covenant execution are invalid");
     const tx = submit.finalTxToWasm(config, r.finalTransaction); tx.finalize();
     if (tx.id !== r.txId) fail("retained signed transaction id differs");
     signed = true;
@@ -154,6 +356,9 @@ function validateOriginal(config, r) {
   return {frozen, predecessor, expected, signed};
 }
 
+/* The transition claim's `expected` payload as finalize records it. RC45 F4
+ * (plan r2 §2.3 submit row, CR2-L7): submit re-creates a missing own claim with
+ * exactly this payload, so request-scoped recovery's claim check accepts it. */
 function expectedClaim(r, expected) {
   return expected.kind === "recover" ? {...expected, contractVersion: r.contractVersion} : {
     kind: "successor", txId: r.txId, index: expected.index, valueSompi: expected.valueSompi,
@@ -184,12 +389,8 @@ function ownsClaim(row, expected) {
 async function checkClaims(store, rows) {
   for (const [category, key, expected] of rows) if (!ownsClaim(await store.read(category, key), expected)) fail("a claim belongs to another attempt", "CLAIM_CONFLICT");
 }
-async function ensureClaims(store, rows) {
-  for (const [category, key, expected] of rows) {
-    if (await store.read(category, key) === null) await store.createExclusive(category, key, {...expected, createdAt: new Date().toISOString()});
-  }
-  await checkClaims(store, rows);
-}
+// RC45 F7 (plan r2 §2.6 steps 3 and 5, H-45): request-scoped recovery never
+// re-creates a claim; RC44's ensureClaims is deleted.
 async function ownReservation(store, r) {
   if (r.sdkAction !== "agentSpend") return null;
   const key = reservationKey({vaultId: r.vaultId, agentPk: r.agentPk, requestId: r.requestId});
@@ -211,6 +412,11 @@ function receiptMatches(receipt, r, expected, binding) {
     receipt.action === r.action && p?.requestId === r.requestId &&
     p.successorOutpoint === (expected.kind === "recover" ? null : `${r.txId}:${expected.index}`) && p.value === expected.valueSompi &&
     (p.requestBinding === undefined || p.requestBinding === binding);
+}
+/* RC45 R1-06 (K4, C2): receiptMatches bound to the record's own immutable
+ * binding (the receipt guard and Verify's receipt-matching finish). */
+function ownReceiptMatches(receipt, r, expected) {
+  return receiptMatches(receipt, r, expected, immutableBinding(r));
 }
 function exactAdvanced(m, r, expected) {
   if (m.latestTransitionTxId !== r.txId || !equal(m.template, r.build.template)) return false;
@@ -310,9 +516,66 @@ async function reconcileTransitionWalletRequestV4(args) {
   if (!initial) fail("request does not exist");
   return withVaultIdentityLock(initial.vaultId, () => reconcileUnlocked(args));
 }
+/* RC45 F7 (plan r2 §2.6 step 4; CR-L2, CR-L12, CR2-L10): a journal-free
+ * PENDING record after RC44's read-only checks. A manifest advanced by exactly
+ * this transaction is finished with no node call (finishRecordedV4: it is
+ * written only after a positive observation); otherwise the Verify settlement
+ * pass runs under the vault identity lock this call already holds. The answer
+ * is the record's own settled label (CHAIN_VERIFIED or STALE), else
+ * PROTECTED_UNRESOLVED. An observation or read failure of the pass (its 422
+ * RECONCILE_FAILED, or a failed or malformed node answer) is
+ * PROTECTED_UNRESOLVED with no further write; store and write errors
+ * propagate. No journal is written and no claim is re-created. */
+async function settleJournalFree(config, r, manifest, advanced, providedRpc) {
+  const pass = reconcile();
+  let result = null;
+  if (advanced) {
+    await pass.finishRecordedV4(config, manifest, await pass.listSettlementRequests(config, r.vaultId));
+  } else {
+    const owned = !providedRpc;
+    const {rpc} = owned ? await connectVerified(config) : {rpc: providedRpc};
+    try {
+      result = await pass.reconcileVaultV4Unlocked(config, r.vaultId, {rpc});
+    } catch (error) {
+      if (error?.observationError !== true && error?.code !== "RECONCILE_FAILED") throw error;
+      return {request: await loadRequest(config, r.requestId) ?? r, outcome: "PROTECTED_UNRESOLVED",
+        detail: error.observationError === true
+          ? "chain observation is unavailable; nothing further was written and the original data remains protected"
+          : `the Verify settlement pass could not decide (${error.message}); the original data remains protected`};
+    } finally { if (owned) await rpc.disconnect(); }
+  }
+  const fresh = await loadRequest(config, r.requestId);
+  if (fresh && !fresh.transitionRecovery && [RequestState.CHAIN_VERIFIED, RequestState.STALE].includes(fresh.state) &&
+      !(await isPendingTransitionV4(config, fresh))) {
+    return {request: fresh, outcome: fresh.state, detail: fresh.state === RequestState.STALE
+      ? "superseded by another transaction confirmed at the settlement depth; its own claims and reservation are released"
+      : advanced ? "the recorded advancement of this transaction is finished; no node call was needed"
+        : "the original effect is observed at the settlement depth and completed by the Verify settlement pass"};
+  }
+  return {request: fresh ?? r, outcome: "PROTECTED_UNRESOLVED", detail: advanced
+    ? "the recorded advancement of this transaction cannot finish this record; the original data remains protected"
+    : `not settled by the Verify settlement pass (${result?.status ?? "no answer"}); the original data remains protected`};
+}
+
 async function reconcileUnlocked({config, requestId, rpc: providedRpc, expectedFingerprint}) {
   let r = await loadRequest(config, requestId);
+  if (!r) fail("request does not exist");
   if (expectedFingerprint !== undefined && expectedFingerprint !== canonicalRecordFingerprint(r)) fail("selected request fingerprint changed", "REQUEST_FINGERPRINT_MISMATCH");
+  // RC45 F7 (plan r2 §2.6 step 2; RV-SRR-01 SR-A..SR-D): the pure disposition,
+  // before validation and before any write or node call. A non-transition or
+  // genesis record is refused; a journal-free record that is not PENDING is
+  // answered with its own label and nothing else happens. An unknown label is
+  // refused (fail closed), never reported as an outcome.
+  if (!isTransitionV4(r)) fail("request is not a v0.4-family transition");
+  if (!r.transitionRecovery && !(await isPendingTransitionV4(config, r))) {
+    if (!Object.values(RequestState).includes(r.state)) fail("request carries an unknown lifecycle label");
+    return {request: r, outcome: r.state, detail: [RequestState.BUILT, RequestState.AWAITING_APPROVALS].includes(r.state)
+      ? "no signed transaction is recorded for this request; nothing to recover"
+      : "already settled; nothing to recover"};
+  }
+  // Step 4 preconditions (CR-L12): RC44's read-only checks run unchanged, so a
+  // contested break-glass record fails closed at the claim check below (the
+  // predecessor claim is the delegate's) with zero writes; Verify completes it.
   const {frozen, predecessor, expected, signed} = validateOriginal(config, r);
   const binding = immutableBinding(r), store = getStore(config), rows = claimRows(r, expected);
   let journal = r.transitionRecovery;
@@ -343,15 +606,11 @@ async function reconcileUnlocked({config, requestId, rpc: providedRpc, expectedF
   const predecessorMatches = manifest.live?.stateId === r.predecessorStateId && equal(manifest.live.outpoint, r.predecessorOutpoint) &&
     manifest.live.covenantId === r.covenantId && manifest.live.scriptSha256 === predecessor.scriptSha256;
   const advanced = exactAdvanced(manifest, r, expected);
-  // Store protection before creating missing historical claims. A crash here
-  // still blocks ordinary reconcile and admission through the request guard.
-  if (!journal) {
-    journal = {schema: RECOVERY_SCHEMA, requestBinding: binding, originalState: r.state, phase: "PROTECTED",
-      claimFingerprints, reservationFingerprint: reservation ? canonicalRecordFingerprint(reservation.record) : null, startedAt: new Date().toISOString()};
-    r = {...r, state: "RECONCILIATION_REQUIRED", transitionRecovery: journal};
-    await saveRequest(config, r);
-  }
-  if (journal.phase === "PROTECTED") await ensureClaims(store, rows);
+  // RC45 F7 (plan r2 §2.6 step 5, H-45): journal-free records never get a
+  // protection journal, re-created claims or the unsigned exit.
+  if (!journal) return settleJournalFree(config, r, manifest, advanced, providedRpc);
+  // Step 3: journaled RC42/RC44 history keeps the RC44 path, minus claim
+  // re-creation, plus depth >= D on its observation.
   const unresolved = async (detail) => ({request: r, outcome: "PROTECTED_UNRESOLVED", detail});
   if (!signed) return unresolved("retained signed transaction is unavailable; original data and claims remain protected");
   if (!predecessorMatches && !advanced) return unresolved("current vault is unrelated or later; it has been preserved");
@@ -367,6 +626,9 @@ async function reconcileUnlocked({config, requestId, rpc: providedRpc, expectedF
     const owned = !providedRpc;
     const {rpc} = owned ? await connectVerified(config) : {rpc: providedRpc};
     try {
+      // RC45 F7 (plan r2 §2.6 step 3, §2.0 D): the virtual DAA score is read
+      // before the reads it judges; the effect settles only at depth >= D.
+      const vDaa = await getVirtualDaaScore(rpc);
       const observed = await submit.proveExpectedEffectV4(rpc, expected);
       // The queried address is not proof of the returned UTXO script. Bind
       // both actual script bytes and its explicit version to the signed output.
@@ -376,6 +638,13 @@ async function reconcileUnlocked({config, requestId, rpc: providedRpc, expectedF
       const refs = await getAddressUtxos(rpc, predecessor.address);
       const live = refs.some((u) => equal(u.outpoint, frozen.inputs[0].previousOutpoint));
       if (!effect || live) return unresolved(effect ? "effect and predecessor are both indexed; observation is inconclusive" : "exact original effect is not observed; absence does not prove rejection");
+      // RC45 R1-05 (ST-02; C4, K1): the effect is the judged entry. Its RAW
+      // blockDaaScore must be canonical, else the observation failed and
+      // nothing further is written; a score above vDaa is below depth.
+      const score = canonicalDaaScore(effect.blockDaaScoreRaw);
+      if (score === null) return unresolved("the node's blockDaaScore for the exact original effect is not a canonical DAA score; the observation failed and nothing further was written");
+      const depth = vDaa - score;
+      if (depth < reconcile().SETTLE_DEPTH_DAA) return unresolved(`exact original effect is observed below the settlement depth (${depth} of ${reconcile().SETTLE_DEPTH_DAA} DAA); nothing further was written`);
     } catch (_error) {
       return unresolved("chain observation is unavailable; original data and claims remain protected");
     } finally { if (owned) await rpc.disconnect(); }
@@ -429,4 +698,6 @@ async function reconcileUnlocked({config, requestId, rpc: providedRpc, expectedF
   return {request: r, outcome: "CHAIN_VERIFIED", detail: "original effect and completion bookkeeping verified"};
 }
 
-module.exports = {inspectForeignCompletedRecoveryV4, reconcileTransitionWalletRequestV4, findProtectedTransitionV4, assertNoProtectedTransitionV4, canonicalRecordFingerprint, RECOVERY_SCHEMA};
+module.exports = {inspectForeignCompletedRecoveryV4, reconcileTransitionWalletRequestV4, isPendingTransitionV4, findProtectedTransitionV4,
+  findBlockingTransitionV4, assertNoBlockingTransitionV4, submitContestedV4, predecessorDispositionV4, ownReceiptRefusalV4, ownReceiptMatches, validateIdentity,
+  expectedClaim, canonicalRecordFingerprint, exactAdvanced, onOutpoint, RECOVERY_SCHEMA};

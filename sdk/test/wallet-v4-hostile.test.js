@@ -39,8 +39,20 @@ const other = KEY(0x29);
 const approvers = [KEY(20), KEY(21), KEY(22)];
 const attacker = KEY(0x66);
 
-const VAULT_ID = "22".repeat(32);
-const template = { owner: XO(owner), vaultId: VAULT_ID };
+/* LEAD-5 (lane checkpoint 6ff4539; docs/postlaunch/lead5-reconciliation-remediation.md):
+ * a finalized (PREFLIGHT_VERIFIED) request is a PROTECTED unresolved
+ * transition — the pipeline refuses ANOTHER build/finalize attempt on that
+ * vault with REQUEST_RECOVERY_REQUIRED until request-scoped recovery resolves
+ * it. Every seed therefore opens a FRESH vault (the last byte increments; the
+ * first vault is the historical 22…22); the assertions are unchanged. */
+let vaultCounter = 0;
+let VAULT_ID = "22".repeat(32);
+let template = { owner: XO(owner), vaultId: VAULT_ID };
+function rotateVault() {
+  VAULT_ID = "22".repeat(31) + (0x22 + vaultCounter).toString(16).padStart(2, "0");
+  vaultCounter += 1;
+  template = { owner: XO(owner), vaultId: VAULT_ID };
+}
 
 function agentEntry(kp, recips, over = {}) {
   return {
@@ -54,6 +66,7 @@ const REGISTRY = [agentEntry(agentA, [recipient, other]), agentEntry(agentB, [ot
 
 let seedCounter = 0;
 async function seed(over = {}, registry = REGISTRY) {
+  if (!over.keepVault) rotateVault(); // keepVault: supersede the SAME vault's live state
   seedCounter += 1;
   const outTxId = seedCounter.toString(16).padStart(2, "0").repeat(32).slice(0, 64);
   const policies = registry.map((e) => normalizeAgentPolicyV4({ ...e, agentRecipientRoot: buildRecipientTree(e.recipients).root }));
@@ -81,15 +94,22 @@ async function buildSpend(signerKp = agentA, params = {}) {
 
 /* ---------------------------------------------------------- concurrency */
 
-test("G10 two-tab: two requests on one predecessor — only ONE finalizes; the second is CLAIM_CONFLICT", async () => {
+test("G10 two-tab: two requests on one predecessor — only ONE finalizes; the second is refused REQUEST_RECOVERY_REQUIRED (LEAD-5) and stays BUILT", async () => {
   await seed();
   const a = await buildSpend(agentA);
   const b = await buildSpend(agentA, { recipient: XO(other) });
   assert.notEqual(a.txId, b.txId);
   const doneA = await wr4.finalizeWalletRequestV4({ config, requestId: a.requestId, signedSafeJson: signAll(a, agentA) });
   assert.equal(doneA.state, "PREFLIGHT_VERIFIED");
-  // second transition on the SAME predecessor outpoint is refused
-  await assert.rejects(async () => wr4.finalizeWalletRequestV4({ config, requestId: b.requestId, signedSafeJson: signAll(b, agentA) }), (e) => e.code === "CLAIM_CONFLICT");
+  // LEAD-5: the finalized request is a PROTECTED unresolved transition — a
+  // second transition on the SAME vault is refused BEFORE any second claim
+  // (never two broadcastable packages); the duplicate stays BUILT and the
+  // first finalization stands.
+  await assert.rejects(async () => wr4.finalizeWalletRequestV4({ config, requestId: b.requestId, signedSafeJson: signAll(b, agentA) }), (e) => e.code === "REQUEST_RECOVERY_REQUIRED");
+  assert.equal((await wr4.loadRequest(config, b.requestId)).state, "BUILT", "the losing duplicate never finalized");
+  assert.equal((await wr4.loadRequest(config, a.requestId)).state, "PREFLIGHT_VERIFIED", "the first finalization stands");
+  // and no further build is admitted on the protected vault
+  await assert.rejects(async () => buildSpend(agentA), (e) => e.code === "REQUEST_RECOVERY_REQUIRED");
 });
 
 test("G10 crash/duplicate: finalizing the SAME request twice is refused by the state machine", async () => {
@@ -106,7 +126,7 @@ test("G10 stale: a request built against a superseded predecessor is STALE at fi
   // advance the manifest to a genuinely DIFFERENT live state (different
   // protected value => different stateId => the request's predecessor is
   // superseded).
-  await seed({ protectedKas: 900n });
+  await seed({ protectedKas: 900n, keepVault: true });
   await assert.rejects(async () => wr4.finalizeWalletRequestV4({ config, requestId: a.requestId, signedSafeJson: signAll(a, agentA) }), (e) => e.code === "STALE");
 });
 

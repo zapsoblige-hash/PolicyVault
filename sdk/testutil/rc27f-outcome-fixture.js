@@ -26,7 +26,13 @@ function outcomeRpc(x, { rejection = false, conflict = false, defect = null } = 
   };
   x.rpc.getBlockDagInfo = async () => ({ sink: hashes[attempted ? 1 : 0] });
   x.rpc.getMempoolEntry = async ({ transactionId }) => { throw Error(`Transaction ${transactionId} not found`); };
-  x.rpc.getVirtualChainFromBlock = async ({ startHash }) => ({ removedChainBlockHashes: [], addedChainBlockHashes: startHash === hashes[0] ? [hashes[1]] : [], acceptedTransactionIds: startHash === hashes[0] ? [{ acceptingBlockHash: hashes[1], acceptedTransactionIds: conflict && defect !== "unaccepted" ? [conflictId] : [] }] : [] });
+  /* R3N-B1a inventory: x.rpc carries the seam's selected-chain walk (sdk/testutil/guard-node.js chainWalk, installed by
+   * the case); the B1 runtime records the submit start as the sink's 20th selected parent (A_s) instead of the sink, so
+   * the window and the block scan modelled FROM hashes[0] (the submit-time sink) are answered from any start on
+   * hashes[0]'s walk too: the walk blocks above that start (they accept nothing), hashes[0], then hashes[0]'s window. */
+  const walk = require("./guard-node").chainWalkOf(x.rpc);
+  const above0 = (start) => { const s0 = String(start).toLowerCase(); if (s0 === hashes[0]) return []; const p = walk ? walk.pathAbove(s0) : null; return p && p.head === hashes[0] ? p.blocks : null; };
+  x.rpc.getVirtualChainFromBlock = async ({ startHash }) => { const pre = above0(startHash); return { removedChainBlockHashes: [], addedChainBlockHashes: pre !== null ? [...pre, hashes[1]] : [], acceptedTransactionIds: pre !== null ? [...pre.map((h) => ({ acceptingBlockHash: h, acceptedTransactionIds: [] })), { acceptingBlockHash: hashes[1], acceptedTransactionIds: conflict && defect !== "unaccepted" ? [conflictId] : [] }] : [] }; };
   const block = (index, confirmation = false) => {
     const transactions = index && conflict ? [{ ...structuredClone(body), verboseData: { transactionId: conflictId, blockHash: hashes[1] } }] : [];
     if (transactions.length) {
@@ -37,7 +43,12 @@ function outcomeRpc(x, { rejection = false, conflict = false, defect = null } = 
     }
     return { header: defect === "header" && index ? header(199n) : hs[index], verboseData: { hash: hashes[index], isChainBlock: true }, transactions };
   };
-  x.rpc.getBlocks = async () => ({ blockHashes: hashes, blocks: [block(0), block(1)] });
+  x.rpc.getBlocks = async ({ lowHash } = {}) => {
+    const pre = lowHash === undefined ? null : above0(lowHash);
+    if (pre === null || pre.length === 0) return { blockHashes: hashes, blocks: [block(0), block(1)] };
+    const low = String(lowHash).toLowerCase(), seam = [low, ...pre.slice(0, -1)];
+    return { blockHashes: [...seam, ...hashes], blocks: [...seam.map((h) => walk.view(h)), block(0), block(1)] };
+  };
   x.rpc.getBlock = async ({ hash }) => ({ block: block(hashes.indexOf(hash), true) });
   return { conflictId, hashes };
 }
